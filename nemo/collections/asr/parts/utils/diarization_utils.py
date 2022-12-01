@@ -12,51 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import copy
 import csv
 import json
 import os
-import math
-import copy
 from collections import OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple
 
 import numpy as np
+import torch
 
-from nemo.collections.asr.metrics.der import concat_perm_word_error_rate
+# , FrameBatchVAD
+from omegaconf import OmegaConf
+from sklearn.preprocessing import OneHotEncoder
+
+import nemo.collections.asr as nemo_asr
+from nemo.collections import nlp as nemo_nlp
+from nemo.collections.asr.metrics.der import (
+    concat_perm_word_error_rate,
+    get_online_DER_stats,
+    get_partial_ref_labels,
+    score_labels,
+)
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ClusteringDiarizer
+from nemo.collections.asr.models import ClusteringDiarizer, OnlineClusteringDiarizer
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import (
+    WERBPE_TS,
+    ASRDecoderTimeStamps,
+    FrameBatchASR_Logits,
+)
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_uniqname_from_filepath,
+    labels_to_pyannote_object,
     labels_to_rttmfile,
     rttm_to_labels,
     write_rttm2manifest,
 )
-from nemo.utils import logging
-
-from nemo.collections.asr.parts.utils.decoder_timestamps_utils import FrameBatchASR_Logits, WERBPE_TS, ASR_TIMESTAMPS, WER_TS
-from nemo.collections.asr.parts.utils.speaker_utils import get_contiguous_stamps, merge_stamps, labels_to_pyannote_object, rttm_to_labels, labels_to_rttmfile, get_uniqname_from_filepath, get_embs_and_timestamps, get_subsegments, isOverlap, getOverlapRange, getSubRangeList, fl2int, int2fl, combine_int_overlaps
-import torch
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
     get_vad_stream_status,
     prepare_manifest,
 )
-from nemo.collections.asr.models import OnlineDiarizer
-from nemo.collections import nlp as nemo_nlp
-import nemo.collections.asr as nemo_asr
-from typing import Dict, List, Tuple, Type, Union
-from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from sklearn.preprocessing import OneHotEncoder
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, StreamingFeatureBufferer
-# , FrameBatchVAD
-from omegaconf import OmegaConf
 
 try:
     import arpa
@@ -172,6 +175,7 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
     mix_hypothesis = " ".join(mix_hypothesis)
     return spk_hypothesis, mix_hypothesis
 
+
 def convert_word_dict_seq_to_ctm(
     word_dict_seq_list: List[Dict[str, float]], uniq_id: str = 'null', decimals: int = 3
 ) -> Tuple[List[str], str]:
@@ -208,6 +212,78 @@ def convert_word_dict_seq_to_ctm(
         ctm_line_str = f"{uniq_id} {spk} {stt} {dur} {word} {confidence}"
         ctm_lines.append(ctm_line_str)
     return ctm_lines
+
+
+def get_total_result_dict(
+    der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]], csv_columns: List[str],
+):
+    """
+    Merge WER results and DER results into a single dictionary variable.
+
+    Args:
+        der_results (dict):
+            Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
+            each session.
+        wer_results (dict):
+            Dictionary containing session-by-session WER and cpWER. `wer_results` only
+            exists when CTM files are provided.
+
+    Returns:
+        total_result_dict (dict):
+            Dictionary containing both DER and WER results. This dictionary contains unique-IDs of
+            each session and `total` key that includes average (cp)WER and DER/CER/Miss/FA values.
+    """
+    total_result_dict = {}
+    for uniq_id in der_results.keys():
+        if uniq_id == 'total':
+            continue
+        total_result_dict[uniq_id] = {x: "-" for x in csv_columns}
+        total_result_dict[uniq_id]["uniq_id"] = uniq_id
+        if uniq_id in der_results:
+            total_result_dict[uniq_id].update(der_results[uniq_id])
+        if uniq_id in wer_results:
+            total_result_dict[uniq_id].update(wer_results[uniq_id])
+    total_result_jsons = list(total_result_dict.values())
+    return total_result_jsons
+
+
+def get_audacity_label(word: str, stt_sec: float, end_sec: float, speaker: str) -> str:
+    """
+    Get a string formatted line for Audacity label.
+
+    Args:
+        word (str):
+            A decoded word
+        stt_sec (float):
+            Start timestamp of the word
+        end_sec (float):
+            End timestamp of the word
+
+    Returns:
+        speaker (str):
+            Speaker label in string type
+    """
+    spk = speaker.split('_')[-1]
+    return f'{stt_sec}\t{end_sec}\t[{spk}] {word}'
+
+
+def get_num_of_spk_from_labels(labels: List[str]) -> int:
+    """
+    Count the number of speakers in a segment label list.
+    Args:
+        labels (list):
+            List containing segment start and end timestamp and speaker labels.
+
+            Example:
+            >>> labels = ["15.25 21.82 speaker_0", "21.18 29.51 speaker_1", ... ]
+
+    Returns:
+        n_spk (int):
+            The number of speakers in the list `labels`
+
+    """
+    spk_set = [x.split(' ')[-1].strip() for x in labels]
+    return len(set(spk_set))
 
 
 class OfflineDiarWithASR:
@@ -250,6 +326,7 @@ class OfflineDiarWithASR:
         color_palette (dict):
             Dictionary containing the ANSI color escape codes for each speaker label (speaker index)
     """
+
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
         self.params = cfg_diarizer.asr.parameters
@@ -269,22 +346,30 @@ class OfflineDiarWithASR:
         self.is_streaming = False
         self.frame_VAD = {}
 
+        self.color_palette = self.get_color_palette()
+        self.csv_columns = self.get_csv_columns()
         self.make_file_lists()
 
-        self.color_palette = {
-                              'speaker_0': '\033[1;30m',
-                              'speaker_1': '\033[1;34m',
-                              'speaker_2': '\033[1;32m',
-                              'speaker_3': '\033[1;35m',
-                              'speaker_4': '\033[1;31m',
-                              'speaker_5': '\033[1;36m',
-                              'speaker_6': '\033[1;37m',
-                              'speaker_7': '\033[1;30m',
-                              'speaker_8': '\033[1;33m',
-                              'speaker_9': '\033[0;34m',
-                              'white': '\033[0;37m'}
 
-        self.csv_columns = [
+    @staticmethod
+    def get_color_palette() -> Dict[str, str]:
+        return {
+            'speaker_0': '\033[1;32m',
+            'speaker_1': '\033[1;34m',
+            'speaker_2': '\033[1;30m',
+            'speaker_3': '\033[1;31m',
+            'speaker_4': '\033[1;35m',
+            'speaker_5': '\033[1;36m',
+            'speaker_6': '\033[1;37m',
+            'speaker_7': '\033[1;30m',
+            'speaker_8': '\033[1;33m',
+            'speaker_9': '\033[0;34m',
+            'white': '\033[0;37m',
+        }
+
+    @staticmethod
+    def get_csv_columns() -> List[str]:
+        return [
             'uniq_id',
             'DER',
             'CER',
@@ -329,19 +414,6 @@ class OfflineDiarWithASR:
         self.stt_end_tokens = ['</s>', '<s>']
         logging.info(f"Loading LM for realigning: {self.realigning_lm_params['arpa_language_model']}")
         return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
-    
-    def load_punctuation_model(self):
-        """
-        Load punctuation model in .nemo format or model name on NGC.
-        """
-        self.punctuation_model_path = self.cfg_diarizer['asr']['parameters']['punctuation_model_path']
-        if self.punctuation_model_path is not None:
-            if '.nemo' in self.punctuation_model_path.lower():
-                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(self.punctuation_model_path)
-            else:
-                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(self.punctuation_model_path)
-        else:
-            self.punctuation_model = None
 
     def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
         """
@@ -382,15 +454,20 @@ class OfflineDiarWithASR:
         """
         self.VAD_RTTM_MAP = {}
         for idx, (uniq_id, word_timestamps) in enumerate(word_ts_dict.items()):
-            speech_labels_float = self._get_speech_labels_from_decoded_prediction(word_timestamps)
-            speech_labels = self._get_str_speech_labels(speech_labels_float)
+            speech_labels_float = self.get_speech_labels_from_decoded_prediction(
+                word_timestamps, self.nonspeech_threshold
+            )
+            speech_labels = self.get_str_speech_labels(speech_labels_float)
             output_path = os.path.join(self.root_path, 'pred_rttms')
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
             filename = labels_to_rttmfile(speech_labels, uniq_id, output_path)
             self.VAD_RTTM_MAP[uniq_id] = {'audio_filepath': self.audio_file_list[idx], 'rttm_filepath': filename}
 
-    def _get_speech_labels_from_decoded_prediction(self, input_word_ts: List[float]) -> List[float]:
+    @staticmethod
+    def get_speech_labels_from_decoded_prediction(
+        input_word_ts: List[float], nonspeech_threshold: float,
+    ) -> List[float]:
         """
         Extract speech labels from the ASR output (decoded predictions)
 
@@ -410,7 +487,7 @@ class OfflineDiarWithASR:
             count = len(word_ts) - 1
             while count > 0:
                 if len(word_ts) > 1:
-                    if word_ts[count][0] - word_ts[count - 1][1] <= self.nonspeech_threshold:
+                    if word_ts[count][0] - word_ts[count - 1][1] <= nonspeech_threshold:
                         trangeB = word_ts.pop(count)
                         trangeA = word_ts.pop(count - 1)
                         word_ts.insert(count - 1, [trangeA[0], trangeB[1]])
@@ -480,8 +557,13 @@ class OfflineDiarWithASR:
                     frame_vad_float_list.append(float(line.strip()))
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
+    @staticmethod
     def gather_eval_results(
-        self, metric, mapping_dict: Dict[str, str], trans_info_dict: Dict[str, Dict[str, float]], decimals: int = 4
+        diar_score,
+        audio_rttm_map_dict: Dict[str, Dict[str, str]],
+        trans_info_dict: Dict[str, Dict[str, float]],
+        root_path: str,
+        decimals: int = 4,
     ) -> Dict[str, Dict[str, float]]:
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
@@ -501,23 +583,22 @@ class OfflineDiarWithASR:
             der_results (dict):
                 Dictionary containing scores for each audio file along with aggregated results
         """
+        metric, mapping_dict, _ = diar_score
         results = metric.results_
         der_results = {}
         count_correct_spk_counting = 0
         for result in results:
             key, score = result
-            if pred_labels is None:
-                pred_rttm = os.path.join(self.root_path, 'pred_rttms', key + '.rttm')
-                pred_labels = rttm_to_labels(pred_rttm)
+            if 'hyp_rttm_filepath' in audio_rttm_map_dict[key]:
+                pred_rttm = audio_rttm_map_dict[key]['hyp_rttm_filepath']
+            else:
+                pred_rttm = os.path.join(root_path, 'pred_rttms', key + '.rttm')
+            pred_labels = rttm_to_labels(pred_rttm)
 
-            ref_rttm = self.AUDIO_RTTM_MAP[key]['rttm_filepath']
+            ref_rttm = audio_rttm_map_dict[key]['rttm_filepath']
             ref_labels = rttm_to_labels(ref_rttm)
-            ref_n_spk = self.get_num_of_spk_from_labels(ref_labels)
-            est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
-
-            if self.cfg_diarizer['oracle_vad']:
-                score['missed detection'] = 0
-                score['false alarm'] = 0
+            ref_n_spk = get_num_of_spk_from_labels(ref_labels)
+            est_n_spk = get_num_of_spk_from_labels(pred_labels)
 
             _DER, _CER, _FA, _MISS = (
                 (score['confusion'] + score['false alarm'] + score['missed detection']) / score['total'],
@@ -536,18 +617,6 @@ class OfflineDiarWithASR:
                 "mapping": mapping_dict[key],
             }
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
-        
-        if metric['total'] > 0.01: 
-            DER, CER, FA, MISS = (
-                abs(metric),
-                metric['confusion'] / metric['total'],
-                metric['false alarm'] / metric['total'],
-                metric['missed detection'] / metric['total'],
-            )
-            speaker_counting_acc = count_correct_spk_counting / len(metric.results_)
-        else:
-            DER, CER, FA, MISS = 100, 100, 100, 100
-            speaker_counting_acc = 0.0
 
         DER, CER, FA, MISS = (
             abs(metric),
@@ -560,7 +629,7 @@ class OfflineDiarWithASR:
             "CER": CER,
             "FA": FA,
             "MISS": MISS,
-            "spk_counting_acc": speaker_counting_acc,
+            "spk_counting_acc": count_correct_spk_counting / len(metric.results_),
         }
 
         return der_results
@@ -640,7 +709,6 @@ class OfflineDiarWithASR:
             enhanced_word_ts_dict[uniq_id] = enhanced_word_ts_buffer
         return enhanced_word_ts_dict
 
-
     def get_transcript_with_speaker_labels(
         self, diar_hyp: Dict[str, List[str]], word_hyp: Dict[str, List[str]], word_ts_hyp: Dict[str, List[float]]
     ) -> Dict[str, Dict[str, float]]:
@@ -676,7 +744,7 @@ class OfflineDiarWithASR:
         trans_info_dict = {}
         if self.fix_word_ts_with_VAD:
             if self.frame_VAD == {}:
-                logging.info(
+                logging.warning(
                     f"VAD timestamps are not provided. Fixing word timestamps without VAD. Please check the hydra configurations."
                 )
             word_ts_refined = self._compensate_word_ts_list(self.audio_file_list, word_ts_hyp)
@@ -832,7 +900,7 @@ class OfflineDiarWithASR:
         sentences, terms_list = [], []
         sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
 
-        n_spk = self.get_num_of_spk_from_labels(diar_labels)
+        n_spk = get_num_of_spk_from_labels(diar_labels)
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
         session_trans_dict = self._init_session_trans_dict(uniq_id=uniq_id, n_spk=n_spk)
         gecko_dict = self._init_session_gecko_dict()
@@ -851,12 +919,8 @@ class OfflineDiarWithASR:
                 # remove trailing space in text
                 sentence['text'] = sentence['text'].strip()
 
-                if self.punctuation_model and self.offline_mode:
-                    sentence['text'] = ' '.join(self.punctuate_words(sentence['text'].split()))
-                
-                # store the current sentence
-                if len(sentence['text']) > 0:
-                    sentences.append(sentence)
+                # store last sentence
+                sentences.append(sentence)
 
                 # start construction of a new sentence
                 sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
@@ -867,9 +931,10 @@ class OfflineDiarWithASR:
             stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
 
+            # add current word to sentence
             sentence['text'] += word.strip() + ' '
 
-            audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
+            audacity_label_words.append(get_audacity_label(word, stt_sec, end_sec, speaker))
             prev_speaker = speaker
 
         session_trans_dict['words'] = word_dict_seq_list
@@ -877,15 +942,15 @@ class OfflineDiarWithASR:
         # note that we need to add the very last sentence.
         sentence['text'] = sentence['text'].strip()
         sentences.append(sentence)
-
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
         # Speaker independent transcription
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
         # add sentences to transcription information dict
         session_trans_dict['sentences'] = sentences
+        
         if not self.is_streaming:
-            self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
+            self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
     def _get_realignment_ranges(self, k: int, word_seq_len: int) -> Tuple[int, int]:
@@ -945,9 +1010,9 @@ class OfflineDiarWithASR:
                 f"word_ts_anchor_pos: {self.params['word_ts_anchor']} is not a supported option. Using the default 'start' option."
             )
             word_pos = word_ts_stt_end[0]
+
         word_pos = word_pos + self.word_ts_anchor_offset
         return word_pos
-    
 
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]) -> List[Dict[str, float]]:
         """
@@ -1003,14 +1068,28 @@ class OfflineDiarWithASR:
             realigned_list.append(line_dict)
         return realigned_list
 
-    def evaluate(self, trans_info_dict: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+    @staticmethod
+    def evaluate(
+        audio_file_list: List[str],
+        hyp_trans_info_dict: Dict[str, Dict[str, float]],
+        hyp_ctm_file_list: List[str] = None,
+        ref_ctm_file_list: List[str] = None,
+    ) -> Dict[str, Dict[str, float]]:
         """
         Evaluate the result transcripts based on the provided CTM file. WER and cpWER are calculated to assess
         the performance of ASR system and diarization at the same time.
 
         Args:
-            trans_info_dict (dict):
-                Dictionary containing overall results of diarization and ASR inference from all sessions.
+            audio_file_list (list):
+                List containing file path to the input audio files.
+            hyp_trans_info_dict (dict):
+                Dictionary containing the hypothesis transcriptions for all sessions.
+            hyp_ctm_file_list (list):
+                List containing file paths of the hypothesis transcriptions in CTM format for all sessions.
+            ref_ctm_file_list (list):
+                List containing file paths of the reference transcriptions in CTM format for all sessions.
+
+            Note: Either `hyp_trans_info_dict` or `hyp_ctm_file_list` should be provided.
 
         Returns:
             wer_results (dict):
@@ -1018,15 +1097,30 @@ class OfflineDiarWithASR:
         """
         wer_results = {}
 
-        if self.ctm_exists:
+        if ref_ctm_file_list is not None:
             spk_hypotheses, spk_references = [], []
             mix_hypotheses, mix_references = [], []
             WER_values, uniq_id_list = [], []
 
-            for (audio_file_path, ctm_file_path) in zip(self.audio_file_list, self.ctm_file_list):
+            for k, (audio_file_path, ctm_file_path) in enumerate(zip(audio_file_list, ref_ctm_file_list)):
                 uniq_id = get_uniqname_from_filepath(audio_file_path)
                 uniq_id_list.append(uniq_id)
-                spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(trans_info_dict[uniq_id]['words'])
+                if uniq_id != get_uniqname_from_filepath(ctm_file_path):
+                    raise ValueError("audio_file_list has mismatch in uniq_id with ctm_file_path")
+
+                # Either hypothesis CTM file or hyp_trans_info_dict should be provided
+                if hyp_ctm_file_list is not None:
+                    if uniq_id == get_uniqname_from_filepath(hyp_ctm_file_list[k]):
+                        spk_hypothesis, mix_hypothesis = convert_ctm_to_text(hyp_ctm_file_list[k])
+                    else:
+                        raise ValueError("Hypothesis CTM files are provided but uniq_id is mismatched")
+                elif hyp_trans_info_dict is not None and uniq_id in hyp_trans_info_dict:
+                    spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(
+                        hyp_trans_info_dict[uniq_id]['words']
+                    )
+                else:
+                    raise ValueError("Hypothesis information is not provided in the correct format.")
+
                 spk_reference, mix_reference = convert_ctm_to_text(ctm_file_path)
 
                 spk_hypotheses.append(spk_hypothesis)
@@ -1052,7 +1146,8 @@ class OfflineDiarWithASR:
 
         return wer_results
 
-    def _get_str_speech_labels(self, speech_labels_float: List[List[float]]) -> List[str]:
+    @staticmethod
+    def get_str_speech_labels(speech_labels_float: List[List[float]]) -> List[str]:
         """
         Convert floating point speech labels list to a list containing string values.
 
@@ -1067,8 +1162,13 @@ class OfflineDiarWithASR:
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
         return speech_labels
 
+    @staticmethod
     def write_session_level_result_in_csv(
-        self, der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]]
+        der_results: Dict[str, Dict[str, float]],
+        wer_results: Dict[str, Dict[str, float]],
+        root_path: str,
+        csv_columns: List[str],
+        csv_file_name: str = "ctm_eval.csv",
     ):
         """
         This function is for development use when a CTM file is provided.
@@ -1079,49 +1179,18 @@ class OfflineDiarWithASR:
                 Dictionary containing session-by-session results of ASR and diarization in terms of
                 WER and cpWER.
         """
-        target_path = f"{self.root_path}/pred_rttms/ctm_eval.csv"
-        logging.info(f"Writing {target_path}")
-        total_result_jsons = self.get_total_result_dict(der_results, wer_results)
+        target_path = f"{root_path}/pred_rttms"
+        os.makedirs(target_path, exist_ok=True)
+        logging.info(f"Writing {target_path}/{csv_file_name}")
+        total_result_jsons = get_total_result_dict(der_results, wer_results, csv_columns)
         try:
-            with open(target_path, 'w') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=self.csv_columns)
+            with open(f"{target_path}/{csv_file_name}", 'w') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
                 writer.writeheader()
                 for data in total_result_jsons:
                     writer.writerow(data)
         except IOError:
             logging.info("I/O error has occurred while writing a csv file.")
-
-    def get_total_result_dict(
-        self, der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]]
-    ):
-        """
-        Merge WER results and DER results into a single dictionary variable.
-
-        Args:
-            der_results (dict):
-                Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
-                each session.
-            wer_results (dict):
-                Dictionary containing session-by-session WER and cpWER. `wer_results` only
-                exists when CTM files are provided.
-
-        Returns:
-            total_result_dict (dict):
-                Dictionary containing both DER and WER results. This dictionary contains unique-IDs of
-                each session and `total` key that includes average (cp)WER and DER/CER/Miss/FA values.
-        """
-        total_result_dict = {}
-        for uniq_id in der_results.keys():
-            if uniq_id == 'total':
-                continue
-            total_result_dict[uniq_id] = {x: "-" for x in self.csv_columns}
-            total_result_dict[uniq_id]["uniq_id"] = uniq_id
-            if uniq_id in der_results:
-                total_result_dict[uniq_id].update(der_results[uniq_id])
-            if uniq_id in wer_results:
-                total_result_dict[uniq_id].update(wer_results[uniq_id])
-        total_result_jsons = list(total_result_dict.values())
-        return total_result_jsons
 
     def _break_lines(self, string_out: str, max_chars_in_line: int = 90) -> str:
         """
@@ -1155,7 +1224,7 @@ class OfflineDiarWithASR:
         return_string_out = '\n'.join(return_string_out)
         return return_string_out
 
-    def write_and_log(
+    def _write_and_log(
         self,
         uniq_id: str,
         session_trans_dict: Dict[str, Dict[str, float]],
@@ -1184,13 +1253,16 @@ class OfflineDiarWithASR:
             string_out = self._break_lines(string_out)
 
         session_trans_dict["status"] = "success"
+        ctm_lines_list = convert_word_dict_seq_to_ctm(session_trans_dict['words'])
 
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', session_trans_dict)
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
+        write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.ctm', '\n'.join(ctm_lines_list))
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
-    def print_errors(self, der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]]):
+    @staticmethod
+    def print_errors(der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]]):
         """
         Print a slew of error metrics for ASR and Diarization.
 
@@ -1207,7 +1279,7 @@ class OfflineDiarWithASR:
                      \nMISS               : {der_results['total']['MISS']:.4f} \
                      \nCER                : {der_results['total']['CER']:.4f} \
                      \nSpk. counting acc. : {der_results['total']['spk_counting_acc']:.4f}"
-        if self.ctm_exists:
+        if wer_results is not None and len(wer_results) > 0:
             logging.info(
                 DER_info
                 + f"\ncpWER              : {wer_results['total']['average_cpWER']:.4f} \
@@ -1215,7 +1287,6 @@ class OfflineDiarWithASR:
             )
         else:
             logging.info(DER_info)
-        self.write_session_level_result_in_csv(der_results, wer_results)
 
     def print_sentences(self, sentences: List[Dict[str, float]]):
         """
@@ -1313,10 +1384,12 @@ def timeit(method):
             name = kw.get('log_name', method.__name__.upper())
             kw['log_time'][name] = int((te - ts) * 1000)
         else:
-            logging.info('%2.2fms %r'%((te - ts) * 1000, method.__name__))
+            logging.info('%2.2fms %r' % ((te - ts) * 1000, method.__name__))
             # pass
         return result
+
     return timed
+
 
 def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=2147483647):
     """
@@ -1337,13 +1410,14 @@ def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=214
             Numpy array containing timeseries data of the input audio stream.
     """
     if type(input_data) == tuple:
-        data = (input_data[1]/MAX_INT32).astype(np.float32)
+        data = (input_data[1] / MAX_INT32).astype(np.float32)
         data = librosa.resample(data, orig_sr=orig_sr, target_sr=target_sr)
     else:
         raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
     return data
 
-def add_timestamp_offset(words, word_ts, offset): 
+
+def add_timestamp_offset(words, word_ts, offset):
     words_adj, word_ts_adj = [], []
     for w, x in zip(words, word_ts):
         word_range = [round(x[0] + offset,2), round(x[1] + offset,2)] 
@@ -1352,10 +1426,11 @@ def add_timestamp_offset(words, word_ts, offset):
             words_adj.append(w)
     return words_adj, word_ts_adj
 
-from nemo.collections.asr.metrics.der import score_labels, get_partial_ref_labels, get_online_DER_stats
 
 @timeit
-def get_wer_feat_logit_single(feat_buffer, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
+def get_wer_feat_logit_single(
+    samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask
+):
     """
     Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
@@ -1369,11 +1444,13 @@ def get_wer_feat_logit_single(feat_buffer, frame_asr, frame_len, tokens_per_chun
     tokens_list.append(tokens)
     return hyps, tokens_list, features.shape, log_prob
 
+
 class MaskedFeatureIterator(AudioFeatureIterator):
     def __init__(self, samples, frame_len, preprocessor, device, frame_mask=None):
         super().__init__(samples, frame_len, preprocessor, device)
         if frame_mask is not None:
             self._features = torch.log(torch.mul(np.exp(1) ** self._features, frame_mask.to(device)))
+
 
 class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
     """
@@ -1387,12 +1464,13 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         self.frame_len = frame_len
         self.total_buffer = total_buffer
         self.batch_size = batch_size
-    
+
     def buffer_reset(self):
         self.clear_buffer()
         self.reset()
 
-class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
+
+class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
     def __init__(self, cfg):
         super().__init__(cfg.diarizer)
         '''
@@ -1402,7 +1480,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             frame_overlap (int)
                 duration of overlaps before and after current frame, seconds
         '''
-        self.diar = OnlineDiarizer(cfg)
+        self.diar = OnlineClusteringDiarizer(cfg)
         self.offline_mode = False
         self._cfg_diarizer = cfg.diarizer
         self.audio_queue_buffer = np.array([])
@@ -1418,12 +1496,12 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         if self.use_cuda:
             self.device = torch.device("cuda:0")
             self.cuda = True
-        else: 
+        else:
             self.device = torch.device("cpu")
             self.cuda = False
 
         self.metric = None
-        
+
         self._init_asr_params()
         self._init_asr_model()
         self._init_streaming_buffer_params()
@@ -1434,35 +1512,51 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
 
     def _init_asr_params(self):
-        # ASR parameters
+        """
+        Initialize ASR parameters based on hydra config.
+
+        Attributes:
+            frame_len (float):
+            frame_overlap (float):
+            word_ts_anchor_offset (float):
+            max_word_ts_length_in_sec (float):
+            asr_based_vad_threshold (float):
+            asr_batch_size (int):
+            word_update_margin (float):
+            decimals (int):
+        """
         self.frame_len = float(self._cfg_diarizer.asr.parameters.frame_len)
         self.frame_overlap = float(self._cfg_diarizer.asr.parameters.frame_overlap)
         self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
         self.max_word_ts_length_in_sec = self._cfg_diarizer.asr.parameters.max_word_ts_length_in_sec
         self.asr_based_vad_threshold = self._cfg_diarizer.asr.parameters.asr_based_vad_threshold
-        self.asr_batch_size = 1 # Streaming mode requires only one batch
-        self.word_update_margin = 0.0  
-        self.ROUND = 2
-    
+        self.asr_batch_size = 1  # Streaming mode requires only one batch
+        self.word_update_margin = 0.0
+        self.decimals = 2
+
     def _init_asr_model(self):
-        # Model initializations
+        """
+        Model initializations
+
+        Attributes:
+            asr_model (NeMo ASR models):
+        """
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self._init_FrameBatchASR()
-        self.load_punctuation_model()
         self._init_diar_eval_variables()
 
     def _init_streaming_buffer_params(self):
-        # Streaming buffer parameters
-        self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
+        """
+        Streaming buffer parameters
+        """
+        self.CHUNK_SIZE = int(self.frame_len * self.sample_rate)
         self.n_frame_len = int(self.frame_len * self.sample_rate)
         self.n_frame_overlap = int(self.frame_overlap * self.sample_rate)
-        self.audio_buffer = np.zeros(shape=2*self.n_frame_overlap + self.n_frame_len,
-                               dtype=np.float32)
+        self.audio_buffer = np.zeros(shape=2 * self.n_frame_overlap + self.n_frame_len, dtype=np.float32)
         self.audio_buffer_length = self.audio_buffer.shape[0]
-        self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
+        self.overlap_frames_count = int(self.n_frame_overlap / self.sample_rate)
 
-        
     def get_audio_rttm_map(self, uniq_id):
         self.uniq_id = uniq_id
         self.AUDIO_RTTM_MAP = {self.uniq_id: self.AUDIO_RTTM_MAP[uniq_id]}
@@ -1473,7 +1567,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             self.vad_model = nemo_asr.models.EncDecClassificationModel.restore_from(self._cfg_diarizer.vad.model_path)
             self.vad_model = self.vad_model.to(self.device)
             self.vad_model.eval()
-    
+
     def _init_diar_eval_variables(self):
         self.diar_eval_count = 0
         self.der_dict = {}
@@ -1484,27 +1578,26 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         """
         Stitch the existing word sequence in the buffer with the new word sequence.
         """
-        update_margin =  -1* float(self.frame_len * self.word_update_margin)
+        update_margin = -1 * float(self.frame_len * self.word_update_margin)
         if len(self.word_seq) == 0:
             self.word_seq.extend(words)
             self.word_ts_seq.extend(word_timetamps)
 
         elif len(words) > 0:
-            # print("words:", words) 
             # Find the first word that starts after frame_start point in state buffer self.word_seq
-            before_frame_start_old = torch.tensor(self.word_ts_seq)[:,0] < self.frame_start + update_margin
+            before_frame_start_old = torch.tensor(self.word_ts_seq)[:, 0] < self.frame_start + update_margin
             if all(before_frame_start_old):
                 old_end = len(self.word_seq)
             else:
                 old_end = torch.where(before_frame_start_old == False)[0][0].item()
-            
+
             # Find the first word that starts after frame_start point in incoming words
-            before_frame_start_new = torch.tensor(word_timetamps)[:,0] < self.frame_start + update_margin
+            before_frame_start_new = torch.tensor(word_timetamps)[:, 0] < self.frame_start + update_margin
             if all(before_frame_start_new):
                 new_stt = len(word_timetamps)
             else:
                 new_stt = torch.where(before_frame_start_new == False)[0][0].item()
-            
+
             del self.word_seq[old_end:]
             del self.word_ts_seq[old_end:]
             self.word_seq.extend(words[new_stt:])
@@ -1535,7 +1628,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         word_ts_hyp = {uniq_id: self.word_ts_seq}
         metric_results = [(uniq_id, self.metric.results_[0][1])]
         return diar_hyp, word_hyp, word_ts_hyp, metric_results
-    
+
     def evaluate_online(self, pred_labels, rttm_file):
         pred_diar_labels, ref_labels_list = [], []
         all_hypotheses, all_references = [], []
@@ -1557,7 +1650,9 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         if ref_labels == [] and pred_labels != []:
             logging.info("Streaming Diar [{}][frame-  {}th  ]:".format(self.uniq_id, self.frame_index))
             DER, CER, FA, MISS = 100.0, 0.0, 0.0, 100.0
-            der_dict, self.der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict)
+            der_dict, self.der_stat_dict = get_online_DER_stats(
+                DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict
+            )
             metric, mapping_dict = None, None
         else:
             all_hypotheses.append([self.uniq_id, hypothesis])
@@ -1571,10 +1666,12 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
                 )
             )
 
-            der_dict, self.der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict)
+            der_dict, self.der_stat_dict = get_online_DER_stats(
+                DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict
+            )
         return der_dict, self.der_stat_dict, metric, mapping_dict
 
-    @timeit  
+    @timeit
     def print_online_DER_info(self, uniq_id, string_out, diar_hyp_list, params):
         """
         Display online diarization error rate while transcribing the input audio stream.
@@ -1593,20 +1690,22 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
                 if RTTM file is provided in simulation mode.
 
         """
-        der_dict, der_stat_dict, self.metric, self.mapping_dict = self.evaluate_online(diar_hyp_list, self.rttm_file_path)
+        der_dict, der_stat_dict, self.metric, self.mapping_dict = self.evaluate_online(
+            diar_hyp_list, self.rttm_file_path
+        )
 
         if len(self.metric.results_) > 0:
             diar_hyp, word_hyp, word_ts_hyp, self.metric.results_ = self.create_single_session(uniq_id, diar_hyp_list)
-            total_riva_dict = self.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp, write_files=False)
-            DER_result_dict = self.gather_eval_results(self.metric, self.mapping_dict, total_riva_dict, pred_labels=diar_hyp)
-            # TODO: Add online cpWER 
-            cpWER=0
-            string_out += self.DER_to_str(der_dict, der_stat_dict, cpWER)
-        logging.info(
-            "Streaming Diar [{}][frame-  {}th  ]:".format(
-            self.diar.uniq_id, self.frame_index
+            total_riva_dict = self.get_transcript_with_speaker_labels(
+                diar_hyp, word_hyp, word_ts_hyp, write_files=False
             )
-        )
+            DER_result_dict = self.gather_eval_results(
+                self.metric, self.mapping_dict, total_riva_dict, pred_labels=diar_hyp
+            )
+            # TODO: Add online cpWER
+            cpWER = 0
+            string_out += self.DER_to_str(der_dict, der_stat_dict, cpWER)
+        logging.info("Streaming Diar [{}][frame-  {}th  ]:".format(self.diar.uniq_id, self.frame_index))
         write_txt(f"{self.diar._out_dir}/{uniq_id}.csv", ''.join(self.DER_csv_list))
         return string_out
 
@@ -1616,23 +1715,27 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         else:
             color = ''
         DER, FA, MISS, CER = der_dict['DER'], der_dict['FA'], der_dict['MISS'], der_dict['CER']
-        der_strings_list = [f'\n{color}=============================================================================',
-                            f'\n{color}[Session: {self.uniq_id}, DER:{DER:.2f}%, FA:{FA:.2f}% MISS:{MISS:.2f}% CER:{CER:.2f}%]',
-                            f'\n{color}[Num of Speakers (Est/Ref): {der_stat_dict["est_n_spk"]}/{der_stat_dict["ref_n_spk"]}]',
-                            f'\n{color}[cpWER : {cpWER}]']
+        der_strings_list = [
+            f'\n{color}=============================================================================',
+            f'\n{color}[Session: {self.uniq_id}, DER:{DER:.2f}%, FA:{FA:.2f}% MISS:{MISS:.2f}% CER:{CER:.2f}%]',
+            f'\n{color}[Num of Speakers (Est/Ref): {der_stat_dict["est_n_spk"]}/{der_stat_dict["ref_n_spk"]}]',
+            f'\n{color}[cpWER : {cpWER}]',
+        ]
         self.DER_csv_list.append(f"{self.frame_index}, {DER}, {FA}, {MISS}, {CER}\n")
         return ''.join(der_strings_list)
-    
-    def update_audio_frame_input(self, frame, buffer): 
+
+    def update_audio_frame_input(self, frame, buffer):
         if frame is None:
             frame = np.zeros(shape=self.n_frame_len, dtype=np.float32)
         if len(frame) < self.n_frame_len:
             frame = np.pad(frame, [0, self.n_frame_len - len(frame)], 'constant')
         if len(frame) != self.n_frame_len:
             raise ValueError(f"Frame length {len(frame)} is not a correct frame length {self.n_frame_len}")
-        self.buffer_start = round(float((self.frame_index+1)*self.frame_len - (2*self.overlap_frames_count+self.frame_len)), 2)
-        buffer[:-self.n_frame_len] = buffer[self.n_frame_len:]
-        buffer[-self.n_frame_len:] = frame
+        self.buffer_start = round(
+            float((self.frame_index + 1) * self.frame_len - (2 * self.overlap_frames_count + self.frame_len)), 2
+        )
+        buffer[: -self.n_frame_len] = buffer[self.n_frame_len :]
+        buffer[-self.n_frame_len :] = frame
         return buffer
 
     def fix_word_ts(self, word_ts_seq_list):
@@ -1644,16 +1747,16 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         enhanced_word_ts_buffer = []
         for k, word_ts in enumerate(word_ts_seq_list):
             if k < N - 1:
-                word_len = round(word_ts[1] - word_ts[0], self.ROUND)
-                len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, self.ROUND)
+                word_len = round(word_ts[1] - word_ts[0], self.decimals)
+                len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, self.decimals)
                 vad_est_len = len_to_next_word
                 min_candidate = min(vad_est_len, len_to_next_word)
                 fixed_word_len = max(min(self.max_word_ts_length_in_sec, min_candidate), word_len)
-                enhanced_word_ts_buffer.append([word_ts[0], round(word_ts[0] + fixed_word_len, self.ROUND)])
+                enhanced_word_ts_buffer.append([word_ts[0], round(word_ts[0] + fixed_word_len, self.decimals)])
             else:
                 enhanced_word_ts_buffer.append([word_ts[0], word_ts[1]])
         return enhanced_word_ts_buffer
-        
+
     @timeit
     def get_VAD_from_ASR(self, word_ts):
         speech_labels = []
@@ -1661,25 +1764,25 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         if word_ts == []:
             return speech_labels
         else:
-            count = len(word_ts)-1
+            count = len(word_ts) - 1
             while count > 0:
-                if len(word_ts) > 1: 
-                    if word_ts[count][0] - word_ts[count-1][1] <= self.asr_based_vad_threshold:
+                if len(word_ts) > 1:
+                    if word_ts[count][0] - word_ts[count - 1][1] <= self.asr_based_vad_threshold:
                         trangeB = word_ts.pop(count)
-                        trangeA = word_ts.pop(count-1)
-                        word_ts.insert(count-1, [trangeA[0], trangeB[1]])
+                        trangeA = word_ts.pop(count - 1)
+                        word_ts.insert(count - 1, [trangeA[0], trangeB[1]])
                 count -= 1
 
         word_ts = self.fix_word_ts(word_ts)
-        return word_ts 
-    
+        return word_ts
+
     def _init_FrameBatchASR(self):
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
 
         self.chunk_len_in_sec = self.frame_len
         context_len_in_secs = self.frame_overlap
-        self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
+        self.total_buffer_in_secs = 2 * context_len_in_secs + self.chunk_len_in_sec
         self.model_stride_in_secs = 0.04
 
         self.werbpe_ts = WERBPE_TS(
@@ -1690,7 +1793,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             dist_sync_on_step=True,
             log_prediction=self.asr_model._cfg.get("log_prediction", False),
         )
-            
+
         self.frame_asr = FrameBatchASR_Logits_Sample(
             asr_model=self.asr_model,
             frame_len=self.chunk_len_in_sec,
@@ -1700,7 +1803,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
 
         self.set_buffered_infer_params(self.asr_model)
         self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
-    
+
     @timeit
     def run_VAD_decoder_step(self, buffer):
         """
@@ -1732,8 +1835,6 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
                                                     frame_mask,
                                                 )
         self.frame_asr.buffer_reset()
-        print("tokens")
-        print(tokens_list)
      
         logits_len = torch.from_numpy(np.array([len(tokens_list[0])]))
         greedy_predictions = torch.from_numpy(np.array(tokens_list[0])).unsqueeze(0)
@@ -1745,19 +1846,22 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             raise ValueError("words and word_ts length mismatch")
         offset = self.buffer_start - self.onset_delay_in_sec + 1
         words_adj, word_ts_adj = add_timestamp_offset(words, word_ts, offset)
-        print(words_adj, word_ts_adj)
-        # import ipdb; ipdb.set_trace()
         return words_adj, word_ts_adj
 
     def update_launcher_timestamps(self):
         """
         Update buffer length, start and end timestamps for frame and buffer.
+
+        Attributes:
+            total_buffer_len_sec (float):
+
+            buffer_end (float):
+
+            frame_start (float):
         """
-        new_bufflen_sec = self.n_frame_len / self.sample_rate
-        n_buffer_samples = int(len(self.audio_buffer)/self.sample_rate)
-        total_buffer_len_sec = len(self.audio_buffer)/self.sample_rate
-        self.buffer_end = round(self.buffer_start + total_buffer_len_sec, self.ROUND)
-        self.frame_start = round(self.buffer_start + int(self.n_frame_overlap/self.sample_rate), self.ROUND)
+        self.total_buffer_len_sec = len(self.audio_buffer) / self.sample_rate
+        self.buffer_end = round(self.buffer_start + self.total_buffer_len_sec, self.decimals)
+        self.frame_start = round(self.buffer_start + int(self.n_frame_overlap / self.sample_rate), self.decimals)
 
     def streaming_step(self, frame):
         loop_start_time = time.time()
@@ -1767,28 +1871,28 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         if diar_hyp != []:
             total_riva_dict = {}
             if len(words) != len(timestamps):
-                raise ValueError(f"Mismatched ASR results: `words` has length of {len(words)} but `timestamps` has length of {len(timestamps)}")
+                raise ValueError(
+                    f"Mismatched ASR results: `words` has length of {len(words)} but `timestamps` has length of {len(timestamps)}"
+                )
             self.update_word_and_word_ts(words, timestamps)
-            word_dict_seq_list = self.get_word_level_json_list(words=self.word_seq, 
-                                                               word_ts=self.word_ts_seq, 
-                                                               word_rfnd_ts=self.word_ts_seq, 
-                                                               diar_labels=diar_hyp
-                                                              )
+            word_dict_seq_list = self.get_word_level_json_list(
+                words=self.word_seq, word_ts=self.word_ts_seq, word_rfnd_ts=self.word_ts_seq, diar_labels=diar_hyp
+            )
             session_trans_dict = self._make_json_output(self.uniq_id, diar_hyp, word_dict_seq_list)
             self.string_out = self.print_sentences(session_trans_dict['sentences'])
             if self.rttm_file_path and len(self.word_seq) > 0:
                 self.string_out = self.print_online_DER_info(self.diar.uniq_id, self.string_out, diar_hyp, self.params)
             write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out.strip())
-        self.simulate_delay(loop_start_time) 
-    
+        self.simulate_delay(loop_start_time)
+
     def simulate_delay(self, loop_start_time):
         """
         Simulate a real-time audio streaming session by holding the loop for the calculated amount of time.
         """
-        ETA = time.time()-loop_start_time 
+        ETA = time.time() - loop_start_time
         if self._cfg_diarizer.asr.parameters.enforce_real_time and ETA < self.frame_len:
             time.sleep(self.frame_len - ETA)
-        comp_ETA = time.time()-loop_start_time 
+        comp_ETA = time.time() - loop_start_time
         logging.info(f"Total ASR and Diarization ETA: {ETA:.3f} comp ETA {comp_ETA:.3f}")
 
     def audio_queue_launcher(self, Audio, state):
@@ -1805,16 +1909,16 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         logging.info(f"Streaming launcher took {(stt-self.launcher_end_time):.3f}s")
         audio_queue = process_audio_file(Audio)
         self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
-        
+
         while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
-            frame = self.audio_queue_buffer[:self.CHUNK_SIZE]
-            self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE:]
+            frame = self.audio_queue_buffer[: self.CHUNK_SIZE]
+            self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE :]
             self.streaming_step(frame)
         eta = time.time() - stt
         self.launcher_end_time = time.time()
-        
+
         return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", str(self.frame_index)
-    
+
     def transfer_frame_info_to_diarizer(self):
         """
         Transfer timestamps and buffer data to diarizer instance
@@ -1826,20 +1930,30 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.diar.total_buffer_in_secs = self.total_buffer_in_secs
 
     def reset(self):
-        '''
-        Reset frame_history and decoder's state
-        '''
-        self.string_out = ""
-        self.frame_index = 0
-        self.frame_start = 0
-        self.buffer_start = None
-        self.launcher_end_time = 0.0 
-        self.audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
-        self.prev_char = ''
-        self.word_seq = []
-        self.word_ts_seq = []
+        """
+        Reset frame_history and decoder's state.
 
-   #TODO 1 
+        Attributes:
+            string_out = ""
+            frame_index = 0
+            frame_start = 0
+            buffer_start = None
+            launcher_end_time = 0.0
+            audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
+            prev_char = ''
+            word_seq = []
+            word_ts_seq = []
+        """
+        self.string_out = ""
+        self.frame_index: int = 0
+        self.frame_start: float = 0.0
+        self.buffer_start = None
+        self.launcher_end_time = 0.0
+        self.audio_buffer = np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
+        self.prev_char: str = ''
+        self.word_seq: List[str] = []
+        self.word_ts_seq: List[List[float]] = []
+
     @torch.no_grad()
     def run_step(self, frame=None):
         """
@@ -1857,29 +1971,26 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         # Save the input frame into audio buffer.
         self._streamingFeatBufferer.update_feature_buffer(frame)
         self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
-        
+
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_timestamps = self.run_VAD_decoder_step(buffer=self.audio_buffer) 
-       
+        vad_mask, vad_timestamps = self.run_VAD_decoder_step(buffer=self.audio_buffer)
+
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
         words, word_timestamps = self.run_ASR_decoder_step(frame_mask=vad_mask)
-   
+
         # Use ASR based VAD timestamp if no VAD timestamps are provided
         if vad_timestamps is None:
             vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
-        
+
         # Sync diarization frame index with ASR frame index
         self.update_launcher_timestamps()
-       
+
         # Update the frame-timing info for diarizer then run diarization step
         self.transfer_frame_info_to_diarizer()
-        
+
         audio_buffer_tensor = torch.tensor(self.audio_buffer)
         vad_timestamps_tensor = torch.tensor(vad_timestamps)
         diar_hyp = self.diar.diarize_step(audio_buffer_tensor, vad_timestamps_tensor)
 
         self.frame_index += 1
-        print("run_step:", words, word_timestamps, diar_hyp)
-        # import ipdb; ipdb.set_trace()
         return words, word_timestamps, diar_hyp
-    

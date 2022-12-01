@@ -82,6 +82,9 @@ def get_decoder_model(
     normalize_attention_scores=True,
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
+    num_moe_experts=1,
+    moe_frequency=1,
+    moe_dropout=0.0,
 ):
     """Build language model and return along with the key to save."""
 
@@ -119,6 +122,7 @@ def get_decoder_model(
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
             layernorm_epsilon=layernorm_epsilon,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -134,6 +138,9 @@ def get_decoder_model(
             parent_model_type=parent_model_type,
             megatron_legacy=megatron_legacy,
             normalize_attention_scores=normalize_attention_scores,
+            num_moe_experts=num_moe_experts,
+            moe_frequency=moe_frequency,
+            moe_dropout=moe_dropout,
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
