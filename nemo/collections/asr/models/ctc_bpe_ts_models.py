@@ -483,6 +483,7 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
             'synthetic_generation': config['synthetic_generation'],
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
+            'dataset': config['dataset'],
             'num_sources': config["num_sources"]
         }
 
@@ -493,6 +494,7 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
     def transcribe(
         self,
         manifest_filepath: str,
+        dataset:str, 
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
@@ -557,17 +559,22 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
                 'batch_size': batch_size,
                 'num_workers': num_workers,
                 'synthetic_generation': False,
-                'num_sources': num_sources
+                'num_sources': num_sources,
+                'dataset': dataset,
             }
 
             temporary_datalayer = self._setup_transcribe_dataloader(config)
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-                signal, signal_len, transcript, transcript_len, speaker_embedding, embedding_lengths = test_batch
-                logits, logits_len, greedy_predictions = self.forward(
+                signal, signal_len, transcript, transcript_len, speaker_embedding, embedding_lengths, target_signal = test_batch
+
+
+
+                logits, logits_len, greedy_predictions, target_signal, target_signal_estimate, target_signal_length = self.forward(
                     input_signal=signal.to(device),
                     input_signal_length=signal_len.to(device),
                     speaker_embedding=speaker_embedding.to(device),
                     embedding_lengths=embedding_lengths.to(device),
+                    target_signal=target_signal.to(device) if 'reconstruction' in self.decoder_losses else None,
                 )
 
                 if logprobs:
@@ -576,8 +583,8 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
                         lg = logits[idx][: logits_len[idx]]
                         hypotheses.append(lg.cpu().numpy())
                 else:
-                    current_hypotheses , all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                            logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                    current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
+                            greedy_predictions, predictions_len=logits_len,  return_hypotheses=return_hypotheses,
                         )
 
                     if return_hypotheses:
@@ -601,6 +608,9 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
                 self.speaker_beam.unfreeze()
                 self.speaker_model.unfreeze()
             logging.set_verbosity(logging_level)
+        
+        if logprobs:
+            return hypotheses, target_signal, target_signal_estimate
         return hypotheses
 
 

@@ -42,6 +42,7 @@ model.encoder.n_heads=4 \
 model.encoder.n_layers=18 \
 model.speaker_beam.n_layers=18 \
 dataset="librispeech" \
+~model.loss_list.reconstruction \
 trainer.val_check_interval=1.0 \
 model.optim.lr=2 \
 +tsasr_checkpoint_path=/home/yangzhang/code/ts_asr/librispeechmix/ckpts/draco_3mix_ctc_spectL1.0_stopStep-1_speedP0.3_spk3_ep120_bs64_lr0.0003_lr2__schedCosineAnnealing_warm25000_wd1e-2_encfrTrue_decfrFalse_asrEfrFalse_asrDfrFalse_d256_layer18_18_head4_4_nSpecT5_nSpecF2_wSpecF27_v128.nemo
