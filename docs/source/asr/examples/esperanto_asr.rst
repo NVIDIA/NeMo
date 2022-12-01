@@ -44,6 +44,10 @@ We will also check the data for anomalies. The simplest anomaly can be a problem
 
 .. code-block:: python
 
+  dev_manifest = "Path to .."
+  test_manifest = "Path to .."
+  train_manifest = "Path to .."
+
   def compute_char_counts(manifest):
       char_counts = {}
       with open(manifest, 'r') as fn_in:
@@ -59,7 +63,7 @@ We will also check the data for anomalies. The simplest anomaly can be a problem
                           char_counts[char] += 1
       return char_counts
 
-  char_counts = compute_char_counts(train_set)
+  char_counts = compute_char_counts(train_manifest)
 
   threshold = 10
   trash_char_list = []
@@ -105,9 +109,9 @@ Now we need to clear our data:
               fn_out.write(f"{data}\n")
       print(f"[INFO]: {war_count} files were removed from manifest")
 
-  clear_data_set(train_manifest)
   clear_data_set(dev_manifest)
   clear_data_set(test_manifest)
+  clear_data_set(train_manifest)
 
 
 Tarred dataset:
@@ -140,14 +144,11 @@ For Esperanto we use the standard Byte-pair encoding algorithm with 128, 512, an
 
     vocab_size=128
     python ${NEMO_ROOT}/scripts/tokenizers/process_asr_text_tokenizer.py \
-      --manifest=dev_decoded_processed.json,train_decoded_processed.json \
+      --manifest=train_decoded_processed.json \
       --vocab_size=$vocab_size \
-      --data_root=tokenizer_bpe_maxlen_2 \
+      --data_root=tokenizers \
       --tokenizer="spe" \
-      --spe_type=bpe \
-      --spe_character_coverage=1.0 \
-      --spe_max_sentencepiece_length=2 \
-      --log
+      --spe_type=bpe \  
 
 **************************
 Analysis of training parameters. 
@@ -158,8 +159,53 @@ Tuning of hyper parameters plays a huge role in the training of deep neural netw
 
 Scheduler:
 #################################
-By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. Or use the more understandable CosineAnealing scheduler. The code for plotting the scheduler is shown below:
-...
+By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. Or use the more understandable CosineAnealing scheduler. The code for plotting the default Noam scheduler is shown below:
+
+.. code-block:: python
+
+    import nemo
+    import torch
+    import matplotlib.pyplot as plt
+
+    # params:
+    train_files_num = 144000
+    global_batch_size = 1024
+    num_epoch = 300
+    warmup_steps = 10000
+    config_learning_rate = 5.0
+    attention_model_size = 512
+
+    steps_num = int(train_files_num / global_batch_size * num_epoch)
+    print(f"steps number is: {steps}")
+
+    model = torch.nn.Linear(2, 1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=config_learning_rate)
+    scheduler = nemo.core.optim.lr_scheduler.NoamAnnealing(optimizer,
+                                                           d_model=attention_model_size,
+                                                           max_steps=steps,
+                                                           warmup_steps=warmup_steps,
+                                                           min_lr=1e-6)
+    lrs = []
+    init_lr, final_lr, max_lr = 0, 0, 0
+
+    for i in range(steps):
+        optimizer.step()
+        lr = optimizer.param_groups[0]["lr"]
+        lrs.append(lr)
+        scheduler.step()
+        if max_lr < lr:
+            max_lr = lr
+        if i == 0 :
+            init_lr = lr
+        if i == steps -2:
+            final_lr = lr
+
+    plt.plot(lrs)
+    print(f"Init LR is:  {init_lr:.5f}")
+    print(f"Max LR is:   {max_lr:.5f}")
+    print(f"Final LR is: {final_lr:.8f}")
+
+Attach image..
 
 Warmup steps:
 #################################
@@ -177,7 +223,76 @@ By default, for model training in NeMo, it is recommended to use half precision 
 Training.
 **************************
 
-....
+We can use three main scenarios for training:
+
+* Training from scratch.
+* Finetuning already trained models on other languages (English, Spanish, Italian).
+* Finetuning on an English SSL (Self-supervised learning) model.
+
+For the training of the Conformer-CTC model, we use `speech_to_text_ctc_bpe.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py>`_ with the default config `conformer_ctc_bpe.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. Here you can see the ecample how to run this training:
+
+.. code-block:: bash
+
+    TOKENIZER=tokenizers/...
+    TRAIN_MANIFEST=data/...
+    TRAIN_FILEPATHS=data/train_tarred_1bk/audio__OP_0..1023_CL_.tar
+    VAL_MANIFEST=data/dev_decoded_processed.json
+    TEST_MANIFEST=data/test_decoded_processed.json
+
+    python ${NEMO_ROOT}/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+    --config-path=../conf/conformer/ \
+    --config-name=conformer_ctc_bpe \
+    exp_manager.name="Some name of our experiment" \
+    exp_manager.resume_if_exists=true \
+    exp_manager.resume_ignore_no_checkpoint=true \
+    exp_manager.exp_dir=results/ \
+    model.tokenizer.dir=$TOKENIZER \
+    model.train_ds.is_tarred=true \
+    model.train_ds.tarred_audio_filepaths=$TRAIN_FILEPATHS \
+    model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
+    model.validation_ds.manifest_filepath=$VAL_MANIFEST \
+    model.test_ds.manifest_filepath=$TEST_MANIFEST
+
+To finetune a model with the same vocab size, you just need to set the desired model via
+
+.. code-block:: bash
+
+    +init_from_pretrained_model=${INIT_MODEL}
+
+as ts done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the finetuning `tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
+
+.. code-block:: python
+
+    model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(f"nvidia/{pretrained_model_name}", map_location='cpu')
+    model.change_vocabulary(new_tokenizer_dir=TOKENIZER_DIR, new_tokenizer_type="bpe")
+    model.encoder.unfreeze()
+    model.save_to(f"{save_path}")
+
+
+There is no need to change anything for the SSL model, it will replace the vocab itself. However, you will need to first download this model and set it through another parameter:
+
+.. code-block:: bash
+
+    ++init_from_nemo_model=${PRETRAINED_MODEL} \
+
+All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo. 
+
++----------------------------------+----------+------------+-------------+
+| Training mode                    | BPE size | DEV, WER % | TEST, WER % |
++==================================+==========+============+=============+
+| From scratch                     |    128   |     3.96   |     6.25    |
++                                  +----------+------------+-------------+
+|                                  |   1024   |     5.81   |     8.56    |
++----------------------------------+----------+------------+-------------+
+| Finetuning (English)             |    128   |     3.45   |     5.45    |
++----------------------------------+----------+------------+-------------+
+| Finetuning (Spanish)             |    128   |     3.40   |     5.52    |
++----------------------------------+----------+------------+-------------+
+| Finetuning (Italian)             |    128   |     3.29   |     5.36    |
++----------------------------------+----------+------------+-------------+
+| Finetuning (SSL English)         |    128   |     2.90   |     4.76    |
++----------------------------------+----------+------------+-------------+
+
 
 **************************
 Decoding.
