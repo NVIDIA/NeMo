@@ -42,8 +42,6 @@ def main(cfg):
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "HW TFLOPS / GPU",
-        "HW TFLOPS Aggregate",
         "Config Name",
     ]
     result = []
