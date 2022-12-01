@@ -34,6 +34,36 @@ To get data manifests for Esperanto you can use the modefied NeMo script `get_co
 
 You will get next data structure:
 
+.. code-block:: bash
+
+    ./esperanto
+    ├── manifests
+    │   ├── commonvoice_dev_manifest.json
+    │   ├── commonvoice_test_manifest.json
+    │   └── commonvoice_train_manifest.json
+    └── raw_data
+        ├── CV_unpacked
+        │   └── cv-corpus-11.0-2022-09-21
+        ├── dev
+        │   └── wav
+        ├── eo.tar.gz
+        ├── test
+        │   └── wav
+        └── train
+            └── wav
+    ./esperanto/raw_data/CV_unpacked
+    └── cv-corpus-11.0-2022-09-21
+        └── eo
+            ├── clips
+            ├── dev.tsv
+            ├── invalidated.tsv
+            ├── other.tsv
+            ├── reported.tsv
+            ├── test.tsv
+            ├── totalDur.sh
+            ├── total_clips_duration.csv
+            ├── train.tsv
+            └── validated.tsv
 
 
 Data preprocessing:
@@ -44,9 +74,9 @@ We will also check the data for anomalies. The simplest anomaly can be a problem
 
 .. code-block:: python
 
-  dev_manifest = "Path to .."
-  test_manifest = "Path to .."
-  train_manifest = "Path to .."
+  dev_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_dev_manifest.json"
+  test_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json"
+  train_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_train_manifest.json"
 
   def compute_char_counts(manifest):
       char_counts = {}
@@ -90,7 +120,7 @@ Now we need to clear our data:
       chars_to_ignore_regex = "[\.\,\?\:\-!;()«»…\]\[/\*–‽+&_\\½√>€™$•¼}{~—=“\"”″‟„]"
       addition_ignore_regex = f"[{''.join(trash_char_list)}]"
 
-      manifest_clean = manifest + '.clean_all'
+      manifest_clean = manifest + '.clean'
       war_count = 0
       with open(manifest, 'r') as fn_in, \
           open(manifest_clean, 'w', encoding='utf-8') as fn_out:
@@ -265,7 +295,7 @@ To finetune a model with the same vocab size, you just need to set the desired m
 
     +init_from_pretrained_model=${INIT_MODEL}
 
-as ts done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the finetuning `tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
+as it done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the finetuning `tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
 
 .. code-block:: python
 
