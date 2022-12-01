@@ -18,6 +18,7 @@ import multiprocessing
 import os
 import shutil
 from itertools import repeat
+from pathlib import Path
 from typing import Dict, Tuple
 
 import IPython.display as ipd
@@ -81,9 +82,19 @@ def prepare_manifest(config: dict) -> str:
     if config.get('num_workers') is not None and config['num_workers'] > 1:
         with multiprocessing.Pool(processes=config['num_workers']) as p:
             inputs = zip(input_list, repeat(args_func))
-            results = list(tqdm(p.imap(write_vad_infer_manifest_star, inputs), total=len(input_list)))
+            results = list(
+                tqdm(
+                    p.imap(write_vad_infer_manifest_star, inputs),
+                    total=len(input_list),
+                    desc='splitting manifest',
+                    leave=True,
+                )
+            )
     else:
-        results = [write_vad_infer_manifest(input_el, args_func) for input_el in tqdm(input_list)]
+        results = [
+            write_vad_infer_manifest(input_el, args_func)
+            for input_el in tqdm(input_list, desc='splitting manifest', leave=True)
+        ]
 
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
@@ -218,7 +229,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
         for line in f.readlines():
             frame.append(float(line))
 
-    name = filepath.split("/")[-1].rsplit(".", 1)[0]
+    name = Path(filepath).stem
     return torch.tensor(frame), name
 
 
@@ -266,10 +277,17 @@ def generate_overlap_vad_seq(
     if num_workers is not None and num_workers > 1:
         with multiprocessing.Pool(processes=num_workers) as p:
             inputs = zip(frame_filepathlist, repeat(per_args))
-            results = list(tqdm(p.imap(generate_overlap_vad_seq_per_file_star, inputs), total=len(frame_filepathlist)))
+            results = list(
+                tqdm(
+                    p.imap(generate_overlap_vad_seq_per_file_star, inputs),
+                    total=len(frame_filepathlist),
+                    desc='generating preds',
+                    leave=True,
+                )
+            )
 
     else:
-        for frame_filepath in tqdm(frame_filepathlist):
+        for frame_filepath in tqdm(frame_filepathlist, desc='generating preds', leave=True):
             generate_overlap_vad_seq_per_file(frame_filepath, per_args)
 
     return overlap_out_dir
@@ -708,10 +726,17 @@ def generate_vad_segment_table(
     if num_workers is not None and num_workers > 1:
         with multiprocessing.Pool(num_workers) as p:
             inputs = zip(vad_pred_filepath_list, repeat(per_args))
-            list(tqdm(p.imap(generate_vad_segment_table_per_file_star, inputs), total=len(vad_pred_filepath_list)))
+            list(
+                tqdm(
+                    p.imap(generate_vad_segment_table_per_file_star, inputs),
+                    total=len(vad_pred_filepath_list),
+                    desc='creating speech segments',
+                    leave=True,
+                )
+            )
 
     else:
-        for vad_pred_filepath in tqdm(vad_pred_filepath_list):
+        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
             generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return table_out_dir

@@ -16,7 +16,6 @@ import copy
 import os
 
 import numpy as np
-import soundfile as sf
 import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
@@ -24,6 +23,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
@@ -439,18 +439,6 @@ class AudioBuffersDataLayer(IterableDataset):
 
     def __len__(self):
         return 1
-
-
-def get_samples(audio_file, target_sr=16000):
-    with sf.SoundFile(audio_file, 'r') as f:
-        dtype = 'int16'
-        sample_rate = f.samplerate
-        samples = f.read(dtype=dtype)
-        if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, sample_rate, target_sr)
-        samples = samples.astype('float32') / 32768
-        samples = samples.transpose()
-        return samples
 
 
 class FeatureFrameBufferer:
@@ -1172,9 +1160,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         return output
 
 
-class FramewiseStreamingAudioBuffer:
+class CacheAwareStreamingAudioBuffer:
     """
-    A buffer to be used for frame-wise streaming. It can load a single or multiple audio files/processed signals, split them in chunks and return one on one.
+    A buffer to be used for cache-aware streaming. It can load a single or multiple audio files/processed signals, split them in chunks and return one on one.
     It can be used to simulate streaming audio or audios.
     """
 
@@ -1203,6 +1191,11 @@ class FramewiseStreamingAudioBuffer:
 
         self.preprocessor = self.extract_preprocessor()
 
+        if hasattr(model.encoder, "pre_encode") and hasattr(model.encoder.pre_encode, "get_sampling_frames"):
+            self.sampling_frames = model.encoder.pre_encode.get_sampling_frames()
+        else:
+            self.sampling_frames = None
+
     def __iter__(self):
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
@@ -1227,6 +1220,17 @@ class FramewiseStreamingAudioBuffer:
                 )
 
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
+
+            if self.sampling_frames is not None:
+                # checking to make sure the audio chunk has enough frames to produce at least one output after downsampling
+                if self.buffer_idx == 0 and isinstance(self.sampling_frames, list):
+                    cur_sampling_frames = self.sampling_frames[0]
+                else:
+                    cur_sampling_frames = (
+                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    )
+                if audio_chunk.size(-1) < cur_sampling_frames:
+                    return
 
             # Adding the cache needed for the pre-encoder part of the model to the chunk
             # if there is not enough frames to be used as the pre-encoding cache, zeros would be added

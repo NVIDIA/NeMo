@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 from hydra.core.config_store import ConfigStore
 
@@ -61,7 +61,6 @@ class TrainerConfig:
     accelerator: Optional[str] = None
     sync_batchnorm: bool = False
     precision: Any = 32
-    weights_save_path: Optional[str] = None
     num_sanity_val_steps: int = 2
     resume_from_checkpoint: Optional[str] = None
     profiler: Optional[Any] = None
@@ -85,6 +84,7 @@ class TrainerConfig:
     strategy: Any = None
     enable_checkpointing: bool = False
     enable_model_summary: bool = True
+    inference_mode: bool = True
 
 
 # Register the trainer config.

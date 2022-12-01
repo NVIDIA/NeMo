@@ -4,7 +4,7 @@
 # You may find more detail on the architecture and training config at NeMo/examples/asr/comf/offline/conformer_ctc_bpe.yaml
 
 # Models trained with this config have limited right context which make them efficient for streaming ASR
-# You may use NeMo/examples/asr/speech_to_text_streaming_infer.py to simulate/evaluate this model in frame-wise streaming mode
+# You may use NeMo/examples/asr/speech_to_text_streaming_infer.py to simulate/evaluate this model in cache-aware streaming mode
 
 # if loss does not go down properly or gives NAN, you may try the followings:
 # + using gradient clipping of 1.0
@@ -124,6 +124,7 @@ model:
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_pre_encoder: 0.1 # The dropout used before the encoder
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import os
-from typing import Optional
+import re
+from typing import Any, Dict, Optional, Union
 
 import torch
 from omegaconf import open_dict
@@ -32,10 +32,12 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import logging
+from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -51,9 +53,13 @@ class MegatronBaseModel(NLPModel):
     1. Initialize the model parallel for nemo given the model parallel parameters.
     2. Turn on all the nvidia optimizations.
     3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. It help to run `configure_gradient_clipping`, if `grad_clip_pl_default` is set True,  it uses the pytorch lightning default
-       gradient clipping. Or if `megatron_amp_o2` is set True, it uses the parameters from optimizer to clip the gradients.
-       Otherwise, it uses the parameters calculated in the `setup_optimizer_param_groups` method.
+    4. If using distributed optimizer, configure to be compatible with
+       O2-level optimizations and/or model parallelism.
+    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
+       PyTorch Lightning default implementation, `with_distributed_adam`
+       triggers the distributed optimizer's implementation,
+       `megatron_amp_o2` triggers gradient clipping on the main grads,
+       and otherwise gradient clipping is performed on the model grads.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
@@ -69,7 +75,7 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-        self._validate_config()
+        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -86,12 +92,16 @@ class MegatronBaseModel(NLPModel):
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
+
+        # This must be called after initialize model parallel since it needs to know the data parallel size
+        self._validate_and_override_config()
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
@@ -118,17 +128,23 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
         if nvidia_torch_version is not None:
-            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            try:
+                NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            except Exception:
+                NVIDIA_TORCH_MAJOR = 0
             try:
                 NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
             except Exception:
                 NVIDIA_TORCH_MINOR = 0
 
             # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
+            # This only depends on Apex version?
             if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
                 self.cfg.persist_layer_norm = False
 
+            # NVFUSER available starting with 21.11
             if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+
                 # NVFUSER
                 torch._C._jit_set_profiling_executor(True)
                 torch._C._jit_set_profiling_mode(True)
@@ -137,7 +153,6 @@ class MegatronBaseModel(NLPModel):
                 torch._C._jit_set_texpr_fuser_enabled(False)
                 torch._C._jit_set_nvfuser_enabled(True)
                 torch._C._debug_set_autodiff_subgraph_inlining(False)
-
         else:
             # Not a Nvidia container. NVFUSER Dependency check is on users
             pass
@@ -162,6 +177,10 @@ class MegatronBaseModel(NLPModel):
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
+
+    def on_train_start(self) -> None:
+        super().on_train_start()
+        self.init_global_step = self.trainer.global_step
 
     def _build_vocab(self):
         """
@@ -213,7 +232,7 @@ class MegatronBaseModel(NLPModel):
             # use the default behavior
             return super().configure_gradient_clipping(*args, **kwargs)
 
-        if hasattr(self, 'with_distributed_adam') and self.with_distributed_adam:
+        if self.with_distributed_adam:
             grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
         else:
             if self.megatron_amp_o2:
@@ -249,6 +268,20 @@ class MegatronBaseModel(NLPModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
+    def reduce_overlap_gradients(self):
+        """Reduce grads if overlapped grad sync is enabled
+
+        Used for pipeline parallelism with the distributed Adam
+        optimizer. In the first pipeline stage, the grad sync is
+        overlapped with the final backward pass. In other pipeline
+        stages, the grad sync is deferred until the bubble overhead.
+
+        """
+        if self.with_distributed_adam:
+            self._optimizer.try_grad_sync(
+                p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+            )
+
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
 
@@ -269,16 +302,16 @@ class MegatronBaseModel(NLPModel):
                 # If the grad scaler skipped its optimizer step due to infs/nans,
                 # decrement the step of all schedulers.
                 if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    schedulers = self.trainer.lr_schedulers
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
 
-                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
                         return
 
-                    for scheduler in schedulers:
+                    for scheduler_cfg in scheduler_cfgs:
                         # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                         # as well as update the optimizer lr in all param groups
-                        scheduler['scheduler'].last_epoch -= 2
-                        scheduler['scheduler'].step()
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
 
                     # Removing the line below because it messes up train_valid_test_num_samples calculation.
                     # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
@@ -287,15 +320,37 @@ class MegatronBaseModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+
+            # Allocate grads since we are storing between microbatches
+            optim_kwargs['contiguous_grad_buffer'] = True
+
+            if self.megatron_amp_o2:
+                # Match param allgather with model dtype
+                if hasattr(self, 'autocast_dtype'):
+                    optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+                    if self.autocast_dtype == torch.float:
+                        optim_kwargs['store_params'] = False
+                    elif self.autocast_dtype == torch.float16:
+                        optim_kwargs['store_params'] = True
+                    elif self.autocast_dtype == torch.bfloat16:
+                        optim_kwargs['store_params'] = False
+                        optim_kwargs['store_param_remainders'] = True
+            else:
+                # Assume FP32 params, so no need to store main params
+                optim_kwargs['store_params'] = False
+
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+
     def configure_optimizers(self):
         self.setup_optimization()
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
-        if (
-            self.megatron_amp_o2
-            and not (hasattr(self, 'with_distributed_adam') and self.with_distributed_adam)
-            and self._optimizer is not None
-        ):
+        if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.cfg.precision == 'bf16':
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
@@ -340,13 +395,43 @@ class MegatronBaseModel(NLPModel):
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
 
+        # Configure distributed optimizer
+        if self.with_distributed_adam:
+
+            # Initialize params so that main grads are available
+            # Note: Consolidate grads without overlap
+            self._optimizer.init_params(
+                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
+            )
+            self._optimizer.init_params(self.parameters())
+
         if self._scheduler is None:
             return self._optimizer
         else:
             return [self._optimizer], [self._scheduler]
 
-    def _validate_config(self):
-        """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+    def compute_consumed_samples(self, steps_since_resume=0):
+        app_state = AppState()
+        consumed_samples = (
+            self.init_consumed_samples
+            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+        )
+        return int(consumed_samples)
+
+    def _extract_consumed_samples_from_ckpt(self, ckpt_path):
+        try:
+            init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
+        except (ValueError, TypeError, IndexError):
+            logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+            init_consumed_samples = 0
+
+        return init_consumed_samples
+
+    def _validate_and_override_config(self):
+        """ Certain configurations might be incompatible or discouraged. 
+            We can check for them here and override if necessary.
+        """
+        app_state = AppState()
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
             logging.info(
@@ -355,15 +440,47 @@ class MegatronBaseModel(NLPModel):
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
 
-        if (
-            self.cfg.get('gradient_accumulation_fusion', False)
-            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
-        ):
-            logging.info("Gradient accumulation fusion can only be used with pipeline parallel size > 1.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+        # Gradient accumulation fusion does not work with our baseline implementaiton of
+        # async grad allreduce. This should be fixed!
+        # For now we must disable it whenever using the baseline implementaion.
+        # The distributed adam from apex does work with gradient accumulation fusion.
+        distributed_fused_adam = self.cfg.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
+        pipeline_model_parallel_size = self.cfg.get('pipeline_model_parallel_size', 1)
+        data_parallel_size = app_state.data_parallel_size
+
+        if self.cfg.get('gradient_accumulation_fusion', False):
+            if data_parallel_size > 1 and pipeline_model_parallel_size == 1 and not distributed_fused_adam:
+                logging.info(
+                    "When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
             logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
             with open_dict(self.cfg):
                 self.cfg.gradient_accumulation_fusion = False
+
+        if self.cfg.get('use_emha', False):
+            raise ValueError('use_emha is not yet supported please set to False')
+
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+            assert (
+                self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+            ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
+                'Make sure the number of model chunks is the same across all pipeline stages.'
+            )
+
+    def is_data_parallel_rank_zero(self):
+        if is_global_rank_zero():
+            return True
+        else:
+            try:
+                data_parallel_rank = parallel_state.get_data_parallel_rank()
+            except:
+                data_parallel_rank = None
+
+            if data_parallel_rank is not None and data_parallel_rank == 0:
+                return True
+            else:
+                return False

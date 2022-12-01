@@ -272,6 +272,7 @@ class TestEncDecCTCModel:
             'bucketing_batch_size',
             'bucketing_strategy',
             'bucketing_weights',
+            'channel_selector',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim'}
@@ -301,6 +302,7 @@ class TestEncDecCTCModel:
             'bucketing_batch_size',
             'bucketing_strategy',
             'bucketing_weights',
+            'max_utts',
         ]
 
         REMAP_ARGS = {

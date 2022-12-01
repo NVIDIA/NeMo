@@ -16,8 +16,8 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil
-from typing import Dict, List, Optional, Union
+from math import ceil, isclose
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -32,6 +32,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -72,7 +73,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+            num_classes=self.joint.num_classes_with_blank - 1,
+            loss_name=loss_name,
+            loss_kwargs=loss_kwargs,
+            reduction=self.cfg.get("rnnt_reduction", "mean_batch"),
         )
 
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
@@ -212,7 +216,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
-    ) -> (List[str], Optional[List['Hypothesis']]):
+        channel_selector: Optional[ChannelSelectorType] = None,
+    ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -226,6 +231,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
@@ -268,6 +274,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
+                    'channel_selector': channel_selector,
                 }
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
@@ -439,6 +446,24 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         else:
             augmentor = None
 
+        is_concat = config.get('is_concat', False)
+        if is_concat:
+            if 'concat_sampling' in config and config['concat_sampling'] is None:
+                logging.warning(
+                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
+                )
+                return None
+
+            if not 'concat_probabilities' in config:
+                logging.warning(
+                    f"Concat dataset requires `contact_probabilities` list but it was not provided. Config: {config}"
+                )
+                return None
+            else:
+                if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
+                    logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
+                    return None
+
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
@@ -469,20 +494,33 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_dataset(
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                augmentor=augmentor,
-            )
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_tarred_dataset(
+                    config=config,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
+            else:
+                dataset = audio_to_text_dataset.get_tarred_dataset(
+                    config=config,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
             shuffle = False
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
-
-            dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_char_dataset(
+                    config=config, global_rank=self.global_rank, world_size=self.world_size, augmentor=augmentor
+                )
+            else:
+                dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -829,7 +867,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
 
-        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return tensorboard_logs
 
@@ -956,7 +994,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return RNNTDecoderJoint(self.decoder, self.joint)
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 

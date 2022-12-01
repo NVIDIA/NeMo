@@ -90,7 +90,6 @@ class Normalizer:
                     from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
                         ClassifyFst,
                     )
-
         elif lang == 'ru':
             # Ru TN only support non-deterministic cases and produces multiple normalization options
             # use normalize_with_audio.py
@@ -102,6 +101,12 @@ class Normalizer:
         elif lang == 'es':
             from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'zh':
+            from nemo_text_processing.text_normalization.zh.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.zh.verbalizers.verbalize_final import VerbalizeFinalFst
+        else:
+            raise NotImplementedError(f"Language {lang} has not been supported yet.")
+
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -138,8 +143,8 @@ class Normalizer:
         Args:
             texts: list of input strings
             verbose: whether to print intermediate meta information
-            punct_pre_process: whether to do punctuation pre processing
-            punct_post_process: whether to do punctuation post processing
+            punct_pre_process: whether to do punctuation pre-processing
+            punct_post_process: whether to do punctuation post-processing
             n_jobs: the maximum number of concurrently running jobs. If -1 all CPUs are used. If 1 is given,
                 no parallel computing code is used at all, which is useful for debugging. For n_jobs below -1,
                 (n_cpus + 1 + n_jobs) are used. Thus for n_jobs = -2, all CPUs but one are used.
@@ -153,7 +158,7 @@ class Normalizer:
 
         try:
             normalized_texts = Parallel(n_jobs=n_jobs)(
-                delayed(self.__process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
+                delayed(self.process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
                 for i in range(0, len(texts), batch)
             )
         except BaseException as e:
@@ -162,14 +167,14 @@ class Normalizer:
         normalized_texts = list(itertools.chain(*normalized_texts))
         return normalized_texts
 
-    def __process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
+    def process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
         """
         Normalizes batch of text sequences
         Args:
             batch: list of texts
             verbose: whether to print intermediate meta information
-            punct_pre_process: whether to do punctuation pre processing
-            punct_post_process: whether to do punctuation post processing
+            punct_pre_process: whether to do punctuation pre-processing
+            punct_post_process: whether to do punctuation post-processing
         """
         normalized_lines = [
             self.normalize(
@@ -277,7 +282,7 @@ class Normalizer:
             return text
         text = pynini.escape(text)
         tagged_lattice = self.find_tags(text)
-        tagged_text = self.select_tag(tagged_lattice)
+        tagged_text = Normalizer.select_tag(tagged_lattice)
         if verbose:
             print(tagged_text)
         self.parser(tagged_text)
@@ -295,7 +300,7 @@ class Normalizer:
                     break
             if verbalizer_lattice is None:
                 raise ValueError(f"No permutations were generated from tokens {s}")
-            output += ' ' + self.select_verbalizer(verbalizer_lattice)
+            output += ' ' + Normalizer.select_verbalizer(verbalizer_lattice)
         output = SPACE_DUP.sub(' ', output[1:])
 
         if self.lang == "en" and hasattr(self, 'post_processor'):
@@ -327,7 +332,7 @@ class Normalizer:
             upper_case_unicode = '\u0410-\u042F'
 
         # Read and split transcript by utterance (roughly, sentences)
-        split_pattern = f"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]+\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
+        split_pattern = rf"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]+\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
 
         sentences = regex.split(split_pattern, text)
         return sentences
@@ -371,23 +376,23 @@ class Normalizer:
         Returns string serialization of list of dictionaries
         """
 
-        def _helper(prefix: str, tokens: List[dict], idx: int):
+        def _helper(prefix: str, token_list: List[dict], idx: int):
             """
             Generates permutations of string serializations of given dictionary
 
             Args:
-                tokens: list of dictionaries
+                token_list: list of dictionaries
                 prefix: prefix string
                 idx:    index of next dictionary
 
             Returns string serialization of dictionary
             """
-            if idx == len(tokens):
+            if idx == len(token_list):
                 yield prefix
                 return
-            token_options = self._permute(tokens[idx])
+            token_options = self._permute(token_list[idx])
             for token_option in token_options:
-                yield from _helper(prefix + token_option, tokens, idx + 1)
+                yield from _helper(prefix + token_option, token_list, idx + 1)
 
         return _helper("", tokens, 0)
 
@@ -403,12 +408,13 @@ class Normalizer:
         lattice = text @ self.tagger.fst
         return lattice
 
-    def select_tag(self, lattice: 'pynini.FstLike') -> str:
+    @staticmethod
+    def select_tag(lattice: 'pynini.FstLike') -> str:
         """
         Given tagged lattice return shortest path
 
         Args:
-            tagged_text: tagged text
+            lattice: pynini.FstLike tag lattice
 
         Returns: shortest path
         """
@@ -428,7 +434,8 @@ class Normalizer:
         lattice = tagged_text @ self.verbalizer.fst
         return lattice
 
-    def select_verbalizer(self, lattice: 'pynini.FstLike') -> str:
+    @staticmethod
+    def select_verbalizer(lattice: 'pynini.FstLike') -> str:
         """
         Given verbalized lattice return shortest path
 
@@ -444,7 +451,7 @@ class Normalizer:
 
     def post_process(self, normalized_text: 'pynini.FstLike') -> str:
         """
-        Runs post processing graph on normalized text
+        Runs post-processing graph on normalized text
 
         Args:
             normalized_text: normalized text
@@ -467,7 +474,7 @@ def parse_args():
     input.add_argument("--text", dest="input_string", help="input string", type=str)
     input.add_argument("--input_file", dest="input_file", help="input file path", type=str)
     parser.add_argument('--output_file', dest="output_file", help="output file path", type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de", "es"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de", "es", "zh"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )

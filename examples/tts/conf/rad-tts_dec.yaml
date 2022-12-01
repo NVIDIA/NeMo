@@ -6,13 +6,14 @@ validation_datasets: ???
 ckpt_path: None
 export_dir: ???
 sup_data_path: ???
-sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"] 
+sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"]
 
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/tts.tsv"
 
-# LJSpeech stats (per frame), train
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
+# these frame-wise values depend on pitch_fmin and pitch_fmax, you can get values
+# by running `scripts/dataset_processing/tts/extract_sup_data.py`
+pitch_mean: ???  # e.g. 212.35873413085938 for LJSpeech
+pitch_std:  ???  # e.g.  68.52806091308594 for LJSpeech
 
 # default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -28,8 +29,9 @@ highfreq: 8000
 window: "hann"
 
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
+mapping_file_path: ""
 
 model:
   target: nemo.collections.tts.models.RadTTSModel
@@ -41,18 +43,32 @@ model:
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
-  
+
   text_normalizer:
-      _target_: nemo_text_processing.text_normalization.normalize.Normalizer
-      lang: en
-      input_case: cased
-      whitelist: ${whitelist_path}
+    _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+    lang: en
+    input_case: cased
+    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
-      verbose: false
-      punct_pre_process: true
-      punct_post_process: true
-      
+    verbose: false
+    punct_pre_process: true
+    punct_post_process: true
+
+  text_tokenizer:
+    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    punct: true
+    stresses: true
+    chars: true
+    apostrophe: true
+    pad_with_space: true
+    g2p:
+      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      phoneme_dict: ${phoneme_dict_path}
+      heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
+      mapping_file: ${mapping_file_path}
+
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.torch.data.TTSDataset"
@@ -60,7 +76,7 @@ model:
       sample_rate: ${sample_rate}
       sup_data_path: ${sup_data_path}
       sup_data_types: ${sup_data_types}
-      n_fft: ${n_fft} 
+      n_fft: ${n_fft}
       win_length: ${n_window_size}
       hop_length: ${n_window_stride}
       window: ${window}
@@ -72,10 +88,10 @@ model:
       ignore_file: null
       trim: False
       pitch_fmin: ${pitch_fmin}
-      pitch_fmax: ${pitch_fmax} 
-      
-      
-      
+      pitch_fmax: ${pitch_fmax}
+
+
+
       text_tokenizer:
         _target_: "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
@@ -119,7 +135,7 @@ model:
       trim: False
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
-         
+
       text_tokenizer:
         _target_: "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
@@ -144,7 +160,7 @@ model:
       pin_memory: false
 
   optim:
-    name: RAdam #This code base uses pytorch implemenation of RAdam which has not been tested fully when this is released we are waiting for SWIPAT approval to use https://github.com/LiyuanLucasLiu/RAdam/blob/master/LICENSE. Until that you can integrate this and train. we will switch code to this implementation once we get SWIPAT approval which could take a couple of days. 
+    name: RAdam
     lr: 0.0001
     betas: [0.9, 0.98]
     weight_decay: 0.000001
@@ -152,8 +168,8 @@ model:
     sched:
       name: exp_decay
       warmup_steps: 40000
-      last_epoch: -1 
-      d_model: 1  # Disable scaling based on model dim 
+      last_epoch: -1
+      d_model: 1  # Disable scaling based on model dim
   trainerConfig:
     sigma: 1
     iters_per_checkpoint: 3000
@@ -175,7 +191,7 @@ model:
         energy_loss_weight: 1.0
         vpred_loss_weight: 1.0
     unfreeze_modules: "all"
-        
+
   load_from_checkpoint: False
   init_from_ptl_ckpt: ${ckpt_path}
   modelConfig:
@@ -214,17 +230,17 @@ model:
         dur_model_config: null
         f0_model_config: null
         energy_model_config: null
-        v_model_config : 
+        v_model_config :
              name : dap
-             hparams : 
-                n_speaker_dim : 16 
+             hparams :
+                n_speaker_dim : 16
                 take_log_of_input: false
-                bottleneck_hparams: 
+                bottleneck_hparams:
                     in_dim: 512
                     reduction_factor: 16
                     norm: weightnorm
                     non_linearity: relu
-                arch_hparams: 
+                arch_hparams:
                     out_dim: 1
                     n_layers: 2
                     n_channels: 256
@@ -241,7 +257,7 @@ trainer:
   accumulate_grad_batches: 1
   enable_checkpointing: False
   logger: False
-  gradient_clip_val: 1 
+  gradient_clip_val: 1
   log_every_n_steps: 100
   check_val_every_n_epoch: 5
 

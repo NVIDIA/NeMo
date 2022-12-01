@@ -24,7 +24,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
-import webdataset as wd
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -134,7 +133,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             special_tokens=self.special_tokens,
             encoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
-            decoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
+            decoder_sentencepiece_legacy=cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
         )
         self.encoder_tokenizer, self.decoder_tokenizer = encoder_tokenizer, decoder_tokenizer
 
@@ -408,9 +407,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     def eval_epoch_end(self, outputs, mode, global_rank):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
-        if not outputs:
-            return
-
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
@@ -918,13 +914,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def _setup_eval_dataloader_from_config(cls, cfg, datasets):
-        if cfg.shuffle:
-            sampler = pt_data.RandomSampler(datasets[0])
-        else:
-            sampler = pt_data.SequentialSampler(datasets[0])
-
         dataloaders = []
         for dataset in datasets:
+            if cfg.shuffle:
+                sampler = pt_data.RandomSampler(dataset)
+            else:
+                sampler = pt_data.SequentialSampler(dataset)
+
             dataloaders.append(
                 torch.utils.data.DataLoader(
                     dataset=dataset,
