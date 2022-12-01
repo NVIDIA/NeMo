@@ -464,6 +464,8 @@ class StreamingFeatureBufferer:
             chunk = temp_chunk
         self._add_chunk_to_buffer(chunk)
         self._convert_buffer_to_features()
+
+
 class AudioFeatureIterator(IterableDataset):
     def __init__(self, samples, frame_len, preprocessor, device):
         self._samples = samples
