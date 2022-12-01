@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
+from functools import lru_cache
 
 import pytest
 import torch
-from functools import lru_cache
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.metrics.wer import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import CTCBPEDecoding, CTCBPEDecodingConfig

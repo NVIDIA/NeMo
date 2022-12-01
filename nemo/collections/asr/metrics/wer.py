@@ -23,8 +23,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.submodules import ctc_greedy_decoding
-from nemo.collections.asr.parts.submodules import ctc_beam_decoding
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding, ctc_greedy_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging, logging_mode

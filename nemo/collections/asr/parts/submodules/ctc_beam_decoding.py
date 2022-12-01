@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union, Iterable
-
 import os
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, Tuple, Union
+
 import torch
 from omegaconf import DictConfig
 
