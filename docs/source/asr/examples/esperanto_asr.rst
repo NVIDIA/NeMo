@@ -15,12 +15,26 @@ The example covers the next steps:
 **************************
 Data preparation.
 **************************
-Mozilla Common Voice provides a dataset for Esperanto language with about 1400 hours of validated data (general details of data corpuses creation can be found `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because the next rules – “The train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
+Mozilla Common Voice provides an dataset for Esperanto language with about 1400 hours of validated data (general details of data corpuses creation can be found `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because the next rules – “The train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
 
 Download data:
 #################################
 
 To get data manifests for Esperanto you can use the modefied NeMo script `get_commonvoice_data.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_(change link to my file).
+
+.. code-block:: bash
+
+    python ${NEMO_ROOT}/scripts/dataset_processing/get_commonvoice_data_new.py \
+      --data_root ${YOUR_DATA_ROOT}/esperanto/raw_data \
+      --manifest_dir ${YOUR_DATA_ROOT}/esperanto/manifests \
+      --log \
+      --files_to_process 'test.tsv' 'dev.tsv' 'train.tsv' \
+      --version cv-corpus-11.0-2022-09-21 \
+      --language eo 
+
+You will get next data structure:
+
+
 
 Data preprocessing:
 #################################
