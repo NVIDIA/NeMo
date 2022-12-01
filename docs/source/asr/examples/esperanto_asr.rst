@@ -322,7 +322,7 @@ In the following table you can see all results for training from scratch and fin
 | Finetuning (SSL English)         |    128   |     2.90   |     4.76    |
 +----------------------------------+----------+------------+-------------+
 
-As you can see the best way to get Esperanto ASR model is to finetuning pretraind SSL model for English language.
+As you can see the best way to get Esperanto ASR model is finetuning from pretraind SSL model for English language.
 
 
 **************************
@@ -334,6 +334,19 @@ At the end of training, several checkpoints (usually 5) and one the best model (
 .. code-block:: bash
 
     python ${NEMO_ROOT}/scripts/checkpoint_averaging/checkpoint_averaging.py <your_trained_model.nemo>
+
+For decoding you can use:
+
+.. code-block:: bash
+
+    python ${NEMO_ROOT}/examples/asr/speech_to_text_eval.py \
+        model_path=${MODEL} \
+        pretrained_name=null \
+        dataset_manifest=${TEST_MANIFEST} \
+        batch_size=${BATCH_SIZE} \
+        output_filename=${OUTPUT_MANIFEST} \
+        amp=False \
+        use_cer=False)
 
 To analyze recognition errors, you can use the Speech Data Explorer, similar to the Kinyarwanda example.
 After listening to files with an abnormally high WER (>50%), we found many problematic files with wrong transcriptions and cutted or empty audio files in the dev and test sets.
