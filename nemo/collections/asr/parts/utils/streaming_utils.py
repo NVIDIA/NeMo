@@ -1424,7 +1424,6 @@ class CacheAwareStreamingAudioBuffer:
                     dtype=audio_chunk.dtype,
                 )
             else:
-<<<<<<< HEAD
                 if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
                 else:
@@ -1529,14 +1528,6 @@ class CacheAwareStreamingAudioBuffer:
                     (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
                 )
                 stream_id = len(self.streams_length) - 1
-=======
-                if stream_id < 0:
-                    self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
-            self.streams_length = torch.cat(
-                (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
-            )
-            stream_id = len(self.streams_length) - 1
->>>>>>> d5a52a9efae2c54e92f9b2c64b380d6fd8a8b582
             needed_len = self.streams_length[stream_id] + processed_signal_length
             if needed_len > self.buffer.size(-1):
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
