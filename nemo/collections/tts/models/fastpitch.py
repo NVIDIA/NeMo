@@ -19,7 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy, process_batch
@@ -196,15 +196,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
 
-        if "phoneme_dict" in cfg.text_tokenizer:
-            text_tokenizer_kwargs["phoneme_dict"] = self.register_artifact(
-                "text_tokenizer.phoneme_dict", cfg.text_tokenizer.phoneme_dict,
-            )
-        if "heteronyms" in cfg.text_tokenizer:
-            text_tokenizer_kwargs["heteronyms"] = self.register_artifact(
-                "text_tokenizer.heteronyms", cfg.text_tokenizer.heteronyms,
-            )
-
         if "g2p" in cfg.text_tokenizer:
             g2p_kwargs = {}
 
@@ -228,11 +219,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             if self.logger is None and self.logger.experiment is None:
                 return None
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             self._tb_logger = tb_logger
         return self._tb_logger
 
