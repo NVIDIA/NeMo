@@ -222,7 +222,22 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     return hyp, tokens, log_prob
 
 
-class FrameBatchASR_Logits(FrameBatchASR):
+def get_wer_feat_logit_single(
+    feat_buffer, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask
+):
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+    hyps, tokens_list = [], []
+    features = feat_buffer.unsqueeze(0)
+    feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
+    hyp, tokens, log_prob  = frame_asr.transcribe_with_ts_stream(features, feat_len, tokens_per_chunk, delay)
+    hyps.append(hyp)
+    tokens_list.append(tokens)
+    return hyps, tokens_list, features.shape, log_prob
+
+class FrameBatchASRLogits(FrameBatchASR):
     """
     A class for streaming frame-based ASR.
     Inherits from FrameBatchASR and adds new capability of returning the logit output.
@@ -252,8 +267,6 @@ class FrameBatchASR_Logits(FrameBatchASR):
     @torch.no_grad()
     def infer_buffer_logits(self, feat_signal, feat_signal_len):
         feat_signal, feat_signal_len = feat_signal.to(self.asr_model.device), feat_signal_len.to(self.asr_model.device)
-        print("In infer")
-        print(feat_signal_len.shape)
         log_probs, encoded_len, predictions = self.asr_model(
               processed_signal=feat_signal, processed_signal_length=feat_signal_len
         )
@@ -270,7 +283,6 @@ class FrameBatchASR_Logits(FrameBatchASR):
     def _get_batch_preds(self):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
-
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
             log_probs, encoded_len, predictions = self.asr_model(
@@ -284,31 +296,55 @@ class FrameBatchASR_Logits(FrameBatchASR):
                 self.all_logprobs.append(log_prob)
             del encoded_len
             del predictions
-
+    
     def transcribe_with_ts(
-        self, feat_signal, feat_signal_len,tokens_per_chunk: int, delay: int, streaming_mode=False
+        self, tokens_per_chunk: int, delay: int,
     ):
-        self.infer_buffer_logits(feat_signal, feat_signal_len)
+        self.infer_logits()
         self.unmerged = []
         self.part_logprobs = []
-        if streaming_mode:
-            self.unmerged = self.all_preds[0].tolist()
-            self.part_logprobs.append( self.all_logprobs[0])
-            self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
-        else:
-            for idx, pred in enumerate(self.all_preds):
-                decoded = pred.tolist()
-                _stt, _end = len(decoded) - 1 - delay, len(decoded) - 1 - delay + tokens_per_chunk
-                self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
-                self.part_logprobs.append(self.all_logprobs[idx][_stt:_end, :])
-            
-            self.unmerged = self.all_preds[0].tolist()
-            self.part_logprobs.append( self.all_logprobs[0])
-            self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
+        for idx, pred in enumerate(self.all_preds):
+            decoded = pred.tolist()
+            _stt, _end = len(decoded) - 1 - delay, len(decoded) - 1 - delay + tokens_per_chunk
+            self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
+            self.part_logprobs.append(self.all_logprobs[idx][_stt:_end, :])
+        self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
         assert (
             len(self.unmerged) == self.unmerged_logprobs.shape[0]
         ), "Unmerged decoded result and log prob lengths are different."
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
+
+    def transcribe_with_ts_stream(
+        self, feat_signal, feat_signal_len, tokens_per_chunk: int, delay: int, streaming_mode=False
+    ):
+        self.infer_buffer_logits(feat_signal, feat_signal_len)
+        self.unmerged = []
+        self.part_logprobs = []
+        self.unmerged = self.all_preds[0].tolist()
+        self.part_logprobs.append( self.all_logprobs[0])
+        self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
+        assert (
+            len(self.unmerged) == self.unmerged_logprobs.shape[0]
+        ), "Unmerged decoded result and log prob lengths are different."
+        return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
+
+class FrameBatchASRLogitsSample(FrameBatchASRLogits):
+    """
+    A class for streaming frame-based ASR.
+    Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    Please refer to FrameBatchASR for more detailed information.
+    """
+
+    def __init__(self, asr_model, frame_len=1.0, total_buffer=4.0, batch_size=4):
+        super().__init__(asr_model, frame_len, total_buffer, batch_size)
+        self.frame_len = frame_len
+        self.total_buffer = total_buffer
+        self.batch_size = batch_size
+
+    def buffer_reset(self):
+        self.clear_buffer()
+        self.reset()
+
 
 class ASRDecoderTimeStamps:
     """
@@ -650,7 +686,7 @@ class ASRDecoderTimeStamps:
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
-        frame_asr = FrameBatchASR_Logits(
+        frame_asr = FrameBatchASRLogits(
             asr_model=asr_model,
             frame_len=self.chunk_len_in_sec,
             total_buffer=self.total_buffer_in_secs,
