@@ -318,6 +318,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             init_val = self.cfg.p_tuning.get("init_val", "group")
             spaced_init = self.cfg.p_tuning.get("spaced_init", "spaced")
             mask_restrict = self.cfg.p_tuning.get("mask_restrict", False)
+            noise_std = self.cfg.p_tuning.get("noise_std", 0.0)
             self.prompt_encoder = PromptEncoderLinearCombination(
                 total_virtual_tokens, 
                 word_embedding, 
@@ -330,7 +331,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 init_val, 
                 spaced_init, 
                 mask_restrict,
-                self.training_top_tokens
+                top_tokens=self.training_top_tokens,
+                noise_std=noise_std,
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION_BASELINE:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
