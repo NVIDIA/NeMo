@@ -34,7 +34,7 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 
 @pytest.fixture()
-def asr_model(test_data_dir):
+def hybrid_asr_model(test_data_dir):
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
 
     model_defaults = {'enc_hidden': 1024, 'pred_hidden': 64}
