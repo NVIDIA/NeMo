@@ -258,7 +258,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def setup_multilingual_ids_and_processors(
-        cls, src_language, tgt_language, encoder_tokenizer, decoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
+        cls,
+        src_language,
+        tgt_language,
+        encoder_tokenizer,
+        decoder_tokenizer,
+        encoder_tokenizer_library,
+        decoder_tokenizer_library,
     ):
         multilingual_ids = []
 

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import enum
+import itertools
 import random
 from typing import List, Optional
 
@@ -110,7 +110,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         elif isinstance(self.tgt_language, ListConfig):
             return MultilingualModelType.one_to_many
         else:
-            raise ValueError(f"Invalid multilingual training config: {self.src_language}, {self.tgt_language}. Must have either src/tgt as a list of languages.")
+            raise ValueError(
+                f"Invalid multilingual training config: {self.src_language}, {self.tgt_language}. Must have either src/tgt as a list of languages."
+            )
 
     def _setup_multilingual_special_tokens(self):
         if self.multilingual_type == MultilingualModelType.many_to_many:
@@ -254,14 +256,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     f"NMT-XLM objective requires sentencepiece tokenizer, but got decoder tokenizer library : {self.cfg.decoder_tokenizer.library}"
                 )
             MegatronT5Model.add_special_tokens_to_tokenizer(
-                tokenizer=self.encoder_tokenizer,
-                tokenizer_cfg=self.cfg.encoder_tokenizer,
-                dataset_type='ul2',
+                tokenizer=self.encoder_tokenizer, tokenizer_cfg=self.cfg.encoder_tokenizer, dataset_type='ul2',
             )
             MegatronT5Model.add_special_tokens_to_tokenizer(
-                tokenizer=self.decoder_tokenizer,
-                tokenizer_cfg=self.cfg.decoder_tokenizer,
-                dataset_type='ul2',
+                tokenizer=self.decoder_tokenizer, tokenizer_cfg=self.cfg.decoder_tokenizer, dataset_type='ul2',
             )
 
         self.padded_vocab_size = self._vocab_size_with_padding(
@@ -687,7 +685,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             if len(self.multilingual_ids) == 0:
                 self.multilingual_ids = [None] * len(cfg.src_file_name)
 
@@ -705,8 +705,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     tgt_file=tgt_file,
                     num_samples=num_samples,
                     prepend_id=self.multilingual_ids[idx],
-                    src_language=self.src_language if not isinstance(self.src_language, ListConfig) else self.src_language[idx],
-                    tgt_language=self.tgt_language if not isinstance(self.tgt_language, ListConfig) else self.tgt_language[idx],
+                    src_language=self.src_language
+                    if not isinstance(self.src_language, ListConfig)
+                    else self.src_language[idx],
+                    tgt_language=self.tgt_language
+                    if not isinstance(self.tgt_language, ListConfig)
+                    else self.tgt_language[idx],
                 )
                 datasets.append(dataset)
             dataset = BlendableDataset(
