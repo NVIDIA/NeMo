@@ -194,6 +194,8 @@ model:
       feat_in: null
       num_classes: -1
       vocabulary: ${model.labels}
+    decoding:
+      strategy: "greedy"
 
   loss:
     loss_name: "default"
