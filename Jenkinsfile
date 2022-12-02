@@ -3389,6 +3389,37 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             trainer.num_nodes=1"
       }
     }
+    stage('L2: Megatron GPT Prompt Tuning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('GPT Prompt Learning TP=1 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
+                trainer.devices=1 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.virtual_prompt_style='prompt-tuning' \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
+          }
+        }
+      }
+    }
     stage('L2: Megatron GPT Prompt Learning') {
       when {
         anyOf {
@@ -4206,7 +4237,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/beta_priors \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.pitch_mean=212.35873413085938 \
             model.pitch_std=68.52806091308594 \
@@ -4224,6 +4257,31 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             ~model.text_normalizer_call_kwargs'
           }
         }
+        stage('RADTTS') {
+          steps {
+            sh 'python examples/tts/radtts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
+            trainer.devices="[0]" \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
+            trainer.strategy=null \
+            model.pitch_mean=212.35873413085938 \
+            model.pitch_std=68.52806091308594 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.train_ds.dataloader_params.num_workers=0 \
+            model.validation_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.num_workers=0 \
+            export_dir=/home/TestData/radtts_test \
+            model.optim.lr=0.0001 \
+            model.modelConfig.decoder_use_partial_padding=True \
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
+          }
+        }
         stage('Mixer-TTS') {
           steps {
             sh 'python examples/tts/mixer_tts.py \
@@ -4231,7 +4289,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/sup_data \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.pitch_mean=212.35873413085938 \
             model.pitch_std=68.52806091308594 \
@@ -4250,7 +4310,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 +trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            +trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=0 \
