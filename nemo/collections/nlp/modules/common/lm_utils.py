@@ -150,7 +150,7 @@ def get_transformer(
     config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
-    pre_ln_final_layer_norm: bool =True,
+    pre_ln_final_layer_norm: bool = True,
     padding_idx: int = 0,
 ) -> Union[EncoderModule, DecoderModule]:
     """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
