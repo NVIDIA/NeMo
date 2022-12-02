@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 
 @pytest.fixture()
-def asr_model():
+def hybrid_asr_model():
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
 
     # fmt: off
@@ -119,11 +119,11 @@ class TestEncDecHybridRNNTCTCModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
-    def test_constructor(self, asr_model):
-        asr_model.train()
+    def test_constructor(self, hybrid_asr_model):
+        hybrid_asr_model.train()
         # TODO: make proper config and assert correct number of weights
         # Check to/from config_dict:
-        confdict = asr_model.to_config_dict()
+        confdict = hybrid_asr_model.to_config_dict()
         instance2 = EncDecHybridRNNTCTCModel.from_config_dict(confdict)
         assert isinstance(instance2, EncDecHybridRNNTCTCModel)
 
@@ -131,13 +131,13 @@ class TestEncDecHybridRNNTCTCModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
-    def test_forward(self, asr_model):
-        asr_model = asr_model.eval()
+    def test_forward(self, hybrid_asr_model):
+        hybrid_asr_model = hybrid_asr_model.eval()
 
-        asr_model.preprocessor.featurizer.dither = 0.0
-        asr_model.preprocessor.featurizer.pad_to = 0
+        hybrid_asr_model.preprocessor.featurizer.dither = 0.0
+        hybrid_asr_model.preprocessor.featurizer.pad_to = 0
 
-        asr_model.compute_eval_loss = False
+        hybrid_asr_model.compute_eval_loss = False
 
         input_signal = torch.randn(size=(4, 512))
         length = torch.randint(low=161, high=500, size=[4])
@@ -146,14 +146,14 @@ class TestEncDecHybridRNNTCTCModel:
             # batch size 1
             logprobs_instance = []
             for i in range(input_signal.size(0)):
-                logprobs_ins, _ = asr_model.forward(
+                logprobs_ins, _ = hybrid_asr_model.forward(
                     input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
                 )
                 logprobs_instance.append(logprobs_ins)
             logprobs_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            logprobs_batch, _ = hybrid_asr_model.forward(input_signal=input_signal, input_signal_length=length)
 
         assert logprobs_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
@@ -165,24 +165,24 @@ class TestEncDecHybridRNNTCTCModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
-    def test_vocab_change(self, asr_model):
-        old_vocab = copy.deepcopy(asr_model.joint.vocabulary)
-        nw1 = asr_model.num_weights
-        asr_model.change_vocabulary(new_vocabulary=old_vocab)
+    def test_vocab_change(self, hybrid_asr_model):
+        old_vocab = copy.deepcopy(hybrid_asr_model.joint.vocabulary)
+        nw1 = hybrid_asr_model.num_weights
+        hybrid_asr_model.change_vocabulary(new_vocabulary=old_vocab)
         # No change
-        assert nw1 == asr_model.num_weights
+        assert nw1 == hybrid_asr_model.num_weights
         new_vocab = copy.deepcopy(old_vocab)
         new_vocab.append('!')
         new_vocab.append('$')
         new_vocab.append('@')
-        asr_model.change_vocabulary(new_vocabulary=new_vocab)
+        hybrid_asr_model.change_vocabulary(new_vocabulary=new_vocab)
         # fully connected + bias
         # rnn embedding + joint + bias
-        pred_embedding = 3 * (asr_model.decoder.pred_hidden)
-        joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
-        ctc_decoder = 3 * (asr_model.ctc_decoder._feat_in + 1)
-        assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint) + ctc_decoder)
-        assert asr_model.ctc_decoder.vocabulary == asr_model.joint.vocabulary
+        pred_embedding = 3 * (hybrid_asr_model.decoder.pred_hidden)
+        joint_joint = 3 * (hybrid_asr_model.joint.joint_hidden + 1)
+        ctc_decoder = 3 * (hybrid_asr_model.ctc_decoder._feat_in + 1)
+        assert hybrid_asr_model.num_weights == (nw1 + (pred_embedding + joint_joint) + ctc_decoder)
+        assert hybrid_asr_model.ctc_decoder.vocabulary == hybrid_asr_model.joint.vocabulary
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -191,54 +191,54 @@ class TestEncDecHybridRNNTCTCModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
-    def test_decoding_change(self, asr_model):
-        assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer)
+    def test_decoding_change(self, hybrid_asr_model):
+        assert isinstance(hybrid_asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer)
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'greedy'
         new_strategy.greedy = DictConfig({'max_symbols': 10})
-        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyRNNTInfer)
+        hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(hybrid_asr_model.decoding.decoding, greedy_decode.GreedyRNNTInfer)
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 1})
-        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
-        assert asr_model.decoding.decoding.search_type == "default"
+        hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 2})
-        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
-        assert asr_model.decoding.decoding.search_type == "default"
+        hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'tsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
-        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
-        assert asr_model.decoding.decoding.search_type == "tsd"
+        hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert hybrid_asr_model.decoding.decoding.search_type == "tsd"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'alsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
-        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
-        assert asr_model.decoding.decoding.search_type == "alsd"
+        hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert hybrid_asr_model.decoding.decoding.search_type == "alsd"
 
-        assert asr_model.ctc_decoding is not None
-        assert isinstance(asr_model.ctc_decoding, CTCDecoding)
-        assert asr_model.ctc_decoding.cfg.strategy == "greedy"
-        assert asr_model.ctc_decoding.preserve_alignments is False
-        assert asr_model.ctc_decoding.compute_timestamps is False
+        assert hybrid_asr_model.ctc_decoding is not None
+        assert isinstance(hybrid_asr_model.ctc_decoding, CTCDecoding)
+        assert hybrid_asr_model.ctc_decoding.cfg.strategy == "greedy"
+        assert hybrid_asr_model.ctc_decoding.preserve_alignments is False
+        assert hybrid_asr_model.ctc_decoding.compute_timestamps is False
 
         cfg = CTCDecodingConfig(preserve_alignments=True, compute_timestamps=True)
-        asr_model.change_decoding_strategy(cfg, decoder_type="ctc")
+        hybrid_asr_model.change_decoding_strategy(cfg, decoder_type="ctc")
 
-        assert asr_model.ctc_decoding.preserve_alignments is True
-        assert asr_model.ctc_decoding.compute_timestamps is True
+        assert hybrid_asr_model.ctc_decoding.preserve_alignments is True
+        assert hybrid_asr_model.ctc_decoding.compute_timestamps is True
 
     @pytest.mark.unit
     def test_GreedyRNNTInferConfig(self):
