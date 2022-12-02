@@ -550,7 +550,12 @@ class ChineseG2p(BaseG2p):
             mapping_file=mapping_file,
         )
         self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
+        # pip3 install jieba pyinyin pypinyin-dict
         from pypinyin import lazy_pinyin, Style
+        from pypinyin_dict.pinyin_data import cc_cedict
+        import jieba
+        # replace pypinyin default dict with cc_cedict.txt for polyphone disambiguation
+        cc_cedict.load()
 
         self._lazy_pinyin = lazy_pinyin
         self._Style = Style
@@ -579,12 +584,16 @@ class ChineseG2p(BaseG2p):
         ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2',
         'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']
         """
-        pinyin_seq = self._lazy_pinyin(
-            text,
-            style=self._Style.TONE3,
-            neutral_tone_with_five=True,
-            errors=lambda en_words: [letter for letter in en_words],
-        )
+        pinyin_seq = []
+        # Cut sentences into words to improve polyphone disambiguation  
+        words_list = list(jieba.cut(text))
+        for word in words_list:
+            pinyin_seq += self._lazy_pinyin(
+                word,
+                style=self._Style.TONE3,
+                neutral_tone_with_five=True,
+                errors=lambda en_words: [letter for letter in en_words],
+            )
         phoneme_seq = []
         for pinyin in pinyin_seq:
             if pinyin[-1] in self.tones:
