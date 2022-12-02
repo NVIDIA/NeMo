@@ -409,7 +409,7 @@ class StreamingFeatureBufferer:
 
         Args:
             chunk (Tensor):
-                Numpy array filled with time-series audio signal
+                Tensor filled with time-series audio signal
         """
         self.sample_buffer[: -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples :].clone()
         self.sample_buffer[-self.n_chunk_samples :] = chunk.clone()
@@ -453,7 +453,7 @@ class StreamingFeatureBufferer:
 
         Args:
             chunk (Tensor):
-                Numpy array filled with time-series audio signal
+                Tensor filled with time-series audio signal
         """
         if len(chunk) > self.n_chunk_samples:
             raise ValueError(f"chunk should be of length {self.n_chunk_samples} or less")
