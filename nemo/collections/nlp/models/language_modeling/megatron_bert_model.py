@@ -65,6 +65,10 @@ class MegatronBertModel(MegatronBaseModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+
+        if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
+
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
 
         self._validate_trainer()
@@ -86,7 +90,15 @@ class MegatronBertModel(MegatronBaseModel):
         self._reduced_sop_loss_buffer = []
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False,)[0]
+        self.model = build_model(
+            model_provider_func=self.model_provider_func, 
+            wrap_with_ddp=False,
+            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None)
+            )
+
+        # if we're not using interleaved, then self.model is a module.
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
+            self.model = self.model[0]
 
         if self.megatron_amp_o2:
             if not self.with_distributed_adam:
@@ -145,7 +157,10 @@ class MegatronBertModel(MegatronBaseModel):
     def _get_fwd_bwd_function(self):
         fwd_bwd_function = None
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            fwd_bwd_function = forward_backward_pipelining_without_interleaving
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                fwd_bwd_function = _forward_backward_pipelining_with_interleaving
+            else:
+                fwd_bwd_function = forward_backward_pipelining_without_interleaving
         else:
             fwd_bwd_function = forward_backward_no_pipelining
         return fwd_bwd_function
@@ -330,7 +345,16 @@ class MegatronBertModel(MegatronBaseModel):
             parallel_state.is_pipeline_first_stage(ignore_virtual=True)
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
-            module = self.model
+            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                if isinstance(self.model, list):
+                    module = self.model[0]  # only the first virtual rank has the embeddings
+                else:
+                    module = self.model
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                if isinstance(self.model, list):
+                    module = self.model[-1]  # only the last virtual rank has the embeddings
+                else:
+                    module = self.model
             if module.share_token_embeddings:
                 word_embeddings_weight = module.word_embeddings_weight()
                 if self.megatron_amp_o2:
@@ -543,14 +567,27 @@ class MegatronBertModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
-        num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
-            # substract the embedding weights on the last stage
-            num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
+        # log number of parameters
+        if isinstance(self.model, list):
+            num_parameters_on_device = sum(
+                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+            )
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=True
+            ):
+                # substract the embedding weights on the last virtual stage
+                num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
+                num_parameters_on_device -= num_word_embedding_parameters
+        else:
+            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
 
-            num_parameters_on_device -= num_word_embedding_parameters
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=True
+            ):
+                # substract the embedding weights on the last stage
+                num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
+
+                num_parameters_on_device -= num_word_embedding_parameters
 
         # to be summed across data parallel group
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
@@ -585,7 +622,13 @@ class MegatronBertModel(MegatronBaseModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.model.sync_initial_word_embeddings()
+            if isinstance(self.model, list):
+                for i, module in enumerate(self.model):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    module.sync_initial_word_embeddings()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            else:
+                self.model.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -667,17 +710,27 @@ class MegatronBertModel(MegatronBaseModel):
 
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
-            # See: allreduce_first_last_embeddings
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-                or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-            ):
-                module = self.model
-                if module.share_token_embeddings:
-                    word_embeddings_weight = module.word_embeddings_weight()
-                    word_embeddings_weight._disable_greedy_grad_copy = not self.megatron_amp_o2
-                    word_embeddings_weight._disable_overlap_grad_sync = True
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                    if isinstance(self.model, list):
+                        module = self.model[0]  # only the first virtual rank has the embeddings
+                    else:
+                        module = self.model
+                    if module.share_token_embeddings:
+                        param = module.word_embeddings_weight()
+                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_overlap_grad_sync = True
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                    if isinstance(self.model, list):
+                        module = self.model[-1]  # only the last virtual rank has the embeddings
+                    else:
+                        module = self.model
+                    if module.share_token_embeddings:
+                        param = module.word_embeddings_weight()
+                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_overlap_grad_sync = True
 
+            # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
                 if getattr(param, 'sequence_parallel_enabled', False):
@@ -709,3 +762,23 @@ class MegatronBertModel(MegatronBaseModel):
         attention_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
         input_dict = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
         return tuple([input_dict])
+
+    def on_save_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
+        """
+        if isinstance(self.model, list):
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+        if isinstance(self.model, list):
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
