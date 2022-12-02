@@ -392,6 +392,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         spaced_init: str,
         mask_restrict: bool,
         top_tokens: List[int],
+        noise_std: float,
     ):
         """
         Initializes the PromptEncoder module.
@@ -415,6 +416,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         self.use_relu = use_relu
         self.spaced_init = spaced_init
         self.mask_restrict = mask_restrict
+        self.noise_std = noise_std
 
         assert self.original_embeddings.requires_grad == False
         vocab_size, _ = self.original_embeddings.size()
@@ -479,7 +481,13 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         if self.normalize:
             w = w / w.sum(dim=0)
 
-        output_embeds = self.original_embeddings.transpose(0, 1) @ w
+        if self.noise_std == 0.0:
+            output_embeds = self.original_embeddings.transpose(0, 1) @ w
+        else:
+            _n = (torch.randn_like(self.original_embeddings) * self.noise_std) + self.original_embeddings
+            output_embeds = _n.transpose(0, 1) @ w
+
+
 
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
         output_embeds = output_embeds.expand(
