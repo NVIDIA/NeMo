@@ -372,7 +372,7 @@ class StreamingFeatureBufferer:
         self.chunk_size = chunk_size
         timestep_duration = asr_model.cfg.preprocessor.window_stride
 
-        self.n_chunk_look_back = int(timestep_duration*self.sr)
+        self.n_chunk_look_back = int(timestep_duration * self.sr)
         self.n_chunk_samples = int(chunk_size * self.sr)
         self.buffer_size = buffer_size
         total_buffer_len = int(buffer_size / timestep_duration)
@@ -400,7 +400,7 @@ class StreamingFeatureBufferer:
         self.frame_buffers = []
         self.sample_buffer = torch.zeros(int(self.buffer_size * self.sr))
         self.feature_buffer = (
-                torch.ones([self.n_feat, self.feature_buffer_len], dtype=torch.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            torch.ones([self.n_feat, self.feature_buffer_len], dtype=torch.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         )
 
     def _add_chunk_to_buffer(self, chunk):
@@ -411,15 +411,15 @@ class StreamingFeatureBufferer:
             chunk (Tensor):
                 Numpy array filled with time-series audio signal
         """
-        self.sample_buffer[ : -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples:].clone()
-        self.sample_buffer[-self.n_chunk_samples:] = chunk.clone()
+        self.sample_buffer[: -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples :].clone()
+        self.sample_buffer[-self.n_chunk_samples :] = chunk.clone()
 
     def _update_feature_buffer(self, feat_chunk):
         """
         Add an extracted feature to `feature_buffer`
         """
-        self.feature_buffer[:, :-self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len:].clone()
-        self.feature_buffer[:,-self.feature_chunk_len:] = feat_chunk.clone()
+        self.feature_buffer[:, : -self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len :].clone()
+        self.feature_buffer[:, -self.feature_chunk_len :] = feat_chunk.clone()
 
     def get_raw_feature_buffer(self):
         return self.feature_buffer
@@ -444,7 +444,7 @@ class StreamingFeatureBufferer:
         audio_signal_len = torch.Tensor([samples.shape[1]]).to(device)
         features, features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len,)
         features = features.squeeze()
-        self._update_feature_buffer(features[:,-self.feature_chunk_len:])
+        self._update_feature_buffer(features[:, -self.feature_chunk_len :])
 
     def update_feature_buffer(self, chunk):
         """
