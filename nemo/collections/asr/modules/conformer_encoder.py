@@ -193,10 +193,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
 
-
+        # Setting up the att_context_size
         set_context_sizes(att_context_size, conv_context_size, conv_kernel_size)
+        # Setting up chunk_size and left_chunks_num
         set_chunking_params(att_context_style)
-
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -241,6 +241,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         self._feat_out = d_model
 
+        # Biases for relative positional encoding
         if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
             pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
@@ -251,6 +252,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pos_bias_u = None
             pos_bias_v = None
 
+        # Positional encodings
         self.pos_emb_max_len = pos_emb_max_len
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
@@ -321,25 +323,23 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         device = next(self.parameters()).device
         self.pos_enc.extend_pe(max_audio_length, device)
 
-        att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
+    def create_att_mask(self):
+        device = next(self.parameters()).device
+        att_mask = torch.ones(1, self.max_audio_length, self.max_audio_length, dtype=torch.bool, device=device)
         if self.chunk_size is None:
             if self.att_context_size[0] >= 0:
                 att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
             if self.att_context_size[1] >= 0:
                 att_mask = att_mask.tril(diagonal=self.att_context_size[1])
         else:
-            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+            chunk_idx = torch.arange(0, self.max_audio_length, dtype=torch.int, device=att_mask.device)
             chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
             diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
             chunked_limited_mask = torch.logical_and(
                 torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
             )
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
-
-        if hasattr(self, 'att_mask'):
-            self.att_mask = att_mask
-        else:
-            self.register_buffer('att_mask', att_mask, persistent=False)
+        return att_mask
 
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
@@ -350,6 +350,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=audio_signal.device
             )
+
+        # Setting up the attention masking (att_mask)
+        self.att_mask = create_att_mask()
 
         if cache_last_time is not None:
             cache_last_time_next = torch.zeros_like(cache_last_time)
@@ -597,15 +600,27 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
 
-    def set_context_sizes(self, att_context_size, conv_context_size, conv_kernel_size):
+    def set_context_sizes(self, att_context_size, conv_context_size, att_context_type, conv_kernel_size):
         # convert att_context_size to a standard list of lists
         if att_context_size:
-            self.att_context_size = list(att_context_size)
-            for i, ats in enumerate(self.att_context_size):
+            att_context_size = list(att_context_size)
+            if isinstance(att_context_size[0], int):
+                att_context_size = [att_context_size]
+            for i, att_cs in enumerate(att_context_size):
+                if att_cs == "dual_offline":
+                    continue
                 if is_instance(ats, ListConfig):
-                    self.att_context_size[i] = list(ats)
+                    att_context_size[i] = list(ats)
+                if att_context_type == "chunked_limited":
+                    if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
+                        raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
+                    if att_cs[1] < 0:
+                        raise ValueError(
+                            f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!")
         else:
-            self.att_context_size = [[-1, -1]]
+            att_context_size = [[-1, -1]]
+
+        self.att_context_size = att_context_size
 
         # convert att_context_size to a standard list
         if isinstance(conv_context_size, ListConfig):
@@ -628,26 +643,44 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
             conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
         self.conv_context_size = conv_context_size
 
-    def set_chunking_params(self, att_context_style):
-        if att_context_style == "chunked_limited":
-            # the left context for self-attention in chunked_limited mode should be dividable by the right context
-            # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
-            if self.att_context_size[0] > 0 and self.att_context_size[0] % (self.att_context_size[1] + 1) > 0:
-                raise ValueError("att_context_size[0] % (att_context_size[1] + 1) should be zero!")
-            if self.att_context_size[1] < 0:
-                raise ValueError("Right context can not be unlimited for chunked_limited style!")
-            self.chunk_size = self.att_context_size[1] + 1
+    def calc_chunk_size(self, att_context_size):
+        if att_context_size[1] == -1:
+            raise ValueError(f"Right context should not be unlimited (att_context_size[1] cannot be -1)!")
+        return att_context_size[1] + 1
 
-            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
-            if self.att_context_size[0] >= 0:
-                self.left_chunks_num = self.att_context_size[0] // self.chunk_size
-            else:
-                self.left_chunks_num = 100000
-
-        elif att_context_style == "regular":
-            self.chunk_size = None
+    def calc_left_chunks_num(self, att_context_size):
+        # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
+        if att_context_size[0] >= 0:
+            chunk_size = calc_chunk_size(att_context_size)
+            return att_context_size[0] // chunk_size
         else:
-            raise ValueError("Invalid att_context_style!")
+            return 100000
+
+    # def set_chunking_params(self, att_context_style):
+    #     self.chunk_size = None
+    #     self.left_chunks_num = None
+    #
+    #     if att_context_style == "chunked_limited":
+    #         # the left context for self-attention in chunked_limited mode should be dividable by the right context
+    #         # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
+    #
+    #         for i, att_cs in enumerate(self.att_context_size):
+    #             if att_cs == "dual_offline":
+    #                 continue
+    #             if att_cs[0] > 0 and attcs[0] % (att_cs[1] + 1) > 0:
+    #                 raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
+    #             if att_cs[1] < 0:
+    #                 raise ValueError(f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!")
+    #
+    #             self.chunk_size = calc_chunk_size(att_cs)
+    #             self.left_chunks_num = calc_left_chunks_num(att_cs)
+    #
+    #         if self.chunk_size is None:
+    #             raise ValueError("With chunked_limited style, there should be at least one configuration with limited right context in att_context_size!")
+    #     elif att_context_style == "regular":
+    #         self.chunk_size = None
+    #     else:
+    #         raise ValueError("Invalid att_context_style!")
 
 
 """
