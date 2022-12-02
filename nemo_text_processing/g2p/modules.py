@@ -554,6 +554,7 @@ class ChineseG2p(BaseG2p):
         from pypinyin import lazy_pinyin, Style
         from pypinyin_dict.pinyin_data import cc_cedict
         import jieba
+
         # replace pypinyin default dict with cc_cedict.txt for polyphone disambiguation
         cc_cedict.load()
 
@@ -585,7 +586,7 @@ class ChineseG2p(BaseG2p):
         'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']
         """
         pinyin_seq = []
-        # Cut sentences into words to improve polyphone disambiguation  
+        # Cut sentences into words to improve polyphone disambiguation
         words_list = list(jieba.cut(text))
         for word in words_list:
             pinyin_seq += self._lazy_pinyin(
