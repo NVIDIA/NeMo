@@ -408,7 +408,7 @@ class StreamingFeatureBufferer:
         Add time-series audio signal to `sample_buffer`
 
         Args:
-            chunk (np.array):
+            chunk (Tensor):
                 Numpy array filled with time-series audio signal
         """
         self.sample_buffer[ : -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples:].clone()
@@ -452,7 +452,7 @@ class StreamingFeatureBufferer:
         signal in the audio buffer.
 
         Args:
-            chunk (np.array):
+            chunk (Tensor):
                 Numpy array filled with time-series audio signal
         """
         if len(chunk) > self.n_chunk_samples:
@@ -576,7 +576,10 @@ class FeatureFrameBufferer:
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        if asr_model.cfg.preprocessor.log:
+            self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        else:
+            self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
         self.asr_model = asr_model
         self.sr = asr_model._cfg.sample_rate
         self.frame_len = frame_len
