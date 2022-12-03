@@ -123,7 +123,10 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         """
         tokenized_input = self.tokenizer.text_to_ids(example['input'])
         # add a space between input and output
-        tokenized_output = self.tokenizer.text_to_ids(' ' + example['output'])
+        if 'output' in example:
+            tokenized_output = self.tokenizer.text_to_ids(' ' + example['output'])
+        else:
+            tokenized_output = self.tokenizer.text_to_ids(' ')
         offset = self.virtual_token_len
         if self.add_bos:
             offset += 1
