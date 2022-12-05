@@ -14,11 +14,13 @@
 
 import itertools
 from typing import Any, List, Optional, Union
+from functools import partial
 import os
 
 import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 import re
 
@@ -29,7 +31,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -48,13 +52,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     OutputType,
     SamplingParam,
     TextGeneration,
-)
-
-from nemo.collections.nlp.modules.common import (
-    BIGLSTMPromptEncoder,
-    VirtualPromptPlaceholderToken,
-    VirtualPromptSource,
-    VirtualPromptStyle,
 )
 
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -145,20 +142,10 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
-        self.new_tasks = list(self.cfg.get('new_tasks', []))
-        self.virtual_prompt_style = VirtualPromptStyle('no-prompts')
-
-        # self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
-        # self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
-        # self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        # self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        # TODO: fsoares add tokenizer EOS and SEP
+        # TODO: @fsoares add tokenizer EOS and SEP
         self.eos_id = self.tokenizer.eos
         self.sep_id = self.tokenizer.sep
-
-        self.load_task_templates(self.cfg.task_templates)
-
         self._reduced_loss_buffer = []
         self._inference_config = None
 
@@ -166,25 +153,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
     
-    def load_task_templates(self, task_templates):
-        """
-        Takes in the task template portion of the config and turns  
-        it into a table where each task's prompt template and 
-        the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. 
-        """
-        self.task_templates = {}
-        for task in task_templates:
-            self.task_templates[task.taskname] = {
-                "prompt_template": task.prompt_template,
-                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
-                "answer_only_loss": task.get("answer_only_loss", True), # set answer only loss
-                "answer_field": task.get("answer_field", None),
-                "truncate_field": task.truncate_field,
-                "total_virtual_tokens" : 0,
-                "virtual_token_splits": [],
-            }
-
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -642,12 +610,9 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         cache_data_path=None,
         load_cache=False,
     ):
-        dataset = GPTPromptLearningDataset(
+        dataset = GPTSupervisedFineTuningDataset(
             data=data,
             tokenizer=self.tokenizer,
-            virtual_prompt_source=VirtualPromptSource.NO_PROMPT,
-            task_templates=self.task_templates,
-            pseudo_tokens=[],
             pad_token_id=self.pad_token_id,
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,
@@ -736,7 +701,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         return self._train_ds, self._validation_ds, self._test_ds
 
-    def build_pretraining_data_loader(
+    def build_finetuning_data_loader(
         self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
     ):
         """Buld dataloader given an input dataset."""
@@ -830,7 +795,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
-            #self.build_train_valid_test_datasets()
+            self.build_train_valid_test_datasets()
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
@@ -853,7 +818,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_finetuning_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
@@ -871,7 +836,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 logging.info('pad_samples_to_global_batch_size set to True')
                 pad_samples_to_global_batch_size = True
 
-            self._validation_dl = self.build_pretraining_data_loader(
+            self._validation_dl = self.build_finetuning_data_loader(
                 self._validation_ds, consumed_samples, "validation", drop_last, pad_samples_to_global_batch_size
             )
 
@@ -881,7 +846,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             logging.info(
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_finetuning_data_loader(self._test_ds, consumed_samples)
 
     def generate(
         self,

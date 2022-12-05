@@ -29,7 +29,7 @@ __all__ = ['GPTSupervisedFineTuningDataset']
 
 class GPTSupervisedFineTuningDataset(Dataset):
     """
-    The dataset class for prompt-tuning or p-tuning pretrained GPT models.
+    The dataset class for performing supervised fine-tuning on GPT models
     
     Args:
         data (list[strings], list[dicts]): (1) paths to .jsonl or .json files, (2) dict objects corresponding to each input example
@@ -108,9 +108,8 @@ class GPTSupervisedFineTuningDataset(Dataset):
 
     def load_data(self, dataset):
         """
-        Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. 
+        Loads a dataset by concatenating text and answer fields. Adds BOS/SEP/EOS tokens when
+        required. Converts all input text into token ids. 
 
         params:
             dataset: A list of json objects or a dictionary objects each
@@ -119,17 +118,13 @@ class GPTSupervisedFineTuningDataset(Dataset):
         skipped = 0
 
         for json_line in tqdm(dataset):
-
             # Read example dict or load the information for a single example from .json file
             if type(json_line) == dict:
                 doc = json_line
             else:
                 doc = json.loads(json_line)
 
-            answer_only_loss = self.task_template["answer_only_loss"]
-
             self._input_sanity_checks(
-                answer_only_loss,
                 doc,
             )
 
@@ -234,7 +229,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
 
-        return input_ids, labels, loss_mask, position_ids, attention_mask
+        return input_ids, labels, loss_mask, attention_mask, position_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
@@ -244,6 +239,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
             if answer_start_idx is not None:
                 # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
                 loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
+            # TODO: @fsoares to double-check all sequence loss. Args are already in class
 
             # Pad to max length
             input_length = len(ids)
