@@ -86,7 +86,10 @@ def calculate_sdr_batch(
 ) -> torch.Tensor:
     """Calculate signal-to-distortion ratio.
 
-        SDR = 10 * log10( ||t||_2^2 / ||e-t||_2^2
+        SDR = 10 * log10( ||t||_2^2 / (||e-t||_2^2 + alpha * ||t||^2)
+
+    where
+        alpha = 10^(-sdr_max/10)
 
     Optionally, apply scale-invariant scaling on the target signal.
 

@@ -53,7 +53,7 @@ Process audio file on a single CPU/GPU. Useful for processing of moderate amount
 
 # Usage
 AudioProcessingModel can be specified by either `model_path` or `pretrained_name`.
-Data for processing can be defined with either `audio_dir` or `dataset_naminfest`.
+Data for processing can be defined with either `audio_dir` or `dataset_manifest`.
 Processed audio is saved in `output_dir`, and a manifest for processed files is saved
 in `output_filename`.
 

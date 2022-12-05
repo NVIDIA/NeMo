@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import warnings
 from typing import Optional
 
@@ -27,7 +28,7 @@ from nemo.collections.asr.modules.audio_modules import (
 )
 
 try:
-    import torchaudio
+    importlib.import_module('torchaudio')
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
@@ -44,6 +45,10 @@ class TestAudioSpectrogram:
         Create signals of arbitrary length and check output
         length is matching the actual transform length.
         """
+        if not HAVE_TORCHAUDIO:
+            warnings.warn('Could not import torchaudio. This test will be skipped.')
+            return
+
         hop_lengths = [fft_length // 2, fft_length // 4, fft_length // 8, fft_length - 1]
         batch_size = 8
         num_examples = 25
@@ -99,6 +104,10 @@ class TestAudioSpectrogram:
         Create signals of arbitrary length and check output
         length is matching the actual transform length.
         """
+        if not HAVE_TORCHAUDIO:
+            warnings.warn('Could not import torchaudio. This test will be skipped.')
+            return
+
         hop_lengths = [fft_length // 2, fft_length // 4, fft_length // 8, fft_length - 1]
         batch_size = 8
         num_examples = 25
@@ -299,69 +308,6 @@ class TestSpatialFeatures:
 
             # Compare values
             assert np.isclose(ipd, ipd_golden, atol=atol).all(), f'Features not matching for example {n}'
-
-
-class TestMaskBasedProcessor:
-    @pytest.mark.unit
-    @pytest.mark.parametrize('fft_length', [256])
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('num_masks', [1, 2])
-    def test_mask_reference_channel(self, fft_length: int, num_channels: int, num_masks: int):
-        """Test masking of the reference channel.
-        """
-        if not HAVE_TORCHAUDIO:
-            warnings.warn('Could not import torchaudio. This test will be skipped.')
-            return
-
-        if num_channels == 1:
-            # Only one channel available
-            ref_channels = [0]
-        else:
-            # Use first or last channel for MC signals
-            ref_channels = [0, num_channels - 1]
-
-        atol = 1e-6
-        batch_size = 8
-        num_samples = fft_length * 50
-        num_examples = 10
-        random_seed = 42
-
-        _rng = np.random.default_rng(seed=random_seed)
-
-        hop_length = fft_length // 4
-        audio2spec = AudioToSpectrogram(fft_length=fft_length, hop_length=hop_length)
-
-        for ref_channel in ref_channels:
-
-            mask_processor = MaskReferenceChannel(ref_channel=ref_channel)
-
-            for n in range(num_examples):
-                x = _rng.normal(size=(batch_size, num_samples, num_channels))
-
-                spec, spec_len = audio2spec(
-                    input=torch.Tensor(x), input_length=torch.Tensor([num_samples] * batch_size)
-                )
-
-                # Randomly-generated mask
-                mask = _rng.uniform(
-                    low=0.0, high=1.0, size=(batch_size, audio2spec.num_subbands, spec.shape[2], num_masks)
-                )
-
-                # UUT output
-                out, _ = mask_processor(input=spec, input_length=spec_len, mask=torch.tensor(mask))
-                out_np = out.cpu().detach().numpy()
-
-                # Golden output
-                spec_np = spec.cpu().detach().numpy()
-                out_golden = np.zeros_like(mask, dtype=spec_np.dtype)
-                for m in range(num_masks):
-                    out_golden[..., m] = spec_np[..., ref_channel] * mask[..., m]
-
-                # Compare shape
-                assert out_np.shape == out_golden.shape, f'Output shape not matching for example {n}'
-
-                # Compare values
-                assert np.isclose(out_np, out_golden, atol=atol).all(), f'Output not matching for example {n}'
 
 
 class TestMaskBasedProcessor:

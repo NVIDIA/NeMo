@@ -430,10 +430,6 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             f'{tag}_loss': loss_value,
         }
 
-    def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
-
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """

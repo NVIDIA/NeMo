@@ -1590,7 +1590,7 @@ class TestAudioDatasets:
             # - Test collate_fn
             batch_size = 16
             batch = [dataset.__getitem__(n) for n in range(batch_size)]
-            batched = dataset.collate_fn(batch)
+            _ = dataset.collate_fn(batch)
 
     @pytest.mark.unit
     def test_audio_to_target_with_embedding_dataset(self):
@@ -1720,7 +1720,7 @@ class TestAudioDatasets:
             # - Test collate_fn
             batch_size = 16
             batch = [dataset.__getitem__(n) for n in range(batch_size)]
-            batched = dataset.collate_fn(batch)
+            _ = dataset.collate_fn(batch)
 
 
 class TestUtilityFunctions:
