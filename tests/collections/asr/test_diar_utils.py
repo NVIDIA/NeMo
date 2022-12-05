@@ -33,7 +33,6 @@ from nemo.collections.asr.parts.utils.online_clustering import (
     merge_vectors,
     run_reducer,
     stitch_cluster_labels,
-
 )
 from nemo.collections.asr.parts.utils.speaker_utils import get_subsegments
 
