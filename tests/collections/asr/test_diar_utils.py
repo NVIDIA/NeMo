@@ -19,18 +19,21 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.nmesc_clustering import (
-    OnlineSpeakerClustering,
+from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
+    get_scale_interpolated_embs,
+    getCosAffinityMatrix,
+    split_input_data,
+)
+from nemo.collections.asr.parts.utils.online_clustering import (
+    OnlineSpeakerClustering,
     get_closest_embeddings,
     get_merge_quantity,
     get_minimal_indices,
-    get_scale_interpolated_embs,
-    getCosAffinityMatrix,
     merge_vectors,
     run_reducer,
-    split_input_data,
     stitch_cluster_labels,
+
 )
 from nemo.collections.asr.parts.utils.speaker_utils import get_subsegments
 
@@ -86,12 +89,12 @@ def generate_toy_data(
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
     ground_truth = []
-    random_orhtogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
+    random_orthogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
             segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
-            emb_cent = random_orhtogonal_embs[spk_idx, :]
+            emb_cent = random_orthogonal_embs[spk_idx, :]
             emb = emb_cent.tile((len(segments), 1)) + 0.1 * torch.rand(len(segments), emb_dim)
             seg_list.extend(segments)
             emb_list.append(emb)
@@ -581,7 +584,7 @@ class TestSpeakerClustering:
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))
 
-        assert online_clus.isOnline
+        assert online_clus.is_online
         assert add_new
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
