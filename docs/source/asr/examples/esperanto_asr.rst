@@ -188,7 +188,7 @@ For Esperanto we use the standard `Byte-pair <https://en.wikipedia.org/wiki/Byte
 Analysis of training parameters. 
 **************************
 
-Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the common ASR model in NeMo is presented at the `config file <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. As an encoder, the `Conformer model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much.
+Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the common ASR model in NeMo is presented at the `config file <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_ (general description of the `ASR configuration file <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/configs.html>`_). As an encoder, the `Conformer model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much.
 
 
 Scheduler:
@@ -201,7 +201,7 @@ This parameter is responsible for how quickly your scheduler will reach the peak
 
 Batch size:
 #################################
-It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and smooth out outliers. The preferred batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use `accumulate_grad_batches parameter <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml#L173>`_ to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits on your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
+It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and smooth out outliers. The preferred batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use `accumulate_grad_batches <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml#L173>`_ parameter to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
 
 Now we can plot our learning rate for CosineAnnealing schedule:
 
@@ -217,7 +217,6 @@ Now we can plot our learning rate for CosineAnnealing schedule:
     num_epoch = 300
     warmup_steps = 10000
     config_learning_rate = 1e-3
-    attention_model_size = 512
 
     steps_num = int(train_files_num / global_batch_size * num_epoch)
     print(f"steps number is: {steps_num}")
@@ -241,19 +240,19 @@ Attach image..
 
 Precision:
 #################################
-By default, for model training in NeMo, it is recommended to use half precision (FP16 for V100 and BF16 for A100 GPU). This allows you to speed up the training process almost twice. However, the transition to half-precision sometimes has problems with the convergence of the model. At an unexpected moment, the metrics can explode due to an overflow of one of the BN statistics. In order to eliminate the influence of half precision on such a problem, we advise you to check the training in FP32.
+By default, it is recommended to use half precision (FP16 for V100 and BF16 for A100 GPU) for ASR model training in NeMo. This allows you to speed up the training process almost twice. However, the transition to half-precision sometimes has problems with the convergence of the model. At an unexpected moment, the metrics can explode. In order to eliminate the influence of half precision on such a problem, we advise you to check the training in FP32.
 
 **************************
 Training.
 **************************
 
-We can use three main scenarios for training:
+We use three main scenarios for ASR model training:
 
 * Training from scratch.
-* Finetuning already trained models on other languages.
-* Finetuning on an English SSL (Self-supervised learning) model.
+* Finetuning from already trained ASR models on other languages.
+* Finetuning from an English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model.
 
-For the training of the Conformer-CTC model, we use `speech_to_text_ctc_bpe.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py>`_ with the default config `conformer_ctc_bpe.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. Here you can see the ecample how to run this training:
+For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ model, we use `speech_to_text_ctc_bpe.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py>`_ with the default config `conformer_ctc_bpe.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. Here you can see the example how to run this training:
 
 .. code-block:: bash
 
