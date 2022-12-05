@@ -30,7 +30,7 @@ with open(code_dir / 'requirements.txt', 'w') as f:
 conf = OmegaConf.load(config_path)
 conf.model.train_ds.manifest_filepath = ("/opt/ml/input/data/training/an4/train_manifest.json",)
 conf.model.validation_ds.manifest_filepath = "/opt/ml/input/data/testing/an4/test_manifest.json"
-conf.model.pretrained_model_name = "nvidia/stt_en_conformer_ctc_large"
+conf.pretrained_model_name = "nvidia/stt_en_conformer_ctc_large"
 conf.trainer.accelerator = "gpu"
 conf.trainer.max_epochs = 1
 OmegaConf.save(conf, config_dir / 'config.yaml')

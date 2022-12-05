@@ -1,6 +1,6 @@
 name: &name "CTC-Finetuning"
 sample_rate: &sample_rate 16000
-pretrained_model_name: "nvidia/nemo/stt_en_conformer_ctc_large:1.10.0"
+pretrained_model_name: "nvidia/stt_en_conformer_ctc_large"
 labels: null
 freeze_encoder: True
 
