@@ -72,7 +72,7 @@ def gather_objects(partial_results_list, main_rank=None):
     # do not fail when DDP is not initialized
     if parallel_state.is_unitialized():
         return partial_results_list
-    
+
     rank = parallel_state.get_data_parallel_rank()
     world_size = parallel_state.get_data_parallel_world_size()
     # return input when no DDP is used
