@@ -256,27 +256,27 @@ For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nem
 
 .. code-block:: bash
 
-    TOKENIZER=tokenizers/...
-    TRAIN_MANIFEST=data/...
-    TRAIN_FILEPATHS=data/train_tarred_1bk/audio__OP_0..1023_CL_.tar
-    VAL_MANIFEST=data/dev_decoded_processed.json
-    TEST_MANIFEST=data/test_decoded_processed.json
+    TOKENIZER=${YOUR_DATA_ROOT}/esperanto/tokenizers/tokenizer_spe_bpe_v128
+    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk/tarred_audio_manifest.json
+    TARRED_AUDIO_FILEPATHS=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk/audio__OP_0..1023_CL_.tar # "_OP_0..1023_CL_" is the range for the banch of files audio_0.tar, audio_1.tar, ..., audio_1023.tar
+    DEV_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_dev_manifest.json.clean
+    TEST_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json.clean
 
     python ${NEMO_ROOT}/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
     --config-path=../conf/conformer/ \
     --config-name=conformer_ctc_bpe \
-    exp_manager.name="Some name of our experiment" \
+    exp_manager.name="Name of our experiment" \
     exp_manager.resume_if_exists=true \
     exp_manager.resume_ignore_no_checkpoint=true \
     exp_manager.exp_dir=results/ \
     model.tokenizer.dir=$TOKENIZER \
     model.train_ds.is_tarred=true \
-    model.train_ds.tarred_audio_filepaths=$TRAIN_FILEPATHS \
+    model.train_ds.tarred_audio_filepaths=$TARRED_AUDIO_FILEPATHS \
     model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
-    model.validation_ds.manifest_filepath=$VAL_MANIFEST \
+    model.validation_ds.manifest_filepath=$DEV_MANIFEST \
     model.test_ds.manifest_filepath=$TEST_MANIFEST
 
-For finetuning from alread trained models we use three languages:
+For finetuning from alread trained ASR models we use three languages:
 
 * Esnglish `stt_en_conformer_ctc_large <https://huggingface.co/nvidia/stt_en_conformer_ctc_large>`_ (several thousand hours of English speech). 
 * Spanish `stt_es_conformer_ctc_large <https://huggingface.co/nvidia/stt_es_conformer_ctc_large>`_ (1340 hours of Spanish speech).
@@ -286,14 +286,14 @@ To finetune a model with the same vocab size, you just need to set the desired m
 
 .. code-block:: bash
 
-    +init_from_pretrained_model=${INIT_MODEL}
+    +init_from_pretrained_model=${PRETRAINED_MODEL_NAME}
 
-as it done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the finetuning `tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
+as it done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the `finetuning tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
 
 .. code-block:: python
 
-    model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(f"nvidia/{pretrained_model_name}", map_location='cpu')
-    model.change_vocabulary(new_tokenizer_dir=TOKENIZER_DIR, new_tokenizer_type="bpe")
+    model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(f"nvidia/{PRETRAINED_MODEL_NAME}", map_location='cpu')
+    model.change_vocabulary(new_tokenizer_dir=TOKENIZER, new_tokenizer_type="bpe")
     model.encoder.unfreeze()
     model.save_to(f"{save_path}")
 
@@ -305,14 +305,16 @@ There is no need to change anything for the SSL model, it will replace the vocab
     ++init_from_nemo_model=${PRETRAINED_MODEL} \
 
 As the SSL model we use `ssl_en_conformer_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/ssl_en_conformer_large>`_ which is trained using LibriLight corpus (~56k hrs of unlabeled English speech).
-All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo. 
+All models for finetuing are available on `Nvidia Hugging Face <https://huggingface.co/nvidia>`_ or `NGC <https://catalog.ngc.nvidia.com/models>`_ repo. 
 
 In the following table you can see all results for training from scratch and finetuning for Conformer-CTC-large model.
 
 +----------------------------------+----------+------------+-------------+
 | Training mode                    | BPE size | DEV, WER % | TEST, WER % |
 +==================================+==========+============+=============+
-| From scratch                     |    128   |     3.96   |     6.25    |
+|                                  |    128   |     3.96   |     6.25    |
++                                  +----------+------------+-------------+
+| From scratch                     |    512   |     4.62   |     7.31    |
 +                                  +----------+------------+-------------+
 |                                  |   1024   |     5.81   |     8.56    |
 +----------------------------------+----------+------------+-------------+
@@ -322,7 +324,7 @@ In the following table you can see all results for training from scratch and fin
 +----------------------------------+----------+------------+-------------+
 | Finetuning (Italian)             |    128   |     3.29   |     5.36    |
 +----------------------------------+----------+------------+-------------+
-| Finetuning (SSL English)         |    128   |     2.90   |     4.76    |
+| Finetuning (SSL English)         |    128   |   **2.90** |   **4.76**  |
 +----------------------------------+----------+------------+-------------+
 
 As you can see the best way to get Esperanto ASR model is finetuning from pretraind SSL model for English language.
