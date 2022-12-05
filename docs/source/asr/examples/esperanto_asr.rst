@@ -2,7 +2,7 @@
 Example: Esperanto ASR using Mozilla Common Voice Dataset
 ########################################################################
 
-Training an ASR model for a new language can be a challenging task, because there are many specific features which may differ depending on the language characteristics and amount of training data. At the moment NeMo already has a detailed example (link) for Kinyarwanda ASR training. You can find all the information for getting the ASR model there (read it first). The aim of the current example is to describe the ASR model training for Esperanto language and show some useful practices that can improve recognition accuracy. 
+Training an ASR model for a new language can be a challenging task, because there are many specific features which may differ depending on the language characteristics and amount of training data. At the moment NeMo already has a detailed `example <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/examples/kinyarwanda_asr.rst>`_ for Kinyarwanda ASR training. You can find all the information for getting the ASR model there. The aim of the current example is to describe the ASR model training for Esperanto language and show some useful practices that can improve recognition accuracy. 
 
 The example covers the next steps:
 
@@ -15,12 +15,12 @@ The example covers the next steps:
 **************************
 Data preparation.
 **************************
-Mozilla Common Voice provides an dataset for Esperanto language with about 1400 hours of validated data (general details of data corpuses creation can be found `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because the next rules – “The train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
+Mozilla Common Voice provides a dataset for Esperanto language with about 1400 hours of validated data (general details of data corpuses creation can be found `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because the next rules – “The train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
 
 Download data:
 #################################
 
-To get data manifests for Esperanto you can use the modefied NeMo script `get_commonvoice_data.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_(change link to my file).
+To get data manifests for Esperanto you can use the modefied NeMo `script <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_ (change link to my file).
 
 .. code-block:: bash
 
@@ -32,7 +32,7 @@ To get data manifests for Esperanto you can use the modefied NeMo script `get_co
       --version cv-corpus-11.0-2022-09-21 \
       --language eo 
 
-You will get next data structure:
+You will get the next data structure:
 
 .. code-block:: bash
 
@@ -70,7 +70,7 @@ Data preprocessing:
 #################################
 
 Next, we need to clear the text data from punctuation and various trash characters. In addition to deleting a common set of elements (as in Kinyarwanda), you can build the frequency of characters encountered in the train set and add the rarest (occurring less than 10 times) to the list for deletion. This approach will remove various garbage and leave really important characters.
-We will also check the data for anomalies. The simplest anomaly can be a problematic audio file. The text for it will look normal, but the audio file itself may be cut off or empty. One way to detect a problem is to check for char rate (number of chars per second). If the char rate is too high (more than 15 chars per second), then something is clearly wrong with the file. It is better to filter such data from the training sample in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our tutorial.
+We will also check the data for anomalies. The simplest anomaly can be a problematic audio file. The text for it will look normal, but the audio file itself may be cut off or empty. One way to detect a problem is to check for char rate (number of chars per second). If the char rate is too high (more than 15 chars per second), then something is clearly wrong with the file. It is better to filter such data from the training dataset in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our example.
 
 .. code-block:: python
 
@@ -116,7 +116,7 @@ Now we need to clear our data:
 
   import re
 
-  def clear_data_set(manifest, char_rate_threshold=15, leav_cap_and_punct=False):
+  def clear_data_set(manifest, char_rate_threshold=None):
 
       chars_to_ignore_regex = "[\.\,\?\:\-!;()«»…\]\[/\*–‽+&_\\½√>€™$•¼}{~—=“\"”″‟„]"
       addition_ignore_regex = f"[{''.join(trash_char_list)}]"
@@ -129,7 +129,7 @@ Now we need to clear our data:
               line = line.replace("\n", "")
               data = json.loads(line)
               text = data["text"]
-              if len(text.replace(' ', '')) / float(data['duration']) > char_rate_threshold:
+              if char_rate_threshold and len(text.replace(' ', '')) / float(data['duration']) > char_rate_threshold:
                   print(f"[WARNING]: {data['audio_filepath']} has char rate > 15 per sec: {len(text)} chars, {data['duration']} duration")
                   war_count += 1
                   continue
@@ -142,21 +142,23 @@ Now we need to clear our data:
 
   clear_data_set(dev_manifest)
   clear_data_set(test_manifest)
-  clear_data_set(train_manifest)
+  clear_data_set(train_manifest, char_rate_threshold=15)
 
 
 Tarred dataset:
 #################################
 
-Tarred dataset allows to store the dataset as large .tar files instead of small separate audio files. It may speed up the training and minimizes the load on the network in the cluster.
+Tarred dataset allows to store the dataset as large *.tar files instead of small separate audio files. It may speed up the training and minimizes the load on the network in the cluster.
 
-The NeMo toolkit provides a script to get tarred dataset.
+The NeMo toolkit provides a `script <https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_ to get tarred dataset.
 
 .. code-block:: bash
 
+    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_train_manifest.json.clean
+
     python ${NEMO_ROOT}/scripts/speech_recognition/convert_to_tarred_audio_dataset.py \
-      --manifest_path=train_decoded_processed.json \
-      --target_dir=train_tarred_1bk \
+      --manifest_path=${TRAIN_MANIFEST} \
+      --target_dir=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk \
       --num_shards=1024 \
       --max_duration=15.0 \
       --min_duration=1.0 \
@@ -169,15 +171,16 @@ The NeMo toolkit provides a script to get tarred dataset.
 Tokenization.
 **************************
 
-For Esperanto we use the standard Byte-pair encoding algorithm with 128, 512, and 1024 vocab size. It is worth noting that we have a relatively small training dataset (~250 hours). Usually it is not enough data to train the best ARS model with a big vocab size (512 or 1024 BPE tokens). Smaller vocab size should be better in our case. We will check this statement. 
+For Esperanto we use the standard `Byte-pair <https://en.wikipedia.org/wiki/Byte_pair_encoding>`_ encoding algorithm with 128, 512, and 1024 vocab size. It is worth noting that we have a relatively small training dataset (~250 hours). Usually it is not enough data to train the best ARS model with a big vocab size (512 or 1024 BPE tokens). Smaller vocab size should be better in our case. We will check this statement further. 
 
 .. code-block:: bash
 
-    vocab_size=128
+    VOCAB_SIZE=128
+    
     python ${NEMO_ROOT}/scripts/tokenizers/process_asr_text_tokenizer.py \
-      --manifest=train_decoded_processed.json \
-      --vocab_size=$vocab_size \
-      --data_root=tokenizers \
+      --manifest=${TRAIN_MANIFEST} \
+      --vocab_size=${VOCAB_SIZE} \
+      --data_root=${YOUR_DATA_ROOT}/esperanto/tokenizers \
       --tokenizer="spe" \
       --spe_type=bpe \  
 
@@ -185,20 +188,20 @@ For Esperanto we use the standard Byte-pair encoding algorithm with 128, 512, an
 Analysis of training parameters. 
 **************************
 
-Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the ASR model in NeMo is presented at the link. As an encoder, a Conformer model is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much.
+Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the common ASR model in NeMo is presented at the `config file <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. As an encoder, the `Conformer model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much.
 
 
 Scheduler:
 #################################
-By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. Or use the more understandable CosineAnealing scheduler. The code for plotting the default Noam scheduler is shown below:
+By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. You also can use more understandable CosineAnealing scheduler.
 
 Warmup steps:
 #################################
-This parameter is responsible for how quickly your scheduler will reach the peak learning rate. One step is the size of your global batch (local batch * gpu_num * accum_gradient). If you increase the learning rate too quickly, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
+This parameter is responsible for how quickly your scheduler will reach the peak learning rate. One step is the size of your global batch (local batch * gpu_num * accum_gradient). If you increase the learning rate too fast, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
 
 Batch size:
 #################################
-It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and to smooth out outliers. The good batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use grad_accamulation to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits on your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
+It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and smooth out outliers. The preferred batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use `accumulate_grad_batches parameter <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml#L173>`_ to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits on your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
 
 Now we can plot our learning rate for CosineAnnealing schedule:
 
