@@ -2382,6 +2382,7 @@ class ParallelTransformer(MegatronModule):
                         tensor_parallel.random.get_cuda_rng_tracker,
                         parallel_state.get_tensor_model_parallel_group(),
                         *arg_tuple,
+                        is_first_microbatch=self.is_first_microbatch,
                     )
                 else:
                     hidden_states = tensor_parallel.checkpoint(
@@ -2434,6 +2435,7 @@ class ParallelTransformer(MegatronModule):
                             tensor_parallel.random.get_cuda_rng_tracker,
                             parallel_state.get_tensor_model_parallel_group(),
                             *arg_tuple,
+                            is_first_microbatch=self.is_first_microbatch,
                         )
                     else:
                         hidden_states = tensor_parallel.checkpoint(custom(l, l + 1), False, *arg_tuple)
