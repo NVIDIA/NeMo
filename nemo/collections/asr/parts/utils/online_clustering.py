@@ -44,19 +44,15 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
     SpeakerClustering,
     SpectralClustering,
-    getAffinityGraphMat,
     get_scale_interpolated_embs,
+    getAffinityGraphMat,
     getCosAffinityMatrix,
     split_input_data,
 )
 
+
 def hungarian_algorithm(
-    spk_count: int, 
-    U_set: List[int], 
-    cmm_P: torch.Tensor, 
-    cmm_Q: torch.Tensor, 
-    PmQ: List[int], 
-    QmP: List[int]
+    spk_count: int, U_set: List[int], cmm_P: torch.Tensor, cmm_Q: torch.Tensor, PmQ: List[int], QmP: List[int]
 ) -> np.array:
     """
     Find a mapping that minimizes the matching cost between the label P and Q.
@@ -1933,4 +1929,3 @@ class OnlineSpeakerClustering:
             spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
             Y = spectral_model.forward(affinity_mat)
         return Y
-

@@ -1337,4 +1337,3 @@ class SpeakerClustering(torch.nn.Module):
         spectral_model = SpectralClustering(n_clusters=n_clusters, cuda=self.cuda, device=self.device)
         Y = spectral_model.forward(affinity_mat)
         return Y
-
