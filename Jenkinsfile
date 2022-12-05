@@ -1122,24 +1122,24 @@ pipeline {
             rm -rf "${data_dir}"'
           }
         }
-        stage('Test Restore Punctuation & Capitalization with RoBERTa') {
-          steps {
-            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
-            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
-              +model.test_ds.use_cache=false \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item="${data_dir}" \
-              trainer.devices=[1] \
-              trainer.accelerator="gpu" \
-              exp_manager=null && \
-            rm -rf "${data_dir}"'
-          }
-        }
+//         stage('Test Restore Punctuation & Capitalization with RoBERTa') {
+//           steps {
+//             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+//             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+//             python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+//               +do_training=false \
+//               +do_testing=true \
+//               pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+//               +model.test_ds.use_cache=false \
+//               ~model.train_ds \
+//               ~model.validation_ds \
+//               model.test_ds.ds_item="${data_dir}" \
+//               trainer.devices=[1] \
+//               trainer.accelerator="gpu" \
+//               exp_manager=null && \
+//             rm -rf "${data_dir}"'
+//           }
+//         }
       }
     }
     stage('L2: Dialogue Classification') {
@@ -2990,6 +2990,7 @@ pipeline {
         model.tensor_model_parallel_size=2 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
+        model.sequence_parallel=True \
         model.optim.sched.warmup_steps=2 \
         model.optim.sched.constant_steps=2 \
         model.optim.sched.min_lr=8e-5 \
@@ -3387,6 +3388,37 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             pipeline_model_parallel_size=2 \
             trainer.devices=2 \
             trainer.num_nodes=1"
+      }
+    }
+    stage('L2: Megatron GPT Prompt Tuning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('GPT Prompt Learning TP=1 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
+                trainer.devices=1 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.virtual_prompt_style='prompt-tuning' \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
+          }
+        }
       }
     }
     stage('L2: Megatron GPT Prompt Learning') {
