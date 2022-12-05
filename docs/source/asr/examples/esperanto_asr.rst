@@ -365,5 +365,5 @@ After listening to files with an abnormally high WER (>50%), we found many probl
 Bonus.
 **************************
 
-For additional analysis of the training dataset, you can decode it using an already trained model. Examples with high error rate (WER > 50%) are very likely to be problematic files. It is better to remove them from the training set. Sometimes a model is able to train text even for almost empty audio. Here you can see an example for this anomaly: …
+For an additional analysis of the training dataset, you can decode it using an already trained model. Train examples with high error rate (WER > 50%) are very likely to be problematic files. It is better to remove them from the training set because a model is able to train text even for almost empty audio. We do not want this behavior from the ASR model.
 
