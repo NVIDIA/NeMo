@@ -58,7 +58,7 @@ if [[ "$MEMORY_MEASURE_TEST" == "True" ]]; then
   MAX_STEPS=10
   TIME_LIMIT="1:00:00"
   export BIGNLP_MEMORY_MEASURE=1
-  params+=(++env_vars.PYTORCH_NO_CUDA_MEMORY_CACHING=1)
+  params+=(++env_vars.PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512)
   LOG_EVERY_N_STEPS=10
   VAL_CHECK_INTERVAL=10
   LIMIT_VAL_BATCHES=5
