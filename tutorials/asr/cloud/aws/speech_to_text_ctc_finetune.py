@@ -13,8 +13,9 @@
 # limitations under the License.
 
 # hack to install necessary nemo system-libraries, without having to create a sagemaker compatible container.
-import os
-
+# fmt: off
+import os; os.system('apt-get -qq update && apt-get -qq install -y libsndfile1 ffmpeg')
+# fmt: on
 import pytorch_lightning as pl
 import torch.nn as nn
 from omegaconf import OmegaConf
@@ -23,8 +24,6 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
-os.system('apt-get -qq update && apt-get -qq install -y libsndfile1 ffmpeg')
 
 
 def enable_bn_se(m):

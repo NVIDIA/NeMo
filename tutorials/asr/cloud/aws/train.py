@@ -17,9 +17,12 @@ data_dir = Path('./data/')
 code_dir.mkdir(exist_ok=True)
 config_dir.mkdir(exist_ok=True)
 config_path = str(config_dir / "config.yaml")
-wget.download("https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/asr/conf/config.yaml", config_path)
 wget.download(
-    "https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples//asr/asr_ctc/speech_to_text_ctc.py", str(code_dir)
+    "https://raw.githubusercontent.com/NVIDIA/NeMo/feat/aws-asr/tutorials/asr/cloud/aws/conf/config.yaml", config_path
+)
+wget.download(
+    "https://raw.githubusercontent.com/NVIDIA/NeMo/feat/aws-asr/tutorials/asr/cloud/aws/speech_to_text_ctc_finetune.py",
+    str(code_dir),
 )
 with open(code_dir / 'requirements.txt', 'w') as f:
     f.write("nemo_toolkit[all]")
