@@ -12,9 +12,7 @@ elif [[ "$TEST_TASK" = "xquad_ckpt" ]]; then
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_dir=$CHECKPOINT_DIR)
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_name="'${CHECKPOINT_NAME}'")
     params+=(evaluation.model.pretrained_checkpoint.hparams_file=$HPARAMS_FILE)
-  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
-    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
-  fi
+    params+=("container_mounts=[/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data:/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data]")
 else
   if [[ ! -z $LOCAL_NEMO_PATH ]]; then
     params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
