@@ -20,7 +20,7 @@ Mozilla Common Voice provides a dataset for Esperanto language with about 1400 h
 Download data:
 #################################
 
-To get data manifests for Esperanto you can use the modefied NeMo `script <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_ (change link to my file).
+To get data manifests for Esperanto you can use the modefied NeMo `script <https://github.com/andrusenkoau/NeMo/blob/esperanto_example/docs/source/asr/examples/esperanto_asr/scripts/get_commonvoice_data_v2.py>`_.
 
 .. code-block:: bash
 
@@ -236,8 +236,11 @@ Now we can plot our learning rate for CosineAnnealing schedule:
 
     plt.plot(lrs)
 
-Attach image..
-
+.. image:: ./images/CosineAnnealing_scheduler.png
+    :align: center
+    :alt: NeMo CosineAnnealing scheduler.
+    :width: 800px
+        
 Precision:
 #################################
 By default, it is recommended to use half precision (FP16 for V100 and BF16 for A100 GPU) for ASR model training in NeMo. This allows you to speed up the training process almost twice. However, the transition to half-precision sometimes has problems with the convergence of the model. At an unexpected moment, the metrics can explode. In order to eliminate the influence of half precision on such a problem, we advise you to check the training in FP32.
