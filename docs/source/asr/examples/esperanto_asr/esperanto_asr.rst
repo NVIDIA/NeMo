@@ -315,7 +315,7 @@ The following table shows all results for training from scratch and finetuning f
 +----------------------------------+----------+------------+-------------+
 | Training mode                    | BPE size | DEV, WER % | TEST, WER % |
 +==================================+==========+============+=============+
-|                                  |    128   |     3.96   |     6.25    |
+|                                  |    128   |     3.96   |     6.48    |
 +                                  +----------+------------+-------------+
 | From scratch                     |    512   |     4.62   |     7.31    |
 +                                  +----------+------------+-------------+
@@ -329,6 +329,13 @@ The following table shows all results for training from scratch and finetuning f
 +----------------------------------+----------+------------+-------------+
 | Finetuning (SSL English)         |    128   |   **2.90** |   **4.76**  |
 +----------------------------------+----------+------------+-------------+
+
+We can also look at the general trend of test WER decreasing in the training process using wandb plots (X - global step, Y - test WER):
+
+.. image:: ./images/test_wer_wandb.png
+    :align: center
+    :alt: Test WER.
+    :width: 800px
 
 As you can see, the best way to get Esperanto ASR model is finetuning from the pretraind SSL model for English.
 
