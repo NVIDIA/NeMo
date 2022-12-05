@@ -300,7 +300,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
-        import ipdb; ipdb.set_trace()
+        import ipdb
+
+        ipdb.set_trace()
         self._optimizer.zero_grad()
         # we prepare the micro batches for the apex fwd/bwd function
         batch_for_pipeline = self.process_global_batch(batch)
