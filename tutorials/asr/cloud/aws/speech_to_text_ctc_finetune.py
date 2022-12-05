@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# hack to install necessary nemo system-libraries, without having to create a sagemaker compatible container.
 # fmt: off
+# hack to install necessary nemo system-libraries, without having to create a sagemaker compatible container.
 import os; os.system('apt-get -qq update && apt-get -qq install -y libsndfile1 ffmpeg')
 # fmt: on
 import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
 
@@ -44,7 +45,7 @@ def main(cfg):
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    asr_model = ASRModel.from_pretrained(cfg.model_name, map_location='cpu')
+    asr_model = ASRModel.from_pretrained(cfg.pretrained_model_name, map_location=torch.device('cpu'))
 
     # set new vocabulary if required
     if cfg.labels is not None:
@@ -62,10 +63,6 @@ def main(cfg):
     asr_model.setup_training_data(cfg.train_ds)
     asr_model.setup_multiple_validation_data(cfg.validation_ds)
     asr_model.spec_augmentation = asr_model.from_config_dict(asr_model.cfg.spec_augment)
-
-    # set metric variables
-    asr_model._wer.use_cer = cfg.use_cer
-    asr_model._wer.log_prediction = cfg.log_prediction
 
     trainer.fit(asr_model)
 

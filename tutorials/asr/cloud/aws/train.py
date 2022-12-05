@@ -62,7 +62,7 @@ else:
     instance_type = "ml.p2.xlarge"
 
 est = PyTorch(
-    entry_point="speech_to_text_ctc.py",
+    entry_point="speech_to_text_ctc_finetune.py",
     source_dir="code",  # directory of your training script
     role=role,
     instance_type=instance_type,
