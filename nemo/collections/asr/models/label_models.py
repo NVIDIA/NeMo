@@ -165,7 +165,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
-        self._macro_accuracy = Accuracy(task='multiclass', num_classes=num_classes, average='macro')
+        self._macro_accuracy = Accuracy(num_classes=num_classes, average='macro')
 
         self.labels = None
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
