@@ -59,10 +59,12 @@ def main(cfg):
         asr_model.encoder.unfreeze()
         logging.info("Model encoder has been un-frozen")
 
+    asr_model.cfg.optim = OmegaConf.merge(asr_model.cfg.optim, cfg.model.optim)
+
     # data & augmentation setup
-    asr_model.setup_training_data(cfg.train_ds)
-    asr_model.setup_multiple_validation_data(cfg.validation_ds)
-    asr_model.spec_augmentation = asr_model.from_config_dict(asr_model.cfg.spec_augment)
+    asr_model.setup_training_data(cfg.model.train_ds)
+    asr_model.setup_multiple_validation_data(cfg.model.validation_ds)
+    asr_model.spec_augmentation = asr_model.from_config_dict(cfg.model.spec_augment)
 
     trainer.fit(asr_model)
 
