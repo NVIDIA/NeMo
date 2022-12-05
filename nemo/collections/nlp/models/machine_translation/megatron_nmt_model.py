@@ -92,8 +92,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 raise ValueError("nmt-xlm objective requires model.multilingual=True")
 
         if self.multilingual:
-            self._setup_multilingual_special_tokens()
             self.multilingual_type = self._determine_multilingual_training_type()
+            self._setup_multilingual_special_tokens()
         else:
             self.multilingual_type = None
 
@@ -687,7 +687,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
-            import ipdb; ipdb.set_trace()
             if len(self.multilingual_ids) == 0:
                 self.multilingual_ids = [None] * len(cfg.src_file_name)
 
