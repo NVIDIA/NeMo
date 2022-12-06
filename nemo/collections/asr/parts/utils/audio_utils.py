@@ -17,6 +17,7 @@ from typing import Iterable, Optional, Union
 import librosa
 import numpy as np
 import numpy.typing as npt
+import scipy
 import soundfile as sf
 from scipy.spatial.distance import pdist, squareform
 
@@ -26,7 +27,7 @@ SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
 
 
-def get_samples(audio_file: str, target_sr: int = 16000):
+def get_samples(audio_file: str, target_sr: int = 16000, dtype: str = 'float32'):
     """
     Read the samples from the given audio_file path. If not specified, the input audio file is automatically
     resampled to 16kHz.
@@ -41,12 +42,10 @@ def get_samples(audio_file: str, target_sr: int = 16000):
             Time-series sample data from the given audio file
     """
     with sf.SoundFile(audio_file, 'r') as f:
-        sample_rate = f.samplerate
-        samples = f.read()
-        if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
+        samples = f.read(dtype=dtype)
+        if f.samplerate != target_sr:
+            samples = librosa.core.resample(samples, orig_sr=f.samplerate, target_sr=target_sr)
         samples = samples.transpose()
-        del f
     return samples
 
 
@@ -378,3 +377,26 @@ def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
         Power in dB.
     """
     return 10 * np.log10(power + eps)
+
+
+def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
+    """Get starting point of `segment` in `signal`.
+    We assume that `segment` is a sub-segment of `signal`.
+    For example, `signal` may be a 10 second audio signal,
+    and `segment` could be the signal between 2 seconds and
+    5 seconds. This function will then return the index of
+    the sample where `segment` starts (at 2 seconds).
+
+    Args:
+        signal: numpy array with shape (num_samples,)
+        segment: numpy array with shape (num_samples,)
+
+    Returns:
+        Index of the start of `segment` in `signal`.
+    """
+    if len(signal) <= len(segment):
+        raise ValueError(
+            f'segment must be shorter than signal: len(segment) = {len(segment)}, len(signal) = {len(signal)}'
+        )
+    cc = scipy.signal.correlate(signal, segment, mode='valid')
+    return np.argmax(cc)

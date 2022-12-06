@@ -15,7 +15,7 @@
 import os
 from contextlib import nullcontext
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Type
+from typing import Callable, Dict, Optional, Type
 
 import onnx
 import torch
@@ -57,23 +57,6 @@ class LinearWithBiasSkip(nn.Module):
         if self.skip_bias_add:
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
-
-
-# ScaledMaskedSoftmax replacement
-def mask_func(attention_scores, attention_mask):
-    attention_scores.masked_fill_(attention_mask, -10000.0)
-    return attention_scores
-
-
-def exportable_ScaledMaskedSoftmax(input, mask, scale):
-    if scale is not None:
-        input = input * scale
-
-    mask_output = mask_func(input, mask) if mask is not None else input
-    probs = torch.nn.Softmax(dim=-1)(mask_output)
-
-    probs = probs.half()
-    return probs
 
 
 def get_export_format(filename: str):
@@ -135,14 +118,16 @@ def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
 
 
 def verify_torchscript(model, output, input_examples, input_names, check_tolerance=0.01):
-    ts_model = torch.jit.load(output)
-
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
-
-        all_good = all_good and run_ts_and_compare(ts_model, input_list, input_dict, output_example, check_tolerance)
+        # We disable autocast here to make sure exported TS will run under Triton or other C++ env
+        with torch.cuda.amp.autocast(enabled=False):
+            ts_model = torch.jit.load(output)
+            all_good = all_good and run_ts_and_compare(
+                ts_model, input_list, input_dict, output_example, check_tolerance
+            )
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
     return all_good
@@ -157,10 +142,12 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
-    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = onnxruntime.InferenceSession(output, sess_options=onnx_session_opt, providers=['CUDAExecutionProvider'])
+    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    sess = onnxruntime.InferenceSession(
+        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
+    )
+    del onnx_model
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
@@ -182,10 +169,16 @@ def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, c
 
         if torch.is_tensor(expected):
             tout = out.to('cpu')
-            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
-            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
+            this_good = True
+            try:
+                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+                    this_good = False
+            except Exception:  # there may ne size mismatch and it may be OK
+                this_good = False
+            if not this_good:
+                logging.info(f"Results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
                 all_good = False
-                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
     return all_good
 
 
@@ -198,10 +191,16 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
 
         if torch.is_tensor(expected):
             tout = torch.from_numpy(out)
-            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
-            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
-                all_good = False
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
+            this_good = True
+            try:
+                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
+                    this_good = False
+            except Exception:  # there may ne size mismatch and it may be OK
+                this_good = False
+            if not this_good:
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
+                all_good = False
     return all_good
 
 
@@ -213,7 +212,7 @@ try:
     from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
-    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
+    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
         Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
         Args:
@@ -221,19 +220,16 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if (
-            not isinstance(n, FusedLayerNorm)
-            and not isinstance(n, FastLayerNorm)
-            and not isinstance(n, MixedFusedLayerNorm)
-        ):
+
+        p = next(n.parameters())
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
+        elif isinstance(n, FastLayerNorm):
+            shape, eps, affine = n.weight.shape, n.epsilon, True
+        else:
             return None
 
-        dev = next(n.parameters()).device
-        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
-            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
-        elif isinstance(n, FastLayerNorm):
-            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
-
+        mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
         return mod
@@ -250,7 +246,7 @@ try:
             raise ValueError("This function can only change the RowParallelLinear module.")
 
         dev = next(n.parameters()).device
-        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(device=dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
@@ -326,6 +322,24 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
     return expansion_fn
 
 
+def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
+    """
+    Replaces MatchedScaleMaskSoftmax with exportable softmax layer
+    Args:
+        n: module to replace
+    Returns:
+        exportable module
+    """
+    # including the import here to avoid circular imports
+    from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
+
+    # disabling fusion for the MatchedScaleMaskSoftmax
+    mod = MatchedScaleMaskSoftmax(
+        n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
+    )
+    return mod
+
+
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
     Generic function generator to replace BaseT module with DestT wrapper. 
@@ -387,19 +401,18 @@ def replace_modules(
 
 
 def script_module(m: nn.Module):
-    m1 = torch.jit.script(m)
-    return m1
+    return torch.jit.script(m)
 
 
 default_replacements = {
     "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
     "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
     "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+    "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
 }
 
 script_replacements = {
     "BiLSTM": script_module,
-    "ConvLSTMLinear": script_module,
 }
 
 
