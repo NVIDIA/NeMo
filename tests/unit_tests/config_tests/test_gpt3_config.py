@@ -118,6 +118,7 @@ class TestGPT3Config:
           min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
           max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
+          act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 
         inference_settings:
           run:
@@ -164,6 +165,7 @@ class TestGPT3Config:
           min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
           max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+          act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
         
         inference_settings:
           run:
@@ -210,6 +212,7 @@ class TestGPT3Config:
           min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
           max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+          act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
         
         inference_settings:
           run:
