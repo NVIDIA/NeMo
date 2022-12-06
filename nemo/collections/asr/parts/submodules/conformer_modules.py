@@ -84,16 +84,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
-                n_head=n_heads,
-                n_feat=d_model,
-                dropout_rate=dropout_att,
-                pos_bias_u=pos_bias_u,
-                pos_bias_v=pos_bias_v,
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v,
             )
         elif self_attention_model == 'abs_pos':
-            self.self_attn = MultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att
-            )
+            self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
@@ -124,7 +118,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         cache_last_time=None,
         cache_last_channel_next=None,
         cache_last_time_next=None,
-        dual_mode=False
+        dual_mode=False,
     ):
         """
         Args:
@@ -212,7 +206,14 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_', conv_dual_mode=False, norm_dual_mode=False
+        self,
+        d_model,
+        kernel_size,
+        norm_type='batch_norm',
+        conv_context_size=None,
+        pointwise_activation='glu_',
+        conv_dual_mode=False,
+        norm_dual_mode=False,
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0

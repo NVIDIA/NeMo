@@ -209,7 +209,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.subsampling_factor = subsampling_factor
 
         # Setting up the att_context_size
-        set_context_sizes(att_context_size=att_context_size, att_context_probs=att_context_probs, conv_context_size=conv_context_size, att_context_style=att_context_style, conv_kernel_size=conv_kernel_size)
+        self._set_context_sizes(
+            att_context_size=att_context_size,
+            att_context_probs=att_context_probs,
+            conv_context_size=conv_context_size,
+            att_context_style=att_context_style,
+            conv_kernel_size=conv_kernel_size,
+        )
         if conv_dual_mode and self.conv_context_size != [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]:
             raise ValueError(
                 f"conv_dual_mode requires conv_context_size to be [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]"
@@ -322,28 +328,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.export_cache_support = False
         self.offline_dual = False
 
-    def update_max_seq_length(self, seq_length: int, device):
-        # Find global max audio length across all nodes
-        if torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
-
-            # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
-
-            seq_length = global_max_len.int().item()
-
-        if seq_length > self.max_audio_length:
-            self.set_max_audio_length(seq_length)
-
-    def set_max_audio_length(self, max_audio_length):
-        """
-        Sets maximum input length.
-        Pre-calculates internal seq_range mask.
-        """
-        self.max_audio_length = max_audio_length
-        device = next(self.parameters()).device
-        self.pos_enc.extend_pe(max_audio_length, device)
-
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
@@ -393,8 +377,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
-        # select a random att_context_size with the distribution specified by att_context_probs
-        cur_att_context_size = random.choices(self.att_context_size, weights=self.att_context_probs)
+        # select a random att_context_size with the distribution specified by att_context_probs during training
+        # for non-validation cases like test, validation or inference, it uses the first mode in self.att_context_size
+        if self.training:
+            cur_att_context_size = random.choices(self.att_context_size, weights=self.att_context_probs)
+        else:
+            cur_att_context_size = self.default_att_context_size
         if cur_att_context_size == "offline_dual":
             self.offline_dual = True
 
@@ -449,11 +437,33 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             return audio_signal, length
 
+    def update_max_seq_length(self, seq_length: int, device):
+        # Find global max audio length across all nodes
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.set_max_audio_length(seq_length)
+
+    def set_max_audio_length(self, max_audio_length):
+        """
+        Sets maximum input length.
+        Pre-calculates internal seq_range mask.
+        """
+        self.max_audio_length = max_audio_length
+        device = next(self.parameters()).device
+        self.pos_enc.extend_pe(max_audio_length, device)
+
     def _create_masks(self, att_context_size, padding_length, max_audio_length, device):
         att_mask = torch.ones(1, self.max_audio_length, self.max_audio_length, dtype=torch.bool, device=device)
 
         if att_context_size == "offline_dual":
-            att_context_size = [-1,-1]
+            att_context_size = [-1, -1]
 
         if self.att_context_style == "regular":
             if att_context_size[0] >= 0:
@@ -502,8 +512,75 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.use_pad_mask = on
         return mask
 
+    def _set_context_sizes(
+        self, att_context_size, att_context_probs, conv_context_size, att_context_style, conv_kernel_size
+    ):
+        # convert att_context_size to a standard list of lists
+        if att_context_size:
+            att_context_size = list(att_context_size)
+            if isinstance(att_context_size[0], int):
+                att_context_size = [att_context_size]
+            for i, att_cs in enumerate(att_context_size):
+                if att_cs == "offline_dual":
+                    continue
+                if is_instance(ats, ListConfig):
+                    att_context_size[i] = list(ats)
+                if att_context_style == "chunked_limited":
+                    if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
+                        raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
+                    if att_cs[1] < 0:
+                        raise ValueError(
+                            f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!"
+                        )
+        else:
+            att_context_size = [[-1, -1]]
+
+        # setting the default to be used for non-validation cases like test, validation or inference
+        # it uses the first mode in self.att_context_size
+        self.default_att_context_size = att_context_size[0]
+
+        if att_context_probs:
+            if len(att_context_probs) != len(att_context_size):
+                raise ValueError("The size of the att_context_probs should be the same as att_context_size.")
+            att_context_probs = list(att_context_probs)
+            if sum(att_context_probs) != 0:
+                raise ValueError(
+                    "The sum of numbers in att_context_probs should be equal to one to be a distribution."
+                )
+        else:
+            att_context_probs = [1.0 / len(att_context_size)] * len(att_context_size)
+
+        self.att_context_size = att_context_size
+        self.att_context_probs = att_context_probs
+
+        # convert att_context_size to a standard list
+        if isinstance(conv_context_size, ListConfig):
+            conv_context_size = list(conv_context_size)
+
+        if conv_context_size is not None:
+            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
+                raise ValueError(
+                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
+                )
+            if conv_context_size == "causal":
+                conv_context_size = [conv_kernel_size - 1, 0]
+            else:
+                if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
+                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
+        else:
+            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
+        self.conv_context_size = conv_context_size
+
+    def set_default_att_context_size(self, att_context_size):
+        self.default_att_context_size = att_context_size
+
     def setup_streaming_params(
-        self, chunk_size: int = None, shift_size: int = None, left_chunks: int = None, max_context: int = 10000
+        self,
+        chunk_size: int = None,
+        shift_size: int = None,
+        left_chunks: int = None,
+        att_context_size: list = None,
+        max_context: int = 10000,
     ):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
@@ -516,25 +593,30 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = CacheAwareStreamingConfig()
+
+        # When att_context_size is not specified, it uses the first one in the self.att_context_size
+        if att_context_size is None:
+            att_context_size = self.default_att_context_size
+        if att_context_size is "dual_offline":
+            att_context_size = [-1, -1]
+
         if chunk_size is not None:
             if chunk_size <= 1:
                 raise ValueError("chunk_size needs to be a number larger or equal to one.")
             lookahead_steps = chunk_size - 1
             streaming_cfg.cache_drop_size = chunk_size - shift_size
         elif self.att_context_style == "chunked_limited":
-            lookahead_steps = self.att_context_size[1]
+            lookahead_steps = att_context_size[1]
             streaming_cfg.cache_drop_size = 0
         elif self.att_context_style == "regular":
-            lookahead_steps = self.att_context_size[1] * self.n_layers + self.conv_context_size[1] * self.n_layers
+            lookahead_steps = att_context_size[1] * self.n_layers + self.conv_context_size[1] * self.n_layers
             streaming_cfg.cache_drop_size = lookahead_steps
         else:
             streaming_cfg.cache_drop_size = 0
             lookahead_steps = None
 
         if chunk_size is None:
-            streaming_cfg.last_channel_cache_size = (
-                self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
-            )
+            streaming_cfg.last_channel_cache_size = att_context_size[0] if att_context_size[0] >= 0 else max_context
         else:
             if left_chunks is None:
                 raise ValueError("left_chunks can not be None when chunk_size is set.")
@@ -615,56 +697,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         return cache_last_channel, cache_last_time
 
-    def set_context_sizes(self, att_context_size, att_context_probs, conv_context_size, att_context_style, conv_kernel_size):
-        # convert att_context_size to a standard list of lists
-        if att_context_size:
-            att_context_size = list(att_context_size)
-            if isinstance(att_context_size[0], int):
-                att_context_size = [att_context_size]
-            for i, att_cs in enumerate(att_context_size):
-                if att_cs == "offline_dual":
-                    continue
-                if is_instance(ats, ListConfig):
-                    att_context_size[i] = list(ats)
-                if att_context_style == "chunked_limited":
-                    if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
-                        raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
-                    if att_cs[1] < 0:
-                        raise ValueError(
-                            f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!"
-                        )
-        else:
-            att_context_size = [[-1, -1]]
-
-        if att_context_probs:
-            if len(att_context_probs) != len(att_context_size):
-                raise ValueError("The size of the att_context_probs should be the same as att_context_size.")
-            att_context_probs = list(att_context_probs)
-            if sum(att_context_probs) != 0:
-                raise ValueError("The sum of numbers in att_context_probs should be equal to one to be a distribution.")
-        else:
-            att_context_probs = [1.0/len(att_context_size)] * len(att_context_size)
-
-        self.att_context_size = att_context_size
-        self.att_context_probs = att_context_probs
-
-        # convert att_context_size to a standard list
-        if isinstance(conv_context_size, ListConfig):
-            conv_context_size = list(conv_context_size)
-
-        if conv_context_size is not None:
-            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
-                raise ValueError(
-                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
-                )
-            if conv_context_size == "causal":
-                conv_context_size = [conv_kernel_size - 1, 0]
-            else:
-                if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
-                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
-        else:
-            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
-        self.conv_context_size = conv_context_size
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 
