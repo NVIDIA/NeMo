@@ -474,20 +474,23 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             if att_context_size[1] >= 0:
                 att_mask = att_mask.tril(diagonal=att_context_size[1])
         elif self.att_context_style == "chunked_limited":
+            # When right context is unlimited, just the left side of the masking need to get updated
             if att_context_size[1] == -1:
-                raise ValueError(f"Right context should not be unlimited (att_context_size[1] cannot be -1)!")
-            chunk_size = att_context_size[1] + 1
-            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
-            if att_context_size[0] >= 0:
-                left_chunks_num = att_context_size[0] // chunk_size
+                if att_context_size[0] >= 0:
+                    att_mask = att_mask.triu(diagonal=-att_context_size[0])
             else:
-                left_chunks_num = 10000
+                chunk_size = att_context_size[1] + 1
+                # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
+                if att_context_size[0] >= 0:
+                    left_chunks_num = att_context_size[0] // chunk_size
+                else:
+                    left_chunks_num = 10000
 
-            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
-            chunk_idx = torch.div(chunk_idx, chunk_size, rounding_mode="trunc")
-            diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
-            chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0))
-            att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
+                chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+                chunk_idx = torch.div(chunk_idx, chunk_size, rounding_mode="trunc")
+                diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
+                chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0))
+                att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
         # pad_mask is the masking to be used to ignore paddings
         pad_mask = torch.arange(0, max_audio_length, device=device).expand(
@@ -543,7 +546,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             if len(att_context_probs) != len(att_context_size):
                 raise ValueError("The size of the att_context_probs should be the same as att_context_size.")
             att_context_probs = list(att_context_probs)
-            if sum(att_context_probs) != 0:
+            if sum(att_context_probs) != 1:
                 raise ValueError(
                     "The sum of numbers in att_context_probs should be equal to one to be a distribution."
                 )

@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import copy
+
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
