@@ -293,9 +293,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
-        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
             hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2)
-            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
                 hidden_size=self.hidden_size
 
             self.prompt_encoder = PromptEncoder(
