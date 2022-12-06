@@ -362,7 +362,7 @@ class StreamingFeatureBufferer:
         '''
 
         self.NORM_CONSTANT = 1e-5
-        if asr_model.cfg.preprocessor.log:
+        if 'log' in asr_model.preprocessor and asr_model.preprocessor.log:
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
