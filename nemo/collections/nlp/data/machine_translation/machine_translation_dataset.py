@@ -82,7 +82,7 @@ class TranslationDataset(Dataset):
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
         prepend_id: int = None,
-        add_bos_eos_to_encoder: bool = True
+        add_bos_eos_to_encoder: bool = True,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
