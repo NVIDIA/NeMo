@@ -254,6 +254,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         permutation: bool = False,
         favor_long_ngrams: bool = False,
         sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
+        sentinel_tokens: List[int] = None
     ):
         super().__init__(
             src_dataset_prefix=src_dataset_prefix,
@@ -297,6 +298,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         self.eos_id = src_tokenizer.eos_id
         self.max_seq_length = max_src_seq_length + max_tgt_seq_length - 1
         self.masked_lm_prob = masked_lm_prob
+        self.sentinel_tokens = sentinel_tokens
 
         self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
         self._build()
@@ -305,7 +307,8 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         """
         Class-specific build method to be overridden by child classes.
         """
-        self.sentinel_tokens = self.src_tokenizer.additional_special_tokens_ids
+        if self.sentinel_tokens is None:
+            self.sentinel_tokens = self.src_tokenizer.additional_special_tokens_ids
         assert len(self.sentinel_tokens) > 0
 
     @classmethod
@@ -493,6 +496,7 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         permutation: bool = False,
         favor_long_ngrams: bool = False,
         sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
+        sentinel_tokens: List[int] = None
     ):
         super().__init__(
             src_file_name=src_file_name,
@@ -536,6 +540,7 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         self.eos_id = src_tokenizer.eos_id
         self.max_seq_length = max_src_seq_length + max_tgt_seq_length - 1
         self.masked_lm_prob = masked_lm_prob
+        self.sentinel_tokens = sentinel_tokens
 
         self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
         self._build()
@@ -544,7 +549,8 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         """
         Class-specific build method to be overridden by child classes.
         """
-        self.sentinel_tokens = self.src_tokenizer.additional_special_tokens_ids
+        if self.sentinel_tokens is None:
+            self.sentinel_tokens = self.src_tokenizer.additional_special_tokens_ids
         assert len(self.sentinel_tokens) > 0
 
     def __getitem__(self, idx):

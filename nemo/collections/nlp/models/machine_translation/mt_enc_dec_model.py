@@ -16,6 +16,7 @@ import itertools
 import json
 import os
 import random
+from collections import OrderedDict
 from distutils.command.install_egg_info import install_egg_info
 from math import ceil
 from pathlib import Path
@@ -142,7 +143,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             (
                 self.source_processor_list,
                 self.target_processor_list,
-                self.multilingual_ids,
+                self.multilingual_lang_to_id,
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
                 self.src_language,
                 self.tgt_language,
@@ -151,6 +152,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 self.encoder_tokenizer_library,
                 self.decoder_tokenizer_library,
             )
+            self.multilingual_ids = list(self.multilingual_lang_to_id.values())
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
@@ -266,7 +268,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         encoder_tokenizer_library,
         decoder_tokenizer_library,
     ):
-        multilingual_ids = []
+        multilingual_ids = OrderedDict()
 
         # Determine all of the language IDs that need to be added as special tokens.
         if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
@@ -290,7 +292,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     decoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
                 # Make sure that we are adding the same language ID to both tokenizers. If this assert fails it means the tokenizers were different to begin with.
                 assert encoder_tokenizer.text_to_ids(f"<{lng}>")[0] == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
-                multilingual_ids.append(encoder_tokenizer.text_to_ids(f"<{lng}>")[0])
+                multilingual_ids[lng] = encoder_tokenizer.text_to_ids(f"<{lng}>")[0]
         else:
             for lng in src_language:
                 multilingual_ids.append(None)
@@ -890,7 +892,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def _setup_eval_dataset_from_config(
-        cls, cfg: DictConfig, multilingual: bool, multilingual_ids, encoder_tokenizer, decoder_tokenizer
+        cls, cfg: DictConfig, multilingual: bool, multilingual_ids, encoder_tokenizer, decoder_tokenizer, add_bos_eos_to_encoder=True
     ):
         src_file_name = cfg.get('src_file_name')
         tgt_file_name = cfg.get('tgt_file_name')
@@ -935,6 +937,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                 prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
+                add_bos_eos_to_encoder=add_bos_eos_to_encoder,
             )
             dataset.batchify(encoder_tokenizer, decoder_tokenizer)
             datasets.append(dataset)

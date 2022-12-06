@@ -77,7 +77,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         # All of the lines below need to be set when the parent class calls self._build_tokenizer()
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
-        self.special_tokens = {}
+        self.multilingual_lang_tokens = {}
         self.src_language = cfg.get("src_language", None)
         self.tgt_language = cfg.get("tgt_language", None)
 
@@ -122,13 +122,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 # We don't take a set() for tgt_language here because the same lang can appear multiple times.
                 unique_langs = set(self.tgt_language)
             for lng in unique_langs:
-                self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+                self.multilingual_lang_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif self.multilingual_type == MultilingualModelType.many_to_one:
             # Do nothing here since many -> one does not need special tokens for the target language.
             pass
         elif self.multilingual_type == MultilingualModelType.one_to_many:
             for lng in self.tgt_language:
-                self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+                self.multilingual_lang_tokens["<" + lng + ">"] = "<" + lng + ">"
         else:
             raise ValueError(f"Invalid multilingual training type: {self.multilingual_type}")
 
@@ -210,27 +210,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
         )
 
-        # Set up pre and post processors as well.
-        if self.multilingual:
-            (
-                self.source_processor_list,
-                self.target_processor_list,
-                self.multilingual_ids,
-            ) = MTEncDecModel.setup_multilingual_ids_and_processors(
-                src_language=self.src_language,
-                tgt_language=self.tgt_language,
-                encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
-                decoder_tokenizer=self.decoder_tokenizer,
-                encoder_tokenizer_library=self.encoder_tokenizer_library,
-                decoder_tokenizer_library=self.decoder_tokenizer_library,
-            )
-        else:
-            # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library,
-            )
-            self.multilingual_ids = [None]
-
     def _build_vocab(self):
         if hasattr(self.cfg, "data") and self.cfg.train_ds.get('objective', 'nmt') != 'nmt-xlm':
             if hasattr(self.cfg.data, "dataset_type"):
@@ -262,6 +241,29 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 tokenizer=self.decoder_tokenizer, tokenizer_cfg=self.cfg.decoder_tokenizer, dataset_type='ul2',
             )
 
+        # Set up pre and post processors as well.
+        # NOTE: multilingual language tokens are set up after other special tokens such as eos, pad, sentinel tokens etc are added.
+        if self.multilingual:
+            (
+                self.source_processor_list,
+                self.target_processor_list,
+                self.multilingual_lang_to_id,
+            ) = MTEncDecModel.setup_multilingual_ids_and_processors(
+                src_language=self.src_language,
+                tgt_language=self.tgt_language,
+                encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                decoder_tokenizer=self.decoder_tokenizer,
+                encoder_tokenizer_library=self.encoder_tokenizer_library,
+                decoder_tokenizer_library=self.decoder_tokenizer_library,
+            )
+            self.multilingual_ids = list(self.multilingual_lang_to_id.values())
+        else:
+            # After this call, the model will have  self.source_processor and self.target_processor objects
+            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
+                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library,
+            )
+            self.multilingual_ids = [None]
+
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.encoder_tokenizer.vocab_size,
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
@@ -283,7 +285,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
-        reduced_loss = super().validation_step(batch, batch_idx)
+        reduced_loss = super().validation_step(batch, batch_idx, dataloader_idx)
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
         predicted_tokens_ids, _ = self.decode(
@@ -350,7 +352,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         return self.eval_step(batch, batch_idx, dataloader_idx)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
-
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         dataloaders = []
@@ -546,47 +547,47 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         # Parent function will pad microbatches to the same length.
         return self._process_global_batch_without_megatron_batch_sampler([batch], tokenizer=self.encoder_tokenizer)
 
+    def _build_eval_dataset(self, data_cfg):
+        # Set up prepend IDs for validation datasets even if not multingual.
+        if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm' or (
+            self.multilingual and
+            self.multilingual_type != MultilingualModelType.many_to_one
+        ):
+            multilingual_ids = [
+                self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language
+            ]
+            dataset = MTEncDecModel._setup_eval_dataset_from_config(
+                cfg=data_cfg,
+                multilingual=True,
+                multilingual_ids=multilingual_ids,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                add_bos_eos_to_encoder=self._cfg.train_ds.get('objective', 'nmt') != 'nmt-xlm', # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
+            )
+        else:
+            num_eval_datasets = len(data_cfg.src_file_name) if isinstance(data_cfg.validation_ds.src_file_name, ListConfig) else 1
+            multilingual_ids = [None] * num_eval_datasets
+            dataset = MTEncDecModel._setup_eval_dataset_from_config(
+                cfg=data_cfg,
+                multilingual=self.multilingual,
+                multilingual_ids=multilingual_ids,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+            )
+        return dataset
+
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
-
         self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
         if self._cfg.validation_ds.get("dataset_type", "text") != "text":
             raise ValueError(f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}")
 
-        # Set up prepend IDs for validation datasets even if not multingual.
-        if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
-            multilingual_ids = [
-                self.encoder_tokenizer.token_to_id('<' + lang + '>') for lang in self._cfg.validation_ds.tgt_lang
-            ]
-            self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
-                cfg=self._cfg.validation_ds,
-                multilingual=True,
-                multilingual_ids=multilingual_ids,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-            )
-        else:
-            self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
-                cfg=self._cfg.validation_ds,
-                multilingual=self.multilingual,
-                multilingual_ids=self.multilingual_ids,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-            )
-        # Test data config is optional.
+        self._validation_ds = self._build_eval_dataset(self._cfg.validation_ds)
         if hasattr(self._cfg, 'test_ds'):
-            if self._cfg.validation_ds.get("dataset_type", "text") != "text":
-                raise ValueError(f"Test dataset type must be 'text', found {self._cfg.test_ds.dataset_type}")
-            self._test_ds = MTEncDecModel._setup_eval_dataset_from_config(
-                cfg=self._cfg.validation_ds,
-                multilingual=self.multilingual,
-                multilingual_ids=self.multilingual_ids,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-            )
+            self._test_ds = self._build_eval_dataset(self._cfg.test_ds)
 
-    def _instantiate_dataset(self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None):
+    def _instantiate_memmap_dataset(self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None):
         if cfg.dataset_type == 'bin_memmap':
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -601,6 +602,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     prepend_id=prepend_id,
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
+                # Pass sentinel tokens to the dataset after removing language tokens.
+                additional_special_ids = self.encoder_tokenizer.additional_special_tokens_ids
+                sentinel_tokens = [id for id in additional_special_ids if id not in self.multilingual_ids]
                 dataset = BinarizedMemmapCrossLingualMLMAndTranslationDataset(
                     src_dataset_prefix=src_file,
                     tgt_dataset_prefix=tgt_file,
@@ -613,6 +617,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     max_seq_length_dec=cfg.max_seq_length,
                     max_num_samples=num_samples[0],
                     sampling_ratios=cfg.sampling_ratios,
+                    sentinel_tokens=sentinel_tokens,
+                    seed=self._cfg.seed,
                 )
         elif cfg.dataset_type == 'text_memmap':
             if cfg.get("objective", "nmt") == "nmt":
@@ -628,6 +634,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     prepend_id=prepend_id,
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
+                additional_special_ids = self.encoder_tokenizer.additional_special_tokens_ids
+                sentinel_tokens = [id for id in additional_special_ids if id not in self.multilingual_ids]
                 dataset = TextMemmapCrossLingualMLMAndTranslationDataset(
                     src_file_name=src_file,
                     tgt_file_name=tgt_file,
@@ -640,6 +648,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     max_seq_length_dec=cfg.max_seq_length,
                     max_num_samples=num_samples[0],
                     sampling_ratios=cfg.sampling_ratios,
+                    sentinel_tokens=sentinel_tokens,
+                    seed=self._cfg.seed,
                 )
 
         return dataset
@@ -685,23 +695,23 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
-            if len(self.multilingual_ids) == 0:
-                self.multilingual_ids = [None] * len(cfg.src_file_name)
 
-            if len(self.multilingual_ids) != len(cfg.src_file_name):
-                raise ValueError(
-                    f"multilingual_ids must be of the same size as src_file_name and tgt_file_name. Multilingual ID size : {len(self.multilingual_ids)}, number of datasets : {len(cfg.src_file_name)}"
-                )
+            # For many -> one multilingual or bilingual models, we don't need to prepend a language token ID
+            if not self.multilingual or self.multilingual_type == MultilingualModelType.many_to_one:
+                multilingual_ids = [None] * len(cfg.src_file_name)
+            # For one -> many and many -> many multilingual models, we need to prepend a language token ID
+            else:
+                multilingual_ids = [self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language]
 
             for idx, (src_file, tgt_file, num_samples) in enumerate(
                 zip(cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset)
             ):
-                dataset = self._instantiate_dataset(
+                dataset = self._instantiate_memmap_dataset(
                     cfg=cfg,
                     src_file=src_file,
                     tgt_file=tgt_file,
                     num_samples=num_samples,
-                    prepend_id=self.multilingual_ids[idx],
+                    prepend_id=multilingual_ids[idx],
                     src_language=self.src_language
                     if not isinstance(self.src_language, ListConfig)
                     else self.src_language[idx],
@@ -714,7 +724,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
         else:
-            dataset = self._instantiate_dataset(
+            dataset = self._instantiate_memmap_dataset(
                 cfg=cfg,
                 src_file=cfg.src_file_name,
                 tgt_file=cfg.tgt_file_name,
@@ -754,7 +764,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
-        prepend_tgt_lang_id: bool = False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -777,15 +786,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         mode = self.training
         prepend_ids = []
-        if self.multilingual or prepend_tgt_lang_id:
-            if source_lang is None or target_lang is None:
-                raise ValueError("Expect source_lang and target_lang to run inference for multilingual model.")
-            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+        if (self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one):
+            if target_lang is None:
+                raise ValueError("target_lang needs to be specified to run inference for multilingual model.")
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            if tgt_symbol in self.multilingual_ids or prepend_tgt_lang_id:
+            if tgt_symbol in self.multilingual_ids:
                 prepend_ids = [tgt_symbol]
-            elif src_symbol in self.multilingual_ids:
-                prepend_ids = [src_symbol]
+            else:
+                print("WARNING: Target language ID not found in multilingual model. Prepending nothing.")
 
         if log_timing:
             timer = timers.NamedTimer()

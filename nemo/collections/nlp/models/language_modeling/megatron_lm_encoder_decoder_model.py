@@ -300,9 +300,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
-        import ipdb
-
-        ipdb.set_trace()
         self._optimizer.zero_grad()
         # we prepare the micro batches for the apex fwd/bwd function
         batch_for_pipeline = self.process_global_batch(batch)
@@ -689,7 +686,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return logits_tensor
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
