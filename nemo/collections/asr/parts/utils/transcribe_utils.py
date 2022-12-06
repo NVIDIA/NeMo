@@ -86,7 +86,15 @@ def get_buffered_pred_feat_rnnt(
                 audio_files = [sample for sample in batch]
                 asr.read_audio_file(audio_files, delay, model_stride_in_secs)
                 hyp_list = asr.transcribe(tokens_per_chunk, delay)
+
+                if hasattr(asr, 'all_timestamps'):
+                    for idx, timestamps in enumerate(asr.all_timestamps):
+                        for t_idx, timestamp in enumerate(timestamps):
+                            print("IDX", idx, "Timestamp idx", t_idx, timestamp['word'])
+
+
                 hyps.extend(hyp_list)
+
 
                 batch.clear()
                 asr.sample_offset += len(batch)
