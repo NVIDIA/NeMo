@@ -109,7 +109,8 @@ model:
 
     # For adaptive lookahead you may specify a list of context sizes. During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
     # The first item in the list would be the default during test/validation/inference.
-    att_context_size: [[104, 51], [104, 0], [104, 12], [104, 25], "offline_dual"] # offline_dual means offline model with unlimited context like [-1,-1] but with dual convolutions and layer norms
+    # offline_dual means offline model with unlimited context like [-1,-1] but with dual convolutions and layer norms
+    att_context_size: [[104, 51], [104, 0], [104, 12], [104, 25], "offline_dual"]
     att_context_style: chunked_limited # regular or chunked_limited
     att_context_probs: [0.15, 0.15, 0.15, 0.15, 0.4]
 

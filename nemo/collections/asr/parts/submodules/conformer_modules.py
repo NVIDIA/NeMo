@@ -172,7 +172,9 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             x = self.norm_conv(residual)
 
-        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next, dual_mode=dual_mode)
+        x = self.conv(
+            x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next, dual_mode=dual_mode
+        )
         residual = residual + self.dropout(x)
 
         if dual_mode_enabled:
