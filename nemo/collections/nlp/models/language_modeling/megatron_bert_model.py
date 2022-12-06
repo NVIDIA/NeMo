@@ -67,7 +67,7 @@ class MegatronBertModel(MegatronBaseModel):
             )
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         self.cfg = cfg
-        
+
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
@@ -91,10 +91,10 @@ class MegatronBertModel(MegatronBaseModel):
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         self.model = build_model(
-            model_provider_func=self.model_provider_func, 
+            model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
-            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None)
-            )
+            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+        )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -211,7 +211,7 @@ class MegatronBertModel(MegatronBaseModel):
                 types,
                 lm_labels,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                model = model,
+                model=model,
             )
 
             def loss_func(output_tensor):
@@ -232,7 +232,13 @@ class MegatronBertModel(MegatronBaseModel):
         return fwd_output_and_loss_func
 
     def forward(
-        self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None, model=None
+        self,
+        input_ids,
+        attention_mask,
+        token_type_ids,
+        lm_labels=None,
+        checkpoint_activations_all_layers=None,
+        model=None,
     ):
         if model is None:
             model = self.model
@@ -723,7 +729,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)      
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def configure_optimizers(self):
 
