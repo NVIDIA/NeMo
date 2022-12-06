@@ -65,15 +65,14 @@ class MegatronBertModel(MegatronBaseModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-
+        self.cfg = cfg
+        
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
 
         self._validate_trainer()
-
-        self.cfg = cfg
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
