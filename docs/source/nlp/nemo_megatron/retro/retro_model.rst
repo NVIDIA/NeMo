@@ -69,6 +69,39 @@ data, and the ``--retrieval-db`` argument indicates whether to create a retrieva
 is used, it will add an additional 64 padding tokens at the end of the document. The ``--chunk_size`` and ``--workers`` arguments 
 control the size of the data chunks to be processed and the number of worker processes to use, respectively.
 
+Following is the retro memory map index data format:
+
+.. list-table::
+   :widths: 25 25 25 25 25 25
+
+   * - 'MMIDRET\x00\x00' (header 9 bytes)
+     - 1 (version 8 byte)
+     - dtype code :sup:`1` (1 byte)
+     - sentence count (8 byte)
+     - chunk size (8 byte)
+     - chunk count (8 byte)
+   * - retrieved db :sup:`2` (1 byte)
+     - number of tokens for each of sentences ( int32 array)
+     - start of sentence address in byte (int64 array)	
+     - start of chunk id for each of the sentence * (int64 array)
+     - chunk id address in byte (int64 array)
+     -
+
+:sup:`1` 1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16
+
+:sup:`2` When building the indexed dataset, we pad each of the sentences to be a multiple of chunk_size with pad_id from tokenizer. 
+The number of tokens for each of sentences include the padded token ids. For retrieval data, there is an extra chunk_size padding at
+the end of each sentence and ``retrieved_db`` flag is set to True. But the number of tokens for each of sentences exclude this extra 
+chunk_size padding.
+
+Following is the retro memory map binary data format:
+
+.. list-table::
+   :widths: 65
+
+   * - token id array for sentence 0,1, 2 ... (dtype :sup:`3` array)
+
+:sup:`3` np.uint16 vocab_size < 65500 else np.int32
 
 Step 3: Create Faiss index for retrieval data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -152,6 +185,17 @@ During training, it is wasteful to run query for KNN chunk IDs for each of the t
 building the KNN index before training. The KNN index maps the training data chunk id to K-nearest neighbors chunk id in the retrieval 
 data. Similarly to building Faiss index, we break the process down into two sub-steps.
 
+Following is the KNN index data format:
+
+.. list-table::
+   :widths: 25 25 25 25 45
+
+   * - 'KNNRETM\x00\x00' (header 9 bytes)
+     - 1 (version 8 byte)
+     - K number of neighbors (8 byte)
+     - number chunks (8 byte)
+     - Flatten chunk id in training data to K retrieval dataset chunk ids, shape (number_chunks, K) ( int64 array)
+ 
 Step 4.1: Build KNN sharding index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
