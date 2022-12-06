@@ -36,10 +36,29 @@ class StackingSubsampling(torch.nn.Module):
         norm (bool): whether to use an MLP layer after the stacking along with normalization. default is False.
     """
 
-    def __init__(self, subsampling_factor, feat_in, feat_out, norm=False):
+    def __init__(self, 
+            subsampling_factor, 
+            feat_in, 
+            feat_out, 
+            hidden_sizes = None, 
+            activation=nn.SiLU(), 
+            norm=False
+    ):
         super(StackingSubsampling, self).__init__()
         self.subsampling_factor = subsampling_factor
-        self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
+        if hidden_sizes:
+            layers = []
+            in_size = subsampling_factor * feat_in
+            for size in hidden_sizes:
+                layers.append(torch.nn.Linear(in_size, out_size))
+                layers.append(activation)
+                in_size = out_size
+            layers.append(torch.nn.Linear(in_size, feat_out))
+
+            self.proj_out = torch.nn.Sequential(*layers)
+        else:
+            self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
+        
         if norm:
             self.pre_norm = LayerNorm(feat_in)
         else:
@@ -185,7 +204,7 @@ class ConvSubsampling(torch.nn.Module):
             # D.R. end
 
             for i in range(self._sampling_num - 1):
-                
+
                 layers.append(torch.nn.Conv2d(
                     in_channels=in_channels,
                     out_channels=in_channels,
