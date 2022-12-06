@@ -19,7 +19,6 @@ import pickle
 import torch
 from tqdm.auto import tqdm
 
-from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
@@ -56,6 +55,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
         add_bos: bool = False,
         add_eos: bool = True,
         add_sep: bool = True,
+        sep_id: int = None,
         for_train: bool = True,
         answer_only_loss = True,
         tokens_to_generate=None,
@@ -69,9 +69,13 @@ class GPTSupervisedFineTuningDataset(Dataset):
         self.add_bos = add_bos
         self.add_eos = add_eos
         self.add_sep = add_sep
+        self.sep_id = sep_id
         self.answer_only_loss = answer_only_loss
         self.for_train = for_train
         self.examples = []
+
+        if self.sep_id is None:
+            self.sep_id = self.tokenizer.sep_id
 
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
@@ -161,8 +165,8 @@ class GPTSupervisedFineTuningDataset(Dataset):
     def _append_text_answer_and_truncate(self, doc):
         """ Format the input example according to the template """
 
-        text_ids = doc['text']
-        answer_ids = doc['answer']
+        text_ids = self.tokenizer.text_to_ids(doc['text'])
+        answer_ids = self.tokenizer.text_to_ids(doc['answer'])
 
         total_ids = len(text_ids) + len(answer_ids)
         if self.add_bos:
@@ -181,7 +185,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
-            input_ids = input_ids + self.tokenizer.sep_id
+            input_ids = input_ids + [self.sep_id]
         
         answer_start_idx = len(input_ids)
 

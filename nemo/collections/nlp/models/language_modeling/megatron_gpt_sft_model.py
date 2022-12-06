@@ -24,7 +24,6 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 import re
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSupervisedFineTuningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -239,7 +238,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             ignore_virtual=True
         ):
             # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = self.process_global_batch(batch)
+            batch_for_pipeline = batch
         else:
             # The intermediate pipeline stages do not need any inputs from data loader
             # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
@@ -508,7 +507,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        batch_for_pipeline = self.process_global_batch(batch)
+        batch_for_pipeline = batch
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
@@ -581,18 +580,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        return [
-            global_batch["tokens"],
-            global_batch["labels"],
-            global_batch["loss_mask"],
-            global_batch["attention_mask"],
-            global_batch["position_ids"],
-        ]
-
     def build_finetuning_dataset(
         self,
         data,
@@ -621,6 +608,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             add_bos=add_bos,
             add_eos=add_eos,
             add_sep=add_sep,
+            sep_id=self.sep_id,
             for_train=for_train,
             tokens_to_generate=tokens_to_generate,
             cache_data_path=cache_data_path,
@@ -662,7 +650,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         return dataset, dataloader
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building GPT datasets.')
+        logging.info('Building GPT SFT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
         global_batch_size = self.cfg.global_batch_size
@@ -681,18 +669,40 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            seq_length=self.cfg.data.seq_length,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.get('skip_warmup', True),
-            tokenizer=self.tokenizer,
-        )
+        if self.cfg.data.train_ds is not None:
+            self._train_ds = self.build_finetuning_dataset(
+                data = self.cfg.data.train_ds,
+                max_seq_length = self.cfg.data.max_seq_length,
+                min_seq_length = 1,
+                add_bos = self.cfg.data.add_bos,
+                add_eos=False,
+                add_sep=False, 
+                for_train=True,
+                drop_last=False,
+                shuffle=False,
+                tokens_to_generate=None,
+                get_dataset_only=True,
+                cache_data_path=None,
+                load_cache=False)
+
+        if self.cfg.data.validation_ds is not None:
+            self._validation_ds = self.build_finetuning_dataset(
+                data = self.cfg.data.validation_ds,
+                max_seq_length = self.cfg.data.max_seq_length,
+                min_seq_length = 1,
+                add_bos = self.cfg.data.add_bos,
+                add_eos=self.cfg.data.add_eos,
+                add_sep=self.cfg.data.add_sep, 
+                for_train=True,
+                drop_last=False,
+                shuffle=False,
+                tokens_to_generate=None,
+                get_dataset_only=True,
+                cache_data_path=None,
+                load_cache=False)
+        
+        self._test_ds = None
+
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
@@ -702,6 +712,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'Finished building GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
+
 
     def build_finetuning_data_loader(
         self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
@@ -800,7 +811,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             self.build_train_valid_test_datasets()
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            #self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
