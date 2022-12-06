@@ -5,6 +5,7 @@ inflect
 ipywidgets
 kaldi-python-io
 kaldiio
+Levenshtein
 librosa>=0.9.0
 marshmallow
 matplotlib
@@ -17,4 +18,3 @@ scipy>=0.14
 soundfile
 sox
 texterrors
-Levenshtein
