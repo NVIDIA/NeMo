@@ -98,6 +98,14 @@ model:
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
+  
+  - taskname: "xsum" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> source: {source} summary: {target}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: "source"
+    answer_only_loss: True
+    answer_field: "target"
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks

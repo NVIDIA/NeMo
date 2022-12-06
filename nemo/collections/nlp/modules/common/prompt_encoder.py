@@ -359,7 +359,9 @@ class PromptEncoder(NeuralModule, Exportable):
         elif self.encoder_type == PromptEncoderType.EYE_MLP:
             output_embeds = self.mlp_head(input_embeds)
 
+        # (10, 2048)
         output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-8
+        # (10, 1)
         output_embeds = output_embeds / output_embeds_norm
         cs = output_embeds @ output_embeds.transpose(0, 1)
         cs.fill_diagonal_(0.0)
