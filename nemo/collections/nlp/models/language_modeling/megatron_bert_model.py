@@ -676,7 +676,10 @@ class MegatronBertModel(MegatronBaseModel):
         return batch
 
     def parameters(self):
-        return self.model.parameters()
+        if isinstance(self.model, list):
+            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+        else:
+            return self.model.parameters()
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -715,7 +718,10 @@ class MegatronBertModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
+        if isinstance(self.model, list):
+            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
+        else:
+            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])        
 
     def configure_optimizers(self):
 
