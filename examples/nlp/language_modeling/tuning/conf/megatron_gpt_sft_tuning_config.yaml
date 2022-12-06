@@ -63,8 +63,8 @@ model:
 
 
   data:
-    train_ds: [data/rte_train.jsonl,]
-    validation_ds: [data/rte_val.jsonl,]
+    train_ds: ??
+    validation_ds: ??
     add_eos: True
     add_sep: True
     add_bos: False

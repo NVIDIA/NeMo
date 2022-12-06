@@ -138,12 +138,16 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         self.megatron_amp_o2 = False
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
-        self.tokenizer = self.frozen_model.tokenizer
-        self.hidden_size = self.frozen_model.cfg.hidden_size
+        self.tokenizer = self.model.tokenizer
+        self.hidden_size = self.model.cfg.hidden_size
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        # TODO: @fsoares add tokenizer EOS and SEP
-        self.eos_id = self.tokenizer.eos
-        self.sep_id = self.tokenizer.sep
+        # TODO: @fsoares check on how to resize embedding after adding new tokens
+        # For now I'm hard coding some very weird tokens
+
+        self.eos_id = self.tokenizer.eos_id
+        # "------------------------------------------------": 47232
+        # "////////////////////////////////": 49704
+        self.sep_id = 49704
         self._reduced_loss_buffer = []
         self._inference_config = None
 
