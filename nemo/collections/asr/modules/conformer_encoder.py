@@ -388,6 +388,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             cur_att_context_size = self.default_att_context_size
         if cur_att_context_size == "offline_dual":
             self.offline_dual = True
+        else:
+            self.offline_dual = False
 
         # Create the self-attention and padding masks
         pad_mask, att_mask = self._create_masks(
@@ -411,6 +413,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 cache_last_time=cache_last_time,
                 cache_last_channel_next=cache_last_channel_next,
                 cache_last_time_next=cache_last_time_next,
+                dual_mode=self.offline_dual,
             )
 
             if self.reduction_position == lth:
@@ -489,7 +492,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
                 chunk_idx = torch.div(chunk_idx, chunk_size, rounding_mode="trunc")
                 diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
-                chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0))
+                chunked_limited_mask = torch.logical_and(
+                    torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0)
+                )
                 att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
         # pad_mask is the masking to be used to ignore paddings
