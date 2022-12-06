@@ -1528,7 +1528,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 dropout=ffn_dropout,
             )
-        
+
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
         """
         Returns a function that potentially fuses the dropout and bias addition.
@@ -1841,7 +1841,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
         alibi_position_bias=None,
-    ): 
+    ):
         if self.dtype == torch.float32:
             return super().forward(
                 hidden_states,
