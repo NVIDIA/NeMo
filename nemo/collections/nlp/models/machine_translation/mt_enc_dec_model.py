@@ -17,7 +17,6 @@ import json
 import os
 import random
 from collections import OrderedDict
-from distutils.command.install_egg_info import install_egg_info
 from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Union

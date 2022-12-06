@@ -118,8 +118,6 @@ model:
   validation_ds:
     src_file_name: ???
     tgt_file_name: ???
-    tgt_lang:
-      - null
     dataset_type: 'text' # Options: ['text']. Validation data needs to be raw text.
     tokens_in_batch: 512
     clean: false
@@ -166,6 +164,7 @@ model:
     training_sample_size: null # valid for sentencepiece tokenizer
     r2l: false
     sentencepiece_legacy: True # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+    num_sentinel_tokens: 0
 
   decoder_tokenizer:
     library: yttm
@@ -177,3 +176,4 @@ model:
     training_sample_size: null # valid for sentencepiece tokenizer
     r2l: false
     sentencepiece_legacy: True
+    num_sentinel_tokens: 0
