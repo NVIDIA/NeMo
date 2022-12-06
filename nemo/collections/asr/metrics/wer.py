@@ -40,7 +40,6 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
       hypotheses: list of hypotheses
       references: list of references
       use_cer: bool, set True to enable cer
-      return_words_scores: bool, set True to return calculated words and scores
     Returns:
       (float) average word error rate
     """
@@ -60,7 +59,8 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
             h_list = h.split()
             r_list = r.split()
         words += len(r_list)
-        # May deprecate using editdistance in future release for here and rest of codebase once we confirm Levenshtein is reliable and faster.
+        # May deprecate using editdistance in future release for here and rest of codebase
+        # once we confirm Levenshtein is reliable and faster.
         scores += editdistance.eval(h_list, r_list)
     if words != 0:
         wer = 1.0 * scores / words
@@ -110,7 +110,6 @@ def word_error_rate_detail(
 
         words += len(r_list)
 
-        # scores += editdistance.eval(h_list, r_list)
         scores += Levenshtein.distance(r_list, h_list)
 
         # insertion, deletion and substitution added from source -> destination
