@@ -1,5 +1,5 @@
 NeMo RETRO Model
-----------------
+================
 
 Retrieval-Enhanced Transformer (RETRO) Model is an auto-regressive language models which can condition 
 on document chunks retrieved from a large corpus. For full details of the model, please refer to the Deepmind's 
@@ -14,13 +14,14 @@ with Deepmind's proposed implementation, it has the following differences/featur
 
 
 Quick start
-^^^^^^^^^^^
+===========
 Steps below demonstrate training and evaluate a NeMo RETRO model
 
 Data pre-processing
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
-**Step 1: Collect training data**
+Step 1: Collect training data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are two types of data for the RETRO model: training data (typically has 64 tokens chunks) and retrieval data (typically has 128 tokens chunks).
 The training data is used to train the RETRO model, while the retrieval data is used as external data to augment the language model. 
@@ -35,7 +36,8 @@ Both types of raw data are prepared in a loose json format, with one json contai
 
 The name of the text field of the json can be changed by using the ``--json-key`` flag in ``preprocess_data_for_megatron.py``.  The other metadata are optional and are not used in training.
 
-**Step 2: Convert training data into memory map format**
+Step 2: Convert training data into memory map format
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The loose json is then processed into a binary format for training and retrieval. To convert the json into mmap, cached index file. 
 Set the ``--dataset-impl`` flag to `retmmap`, which is the memory map format dedicated for RETRO model. 
@@ -68,13 +70,15 @@ is used, it will add an additional 64 padding tokens at the end of the document.
 control the size of the data chunks to be processed and the number of worker processes to use, respectively.
 
 
-**Step 3: Create Faiss index for retrieval data**
+Step 3: Create Faiss index for retrieval data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once we have the memory map retrieval data binary file and index files ready from the previous steps, we can begin to build the Faiss
 index that can query the K-nearest neighbors of the chunk IDs given a query embedding vector. Since the retrieval data is typically 
 large in size, we break the process down into three sub-steps.
 
-*Step 3.1: Train the Faiss index structure*
+Step 3.1: Train the Faiss index structure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In this step, it uses a subset of the retrieval data to train a empty Faiss index. An example script is:
 
@@ -100,7 +104,8 @@ the ``all-mpnet-base-v2`` sentence transformer model is used to encode the chunk
 The index will be saved in the result directory as ``pubmed_faiss_learn.index``. Here we specify to use 8 GPUs to train
 the Faiss index.
 
-*Step 3.2: Add retrieval data into sharding index*
+Step 3.2: Add retrieval data into sharding index
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In this step, it adds all the retrieval data into the empty Faiss index created in the previous step.  An example script is:
 
@@ -126,7 +131,8 @@ In this step, it adds all the retrieval data into the empty Faiss index created 
 This will break down the retrieval data into ``--total_shards`` shards, and add the data in shard id specified by ``--shard_id``. The 
 result will be saved as a file specified by ``--output_file``. In the above example, it will create 10 sharding indexes.
 
-*Step 3.3: Merge the sharding indexes into final Faiss index*
+Step 3.3: Merge the sharding indexes into final Faiss index
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In this step, it merges all the sharding indexes created in the previous step into the final Faiss index.  An example script is:
 
@@ -139,8 +145,59 @@ In this step, it merges all the sharding indexes created in the previous step in
     --shard_index_input=/result/pubmed_faiss_shard \
     --output_file=/result/pubmed_faiss_final.index
 
-**Step 4: Build KNN index**
+Step 4: Build KNN index
+^^^^^^^^^^^^^^^^^^^^^^^
 
 During training, it is wasteful to run query for KNN chunk IDs for each of the training data point. This can be pre-calculated by 
 building the KNN index before training. The KNN index maps the training data chunk id to K-nearest neighbors chunk id in the retrieval 
-data. Similarly to building 
+data. Similarly to building Faiss index, we break the process down into two sub-steps.
+
+Step 4.1: Build KNN sharding index
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To build the KNN index, it uses the memory mapping training data created by `preprocess_data_for_megatron.py` script.
+It also uses the Faiss Index file for the retrieval data built by `build_retrieval_index.py` script.
+
+An example script is:
+
+.. code-block:: bash
+
+    python scripts/nlp_language_modeling/build_knn_map_index.py \
+        --input_file=/result/pubmed_eval_text_document  \
+        --tokenizer-library=megatron \
+        --tokenizer-type=GPT2BPETokenizer \
+        --merge-file=/dataset/gpt2-merges.txt \
+        --vocab-file=/dataset/gpt2-vocab.json \
+        --process_chunk_size=10000 \
+        --sentence_transformer_model=all-mpnet-base-v2 \
+        --batch_size=1024 \
+        --K_neighbors=50 \
+        --workers=2 \
+        --devices=0,1,2,3,4,5,6,7 \
+        --remove_duplicate \
+        --dedup_margin=70 \
+        --nprobe=100 \
+        --shard_id=0 \
+        --total_shards=10 \
+        --stage=1 \
+        --output_file=/dataset/pubmed_knn_shard0.save \
+        --faiss_index=/result/pubmed_faiss_final.index
+
+In this example, it break down the training data into ``--total_shards`` shards, and calculate the KNN index for shard id specified by ``--shard_id``.
+The result will be saved as a file specified by ``--output_file``. In the above example, it will create 10 KNN sharding indexes.
+
+Use ``--remove_duplicate`` flag if the training data and retrieval data are the same. It will remove the neighbors from the same 
+document. 
+
+Step 4.2: Merge KNN sharding index into final KNN index
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An example script is:
+
+.. code-block:: bash
+
+    python scripts/nlp_language_modeling/build_knn_map_index.py  \
+    --stage=2 \
+    --output_file=pubmed_knn_final.save \
+    --shard_index_input=pubmed_knn_shard
+
