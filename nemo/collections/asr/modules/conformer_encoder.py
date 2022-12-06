@@ -495,9 +495,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
 
-        # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
-        # att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
-
         # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
         att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
