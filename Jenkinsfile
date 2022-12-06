@@ -102,18 +102,6 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests Speech Data Processor') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'pip install -r tools/speech_data_processor/requirements.txt'
-        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme --with_downloads"'
-      }
-    }
 
     stage('L0: TN/ITN Tests CPU') {
       when {
