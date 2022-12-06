@@ -356,8 +356,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
