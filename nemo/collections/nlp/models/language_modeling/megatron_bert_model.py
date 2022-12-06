@@ -204,12 +204,14 @@ class MegatronBertModel(MegatronBaseModel):
 
             if not self.cfg.bert_binary_head:
                 types = None
+
             output_tensor = self.forward(
                 tokens,
                 padding_mask,
                 types,
                 lm_labels,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                model = model,
             )
 
             def loss_func(output_tensor):
@@ -230,9 +232,11 @@ class MegatronBertModel(MegatronBaseModel):
         return fwd_output_and_loss_func
 
     def forward(
-        self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None
+        self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None, model=None
     ):
-        output_tensor = self.model(
+        if model is None:
+            model = self.model
+        output_tensor = model(
             input_ids,
             attention_mask,
             token_type_ids=token_type_ids,
