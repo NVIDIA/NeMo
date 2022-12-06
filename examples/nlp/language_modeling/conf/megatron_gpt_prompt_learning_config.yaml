@@ -99,6 +99,14 @@ model:
     answer_only_loss: True
     answer_field: "answer"
   
+  - taskname: "hellaswag" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> text: {text} options: A: {A} B: {B} C: {C} D: {D} answer: {answer}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: text
+    answer_only_loss: True
+    answer_field: "answer"
+
   - taskname: "xsum" 
     prompt_template: "<|VIRTUAL_PROMPT_0|> source: {source} summary: {target}" 
     total_virtual_tokens: 10
