@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import random
 from collections import OrderedDict
 from typing import List, Optional
 
@@ -222,6 +223,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             )
         if "offline_dual" in self.att_context_size:
             norm_dual_mode = True
+        else:
+            norm_dual_mode = False
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -380,7 +383,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         # select a random att_context_size with the distribution specified by att_context_probs during training
         # for non-validation cases like test, validation or inference, it uses the first mode in self.att_context_size
         if self.training:
-            cur_att_context_size = random.choices(self.att_context_size, weights=self.att_context_probs)
+            cur_att_context_size = random.choices(self.att_context_size, weights=self.att_context_probs)[0]
         else:
             cur_att_context_size = self.default_att_context_size
         if cur_att_context_size == "offline_dual":
@@ -390,7 +393,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         pad_mask, att_mask = self._create_masks(
             att_context_size=cur_att_context_size,
             padding_length=padding_length,
-            max_audio_length=max_audio_length,
+            max_audio_length=audio_signal.size(1),
             device=audio_signal.device,
         )
 
@@ -460,7 +463,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.pos_enc.extend_pe(max_audio_length, device)
 
     def _create_masks(self, att_context_size, padding_length, max_audio_length, device):
-        att_mask = torch.ones(1, self.max_audio_length, self.max_audio_length, dtype=torch.bool, device=device)
+        att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
 
         if att_context_size == "offline_dual":
             att_context_size = [-1, -1]
@@ -480,7 +483,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             else:
                 left_chunks_num = 10000
 
-            chunk_idx = torch.arange(0, self.max_audio_length, dtype=torch.int, device=att_mask.device)
+            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
             chunk_idx = torch.div(chunk_idx, chunk_size, rounding_mode="trunc")
             diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
             chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0))
@@ -520,8 +523,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             for i, att_cs in enumerate(att_context_size):
                 if att_cs == "offline_dual":
                     continue
-                if is_instance(ats, ListConfig):
-                    att_context_size[i] = list(ats)
+                if isinstance(att_cs, ListConfig):
+                    att_context_size[i] = list(att_cs)
                 if att_context_style == "chunked_limited":
                     if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
                         raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
