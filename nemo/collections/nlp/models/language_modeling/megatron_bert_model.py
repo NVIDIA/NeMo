@@ -719,10 +719,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        if isinstance(self.model, list):
-            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
-        else:
-            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])        
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)      
 
     def configure_optimizers(self):
 
