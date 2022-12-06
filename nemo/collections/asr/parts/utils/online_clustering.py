@@ -31,22 +31,19 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics.pairwise import linear_kernel
 from sklearn.preprocessing import OneHotEncoder
-from torch.linalg import eigh, eigvalsh
 
 from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
     SpectralClustering,
-    get_scale_interpolated_embs,
     getAffinityGraphMat,
     getCosAffinityMatrix,
-    split_input_data,
 )
 
 
