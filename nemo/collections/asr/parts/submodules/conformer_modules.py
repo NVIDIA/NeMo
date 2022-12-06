@@ -55,7 +55,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         dropout_att=0.1,
         pos_bias_u=None,
         pos_bias_v=None,
-        att_context_size=[-1, -1],
+        conv_dual_mode=False,
+        norm_dual_mode=False,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -74,11 +75,12 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
             conv_context_size=conv_context_size,
+            conv_dual_mode=conv_dual_mode,
+            norm_dual_mode=norm_dual_mode,
         )
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
-        MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
@@ -87,11 +89,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 dropout_rate=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
-                max_cache_len=MHA_max_cache_len,
             )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att
             )
         else:
             raise ValueError(
@@ -106,6 +107,13 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
+        if norm_dual_mode:
+            self.norm_feed_forward1_dual = LayerNorm(d_model)
+            self.norm_conv_dual = LayerNorm(d_model)
+            self.norm_self_att_dual = LayerNorm(d_model)
+            self.norm_feed_forward2_dual = LayerNorm(d_model)
+            self.norm_out_dual = LayerNorm(d_model)
+
     def forward(
         self,
         x,
@@ -116,6 +124,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         cache_last_time=None,
         cache_last_channel_next=None,
         cache_last_time_next=None,
+        dual_mode=False
     ):
         """
         Args:
@@ -130,12 +139,20 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         Returns:
             x (torch.Tensor): (B, T, d_model)
         """
+        dual_mode_enabled = dual_mode and hasattr(self, "norm_feed_forward1_dual")
         residual = x
-        x = self.norm_feed_forward1(x)
+        if dual_mode_enabled:
+            x = self.norm_feed_forward1_dual(x)
+        else:
+            x = self.norm_feed_forward1(x)
         x = self.feed_forward1(x)
         residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_self_att(residual)
+        if dual_mode_enabled:
+            x = self.norm_self_att_dual(residual)
+        else:
+            x = self.norm_self_att(residual)
+
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(
                 query=x,
@@ -154,15 +171,25 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             x = None
         residual = residual + self.dropout(x)
 
-        x = self.norm_conv(residual)
+        if dual_mode_enabled:
+            x = self.norm_conv_dual(residual)
+        else:
+            x = self.norm_conv(residual)
+
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
         residual = residual + self.dropout(x)
 
-        x = self.norm_feed_forward2(residual)
+        if dual_mode_enabled:
+            x = self.norm_feed_forward2_dual(residual)
+        else:
+            x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
         residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_out(residual)
+        if dual_mode_enabled:
+            x = self.norm_out_dual(residual)
+        else:
+            x = self.norm_out(residual)
 
         if self.is_adapter_available():
             # Call the adapters
@@ -185,7 +212,7 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'
+        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_', conv_dual_mode=False, norm_dual_mode=False
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
@@ -194,7 +221,7 @@ class ConformerConvolution(nn.Module):
         self.norm_type = norm_type
 
         if conv_context_size is None:
-            conv_context_size = (kernel_size - 1) // 2
+            conv_context_size = [(kernel_size - 1) // 2, (kernel_size - 1) // 2]
 
         if pointwise_activation in activation_registry:
             self.pointwise_activation = activation_registry[pointwise_activation]()
@@ -220,6 +247,16 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
 
+        if conv_dual_mode:
+            dw_conv_dual_mode_kernel_mask = torch.cat(
+                [
+                    torch.ones(dw_conv_input_dim, 1, (kernel_size + 1) // 2),
+                    torch.zeros(dw_conv_input_dim, 1, kernel_size // 2),
+                ],
+                dim=-1,
+            )
+            self.register_buffer('dw_conv_dual_mode_kernel_mask', dw_conv_dual_mode_kernel_mask, persistent=False)
+
         if norm_type == 'batch_norm':
             self.batch_norm = nn.BatchNorm1d(dw_conv_input_dim)
         elif norm_type == 'instance_norm':
@@ -232,12 +269,17 @@ class ConformerConvolution(nn.Module):
         else:
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
+        if norm_dual_mode:
+            self.batch_norm_dual = copy.deepcopy(self.batch_norm)
+        else:
+            self.batch_norm_dual = None
+
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
             in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def forward(self, x, pad_mask=None, cache=None, cache_next=None):
+    def forward(self, x, pad_mask=None, cache=None, cache_next=None, dual_mode=False):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
 
@@ -251,16 +293,35 @@ class ConformerConvolution(nn.Module):
             x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         if cache is not None:
+            if dual_mode:
+                raise ValueError(f"Dual mode ASR does not support caching mechanism yet!")
             x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
         else:
-            x = self.depthwise_conv(x)
+            if not dual_mode:
+                x = self.depthwise_conv(x)
+            else:
+                # use convolution in dual mode, i.e., mask right half of the kernel
+                # to disable access to future context for streaming mode
+                kernel = self.depthwise_conv.weight * self.dw_conv_dual_mode_kernel_mask
+                F.conv1d(
+                    x,
+                    kernel,
+                    self.depthwise_conv.bias,
+                    stride=1,
+                    padding=(self.kernel_size - 1) // 2,
+                    groups=self.self.depthwise_conv.groups,
+                )
 
         if self.norm_type == "layer_norm":
             x = x.transpose(1, 2)
-            x = self.batch_norm(x)
-            x = x.transpose(1, 2)
+
+        if dual_mode and self.batch_norm_dual is not None:
+            x = self.batch_norm_dual(x)
         else:
             x = self.batch_norm(x)
+
+        if self.norm_type == "layer_norm":
+            x = x.transpose(1, 2)
 
         x = self.activation(x)
         x = self.pointwise_conv2(x)
