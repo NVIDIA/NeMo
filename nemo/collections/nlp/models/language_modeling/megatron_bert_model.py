@@ -100,9 +100,23 @@ class MegatronBertModel(MegatronBaseModel):
             self.model = self.model[0]
 
         if self.megatron_amp_o2:
+
             if not self.with_distributed_adam:
-                self.model.cuda(torch.cuda.current_device())
-            self.model = Float16Module(module=self.model, precision=cfg.precision)
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                if isinstance(self.model, list):
+                    for module in self.model:
+                        module.cuda(torch.cuda.current_device())
+                else:
+                    self.model.cuda(torch.cuda.current_device())
+
+            # Model wrapper to convert both model and inputs to half precision
+            if isinstance(self.model, list):
+                converted_model = []
+                for module in self.model:
+                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    self.model = converted_model
+            else:
+                self.model = Float16Module(module=self.model, precision=cfg.precision)
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
