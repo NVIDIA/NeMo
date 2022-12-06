@@ -254,7 +254,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         permutation: bool = False,
         favor_long_ngrams: bool = False,
         sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
-        sentinel_tokens: List[int] = None
+        sentinel_tokens: List[int] = None,
     ):
         super().__init__(
             src_dataset_prefix=src_dataset_prefix,
@@ -496,7 +496,7 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         permutation: bool = False,
         favor_long_ngrams: bool = False,
         sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
-        sentinel_tokens: List[int] = None
+        sentinel_tokens: List[int] = None,
     ):
         super().__init__(
             src_file_name=src_file_name,

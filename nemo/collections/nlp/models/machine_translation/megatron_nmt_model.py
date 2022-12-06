@@ -550,22 +550,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def _build_eval_dataset(self, data_cfg):
         # Set up prepend IDs for validation datasets even if not multingual.
         if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm' or (
-            self.multilingual and
-            self.multilingual_type != MultilingualModelType.many_to_one
+            self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one
         ):
-            multilingual_ids = [
-                self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language
-            ]
+            multilingual_ids = [self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language]
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=data_cfg,
                 multilingual=True,
                 multilingual_ids=multilingual_ids,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                add_bos_eos_to_encoder=self._cfg.train_ds.get('objective', 'nmt') != 'nmt-xlm', # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
+                add_bos_eos_to_encoder=self._cfg.train_ds.get('objective', 'nmt')
+                != 'nmt-xlm',  # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
             )
         else:
-            num_eval_datasets = len(data_cfg.src_file_name) if isinstance(data_cfg.validation_ds.src_file_name, ListConfig) else 1
+            num_eval_datasets = (
+                len(data_cfg.src_file_name) if isinstance(data_cfg.validation_ds.src_file_name, ListConfig) else 1
+            )
             multilingual_ids = [None] * num_eval_datasets
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=data_cfg,
@@ -587,7 +587,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         if hasattr(self._cfg, 'test_ds'):
             self._test_ds = self._build_eval_dataset(self._cfg.test_ds)
 
-    def _instantiate_memmap_dataset(self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None):
+    def _instantiate_memmap_dataset(
+        self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None
+    ):
         if cfg.dataset_type == 'bin_memmap':
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -786,7 +788,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         mode = self.training
         prepend_ids = []
-        if (self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one):
+        if self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one:
             if target_lang is None:
                 raise ValueError("target_lang needs to be specified to run inference for multilingual model.")
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')

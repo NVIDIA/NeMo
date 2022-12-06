@@ -891,7 +891,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def _setup_eval_dataset_from_config(
-        cls, cfg: DictConfig, multilingual: bool, multilingual_ids, encoder_tokenizer, decoder_tokenizer, add_bos_eos_to_encoder=True
+        cls,
+        cfg: DictConfig,
+        multilingual: bool,
+        multilingual_ids,
+        encoder_tokenizer,
+        decoder_tokenizer,
+        add_bos_eos_to_encoder=True,
     ):
         src_file_name = cfg.get('src_file_name')
         tgt_file_name = cfg.get('tgt_file_name')
