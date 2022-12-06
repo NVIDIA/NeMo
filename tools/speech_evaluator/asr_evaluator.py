@@ -14,12 +14,10 @@
 
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.utils.eval_utils import run_asr_inference
-
-# from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer, run_asr_inference, target_metadata_wer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
+import json
 
 """
 This script serves as evaluator of ASR models
@@ -36,7 +34,42 @@ Check out parameters in ./conf/eval.yaml
 @hydra_runner(config_path="conf", config_name="eval.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-    cfg = run_asr_inference(cfg.asr_eval)
+
+    report = {}
+    # """
+    # engine
+    cfg.asr_eval = run_asr_inference(cfg.asr_eval)
+    # """
+    # analyst
+     
+    cfg, total_res  = cal_write_wer(cfg)
+    report.update({"res": total_res})
+    
+    for target in cfg.analyst.metadata:
+        if cfg.analyst.metadata[target].exec:
+            occ_avg_wer = target_metadata_wer(cfg.analyst.metric_calculator.output_filename, target, cfg.analyst.metadata[target])
+            report[target] = occ_avg_wer
+
+    config_asr_eval = OmegaConf.to_object(cfg.asr_eval)
+    report.update(config_asr_eval)
+
+    config_metric_calculator = OmegaConf.to_object(cfg.analyst.metric_calculator)
+    report.update(config_metric_calculator)
+
+    pretty = json.dumps(report, indent=4)
+    print("===========")
+    print(pretty)
+    
+    # writer
+    report_file = "report.json"
+    if "report_filename" in cfg.writer and cfg.writer.report_filename:
+        report_file = cfg.writer.report_filename
+        
+    with open(report_file, "a") as fout:
+        json.dump(report, fout)
+        fout.write('\n')
+        fout.flush()
+
 
 
 if __name__ == "__main__":

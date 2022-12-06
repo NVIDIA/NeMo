@@ -17,6 +17,7 @@ from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
+import Levenshtein
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -27,7 +28,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConf
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
-__all__ = ['word_error_rate', 'WER', 'move_dimension_to_the_front']
+__all__ = ['word_error_rate','word_error_rate_detail', 'WER', 'move_dimension_to_the_front']
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
@@ -39,6 +40,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
       hypotheses: list of hypotheses
       references: list of references
       use_cer: bool, set True to enable cer
+      return_words_scores: bool, set True to return calculated words and scores
     Returns:
       (float) average word error rate
     """
@@ -58,12 +60,73 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
             h_list = h.split()
             r_list = r.split()
         words += len(r_list)
+        # May deprecate using editdistance in future release for here and rest of codebase once we confirm Levenshtein is reliable and faster.
         scores += editdistance.eval(h_list, r_list)
     if words != 0:
         wer = 1.0 * scores / words
     else:
         wer = float('inf')
     return wer
+
+
+def word_error_rate_detail(hypotheses: List[str], references: List[str],  use_cer=False) -> Tuple[float, int, float, float, float]:
+    """
+    Computes Average Word Error Rate with details (insertion rate, deletion rate, substitution rate)
+    between two texts represented as corresponding lists of string. 
+    
+    Hypotheses and references must have same length.
+    Args:
+      hypotheses (list): list of hypotheses
+      references(list) : list of references
+      use_cer (bool): set True to enable cer
+    Returns:
+      wer (float): average word error rate
+      words (int):  Total number of words/charactors of given reference texts
+      ins_rate (float): average insertion error rate
+      del_rate (float): average deletion error rate
+      sub_rate (float): average substitution error rate
+      
+    """
+    scores = 0
+    words = 0
+    ops_count = {'replace':0, 'insert': 0, 'delete': 0}
+    
+    if len(hypotheses) != len(references):
+        raise ValueError(
+            "In word error rate calculation, hypotheses and reference"
+            " lists must have the same number of elements. But I got:"
+            "{0} and {1} correspondingly".format(len(hypotheses), len(references))
+        )
+
+    for h, r in zip(hypotheses, references):
+        if use_cer:
+            h_list = list(h)
+            r_list = list(r)
+        else:
+            h_list = h.split()
+            r_list = r.split()
+            
+        words += len(r_list)
+        
+        #scores += editdistance.eval(h_list, r_list)
+        scores += Levenshtein.distance(r_list, h_list) 
+        
+        # insertion, deletion and substitution added from source -> destination
+        ops = Levenshtein.editops(r_list, h_list) 
+        for op in ops:
+            ops_count[op[0]] += 1
+
+    if words != 0:
+        wer = 1.0 * scores / words
+        ins_rate = 1.0 * ops_count['insert'] / words
+        del_rate = 1.0 * ops_count['delete'] / words
+        sub_rate = 1.0 * ops_count['replace'] / words
+        
+    else:
+        wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
+
+    return wer, words, ins_rate, del_rate, sub_rate
+
 
 
 def move_dimension_to_the_front(tensor, dim_index):
