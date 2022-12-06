@@ -111,7 +111,7 @@ pipeline {
       }
       steps {
         sh 'pip install -r tools/speech_data_processor/requirements.txt'
-        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
+        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme --with_downloads"'
       }
     }
 
