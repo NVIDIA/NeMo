@@ -430,6 +430,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         GPT style models. Bypasses the vocab token preprocessing done
         in the MegatronGPT class.
         """
+        print("input_ids[0]: ", input_ids[0])
+        raise ValueError
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
             if inference:
