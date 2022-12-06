@@ -34,6 +34,7 @@ def hifigan_model():
     return model
 
 
+@pytest.mark.pleasefixme
 @pytest.fixture()
 def radtts_model():
     this_test_dir = os.path.dirname(os.path.abspath(__file__))
