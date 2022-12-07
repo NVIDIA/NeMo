@@ -195,10 +195,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         mixing: bool = False,
         normalize: bool = True,
     ):
-        if len(condition.shape) not in (3, 4):
-            raise ValueError(f"Got spectrogram tensor of shape {condition.shape}, expected B x C x L or B x 1 x C x L")
-        if condition.shape == 3:
-            condition = rearrange("b c l -> b 1 c l")
+        if len(condition.shape) != 4:
+            raise ValueError(f"Got spectrogram tensor of shape {condition.shape}, expected B x 1 x C x L")
 
         batch_size, *_, max_length = condition.shape
 
