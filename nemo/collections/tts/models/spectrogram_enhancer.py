@@ -302,7 +302,6 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
                 self.log("d_loss_gp", gp_loss, prog_bar=True)
                 return d_loss + gp_loss
 
-            self.log_illustration(target, condition, enhanced_spectrograms, lengths)
             return d_loss
 
         # train generator
@@ -315,6 +314,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("c_loss", c_loss, prog_bar=True)
 
+            with torch.no_grad():
+                self.log_illustration(target, condition, enhanced_spectrograms, lengths)
             return g_loss + c_loss
 
     def configure_optimizers(self):
@@ -338,10 +339,17 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     def save_to(self, save_path: str):
         # when saving this model for further use in a .nemo file, we do not care about TTS model used to train it
-        if self.fastpitch:
-            fastpitch = self._modules.pop("fastpitch")
+        if self.spectrogram_model:
+            spectrogram_model = self._modules.pop("spectrogram_model")
+            cfg = DictConfig.copy(self._cfg)
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.pop("spectrogram_model_path")
+            OmegaConf.set_struct(self._cfg, True)
+
             super().save_to(save_path)
-            self.fastpitch = fastpitch
+
+            self.spectrogram_model = spectrogram_model
+            self._cfg = cfg
         else:
             super().save_to(save_path)
 
@@ -352,20 +360,18 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if not self.loggers:
             return
 
-        if self.trainer.global_step % self.trainer.log_every_n_steps != 0:
-            return
         step = self.trainer.global_step // 2  # because of G/D training
+        if step % self.trainer.log_every_n_steps != 0:
+            return
 
-        idx = 0  # number of sample in the batch
-        with torch.no_grad():
-            length = int(lengths.flatten()[idx].item())
-            tensor = (
-                torch.stack([enhanced - condition, condition, enhanced, target], dim=0)
-                .cpu()[:, idx, :, :, :length]
-                .clamp(0.0, 1.0)
-            )
+        idx = 0
+        length = int(lengths.flatten()[idx].item())
+        tensor = (
+            torch.stack([enhanced - condition, condition, enhanced, target], dim=0)
+            .cpu()[:, idx, :, :, :length]
+        )
 
-            grid = torchvision.utils.make_grid(tensor, nrow=1)
+        grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
         # workaround for WandbLogger being put in a separate LoggerCollection (???)
         # = flatten
