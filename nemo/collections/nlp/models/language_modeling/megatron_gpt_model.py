@@ -247,18 +247,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if isinstance(module, Float16Module):
                     module = module.module
                 for layer in module.language_model.encoder.layers:
-                    buckets.append([
-                        p
-                        for p in layer.parameters()
-                        if not getattr(p, '_disable_overlap_grad_sync', False)
-                    ])
+                    buckets.append(
+                        [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                    )
             buckets.reverse()
             used_params = set()
             for bucket in buckets:
                 used_params.update(bucket)
-            buckets.append([
-                p for p in self.parameters() if p not in used_params
-            ])
+            buckets.append([p for p in self.parameters() if p not in used_params])
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
