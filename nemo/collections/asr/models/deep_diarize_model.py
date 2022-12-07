@@ -442,7 +442,7 @@ class DeepDiarizeModel(ModelPT):
     def add_speaker_per_n_steps(self) -> Optional[int]:
         if not self.cfg.percent_steps_increment_num_speakers:
             return
-        return int(self.cfg.percent_steps_increment_num_speakers * self.trainer.estimated_stepping_batches)
+        return int(self.cfg.percent_steps_increment_num_speakers * self.trainer.max_steps)
 
     def setup_validation_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor, context_window = self._setup_preprocessor(cfg)
