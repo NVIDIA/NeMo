@@ -439,16 +439,11 @@ def get_scale_interpolated_embs(
     embeddings_in_scales: List[torch.Tensor],
     timestamps_in_scales: List[torch.Tensor],
     device: torch.device = torch.device('cpu'),
-):
+) -> Tuple[torch.Tensor, List[torch.Tensor]]:
     """
-    Calculate cosine similarity values among speaker embeddings for each scale then
-    apply multiscale weights to calculate the fused similarity matrix.
-
-    Take the embedding from the scale (scale_interpolation_index-1)-th scale and find the indexes that are
-    in the range of [-half_scale, half_scale]. The distance to the center of the base-scale is used for
-    calculating the interpolation weight. The distance is squared then normalized to create an interpolation
-    weight vector interpol_w. Using the interpolation weight interpol_w and target embedding indexes target_bool,
-    interpolated embedding is calculated.
+    Generate a scale-interpolated single embedding vector by calculating the weighted sum
+    of the multiple embedding vectors from different scales. The output is a set of embedding
+    vectors corresponding to the base-scale segments.
 
     Args:
         multiscale_weights (Tensor):
@@ -462,18 +457,18 @@ def get_scale_interpolated_embs(
             Torch device variable
 
     Returns:
-        fused_sim_d (torch.tensor):
-            This function generates an affinity matrix that is obtained by calculating
-            the weighted sum of the affinity matrices from the different scales.
-        base_scale_emb (torch.tensor):
-            The base scale embedding (the embeddings from the finest scale)
+        context_emb (torch.tensor):
+            A set of scale-interpolated embedding vectors.
+            Dimensions: (Number of base-scale segments) x (Dimensions of embedding vector)
+        session_scale_mapping_list (list):
+            List containing argmin arrays indexed by scale index.
     """
     rep_mat_list = []
     multiscale_weights = multiscale_weights.to(device)
-    session_scale_mapping_dict = get_argmin_mat(timestamps_in_scales)
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
     scale_list = list(range(len(timestamps_in_scales)))
     for scale_idx in scale_list:
-        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        mapping_argmat = session_scale_mapping_list[scale_idx]
         emb_t = embeddings_in_scales[scale_idx].to(device)
         mapping_argmat = mapping_argmat.to(device)
         repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
@@ -484,7 +479,7 @@ def get_scale_interpolated_embs(
     if len(context_emb.shape) < 2:
         context_emb = context_emb.unsqueeze(0)
     context_emb = context_emb.to(device)
-    return context_emb, session_scale_mapping_dict
+    return context_emb, session_scale_mapping_list
 
 
 @torch.jit.script

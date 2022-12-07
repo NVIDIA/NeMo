@@ -149,8 +149,6 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor, with_history
         P, Q = P_raw[:min_len], Q_raw[:min_len]
         PmQ, QmP = set(P) - set(Q), set(Q) - set(P)
 
-        # P and Q occasionally have no common labels which means totally flipped (0<->1) labels.
-        # This should be differentiated from the second case.
         if len(U_set) == 1:
             # When two speaker vectors are exactly the same: No need to encode.
             mapping_array = np.array([0, 0])
@@ -164,7 +162,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor, with_history
 
 
 @torch.jit.script
-def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count: int, num_clus: int,) -> torch.Tensor:
+def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count: int, num_clus: int) -> torch.Tensor:
     """
     Calculate removable counts based on the arguments and calculate how many counts should be
     removed from the each cluster. This function has `O(N)` (N = num_clus) time complexity to
@@ -353,48 +351,52 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
 
 @torch.jit.script
 def get_closest_embeddings(
-    label_aff_mat: torch.Tensor, target_emb_index: torch.Tensor, merge_quantity: int
+    affinity_mat: torch.Tensor, n_closest: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the indeces of the embedding vectors we want to merge.
+
     Example:
-        >>> merge_quantity = 2
-        >>> label_aff_mat = [[1.0, 0.2, 0.8],
-                             [0.2, 1.0, 0.4],
-                             [0.8, 0.4, 1.0]]
-        >>> label_aff_mat.sum(0) 
+        >>> n_closest = 2
+        >>> affinity_mat = [[1.0, 0.2, 0.8],
+                            [0.2, 1.0, 0.4],
+                            [0.8, 0.4, 1.0]]
+        >>> affinity_mat.sum(0) 
         [2.0, 1.6, 2.2]
 
         # The closest two embedding vectors are at index 0 and 2.
 
     Args:
-        label_aff_mat: (Tensor)
+        affinity_mat: (Tensor)
             Symmetric affinity matrix of the given embedding vector set.
         target_emb_index: (Tensor)
             Targeted speaker index
-        merge_quantity (int):
+        n_closest (int):
             The amount of vector counts that are expected to be removed from the set
             Example:
                 Input: 10 vectors in a set
-                merge_quantity = 5
+                n_closest = 5
                 (5+1) vectors are merged into 1 vector
                 Output: 5 vectors in a set
 
-    Output:
-        index_2d: (numpy.array)
+    Returns:
+        idx_aff_sum (torch.Tensor):
+            Indices of the closest `n_closest` embedding vectors
+        rest_inds (torch.Tensor):
+            Indices of the complementary set of the indices in `idx_aff_sum`
     """
-    comb_limit = int(target_emb_index.shape[0] - 1)
-    if merge_quantity > comb_limit:
+    comb_limit = int(affinity_mat.shape[0] - 1)
+    if n_closest > comb_limit:
         raise ValueError(
-            f"Got merge_quantity of {merge_quantity}: {merge_quantity} is bigger than comb_limit {comb_limit}"
+            f"Got n_closest of {n_closest}: {n_closest} is bigger than comb_limit {comb_limit}"
         )
 
     # Take summed values over one axis
-    sum_cmat = label_aff_mat.sum(0)
+    sum_cmat = affinity_mat.sum(0)
 
-    # `merge_quantity + 1` will become 1 embedding vector after merging
-    idx_aff_sum = torch.argsort(sum_cmat, descending=True)[: (merge_quantity + 1)]
-    rest_inds = torch.argsort(sum_cmat, descending=True)[(merge_quantity + 1) :]
+    # `n_closest + 1` will become 1 embedding vector after merging
+    idx_aff_sum = torch.argsort(sum_cmat, descending=True)[: (n_closest + 1)]
+    rest_inds = torch.argsort(sum_cmat, descending=True)[(n_closest + 1) :]
     return idx_aff_sum, rest_inds
 
 
@@ -451,15 +453,15 @@ def run_reducer(
             raise ValueError(
                 f"merge_quantity {merge_quantity} is larger than the half of targeted speaker's labels {target_emb_index.shape[0]-1}"
             )
-        affinity_mat = getCosAffinityMatrix(pre_embs)
+        total_affinity_mat = getCosAffinityMatrix(pre_embs)
         # Get the lower triangle of the affinity_mat array
-        label_aff_mat = affinity_mat[:, target_emb_index][target_emb_index, :]
-        if label_aff_mat.shape[0] != target_emb_index.shape[0]:
+        affinity_mat = total_affinity_mat[:, target_emb_index][target_emb_index, :]
+        if affinity_mat.shape[0] != target_emb_index.shape[0]:
             raise ValueError(
-                "Dimension mismatch between targeted speaker affinity `label_aff_mat` and targeted speaker index `target_emb_index`."
+                "Dimension mismatch between targeted speaker affinity `affinity_mat` and targeted speaker index `target_emb_index`."
             )
         # Get the indices of the closest embedding vectors
-        selected_inds, rest_inds = get_closest_embeddings(label_aff_mat, target_emb_index, merge_quantity)
+        selected_inds, rest_inds = get_closest_embeddings(affinity_mat, merge_quantity)
         spk_cluster_labels, selected_embs = pre_clus_labels[target_emb_index], pre_embs[target_emb_index]
 
         # Note that we need to return the indices of speaker-specific indices from `target_emb_index`.
@@ -520,6 +522,7 @@ class OnlineSpeakerClustering:
             Default is 30. The lower the value, the faster NME-analysis becomes.
             Lower than 20 might cause a poor parameter estimation.
         fixed_thres (float):
+            A fixed threshold for finding p-closest neighbors in affinity matrix for clustering.
             If fixed_thres value is provided, NME-analysis process will be skipped.
             This value should be optimized on a development set to obtain a quality result.
             Default is None and performs NME-analysis to estimate the threshold.
@@ -531,8 +534,6 @@ class OnlineSpeakerClustering:
             Toggle sparse search mode. If True, limit the size of p_value_list to sparse_search_volume.
         cuda (bool):
             Use cuda for Eigen decomposition if cuda=True.
-        device (torch.device):
-            Torch device variable
 
     Online Processing Attributes:
 
@@ -578,8 +579,6 @@ class OnlineSpeakerClustering:
         p_value_queue_size: int = 3,
         use_temporal_label_major_vote: bool = False,
         temporal_label_major_vote_buffer_size: int = 11,
-        cuda=False,
-        device: torch.device = torch.device("cpu"),
     ):
         self.max_num_speakers = max_num_speakers
         self.max_rp_threshold = max_rp_threshold
@@ -597,9 +596,6 @@ class OnlineSpeakerClustering:
         self.temporal_label_major_vote_buffer_size = temporal_label_major_vote_buffer_size
         self.num_spk_stat = []
         self.p_value_hist = []
-
-        self.cuda = cuda
-        self.device = device
 
         self._init_memory_buffer_variables()
         self._init_memory_embeddings()
@@ -663,8 +659,8 @@ class OnlineSpeakerClustering:
         Args:
             nmesc: (NMESC)
                 nmesc instance.
-            is_online: (bool)
-                Indicates whether the system is running on online mode or not.
+            frame_index (int):
+                Unique index for each segment and embedding vector
 
         Returns:
             est_num_of_spk: (int)
@@ -706,7 +702,10 @@ class OnlineSpeakerClustering:
         Limit the estimated number of speakers in proportion to the number of speakers.
 
         Args:
-            est_num_of_spk (int): Estimated number of speakers
+            frame_index (int):
+                Unique index for each segment and embedding vector
+            est_num_of_spk (int):
+                Estimated number of speakers
         Returns:
             (int) Estimated number of speakers capped by `self.min_frame_per_spk`
         """
@@ -1038,20 +1037,23 @@ class OnlineSpeakerClustering:
             Y_old = torch.hstack((self.history_embedding_buffer_label, self.Y_fullhist[self.history_buffer_seg_end :]))
 
             # Stitch the old history and new cluster labels
-            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new, with_history=True).to(self.device)
+            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new, with_history=True).to(Y_new.device)
 
             if add_new:
                 if Y_matched[self.history_n :].shape[0] != self.current_n:
                     raise ValueError("Update point sync is not correct.")
                 # Concatenate the newly generated speaker labels
-                Y_out = torch.hstack((self.Y_fullhist[: self.history_buffer_seg_end], Y_matched[self.history_n :]))
+                try:
+                    Y_out = torch.hstack((self.Y_fullhist[: self.history_buffer_seg_end], Y_matched[self.history_n :]))
+                except:
+                    import ipdb; ipdb.set_trace()
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
                 Y_out = self.Y_fullhist[: Y_new.shape[0]]
         else:
             # If no memory is used, offline clustering is applied.
-            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_new, with_history=False).to(self.device)
+            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_new, with_history=False).to(Y_new.device)
             self.Y_fullhist = Y_out
         return Y_out
 
@@ -1061,7 +1063,6 @@ class OnlineSpeakerClustering:
         frame_index: int,
         enhanced_count_thres: int = 40,
         cuda: bool = False,
-        device: torch.device = torch.device("cpu"),
     ) -> torch.Tensor:
         """
         Perform speaker clustering in online mode. Embedding vector set `emb` is expected to be containing
@@ -1098,9 +1099,9 @@ class OnlineSpeakerClustering:
                 sparse_search_volume=self.sparse_search_volume,
                 fixed_thres=self.fixed_thres,
                 nme_mat_size=256,
-                device=device,
+                device=emb.device,
             )
             est_num_of_spk, affinity_mat = self.online_spk_num_estimation(mat, nmesc, frame_index)
-            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
-            Y = spectral_model.forward(affinity_mat)
+            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=emb.device)
+            Y = spectral_model.forward(affinity_mat).to(emb.device)
         return Y

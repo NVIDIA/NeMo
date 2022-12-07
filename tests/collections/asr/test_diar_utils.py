@@ -1,4 +1,3 @@
-# pylint: disable=no-member
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -222,7 +221,7 @@ class TestDiarizationUtilFunctions:
         cmat = affinity_mat[:, ndx][ndx, :]
         # Check the dimension of the selected affinity values
         assert cmat.shape[0] == cmat.shape[1] == torch.sum(pre_clus_labels == target_speaker_index).item()
-        index_2d, rest_inds = get_closest_embeddings(cmat, ndx, merge_quantity)
+        index_2d, rest_inds = get_closest_embeddings(cmat, merge_quantity)
         # Check the most closest affinity value
         assert torch.max(cmat.sum(0)) == cmat.sum(0)[index_2d[0]]
         spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
@@ -524,7 +523,6 @@ class TestSpeakerClustering:
     def test_online_speaker_clustering(self, n_spks, total_sec, buffer_size, sigma, seed):
         step_per_frame = 2
         spk_dur = total_sec / n_spks
-        # spk_dur = 2*spk_dur if n_spks == 1 else spk_dur
         em, ts, mc, _, _, gt = generate_toy_data(n_spks, spk_dur=spk_dur, perturb_sigma=sigma, torch_seed=seed)
         em_s, ts_s = split_input_data(em, ts, mc)
 
@@ -536,7 +534,6 @@ class TestSpeakerClustering:
         else:
             cuda = False
 
-        device = emb_gen.device
         history_buffer_size = buffer_size
         current_buffer_size = buffer_size
 
@@ -546,8 +543,6 @@ class TestSpeakerClustering:
             sparse_search_volume=30,
             history_buffer_size=history_buffer_size,
             current_buffer_size=current_buffer_size,
-            cuda=cuda,
-            device=device,
         )
 
         n_frames = int(emb_gen.shape[0] / step_per_frame)
@@ -573,7 +568,7 @@ class TestSpeakerClustering:
             )
 
             # Call clustering function
-            Y_concat = online_clus.forward_infer(emb=concat_emb, frame_index=frame_index, cuda=cuda, device=device)
+            Y_concat = online_clus.forward_infer(emb=concat_emb, frame_index=frame_index, cuda=cuda)
 
             # Resolve permutations
             merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
@@ -587,3 +582,14 @@ class TestSpeakerClustering:
         assert add_new
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
+    
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    @pytest.mark.parametrize("n_spks", [4])
+    @pytest.mark.parametrize("total_sec", [30])
+    @pytest.mark.parametrize("buffer_size", [30])
+    @pytest.mark.parametrize("sigma", [0.1])
+    @pytest.mark.parametrize("seed", [0])
+    def test_online_speaker_clustering_cpu(self, n_spks, total_sec, buffer_size, sigma, seed):
+        self.test_online_speaker_clustering(n_spks, total_sec, buffer_size, sigma, seed)
+
