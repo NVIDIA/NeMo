@@ -307,7 +307,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         # train generator
         if optimizer_idx == 1:
-            enhanced_spectrograms = self.forward(condition, lengths, mixing=True)
+            enhanced_spectrograms = self.forward(condition, lengths, mixing=True, normalize=False)
             fake_logits = self.D(enhanced_spectrograms, condition, lengths)
             g_loss = gen_hinge_loss(fake_logits)
             c_loss = 10 * consistency_loss(condition, enhanced_spectrograms, lengths)
