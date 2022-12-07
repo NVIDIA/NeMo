@@ -456,7 +456,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
                 # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
                 if self.global_rank == 0:
-                    for rank in range(0, self.world_size):
+                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
                         for batch in gathered_outputs[rank]:
                             for pred, label, input, category in zip(
                                 batch['preds'], batch['labels'], batch['inputs'], batch['categories']
