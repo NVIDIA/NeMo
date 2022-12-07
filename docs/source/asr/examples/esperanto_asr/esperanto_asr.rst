@@ -279,25 +279,15 @@ For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nem
     model.validation_ds.manifest_filepath=$DEV_MANIFEST \
     model.test_ds.manifest_filepath=$TEST_MANIFEST
 
-Training parameters:
+Main training parameters:
 
-+----------------------------------+------------------------------------------------+
-| Name                             |Value                                           |
-+==================================+================================================+
-|Tokenization                      |BPE 128/512/1024                                |
-+----------------------------------+------------------------------------------------+
-|Model                             |Conformer-CTC-large                             |
-+----------------------------------+------------------------------------------------+
-|Optimizer                         |AdamW, weight_decay 1e-3, LR 1e-3.              |
-+----------------------------------+------------------------------------------------+
-|Scheduler                         |CosineAnnealing, warmup_steps 10000, min_lr 1e-6|
-+----------------------------------+------------------------------------------------+
-|Batch                             |32 local, 1024 global (2 grad accumulation)     |
-+----------------------------------+------------------------------------------------+
-|Precision                         |FP16                                            |
-+----------------------------------+------------------------------------------------+
-|GPUs                              | 16 V100                                        |
-+----------------------------------+------------------------------------------------+
+* Tokenization: BPE 128/512/1024
+* Model: Conformer-CTC-large
+* Optimizer: AdamW, weight_decay 1e-3, LR 1e-3
+* Scheduler: CosineAnnealing, warmup_steps 10000, min_lr 1e-6
+* Batch: 32 local, 1024 global (2 grad accumulation)
+* Precision: FP16
+* GPUs: 16 V100
 
 The following table provides the results for training Esperanto Conformer-CTC-large model from scratch with different BPE vocab size.
 
