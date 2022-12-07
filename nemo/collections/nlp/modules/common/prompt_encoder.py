@@ -220,6 +220,36 @@ class PromptEncoder(NeuralModule, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
+    
+    def init_prompt_from_text(self, init_token_ids, word_embeddings, total_virtual_tokens):
+        """Add new virtual prompt to be tuned.
+           Intialize prompt weights from existing embeddings from specific vocab tokens.
+
+        """
+        # Trim or iterate until num_text_tokens matches total_virtual_tokens
+        num_text_tokens = len(init_token_ids)
+
+        if num_text_tokens > total_virtual_tokens:
+            init_token_ids = init_token_ids[:total_virtual_tokens]
+        elif num_text_tokens < total_virtual_tokens:
+            num_reps = math.ceil(total_virtual_tokens / num_text_tokens)
+            init_token_ids = init_token_ids * num_reps
+
+        # Set dictionary item keys and datatypes for broadcasting
+        keys = ['text']
+        datatype = torch.int64
+
+        # Broadcast int ids across gpus for tensor parallel
+        init_token_ids = init_token_ids[:total_virtual_tokens]
+        init_token_ids = {'text': torch.tensor(init_token_ids, dtype=torch.int64)}
+        init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
+        init_token_ids = init_token_ids_b['text'].long()
+
+        word_embeddings = word_embeddings.to(init_token_ids.device)
+        # Use a copy of token embedding weights to initalize the prompt embeddings
+        word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
+        
+        return word_embedding_weights
 
     def __init__(
         self,
@@ -229,6 +259,9 @@ class PromptEncoder(NeuralModule, Exportable):
         hidden_size,
         lstm_dropout: float,
         num_layers: int,
+        init_from_prompt_text=False,
+        init_token_ids=None,
+        word_embeddings=None,
     ):
         """
         Initializes the PromptEncoder module.
@@ -251,6 +284,16 @@ class PromptEncoder(NeuralModule, Exportable):
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
+        
+        # Set embedding weights to be embeddings from prompt tokens
+        if init_from_prompt_text:
+            word_embedding_weights = self.init_prompt_from_text(
+                init_token_ids, 
+                word_embeddings,
+                total_virtual_tokens
+            )
+            
+            self.embedding.weight = nn.Parameter(word_embedding_weights)
 
         if self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
@@ -284,6 +327,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
+    
 
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:

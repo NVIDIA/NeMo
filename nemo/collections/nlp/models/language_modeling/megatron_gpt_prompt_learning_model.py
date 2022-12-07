@@ -164,6 +164,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 task_id_num_to_name=self.task_id_num_to_name,
                 hidden_size=self.hidden_size,
             )
+            
+        if self.frozen_model.model.pre_process and self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            if self.cfg.p_tuning.get("init_from_prompt_text", False):
+                init_text = self.cfg.p_tuning.get("new_prompt_init_text", "new prompt text for text init")
+                self.init_text_ids = self.tokenizer.text_to_ids(init_text)
+            else:
+                self.init_text_ids = None
+                
+            
 
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
@@ -300,6 +309,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
                 lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=self.cfg.p_tuning.get("num_layers", 2),
+                init_from_prompt_text=self.cfg.p_tuning.get("init_from_prompt_text", False),
+                init_token_ids=self.init_text_ids,
+                word_embeddings=self.word_embeddings
             )
         else:
             raise ValueError('not supported')
