@@ -350,9 +350,7 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
 
 
 @torch.jit.script
-def get_closest_embeddings(
-    affinity_mat: torch.Tensor, n_closest: int
-) -> Tuple[torch.Tensor, torch.Tensor]:
+def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the indices of the embedding vectors we want to merge.
 
@@ -387,9 +385,7 @@ def get_closest_embeddings(
     """
     comb_limit = int(affinity_mat.shape[0] - 1)
     if n_closest > comb_limit:
-        raise ValueError(
-            f"Got n_closest of {n_closest}: {n_closest} is bigger than comb_limit {comb_limit}"
-        )
+        raise ValueError(f"Got n_closest of {n_closest}: {n_closest} is bigger than comb_limit {comb_limit}")
 
     # Take summed values over one axis
     sum_cmat = affinity_mat.sum(0)
@@ -1055,11 +1051,7 @@ class OnlineSpeakerClustering:
         return Y_out
 
     def forward_infer(
-        self,
-        emb: torch.Tensor,
-        frame_index: int,
-        enhanced_count_thres: int = 40,
-        cuda: bool = False,
+        self, emb: torch.Tensor, frame_index: int, enhanced_count_thres: int = 40, cuda: bool = False,
     ) -> torch.Tensor:
         """
         Perform speaker clustering in online mode. Embedding vector set `emb` is expected to be containing

@@ -582,7 +582,7 @@ class TestSpeakerClustering:
         assert add_new
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
-    
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [4])
@@ -592,4 +592,3 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("seed", [0])
     def test_online_speaker_clustering_cpu(self, n_spks, total_sec, buffer_size, sigma, seed):
         self.test_online_speaker_clustering(n_spks, total_sec, buffer_size, sigma, seed)
-
