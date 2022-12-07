@@ -112,16 +112,20 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             alibi_num_heads: int - number of attention heads to use for alibi (defaults to num_attention_heads)
         """
         # decoder
-        self.alibi = self.slopes.unsqueeze(1).unsqueeze(1) * torch.arange(maxpos).unsqueeze(0).unsqueeze(0).expand(attn_heads, -1, -1)
+        self.alibi = self.slopes.unsqueeze(1).unsqueeze(1) * torch.arange(maxpos).unsqueeze(0).unsqueeze(0).expand(
+            attn_heads, -1, -1
+        )
         self.alibi = self.alibi.view(attn_heads, 1, maxpos)
-        self.alibi = self.alibi.repeat(args.max_tokens//maxpos, 1, 1)  # batch_size, 1, 1
-        
+        self.alibi = self.alibi.repeat(args.max_tokens // maxpos, 1, 1)  # batch_size, 1, 1
+
         # encoder
-        self.slopes = torch.Tensor(get_slopes(attn_heads)).cuda()*-1
+        self.slopes = torch.Tensor(get_slopes(attn_heads)).cuda() * -1
         self.alibi = self.slopes.unsqueeze(1).unsqueeze(1) * relative_position
-        self.alibi = self.alibi.view(1, attn_heads, maxpos, maxpos)        
-        
-        slopes = torch.Tensor(ALiBiRelativePositionEmbedding.get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads))
+        self.alibi = self.alibi.view(1, attn_heads, maxpos, maxpos)
+
+        slopes = torch.Tensor(
+            ALiBiRelativePositionEmbedding.get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads)
+        )
         alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
             num_attention_heads, -1, -1
         )
