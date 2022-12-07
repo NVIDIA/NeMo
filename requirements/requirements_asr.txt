@@ -3,9 +3,9 @@ editdistance
 g2p_en
 inflect
 ipywidgets
+jiwer
 kaldi-python-io
 kaldiio
-jiwer
 librosa>=0.9.0
 marshmallow
 matplotlib
