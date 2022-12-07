@@ -15,7 +15,7 @@
 import pytorch_lightning as pl
 import torch
 
-from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.collections.tts.models import SpectrogramEnhancerModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
@@ -24,8 +24,7 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg=cfg.get("exp_manager", None))
-    fastpitch = FastPitchModel.restore_from(cfg.spectrogram_predictor_path, map_location=torch.device("cpu"))
-    model = SpectrogramEnhancerModel(cfg=cfg.model, trainer=trainer, fastpitch=fastpitch)
+    model = SpectrogramEnhancerModel(cfg=cfg.model, trainer=trainer)
     lr_logger = pl.callbacks.LearningRateMonitor()
     trainer.callbacks.extend([lr_logger])
     trainer.fit(model)

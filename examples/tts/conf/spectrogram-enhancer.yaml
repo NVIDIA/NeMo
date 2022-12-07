@@ -1,8 +1,5 @@
 name: "spectrogram-enhancer"
 
-# Path to fastpitch .nemo model.
-spectrogram_predictor_path: ""
-
 model:
   lr: 2e-4
   n_bands: 80
@@ -21,6 +18,7 @@ model:
   # train_ds config is taken from the fastpitch config
   #   and is merged with this one.
   # You might need to specify dataloader params and manifest/sup data path.
+  spectrogram_model_path: ""
   train_ds:
     dataset:
       manifest_filepath: ""
