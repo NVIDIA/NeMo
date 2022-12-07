@@ -76,9 +76,8 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 # Install NeMo
 RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
 
-# TODO: remove sed when PTL has updated their torchtext import check
-RUN sed -i "s/_module_available(\"torchtext\")/False/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py && \
-    python -c "import nemo.collections.nlp as nemo_nlp" && \
+# Check install
+RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
