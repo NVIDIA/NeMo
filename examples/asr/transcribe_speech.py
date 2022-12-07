@@ -47,6 +47,10 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
 
   compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
+  
+  (Optionally: You can limit the type of timestamp computations using below overrides)
+  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
+  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
   (Optionally: You can limit the type of timestamp computations using below overrides)
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
