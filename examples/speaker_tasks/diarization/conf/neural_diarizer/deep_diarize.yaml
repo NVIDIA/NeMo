@@ -14,6 +14,7 @@ model:
   context_size: 7
   conv_subsampling: False
   pretrained_weights: null
+  percent_steps_increment_num_speakers: null
 
   encoder:
     hidden_dim: 1024

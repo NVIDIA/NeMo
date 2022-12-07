@@ -434,8 +434,15 @@ class DeepDiarizeModel(ModelPT):
             batch_size=cfg.batch_size,
             max_workers=cfg.num_workers,
             max_speakers=self.cfg.num_speakers,
+            add_speaker_per_n_steps=self.add_speaker_per_n_steps,
         )
         self._train_dl = MultiStreamDataLoader(datasets)
+
+    @property
+    def add_speaker_per_n_steps(self) -> Optional[int]:
+        if not self.cfg.percent_steps_increment_num_speakers:
+            return
+        return int(self.cfg.percent_steps_increment_num_speakers * self.trainer.estimated_stepping_batches)
 
     def setup_validation_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor, context_window = self._setup_preprocessor(cfg)

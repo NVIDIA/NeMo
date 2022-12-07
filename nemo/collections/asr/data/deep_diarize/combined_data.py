@@ -13,7 +13,7 @@
 # limitations under the License.
 from abc import ABC
 from itertools import chain, cycle
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from torch.utils.data import IterableDataset
@@ -68,6 +68,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         max_workers,
         weights: List[float],
         max_speakers: int,
+        add_speaker_per_n_steps: Optional[int],
     ):
         num_workers = max_workers
         for n in range(max_workers, 0, -1):
@@ -89,6 +90,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
             window_stride=window_stride,
             weights=weights,
             max_speakers=max_speakers,
+            add_speaker_per_n_steps=add_speaker_per_n_steps,
         )
 
     @classmethod
@@ -107,6 +109,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         window_stride: float,
         weights: List[float],
         max_speakers: int,
+        add_speaker_per_n_steps: Optional[int],
     ):
         datasets = []
         for manifest_filepath in manifest_filepaths:
@@ -125,6 +128,8 @@ class CombinedSegmentDataset(IterableDataset, ABC):
                     subsampling=subsampling,
                     train_segment_seconds=train_segment_seconds,
                     max_speakers=max_speakers,
+                    add_speaker_per_n_steps=add_speaker_per_n_steps,
+                    batch_size=split_size,
                 )
             )
         if voxceleb_config.voxceleb_path is not None:

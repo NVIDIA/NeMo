@@ -15,7 +15,7 @@
 import math
 import random
 from itertools import chain, cycle
-from typing import List
+from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -74,6 +74,8 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         subsampling: int,
         train_segment_seconds: int,
         max_speakers: int,
+        batch_size: int,
+        add_speaker_per_n_steps: Optional[int] = None,
     ):
         self.data_list = data_list
         self.max_speakers = max_speakers
@@ -86,6 +88,11 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         self.round_digits = 2
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.manifest_filepath = manifest_filepath
+        self.add_speaker_per_n_steps = add_speaker_per_n_steps
+        self.data_step = 0
+        self.cur_speakers = max_speakers if not add_speaker_per_n_steps else 2
+        self.batch_size = batch_size
+        print(f"Incrementing speakers every {add_speaker_per_n_steps} steps, starting from 2 to {max_speakers}")
 
     def parse_rttm_for_ms_targets(
         self, rttm_timestamps: list, offset: float, end_duration: float, speakers: List,
@@ -138,6 +145,9 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         stt_list, end_list, speaker_list = rttm_timestamps
         random.shuffle(speakers)
 
+        if len(speakers) > self.cur_speakers:
+            return
+
         total_annotated_duration = max(end_list)
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.train_segment_seconds)
         start_offset = sample.offset
@@ -176,8 +186,20 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                     yield train_segment, train_length, targets, start_segment
                     start_segment = False
                     start_offset += duration
+
+                    if self.add_speaker_per_n_steps:
+                        # todo: data_step assumes that we have stepped this particular data-loader
+                        # with multiple data-loaders this isn't true
+                        self.data_step += 1
+                        total_data_steps = self.add_speaker_per_n_steps * self.batch_size
+                        if self.data_step > 0 and self.data_step % total_data_steps == 0:
+                            if self.cur_speakers < self.max_speakers:
+                                self.cur_speakers += 1
+                                print(f"Incrementing speakers to {self.cur_speakers}")
+
         except Exception as e:
             print("Failed data-loading for", sample.audio_file, e)
+            raise e
 
     @staticmethod
     def data_setup(manifest_filepath: str, max_speakers: int):
