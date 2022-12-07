@@ -242,7 +242,7 @@ class TTSDataset(Dataset):
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
 
                     data.append(file_info)
-                    self.lengths.append(os.path.getsize(item["audio_filepath"]) // (2 * hop_length))
+                    self.lengths.append(os.path.getsize(item["audio_filepath"]) // (n_fft // 2))
 
                     if file_info["duration"] is None:
                         logging.info(
