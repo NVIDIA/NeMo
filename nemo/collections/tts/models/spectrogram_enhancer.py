@@ -194,6 +194,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         mixing: bool = False,
         normalize: bool = True,
     ):
+        if len(condition.shape) not in (3, 4):
+            raise ValueError(f"Got spectrogram tensor of shape {condition.shape}, expected B x C x L or B x 1 x C x L")
+        if condition.shape == 3:
+            condition = rearrange("b c l -> b 1 c l")
+        
         batch_size, *_, max_length = condition.shape
 
         # generate noise
@@ -266,6 +271,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         target = nn.utils.rnn.pad_sequence(targets, batch_first=True)
         condition = nn.utils.rnn.pad_sequence(conditions, batch_first=True)
         lengths = torch.LongTensor(lengths).unsqueeze(-1)
+
+        target = rearrange(target, "b l c -> b 1 c l")
+        condition = rearrange(condition, "b l c -> b 1 c l")
 
         return self.move_to_correct_device((target, condition, lengths))
 
