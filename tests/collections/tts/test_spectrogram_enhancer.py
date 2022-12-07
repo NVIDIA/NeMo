@@ -31,7 +31,6 @@ def enhancer_config():
 def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
     test_data_dir = Path(test_data_dir)
     config = {
-        "spectrogram_predictor_path": fastpitch_model_path,
         "model": {
             "lr": 2e-4,
             "n_bands": 80,
@@ -42,13 +41,8 @@ def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
             "fmap_max": 192,
             "spectrogram_min_value": -13.18,
             "spectrogram_max_value": 4.78,
+            "spectrogram_model_path": fastpitch_model_path,
             "train_ds": {
-                "dataset": {
-                    "manifest_filepath": str(test_data_dir / "tts/mini_ljspeech/manifest.json"),
-                    "sup_data_path": str(test_data_dir / "tts/mini_ljspeech/sup"),
-                }
-            },
-            "validation_ds": {
                 "dataset": {
                     "manifest_filepath": str(test_data_dir / "tts/mini_ljspeech/manifest.json"),
                     "sup_data_path": str(test_data_dir / "tts/mini_ljspeech/sup"),
@@ -80,8 +74,7 @@ def enhancer(enhancer_config):
 
 @pytest.fixture
 def enhancer_with_fastpitch(enhancer_config_with_fastpitch):
-    fastpitch = FastPitchModel.restore_from(enhancer_config_with_fastpitch.spectrogram_predictor_path)
-    return SpectrogramEnhancerModel(cfg=enhancer_config_with_fastpitch.model, fastpitch=fastpitch)
+    return SpectrogramEnhancerModel(cfg=enhancer_config_with_fastpitch.model)
 
 
 @pytest.fixture
@@ -126,7 +119,7 @@ def test_nemo_save_load_with_fastpitch(enhancer_with_fastpitch: SpectrogramEnhan
 
     enhancer_with_fastpitch.save_to(path)
     restored_enhancer = SpectrogramEnhancerModel.restore_from(path)
-    assert restored_enhancer.fastpitch is None
+    assert restored_enhancer.spectrogram_model is None
 
 
 @pytest.mark.with_downloads

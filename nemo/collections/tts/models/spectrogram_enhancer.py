@@ -53,6 +53,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 import nemo
 from nemo.collections.tts.models import FastPitchModel
+from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import Discriminator, Generator, mask
 from nemo.core import Exportable, ModelPT
 from nemo.utils import logging
@@ -124,12 +125,11 @@ def consistency_loss(condition, output, lengths):
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
     """GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch."""
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None, fastpitch: FastPitchModel = None) -> None:
-        self.fastpitch = None
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
+        self.spectrogram_model = None
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if fastpitch:
-            self.set_fastpitch_model(fastpitch)
+        self.init_spectrogram_model()
 
         self.G = Generator(
             n_bands=cfg["n_bands"],
@@ -143,12 +143,13 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             n_bands=cfg["n_bands"], network_capacity=cfg["network_capacity"], channels=1, fmap_max=cfg["fmap_max"],
         )
 
-    def set_fastpitch_model(self, fastpitch: FastPitchModel):
-        self.fastpitch = fastpitch
-        self.fastpitch.freeze()
+    def init_spectrogram_model(self):
+        if (path := self._cfg.get("spectrogram_model_path")):
+            self.spectrogram_model = SpectrogramGenerator.restore_from(path, map_location=torch.device("cpu"))
+            self.spectrogram_model.freeze()
 
-        self._cfg.train_ds = OmegaConf.merge(self.fastpitch._cfg.train_ds, self._cfg.train_ds)
-        self.setup_training_data(self._cfg.train_ds)
+            self._cfg.train_ds = OmegaConf.merge(self.spectrogram_model._cfg.train_ds, self._cfg.train_ds)
+            self.setup_training_data(self._cfg.train_ds)
 
     def move_to_correct_device(self, e):
         return type_as_recursive(e, next(iter(self.G.parameters())))
@@ -225,18 +226,21 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         return enhanced_spectrograms
 
-    def resynthesize_tts_batch(self, batch):
+    def prepare_batch(self, batch):
+        if not isinstance(self.spectrogram_model, FastPitchModel):
+            raise NotImplementedError(f"{type(self.spectrogram_model)} is not supported, please implement batch preparation for this model.")
+
         attn_prior, durs, speaker = None, None, None
         (audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker,) = batch
-        mels, mel_lens = self.fastpitch.preprocessor(input_signal=audio, length=audio_lens)
+        mels, mel_lens = self.spectrogram_model.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, *_, pitch = self.fastpitch(
+        mels_pred, *_, pitch = self.spectrogram_model(
             text=text,
             durs=durs,
             pitch=pitch,
             speaker=speaker,
             pace=1.0,
-            spec=mels if self.fastpitch.learn_alignment else None,
+            spec=mels if self.spectrogram_model.learn_alignment else None,
             attn_prior=attn_prior,
             mel_lens=mel_lens,
             input_lens=text_lens,
@@ -266,10 +270,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return self.move_to_correct_device((target, condition, lengths))
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        target, condition, lengths = self.resynthesize_tts_batch(batch)
-
-        target = rearrange(target, "b l c -> b 1 c l")
-        condition = rearrange(condition, "b l c -> b 1 c l")
+        target, condition, lengths = self.prepare_batch(batch)
 
         with torch.no_grad():
             target = self.normalize_spectrograms(target)
@@ -314,14 +315,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):
-        if self.fastpitch:
-            self.fastpitch.setup_training_data(train_data_config)
-            self._train_dl = self.fastpitch._train_dl
+        if self.spectrogram_model:
+            self.spectrogram_model.setup_training_data(train_data_config)
+            self._train_dl = self.spectrogram_model._train_dl
 
     def setup_validation_data(self, val_data_config):
-        if self.fastpitch and val_data_config:
-            self.fastpitch.setup_validation_data(val_data_config)
-            self._validation_dl = self.fastpitch._validation_dl
+        if self.spectrogram_model and val_data_config:
+            self.spectrogram_model.setup_validation_data(val_data_config)
+            self._validation_dl = self.spectrogram_model._validation_dl
 
     @classmethod
     def list_available_models(cls):
