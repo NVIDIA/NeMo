@@ -141,6 +141,7 @@ def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
     mask = (ids < lengths.unsqueeze(1)).bool()
     return mask
 
+
 @jit(nopython=True)
 def mas(attn_map, width=1):
     # assumes mel x text
@@ -560,6 +561,7 @@ def split_view(tensor, split_size: int, dim: int = 0):
     new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
     return tensor.reshape(*new_shape)
 
+
 def slice_segments(x, ids_str, segment_size=4):
     ret = torch.zeros_like(x[:, :, :segment_size])
     for i in range(x.size(0)):
@@ -580,10 +582,11 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     ids_str_max = x_lengths - segment_size + 1
     ids_str_max = ids_str_max.to(device=x.device)
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
-    
+
     ret = slice_segments(x, ids_str, segment_size)
-    
+
     return ret, ids_str
+
 
 def clip_grad_value_(parameters, clip_value, norm_type=2):
     if isinstance(parameters, torch.Tensor):
@@ -599,18 +602,21 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
         total_norm += param_norm.item() ** norm_type
         if clip_value is not None:
             p.grad.data.clamp_(min=-clip_value, max=clip_value)
-    total_norm = total_norm ** (1. / norm_type)
+    total_norm = total_norm ** (1.0 / norm_type)
     return total_norm
+
 
 def intersperse(lst, item):
     result = [item] * (len(lst) * 2 + 1)
     result[1::2] = lst
     return result
 
+
 def convert_pad_shape(pad_shape):
     l = pad_shape[::-1]
     pad_shape = [item for sublist in l for item in sublist]
     return pad_shape
+
 
 def generate_path(duration, mask):
     """
@@ -624,5 +630,5 @@ def generate_path(duration, mask):
     path = get_mask_from_lengths(cum_duration_flat, t_y).to(mask.dtype)
     path = path.view(b, t_x, t_y)
     path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
-    path = path.unsqueeze(1).transpose(2,3) * mask
+    path = path.unsqueeze(1).transpose(2, 3) * mask
     return path

@@ -80,6 +80,7 @@ class KlLoss(Loss):
         l = kl / torch.sum(z_mask)
         return l
 
+
 class FeatureMatchingLoss(Loss):
     """VITS Feature Matching Loss module"""
 
@@ -109,6 +110,7 @@ class FeatureMatchingLoss(Loss):
                 loss += torch.mean(torch.abs(rl - gl))
 
         return loss * 2
+
 
 class DiscriminatorLoss(Loss):
     """Discriminator Loss module"""
