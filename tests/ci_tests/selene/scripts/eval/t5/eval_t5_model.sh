@@ -9,7 +9,7 @@ elif [[ "$TEST_TASK" = "squad_ckpt" ]]; then
     LANGUAGE_MODEL_PATH=null
     FINETUNE_DIR=${BASE_RESULTS_DIR}/${FINETUNE_JOB_DIR}
     CHECKPOINT_DIR=${FINETUNE_DIR}/results/checkpoints
-    CHECKPOINT_NAME=$(ls -tr ${CHECKPOINT_DIR}/* | tail -1)
+    CHECKPOINT_NAME=$(ls -tr ${CHECKPOINT_DIR}/* | grep "\.ckpt" | tail -1)
     HPARAMS_FILE=${FINETUNE_DIR}/results/hparams.yaml
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_dir=$CHECKPOINT_DIR)
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_name="'${CHECKPOINT_NAME}'")
