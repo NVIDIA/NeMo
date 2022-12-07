@@ -17,7 +17,7 @@ from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
-import Levenshtein
+import jiwer
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -91,7 +91,7 @@ def word_error_rate_detail(
     """
     scores = 0
     words = 0
-    ops_count = {'replace': 0, 'insert': 0, 'delete': 0}
+    ops_count = {'substitutions': 0, 'insertions': 0, 'deletions': 0}
 
     if len(hypotheses) != len(references):
         raise ValueError(
@@ -108,21 +108,30 @@ def word_error_rate_detail(
             h_list = h.split()
             r_list = r.split()
 
+        # To get rid of the issue that jiwer does not allow empty string
+        if len(r_list) == 0:
+            if len(h_list) != 0:
+                errors = len(h_list)
+                ops_count['insertions'] += errors
+        else:
+            if use_cer:
+                measures = jiwer.cer(r, h, return_dict=True)
+            else:
+                measures = jiwer.compute_measures(r, h)
+
+            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
+            ops_count['insertions'] += measures['insertions']
+            ops_count['deletions'] += measures['deletions']
+            ops_count['substitutions'] += measures['substitutions']
+
+        scores += errors
         words += len(r_list)
-
-        scores += Levenshtein.distance(r_list, h_list)
-
-        # insertion, deletion and substitution added from source -> destination
-        ops = Levenshtein.editops(r_list, h_list)
-        for op in ops:
-            ops_count[op[0]] += 1
 
     if words != 0:
         wer = 1.0 * scores / words
-        ins_rate = 1.0 * ops_count['insert'] / words
-        del_rate = 1.0 * ops_count['delete'] / words
-        sub_rate = 1.0 * ops_count['replace'] / words
-
+        ins_rate = 1.0 * ops_count['insertions'] / words
+        del_rate = 1.0 * ops_count['deletions'] / words
+        sub_rate = 1.0 * ops_count['substitutions'] / words
     else:
         wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
 
