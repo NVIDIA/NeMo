@@ -385,13 +385,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     @property
     def tb_logger(self):
         if self._tb_logger is None:
-            if self.logger is None and self.logger.experiment is None:
-                return None
-            tb_logger = self.logger.experiment
-            for logger in self.trainer.loggers:
+            for logger in self.loggers:
                 if isinstance(logger, TensorBoardLogger):
                     tb_logger = logger.experiment
                     break
+
             self._tb_logger = tb_logger
         return self._tb_logger
 

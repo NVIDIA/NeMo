@@ -216,10 +216,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     @property
     def tb_logger(self):
         if self._tb_logger is None:
-            if self.logger is None and self.logger.experiment is None:
-                return None
-            tb_logger = self.logger.experiment
-            for logger in self.trainer.loggers:
+            for logger in self.loggers:
                 if isinstance(logger, TensorBoardLogger):
                     tb_logger = logger.experiment
                     break
@@ -398,28 +395,28 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.log("t_bin_loss", bin_loss)
 
         # Log images to tensorboard
-        if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
-            self.log_train_images = False
-
-            self.tb_logger.add_image(
-                "train_mel_target",
-                plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-            spec_predict = mels_pred[0].data.cpu().float().numpy()
-            self.tb_logger.add_image(
-                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-            )
-            if self.learn_alignment:
-                attn = attn_hard[0].data.cpu().float().numpy().squeeze()
-                self.tb_logger.add_image(
-                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
-                )
-                soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
-                self.tb_logger.add_image(
-                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
-                )
+        # if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
+        #     self.log_train_images = False
+        #
+        #     self.tb_logger.add_image(
+        #         "train_mel_target",
+        #         plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
+        #         self.global_step,
+        #         dataformats="HWC",
+        #     )
+        #     spec_predict = mels_pred[0].data.cpu().float().numpy()
+        #     self.tb_logger.add_image(
+        #         "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+        #     )
+        #     if self.learn_alignment:
+        #         attn = attn_hard[0].data.cpu().float().numpy().squeeze()
+        #         self.tb_logger.add_image(
+        #             "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+        #         )
+        #         soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
+        #         self.tb_logger.add_image(
+        #             "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+        #         )
 
         return loss
 
@@ -490,16 +487,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
         if isinstance(self.logger, TensorBoardLogger):
-            self.tb_logger.add_image(
-                "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-            spec_predict = spec_predict[0].data.cpu().float().numpy()
-            self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-            )
+            # self.tb_logger.add_image(
+            #     "val_mel_target",
+            #     plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
+            #     self.global_step,
+            #     dataformats="HWC",
+            # )
+            # spec_predict = spec_predict[0].data.cpu().float().numpy()
+            # self.tb_logger.add_image(
+            #     "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            # )
             self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
