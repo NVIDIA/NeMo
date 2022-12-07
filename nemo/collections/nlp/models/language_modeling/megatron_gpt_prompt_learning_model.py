@@ -293,9 +293,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
-        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
             hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2)
-            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
                 hidden_size=self.hidden_size
 
             self.prompt_encoder = PromptEncoder(
@@ -799,14 +799,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
-            # Remove prompt encoder from model
-            self.prompt_encoder = None
-            logging.info(f"Prompt encoder deleted")
-
-        self.update_config_for_inference_and_save()
+            if self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+                self.save_to(save_path=self.cfg.nemo_path)
+            else:
+                self.add_ptuned_prompts_to_prompt_table()
+                logging.info(f"All p-tuned prompts where moved to the prompt table.")
+                # Remove prompt encoder from model
+                self.prompt_encoder = None
+                logging.info(f"Prompt encoder deleted")
+                self.update_config_for_inference_and_save()
 
     def setup(self, stage=None):
         if (

@@ -54,6 +54,7 @@ class PromptEncoderType(enum.Enum):
     SIMPLE_LSTM = 'simple_lstm'
     SIMPLE_MLP = 'simple_mlp'
     FROZEN_MLP = 'frozen_mlp'
+    FROZEN_EMBEDDING_MLP = 'frozen_embedding_mlp'
     BOTTLENECK_MLP = 'bottleneck_mlp'
     EYE_MLP = 'eye_mlp'
     LINEAR_COMBINATION = 'linear_combination'
@@ -300,6 +301,12 @@ class PromptEncoder(NeuralModule, Exportable):
                 nn.Linear(self.hidden_size, self.output_size, bias=False),
             )
             self.mlp_head[0].weight.requires_grad = False
+        elif self.encoder_type == PromptEncoderType.FROZEN_EMBEDDING_MLP:
+            self.mlp_head = nn.Sequential(
+                nn.Linear(self.hidden_size, self.output_size),
+            )
+            self.embedding.weight.requires_grad = False
+
         elif self.encoder_type == PromptEncoderType.BOTTLENECK_MLP:
             self.mlp_head = nn.Sequential(
                 nn.Linear(self.hidden_size, self.hidden_size // 2),
@@ -342,7 +349,7 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
             output_embeds = self.lstm_head(input_embeds)[0]
-        elif self.encoder_type in [PromptEncoderType.MLP, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP,PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+        elif self.encoder_type in [PromptEncoderType.MLP, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
             output_embeds = self.mlp_head(input_embeds)
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
@@ -361,6 +368,8 @@ class PromptEncoder(NeuralModule, Exportable):
         elif self.encoder_type == PromptEncoderType.SIMPLE_MLP:
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.FROZEN_MLP:
+            output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.FROZEN_EMBEDDING_MLP:
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.BOTTLENECK_MLP:
             output_embeds = self.mlp_head(input_embeds)
