@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-
 import torch
 
-__all__ = ['ALiBiRelativePositionEmbedding']
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 
+__all__ = ['ALiBiRelativePositionEmbedding']
 
 
 class ALiBiRelativePositionEmbedding(torch.nn.Module):
@@ -27,13 +26,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     Based on https://arxiv.org/bas/2108.12409
     """
 
-    def __init__(
-        self,
-        num_attention_heads,
-        layer_type,
-        alibi_num_heads=None,
-        max_seq_len=512
-    ):
+    def __init__(self, num_attention_heads, layer_type, alibi_num_heads=None, max_seq_len=512):
         """
         Args:
             num_attention_heads: Number of attention heads
@@ -45,21 +38,23 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
         if alibi_num_heads is None:
             alibi_num_heads = num_attention_heads
-        
+
         if alibi_num_heads > num_attention_heads:
-            raise ValueError(f"alibi_num_heads ({alibi_num_heads}) cannot be larger than num_attention_heads ({num_attention_heads})")
+            raise ValueError(
+                f"alibi_num_heads ({alibi_num_heads}) cannot be larger than num_attention_heads ({num_attention_heads})"
+            )
 
         self.att_type = att_type
         self.num_attention_heads = num_attention_heads
         # LayerType.encoder or LayerType.decoder. Is only needed to determine the group for the all_reduce
         self.layer_type = layer_type
-        # define the size of pre-computed relative position slopes. 
+        # define the size of pre-computed relative position slopes.
         # define the number of attention heads for which alibi mask will be pre-computed (the rest are disabled).
         self.alibi_num_heads = alibi_num_heads
         # Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         self.max_seq_len = max_seq_len
-        
-        # cache the slopes 
+
+        # cache the slopes
         self.slopes = torch.Tensor(self.get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads))
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         self.relative_position = self.build_relative_position(max_seq_len, num_attention_heads)
@@ -73,11 +68,11 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)
         relative_position = relative_position[:, :query_seq_length, :key_seq_length]
-        
+
         # shape (1, num_heads, query_length, key_length)
         return relative_position.unsqueeze(0) * self.slopes.unsqueeze(-1).unsqueeze(-1)
 
-    @ staticmethod
+    @staticmethod
     def get_slopes(n):
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
@@ -93,15 +88,15 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
                 + get_slopes(2 * closest_power_of_2)[0::2][: n - closest_power_of_2]
             )
 
-    @ staticmethod
+    @staticmethod
     def build_relative_position(max_seq_len, num_attention_heads):
         context_position = torch.arange(max_seq_len)[:, None].cuda()
         memory_position = torch.arange(max_seq_len)[None, :].cuda()
-        relative_position = memory_position - context_position 
+        relative_position = memory_position - context_position
 
         # shape (num_attention_heads, max_seq_len, max_seq_len)
-        relative_position = torch.abs(relative_position).unsqueeze(0).expand(num_attention_heads, -1,-1)
-        
+        relative_position = torch.abs(relative_position).unsqueeze(0).expand(num_attention_heads, -1, -1)
+
         return relative_position
 
     @staticmethod
