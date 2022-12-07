@@ -15,6 +15,7 @@
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.tts.models.fastpitch import FastPitchModel
 from nemo.collections.tts.models.hifigan import HifiGanModel
+from nemo.collections.tts.models.inpainting import InpainterModel
 from nemo.collections.tts.models.mixer_tts import MixerTTSModel
 from nemo.collections.tts.models.radtts import RadTTSModel
 from nemo.collections.tts.models.tacotron2 import Tacotron2Model
@@ -27,6 +28,7 @@ __all__ = [
     "FastPitchModel",
     "GriffinLimModel",
     "HifiGanModel",
+    "InpainterModel",
     "MelPsuedoInverseModel",
     "MixerTTSModel",
     "RadTTSModel",

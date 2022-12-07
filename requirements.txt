@@ -116,7 +116,7 @@ pyperclip==1.8.2
 pypinyin==0.47.1
 pystoi==0.3.3
 python-dateutil==2.8.2
-pytorch-lightning==1.7.7
+pytorch-lightning==1.8.3.post1
 pytorch-metric-learning==1.6.3
 pytz==2022.6
 PyYAML==6.0
