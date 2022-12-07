@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from abc import ABC
 from typing import List, Union
 
@@ -128,7 +127,7 @@ class Exportable(ABC):
             # Set module mode
             with torch.onnx.select_model_mode_for_export(
                 self, training
-            ), torch.inference_mode(), torch.jit.optimized_execution(True):
+            ), torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True):
 
                 if input_example is None:
                     input_example = self.input_module.input_example()
@@ -147,12 +146,14 @@ class Exportable(ABC):
                 output_names = self.output_names
                 output_example = tuple(self.forward(*input_list, **input_dict))
 
+                if check_trace:
+                    if isinstance(check_trace, bool):
+                        check_trace_input = [input_example]
+                    else:
+                        check_trace_input = check_trace
+
                 if format == ExportFormat.TORCHSCRIPT:
-                    if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = {"forward": tuple(input_list) + tuple(input_dict.values())}
-                        else:
-                            check_trace_input = check_trace
+
                     jitted_model = torch.jit.trace_module(
                         self,
                         {"forward": tuple(input_list) + tuple(input_dict.values())},
@@ -165,14 +166,9 @@ class Exportable(ABC):
                     if verbose:
                         logging.info(f"JIT code:\n{jitted_model.code}")
                     jitted_model.save(output)
-                    assert os.path.exists(output)
+                    jitted_model = torch.jit.load(output)
 
                     if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = [input_example]
-                        else:
-                            check_trace_input = check_trace
-
                         verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
 
                 elif format == ExportFormat.ONNX:
@@ -196,10 +192,6 @@ class Exportable(ABC):
                     )
 
                     if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = [input_example]
-                        else:
-                            check_trace_input = check_trace
                         verify_runtime(self, output, check_trace_input, input_names)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')

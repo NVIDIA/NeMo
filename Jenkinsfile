@@ -121,7 +121,7 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests Speech Dataset Processor') {
+    stage('L0: Unit Tests Speech Data Processor') {
       when {
         anyOf {
           branch 'r1.13.0'
@@ -129,8 +129,8 @@ pipeline {
         }
       }
       steps {
-        sh 'pip install -r tools/speech_dataset_processor/requirements.txt'
-        sh 'cd tools/speech_dataset_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
+        sh 'pip install -r tools/speech_data_processor/requirements.txt'
+        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
       }
     }
 
@@ -1141,24 +1141,24 @@ pipeline {
             rm -rf "${data_dir}"'
           }
         }
-        stage('Test Restore Punctuation & Capitalization with RoBERTa') {
-          steps {
-            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
-            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
-              +model.test_ds.use_cache=false \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item="${data_dir}" \
-              trainer.devices=[1] \
-              trainer.accelerator="gpu" \
-              exp_manager=null && \
-            rm -rf "${data_dir}"'
-          }
-        }
+//         stage('Test Restore Punctuation & Capitalization with RoBERTa') {
+//           steps {
+//             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+//             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+//             python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+//               +do_training=false \
+//               +do_testing=true \
+//               pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+//               +model.test_ds.use_cache=false \
+//               ~model.train_ds \
+//               ~model.validation_ds \
+//               model.test_ds.ds_item="${data_dir}" \
+//               trainer.devices=[1] \
+//               trainer.accelerator="gpu" \
+//               exp_manager=null && \
+//             rm -rf "${data_dir}"'
+//           }
+//         }
       }
     }
     stage('L2: Dialogue Classification') {
@@ -4111,7 +4111,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/beta_priors \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=0 \
@@ -4127,6 +4129,31 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             ~model.text_normalizer_call_kwargs'
           }
         }
+        stage('RADTTS') {
+          steps {
+            sh 'python examples/tts/radtts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
+            trainer.devices="[0]" \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
+            trainer.strategy=null \
+            model.pitch_mean=212.35873413085938 \
+            model.pitch_std=68.52806091308594 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.train_ds.dataloader_params.num_workers=0 \
+            model.validation_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.num_workers=0 \
+            export_dir=/home/TestData/radtts_test \
+            model.optim.lr=0.0001 \
+            model.modelConfig.decoder_use_partial_padding=True \
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
+          }
+        }
         stage('Mixer-TTS') {
           steps {
             sh 'python examples/tts/mixer_tts.py \
@@ -4134,7 +4161,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/sup_data \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=0 \
@@ -4151,7 +4180,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 +trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            +trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=0 \
