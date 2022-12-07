@@ -54,6 +54,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 
 try:
     from apex.transformer import parallel_state
@@ -91,11 +92,11 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         super().__init__(cfg, trainer)
-        self.cfg = cfg
-
+        
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('restore_path')):
             save_restore_connector.model_extracted_dir = cfg.get('restore_path')
+        #restored_model_cfg = MegatronGPTModel.restore_from(
         restored_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('restore_path'),
             trainer=trainer,
@@ -105,18 +106,25 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         with open_dict(restored_model_cfg):
             restored_model_cfg.megatron_amp_O2 = False
-            restored_model_cfg.optim.name = "fused_adam"
-            restored_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-            restored_model_cfg.global_batch_size = self.cfg.global_batch_size
+            restored_model_cfg.micro_batch_size = cfg.micro_batch_size
+            restored_model_cfg.global_batch_size = cfg.global_batch_size
             restored_model_cfg.precision = trainer.precision
-            restored_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-            restored_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+            restored_model_cfg.sequence_parallel = cfg.get("sequence_parallel", False)
+            restored_model_cfg.activations_checkpoint_granularity = cfg.get(
                 "activations_checkpoint_granularity", None
             )
-            restored_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+            restored_model_cfg.activations_checkpoint_num_layers = cfg.get(
                 "activations_checkpoint_num_layers", None
             )
-            restored_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+            restored_model_cfg.activations_checkpoint_method = cfg.get("activations_checkpoint_method", None)
+            restored_model_cfg.data = cfg.data
+            restored_model_cfg.optim = cfg.optim
+            restored_model_cfg.answer_only_loss = cfg.answer_only_loss
+            restored_model_cfg.nemo_path = cfg.nemo_path
+            restored_model_cfg.restore_path = cfg.restore_path
+            restored_model_cfg.resume_from_checkpoint = cfg.resume_from_checkpoint
+            restored_model_cfg.save_nemo_on_validation_end = cfg.save_nemo_on_validation_end
+            restored_model_cfg.gradient_as_bucket_view = cfg.gradient_as_bucket_view
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -134,6 +142,8 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 save_restore_connector=save_restore_connector,
                 override_config_path=restored_model_cfg,
             ).to(dtype=self.autocast_dtype)
+
+        self.cfg = self.model.cfg
 
         self.megatron_amp_o2 = False
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -238,13 +248,14 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             ignore_virtual=True
         ):
             # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = batch
+            batch_for_pipeline = self.process_global_batch(batch)
         else:
             # The intermediate pipeline stages do not need any inputs from data loader
             # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
             batch_for_pipeline = None
-
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            
+        #TODO remove hard coding
+        tensor_shape = [2048, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
         custom_sync_context_handler = None
@@ -442,7 +453,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 position_ids,
                 attention_mask,
                 labels,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+#                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
 
             def loss_func(output_tensor):
@@ -507,8 +518,9 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        batch_for_pipeline = batch
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
+        # TODO remove hard coding
+        tensor_shape = [2048, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
         # we do this inside validation_step to support pipeline parallelism
@@ -649,6 +661,42 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         return dataset, dataloader
 
+
+    def process_global_batch(self, global_batch, global_batch_size=None):
+        """ Prepares the global batch for apex fwd/bwd functions.
+            Global batch is a list of micro batches.
+        """
+        tokens, labels, loss_mask, attention_mask, position_ids = global_batch
+        expected_batch_size = None
+        if global_batch_size is not None:
+            expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
+        current_batch_size = tokens.shape[0]
+        if expected_batch_size is not None and expected_batch_size > current_batch_size:
+            logging.info(
+                'Got batch size of '
+                + str(current_batch_size)
+                + ' , expected batch size :'
+                + str(expected_batch_size)
+                + '. Appending dummy data.'
+            )
+            pad_length = expected_batch_size - current_batch_size
+            pad_dim = (int(pad_length), tokens.shape[1])
+            attention_mask_shape = list(attention_mask.shape)
+            attention_mask_shape[0] = int(pad_length)
+            tokens = torch.cat((tokens, torch.ones(pad_dim, dtype=tokens.dtype)))
+            labels = torch.cat((labels, torch.ones(pad_dim, dtype=labels.dtype)))
+            attention_mask = torch.cat((attention_mask, torch.zeros(attention_mask_shape, dtype=attention_mask.dtype)))
+            position_ids = torch.cat((position_ids, torch.ones(pad_dim, dtype=position_ids.dtype)))
+            loss_mask = torch.cat((loss_mask, torch.zeros(pad_dim, dtype=loss_mask.dtype)))
+
+        return [
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+        ]
+
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT SFT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
@@ -670,24 +718,9 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
         if self.cfg.data.train_ds is not None:
-            self._train_ds = self.build_finetuning_dataset(
+            self._train_ds, self._train_dl = self.build_finetuning_dataset(
                 data = self.cfg.data.train_ds,
-                max_seq_length = self.cfg.data.max_seq_length,
-                min_seq_length = 1,
-                add_bos = self.cfg.data.add_bos,
-                add_eos=False,
-                add_sep=False, 
-                for_train=True,
-                drop_last=False,
-                shuffle=False,
-                tokens_to_generate=None,
-                get_dataset_only=True,
-                cache_data_path=None,
-                load_cache=False)
-
-        if self.cfg.data.validation_ds is not None:
-            self._validation_ds = self.build_finetuning_dataset(
-                data = self.cfg.data.validation_ds,
+                batch_size = self.cfg.global_batch_size,
                 max_seq_length = self.cfg.data.max_seq_length,
                 min_seq_length = 1,
                 add_bos = self.cfg.data.add_bos,
@@ -697,7 +730,24 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 drop_last=False,
                 shuffle=False,
                 tokens_to_generate=None,
-                get_dataset_only=True,
+                get_dataset_only=False,
+                cache_data_path=None,
+                load_cache=False)
+
+        if self.cfg.data.validation_ds is not None:
+            self._validation_ds, self._validation_dl = self.build_finetuning_dataset(
+                data = self.cfg.data.validation_ds,
+                batch_size = self.cfg.global_batch_size,
+                max_seq_length = self.cfg.data.max_seq_length,
+                min_seq_length = 1,
+                add_bos = self.cfg.data.add_bos,
+                add_eos=self.cfg.data.add_eos,
+                add_sep=self.cfg.data.add_sep, 
+                for_train=True,
+                drop_last=False,
+                shuffle=False,
+                tokens_to_generate=None,
+                get_dataset_only=False,
                 cache_data_path=None,
                 load_cache=False)
         
@@ -809,8 +859,8 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
+            #self.setup_training_data(self.cfg.data)
+            #self.setup_validation_data(self.cfg.data)
             #self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings

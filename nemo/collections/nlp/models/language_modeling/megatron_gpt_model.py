@@ -604,6 +604,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
+    def set_input_tensor(self, input_tensor):
+        """See megatron.model.transformer.set_input_tensor()"""
+        self.model.set_input_tensor(input_tensor)
+
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
