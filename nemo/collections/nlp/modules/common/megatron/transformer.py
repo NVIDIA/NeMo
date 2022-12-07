@@ -16,7 +16,7 @@
 """Transformer."""
 from contextlib import nullcontext
 from typing import Any, Callable, Optional
-
+from einops import rearrange
 import torch
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
