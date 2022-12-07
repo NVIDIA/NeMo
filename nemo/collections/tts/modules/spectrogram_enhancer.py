@@ -270,6 +270,21 @@ class Generator(nn.Module):
             torch.nn.init.zeros_(block.to_noise2.weight)
             torch.nn.init.zeros_(block.to_noise2.bias)
 
+    def add_scaled_condition(self, target: Tensor, condition: Tensor, condition_lengths: Tensor):
+        *_, target_height, _ = target.shape
+        *_, height, _ = condition.shape
+
+        scale = height // target_height
+
+        # scale appropriately
+        condition = nn.functional.interpolate(condition, size=target.shape[-2:], mode="bilinear")
+
+        # add and mask
+        result = (target + condition) / 2
+        result = mask(result, (condition_lengths / scale).ceil().long())
+        
+        return result
+
     def forward(self, condition: Tensor, lengths: Tensor, ws: List[Tensor], noise: Tensor):
         batch_size, _, _, max_length = condition.shape
 
@@ -282,19 +297,8 @@ class Generator(nn.Module):
         for style, block in zip(ws, self.blocks):
             x, rgb = block(x, rgb, style, noise)
 
-            scaled_condition = nn.functional.interpolate(condition, size=x.shape[-2:], mode="bilinear", antialias=True)
-            x = (x + scaled_condition) / 2
-
-            x_scale = condition.shape[-1] // x.shape[-1]
-            x = mask(x, (lengths / x_scale).ceil().long())
-
-            scaled_condition = nn.functional.interpolate(
-                condition, size=rgb.shape[-2:], mode="bilinear", antialias=True
-            )
-            rgb = (rgb + scaled_condition) / 2
-
-            rgb_scale = condition.shape[-1] // rgb.shape[-1]
-            rgb = mask(rgb, (lengths / rgb_scale).ceil().long())
+            x = self.add_scaled_condition(x, condition, lengths)
+            rgb = self.add_scaled_condition(rgb, condition, lengths) 
 
         return rgb
 
