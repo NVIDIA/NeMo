@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import List
+import random
 
 import numpy as np
 import torch
@@ -58,11 +59,10 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         
-        # TODO: Update for val/test set
         self.num_neighbors = self.cfg.train_ds.num_neighbors
-        # TODO: load configs params
-        # TODO: Throw away perceiver decoder to reduce memory?
-        if self.cfg.retriever.type == 'perceiver':
+        self.num_neighbors_eval = self.cfg.validation_ds.num_neighbors
+
+        if self.cfg.retriever.type == 'perceiver' or self.cfg.retriever.type == 'perceiver_text':
             # Load the perceiver model
             pretrained_cfg = MegatronBARTModel.restore_from(cfg.retriever.get("encoder_path"), trainer=trainer, return_config=True)
             OmegaConf.set_struct(pretrained_cfg, True)
@@ -71,6 +71,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 pretrained_cfg.global_batch_size = cfg.global_batch_size
                 pretrained_cfg.micro_batch_size = cfg.micro_batch_size
                 pretrained_cfg.global_batch_per_gpu = cfg.global_batch_per_gpu
+                pretrained_cfg.precision = cfg.retriever.precision
             self.retrieval_encoder = MegatronBARTModel.restore_from(
                         cfg.retriever.get("encoder_path"),
                         trainer=trainer, 
@@ -78,18 +79,23 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                         save_restore_connector=NLPSaveRestoreConnector(),
                     )
             del self.retrieval_encoder.enc_dec_model.enc_dec_model.decoder
+            self.retrieval_encoder.precision = cfg.retriever.precision
             self.retrieval_encoder.freeze()
+            # Using perceiver tokenizer only
+            # if self.cfg.retriever.type == 'perceiver':
+            #     # Need to do this because the 
+            #     self.encoder_tokenizer = self.retrieval_encoder.tokenizer
+            #     self.decoder_tokenizer = self.retrieval_encoder.tokenizer
         else:
             self.retrieval_encoder = None
 
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
-        
         self._train_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
         self._retrieval_ds = self.build_memmap_dataset_from_config(
             self._cfg.retrieval_ds,
-            encoder_tokenizer=self.retrieval_encoder.tokenizer,
-            decoder_tokenizer=self.retrieval_encoder.tokenizer,
+            encoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
+            decoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
             retrieval_dataset=True
             )
         self._train_ds = RetrievalSeq2Seq(
@@ -97,6 +103,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             self._retrieval_ds,
             self._cfg.train_ds.nn_mapping,
             self._cfg.train_ds.num_neighbors,
+            self._cfg.retriever.copy_prob
         )
 
         if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
@@ -167,20 +174,24 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 output.append(global_batch["nn_tgt_mask_list"][idx])
             return output
 
-    def get_forward_output_and_loss_func(self):
+    
+    def get_forward_output_and_loss_func(self, return_logic=False):
         """
             This function is used to create a closure that is passed to the apex fwd/bwd functions.
             Overrided from enc_dec_model.py
         """
-        def fwd_output_and_loss_func_perceiver(batch, model):
+        def retrieval_append_logic(batch, model, eval=False):
             """
             1. Get the embeddings from the embedding matrix and add positional embeddings
             2. Get the perceiver encodings from self.retriever. Embedding dropout? 
             3. Concatenate the two
             4. Pass it to the model forward using encoder inputs option
             5. Figure out how to do batching here properly
+            use_src_txt: If True, use the source text as the input to the encoder. Else, use the perceiver embeddings
             """
+            use_src_txt = self.cfg.retriever.get('type', 'perceiver') == 'perceiver_text'
             batch = [x.cuda(non_blocking=True) for x in batch]
+            
             (
                 encoder_input_ids,
                 decoder_input_ids, 
@@ -189,39 +200,80 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 encoder_attn_mask, 
                 decoder_attn_mask
             ) = batch[0:6]
-
-            if model.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
-                enc_position_ids = build_position_ids(encoder_input_ids)
-            else:
-                enc_position_ids = None
-
-            enc_input = model.encoder_embedding(encoder_input_ids, enc_position_ids, token_type_ids=None)
+            
+            if use_src_txt:
+                # Get the embeddings from the embedding matrix and add positional embeddings
+                if model.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                    enc_position_ids = build_position_ids(encoder_input_ids)
+                else:
+                    enc_position_ids = None
+                enc_input = model.encoder_embedding(encoder_input_ids, enc_position_ids, token_type_ids=None)
             
             enc_input_append = []
-            for idx in range(self.num_neighbors):
-                # Iterate over the neighbors and get the embeddings
-
-                # TODO: Can club all those calls into one but at the risk of extra padding
-                nn_src_ids = batch[6 + (idx * 4) + 0]
-                nn_tgt_ids = batch[6 + (idx * 4) + 1]
-                nn_src_mask = batch[6 + (idx * 4) + 2]
-                nn_tgt_mask = batch[6 + (idx * 4) + 3]
-                
-                # Compute perceiver embeddings. Dim is [B x S x H]
-                latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
-                latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
-                enc_input_append.append(latent_src)
-                enc_input_append.append(latent_tgt)
-
-            enc_input_append.append(enc_input.transpose(0,1))
-            # join latents with the encoder input embeddings
-            # Concatenate along the sequence dimension
-            enc_input = torch.cat(enc_input_append, dim=1)
             
-            # Modify the mask to account for the new sequence length
-            prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
-            mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
-            encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
+            if not eval and np.random.uniform(0,1) < self.cfg.retriever.get('mask_prob', 0.0) :
+                masking = True
+            else:
+                masking = False
+            
+            if masking is False:
+                # Always add NNs in eval or if sampled in (0,1) is more than threshold during training
+                shuffled_idxes = list(range(self.num_neighbors))
+                random.shuffle(shuffled_idxes)
+                for idx in shuffled_idxes:
+                    # Iterate over the neighbors and get the embeddings
+                    # TODO: Can club all those calls into one but at the risk of extra padding
+                    nn_src_ids = batch[6 + (idx * 4) + 0]
+                    nn_tgt_ids = batch[6 + (idx * 4) + 1]
+                    nn_src_mask = batch[6 + (idx * 4) + 2]
+                    nn_tgt_mask = batch[6 + (idx * 4) + 3]
+                    
+                    # Compute perceiver embeddings. Dim is [B x S x H]
+                    latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
+                    latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
+                    enc_input_append.append(latent_src)
+                    enc_input_append.append(latent_tgt)
+
+            if use_src_txt:
+                enc_input_append.append(enc_input.transpose(0,1))
+                # join latents with the encoder input embeddings
+                # Concatenate along the sequence dimension
+                enc_input = torch.cat(enc_input_append, dim=1)
+                
+                # Modify the mask to account for the new sequence length
+                prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
+                mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
+                encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
+            else:
+                latent_src = self.retrieval_encoder.encode(encoder_input_ids, encoder_attn_mask)
+                enc_input_append.append(latent_src)
+                enc_input = torch.cat(enc_input_append, dim=1)
+                if masking is False:
+                    prepend_length = (1 + 2 * self.num_neighbors) * latent_src.shape[1] 
+                else:
+                    prepend_length = (1) * latent_src.shape[1]
+                encoder_attn_mask = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
+            
+            return (
+                encoder_attn_mask,
+                decoder_input_ids,
+                decoder_attn_mask,
+                lm_labels,
+                enc_input, 
+                encoder_input_ids, # might be redundant
+                loss_mask
+            )
+        
+        def fwd_output_and_loss_func_perceiver(batch, model):
+            (
+            encoder_attn_mask,
+            decoder_input_ids,
+            decoder_attn_mask,
+            lm_labels,
+            enc_input,
+            _,
+            loss_mask
+            ) = retrieval_append_logic(batch, model)
             output = model(
                 enc_input_ids=None,
                 enc_attn_mask=encoder_attn_mask,
@@ -278,11 +330,12 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
 
             return output, loss_func
 
+        if return_logic:
+            return retrieval_append_logic
         if self.cfg.retriever.get('type', False) == 'text':
             return fwd_output_and_loss_func_concat
         elif self.cfg.retriever.get('type', False) == 'perceiver':
             return fwd_output_and_loss_func_perceiver
-            # return fwd_output_and_loss_func_concat
         else:
             raise NotImplementedError
     
@@ -305,56 +358,20 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         reduced_loss = super(MegatronNMTModel, self).validation_step(batch, batch_idx)
 
         # Do the retrieval append here
-        if self.cfg.retriever.get('type', False) == 'text':
+        if self.cfg.retriever.get('type', 'perceiver') == 'text':
             raise NotImplementedError
-        elif self.cfg.retriever.get('type', False) == 'perceiver':
+        elif self.cfg.retriever.get('type', 'perceiver') == 'perceiver' or self.cfg.retriever.get('type', 'perceiver') == 'perceiver_text':
+            retrieval_append_logic = self.get_forward_output_and_loss_func(return_logic=True)
             batch = self.process_global_batch(batch)
-            batch = [x.cuda(non_blocking=True) for x in batch]
             (
-                encoder_input_ids,
-                _, 
-                _, 
-                labels, 
-                encoder_attn_mask, 
+                encoder_attn_mask,
+                _,
+                _,
+                labels, # same as lm_labels
+                enc_input, 
+                tokens_enc, # same as encoder_input_ids
                 _
-            ) = batch[0:6]
-            tokens_enc = encoder_input_ids
-            model = self.enc_dec_model
-
-            if model.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
-                enc_position_ids = build_position_ids(encoder_input_ids)
-            else:
-                enc_position_ids = None
-            enc_input = model.encoder_embedding(encoder_input_ids, enc_position_ids, token_type_ids=None)
-            
-            enc_input_append = []
-
-            if not no_ret:
-                for idx in range(self.num_neighbors):
-                    # Iterate over the neighbors and get the embeddings
-
-                    # TODO: Can club all those calls into one but at the risk of extra padding
-                    nn_src_ids = batch[6 + (idx * 4) + 0]
-                    nn_tgt_ids = batch[6 + (idx * 4) + 1]
-                    nn_src_mask = batch[6 + (idx * 4) + 2]
-                    nn_tgt_mask = batch[6 + (idx * 4) + 3]
-                    
-                    # Compute perceiver embeddings. Dim is [B x S x H]
-                    latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
-                    latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
-                    enc_input_append.append(latent_src)
-                    enc_input_append.append(latent_tgt)
-
-            enc_input_append.append(enc_input.transpose(0,1))
-            # join latents with the encoder input embeddings
-            # Concatenate along the sequence dimension
-            enc_input = torch.cat(enc_input_append, dim=1)
-            
-            # Modify the mask to account for the new sequence length
-            if not no_ret:
-                prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
-                mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
-                encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
+            ) = retrieval_append_logic(batch, self.enc_dec_model, eval=True)
 
             predicted_tokens_ids, _ = self.decode(
                 tokens_enc=tokens_enc, # will be bypassed
@@ -403,6 +420,7 @@ class RetrievalSeq2Seq(Dataset):
         retrieval_text_memmap_dataset,
         nn_mapping,
         num_neighbors = 10,
+        copy_prob = 0.0
     ):
         """
         seq2seq_text_memmap_dataset (TextMemmapSequenceToSequenceDataset): The seq2seq dataset train/eval
@@ -412,8 +430,10 @@ class RetrievalSeq2Seq(Dataset):
         self.seq2seq_text_memmap_dataset = seq2seq_text_memmap_dataset
         self.retrieval_text_memmap_dataset = retrieval_text_memmap_dataset
         self.num_neighbors = num_neighbors
+        self.copy_prob = copy_prob
 
         # Select only the number of nns specified
+        # TODO: Make sure this numbering is aligned with the actual seq2seq dataset and retrieval too
         self.nn_mapping = np.load(nn_mapping)[:, :num_neighbors]
 
         # len(self.seq2seq_text_memmap_dataset) is oversampled so use the src_indexed_dataset
@@ -424,16 +444,26 @@ class RetrievalSeq2Seq(Dataset):
     
     def __getitem__(self, idx):
         # Output format is a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
+        if np.random.uniform(0,1) < self.copy_prob:
+            # Sample from the retrieval dataset
+            # TODO: Could try sampling from Top K neighbors to append
+            nn_src_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors - 1)]
+            nn_tgt_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors - 1)]
+            nn_src_list.append(self.seq2seq_text_memmap_dataset[idx]['text_enc'])
+            nn_tgt_list.append(self.seq2seq_text_memmap_dataset[idx]['text_dec'])
+            # TODO: Maybe shuffle
+        else:
+            nn_src_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors)]
+            nn_tgt_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors)]
         return {
             'text_enc': self.seq2seq_text_memmap_dataset[idx]['text_enc'],
             'text_dec': self.seq2seq_text_memmap_dataset[idx]['text_dec'],
             'labels': self.seq2seq_text_memmap_dataset[idx]['labels'],
-            'nn_src_list': [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors)],
-            'nn_tgt_list': [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors)]
+            'nn_src_list': nn_src_list,
+            'nn_tgt_list': nn_tgt_list
         }
 
     def collate_fn(self, batch):
-        # This is where the batch is being created so modify this for retrieval case
         output = self.seq2seq_text_memmap_dataset.collate_fn(batch)
 
         retrieval_encoder_input_src_list = []
