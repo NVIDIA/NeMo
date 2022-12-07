@@ -293,7 +293,7 @@ class PromptEncoder(NeuralModule, Exportable):
                 total_virtual_tokens
             )
             
-            self.embedding.weight = nn.Parameter(word_embedding_weights)
+            self.embedding.weight = nn.Parameter(word_embedding_weights.float())
 
         if self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
