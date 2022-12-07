@@ -21,6 +21,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.utilities import rank_zero_only
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
@@ -164,36 +165,34 @@ class VitsModel(TextToWaveform):
 
     # for inference
     def forward(self, tokens, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=1000):
-        x_lengths = tokens.size(-1)
-        y_hat = self.net_g.infer(tokens, x_lengths, sid=sid, noise_scale=noise_scale,
-            length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=max_len)[0]
-
-        return y_hat
+        text_len = torch.tensor([tokens.size(-1)]).to(int).to(tokens.device)
+        audio_pred, attn, y_mask, (z, z_p, m_p, logs_p) = self.net_g.infer(tokens, text_len, sid=sid, noise_scale=noise_scale,
+            length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=max_len)
+        return audio_pred, attn, y_mask, (z, z_p, m_p, logs_p)
 
     def training_step(self, batch, batch_idx):
         speakers = None
         if SpeakerID in self._train_dl.dataset.sup_data_types_set:
-            (y, y_lengths, x, x_lengths, speakers) = batch
+            (audio, audio_len, text, text_len, speakers) = batch
         else:
-            (y, y_lengths, x, x_lengths) = batch
+            (audio, audio_len, text, text_len) = batch
 
-        spec, spec_lengths = self.audio_to_melspec_processor(y, y_lengths, linear_spec=True)
+        spec, spec_lengths = self.audio_to_melspec_processor(audio, audio_len, linear_spec=True)
         
         with autocast(enabled=True):
-            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
-                x, x_lengths, spec, spec_lengths, speakers
+            audio_pred, l_length, attn, ids_slice, text_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
+                text, text_len, spec, spec_lengths, speakers
             )
 
-        # y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
-        y_hat = y_hat.float()
+        audio_pred = audio_pred.float()
 
-        y_hat_mel, _ = self.audio_to_melspec_processor(y_hat.squeeze(1), y_lengths, linear_spec=False)        
+        audio_pred_mel, _ = self.audio_to_melspec_processor(audio_pred.squeeze(1), audio_len, linear_spec=False)        
         
-        y = slice_segments(y.unsqueeze(1), ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-        y_mel, _ = self.audio_to_melspec_processor(y.squeeze(1), y_lengths, linear_spec=False)
+        audio = slice_segments(audio.unsqueeze(1), ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
+        audio_mel, _ = self.audio_to_melspec_processor(audio.squeeze(1), audio_len, linear_spec=False)
         
         with autocast(enabled=True):
-            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(audio, audio_pred.detach())
 
         with autocast(enabled=False):
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
@@ -210,11 +209,11 @@ class VitsModel(TextToWaveform):
         optim_d.step()
         
         with autocast(enabled=True):
-            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
+            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(audio, audio_pred)
         # Generator
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
-            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
+            loss_mel = F.l1_loss(audio_mel, audio_pred_mel) * self._cfg.c_mel
             loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
             loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
@@ -259,44 +258,47 @@ class VitsModel(TextToWaveform):
         self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        speakers = None
         if self.cfg.n_speakers > 1:
-            (y, y_lengths, x, x_lengths, speakers) = batch
+            (audio, audio_len, text, text_len, speakers) = batch
         else:
-            (y, y_lengths, x, x_lengths) = batch
+            (audio, audio_len, text, text_len) = batch
 
-        y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, speakers, max_len=1000)
+        audio_pred, attn, mask, *_ = self.net_g.infer(text, text_len, speakers, max_len=1000)
 
-        y_hat = y_hat.squeeze()
-        y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length
+        audio_pred = audio_pred.squeeze()
+        audio_pred_len = mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length
 
-        mel, mel_lengths = self.audio_to_melspec_processor(y, y_lengths)
-        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_processor(y_hat, y_hat_lengths)
+        mel, mel_lengths = self.audio_to_melspec_processor(audio, audio_len)
+        audio_pred_mel, audio_pred_mel_len = self.audio_to_melspec_processor(audio_pred, audio_pred_len)
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             logger = self.logger.experiment
+            # tokens = self.parse('I speak loud and clear').cuda()
+            # audio = self.convert_text_to_waveform(tokens=tokens)
+            # audio_len = torch.tensor(audio.size(-1)).unsqueeze(0).cuda()
+            # spec, _ = self.audio_to_melspec_processor(audio, audio_len)
+            
             specs = []
             audios = []
-
             specs += [
                 wandb.Image(
                     plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()), caption=f"val_mel_target",
                 ),
                 wandb.Image(
-                    plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].data.cpu().numpy()),
+                    plot_spectrogram_to_numpy(audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()),
                     caption=f"val_mel_predicted",
                 ),
             ]
 
             audios += [
                 wandb.Audio(
-                    y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
+                    audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy(),
                     caption=f"val_wav_target",
                     sample_rate=self._cfg.sample_rate,
                 ),
                 wandb.Audio(
-                    y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
+                    audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy(),
                     caption=f"val_wav_predicted",
                     sample_rate=self._cfg.sample_rate,
                 ),
@@ -354,5 +356,5 @@ class VitsModel(TextToWaveform):
         # TODO: List available models??
         return list_of_models
 
-    def convert_text_to_waveform(self, *, tokens):
-        return self(tokens).squeeze(1)
+    def convert_text_to_waveform(self, *, tokens, sid=None):
+        return self(tokens, sid=sid)[0].squeeze(1)

@@ -591,8 +591,6 @@ class PosteriorEncoder(nn.Module):
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
-        # torch.manual_seed(1)
-        # torch.cuda.manual_seed(1)
         m, logs = torch.split(stats, self.out_channels, dim=1)
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
@@ -686,7 +684,6 @@ class DiscriminatorP(torch.nn.Module):
 
         return x, fmap
 
-# TODO: reuse from hifigan if it is possible?
 class DiscriminatorS(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(DiscriminatorS, self).__init__()
@@ -812,23 +809,23 @@ class SynthesizerTrn(nn.Module):
         if n_speakers > 1:
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
 
-    def forward(self, x, x_lengths, y, y_lengths, sid=None):
-        x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
+    def forward(self, text, text_len, spec, spec_len, sid=None):
+        x, mean_prior, logscale_prior, x_mask = self.enc_p(text, text_len)
         if self.n_speakers > 1:
             g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
         else:
             g = None
 
-        z, m_q, logs_q, y_mask = self.enc_q(y, y_lengths, g=g)
+        z, mean_posterior, logscale_posterior, y_mask = self.enc_q(spec, spec_len, g=g)
         z_p = self.flow(z, y_mask, g=g)
 
         with torch.no_grad():
             # negative cross-entropy
-            s_p_sq_r = torch.exp(-2 * logs_p) # [b, d, t]
-            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logs_p, [1], keepdim=True) # [b, 1, t_s]
+            s_p_sq_r = torch.exp(-2 * logscale_prior) # [b, d, t]
+            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logscale_prior, [1], keepdim=True) # [b, 1, t_s]
             neg_cent2 = torch.matmul(-0.5 * (z_p ** 2).transpose(1, 2), s_p_sq_r) # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent3 = torch.matmul(z_p.transpose(1, 2), (m_p * s_p_sq_r)) # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent4 = torch.sum(-0.5 * (m_p ** 2) * s_p_sq_r, [1], keepdim=True) # [b, 1, t_s]
+            neg_cent3 = torch.matmul(z_p.transpose(1, 2), (mean_prior * s_p_sq_r)) # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
+            neg_cent4 = torch.sum(-0.5 * (mean_prior ** 2) * s_p_sq_r, [1], keepdim=True) # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
@@ -844,16 +841,17 @@ class SynthesizerTrn(nn.Module):
             l_length = torch.sum((logw - logw_)**2, [1,2]) / torch.sum(x_mask) # for averaging
 
         # expand prior
-        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
-        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        logscale_prior = torch.matmul(attn.squeeze(1), logscale_prior.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
 
-        z_slice, ids_slice = rand_slice_segments(z, y_lengths, self.segment_size)
-        o = self.dec(z_slice, g=g)
-        return o, l_length, attn, ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
+        z_slice, ids_slice = rand_slice_segments(z, spec_len, self.segment_size)
+        audio = self.dec(z_slice, g=g)
+        return audio, l_length, attn, ids_slice, x_mask, y_mask, \
+            (z, z_p, mean_prior, logscale_prior, mean_posterior, logscale_posterior)
 
     def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=None):
-        x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
-        if self.n_speakers > 1:
+        x, mean_prior, logscale_prior, x_mask = self.enc_p(x, x_lengths)
+        if self.n_speakers > 1 and sid is not None:
             g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
         else:
             g = None
@@ -864,20 +862,20 @@ class SynthesizerTrn(nn.Module):
             logw = self.dp(x, x_mask, g=g)
         w = torch.exp(logw) * x_mask * length_scale
         w_ceil = torch.ceil(w)
-        y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-        y_mask = torch.unsqueeze(get_mask_from_lengths(y_lengths, None), 1).to(x_mask.dtype)
-        attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
+        audio_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
+        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(x_mask.dtype)
+        attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(audio_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
-        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
-        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        logscale_prior = torch.matmul(attn.squeeze(1), logscale_prior.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
 
-        z_p = m_p + torch.randn_like(m_p) * torch.exp(logs_p) * noise_scale
-        z = self.flow(z_p, y_mask, g=g, reverse=True)
-        o = self.dec((z * y_mask)[:,:,:max_len], g=g)
-        return o, attn, y_mask, (z, z_p, m_p, logs_p)
+        z_p = mean_prior + torch.randn_like(mean_prior) * torch.exp(logscale_prior) * noise_scale
+        z = self.flow(z_p, audio_mask, g=g, reverse=True)
+        audio = self.dec((z * audio_mask)[:,:,:max_len], g=g)
+        return audio, attn, audio_mask, (z, z_p, mean_prior, logscale_prior)
 
-    # Can be used for emotions conversion
+    # Can be used for emotions
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
         assert self.n_speakers > 1, "n_speakers have to be larger than 1."
         g_src = self.emb_g(sid_src).unsqueeze(-1)
@@ -908,7 +906,7 @@ class Encoder(nn.Module):
         self.norm_layers_1 = nn.ModuleList()
         self.ffn_layers = nn.ModuleList()
         self.norm_layers_2 = nn.ModuleList()
-        for i in range(self.n_layers):
+        for _ in range(self.n_layers):
             self.attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, window_size=window_size))
             self.norm_layers_1.append(LayerNorm(hidden_channels))
             self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout))
@@ -921,7 +919,6 @@ class Encoder(nn.Module):
             y = self.attn_layers[i](x, x, attn_mask)
             y = self.drop(y)
             x = self.norm_layers_1[i](x + y)
-
             y = self.ffn_layers[i](x, x_mask)
             y = self.drop(y)
             x = self.norm_layers_2[i](x + y)
