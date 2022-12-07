@@ -46,7 +46,7 @@ import torchvision
 from einops import rearrange, repeat
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch import Tensor, nn
 from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -371,16 +371,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
-        # workaround for WandbLogger being put in a separate LoggerCollection (???)
-        # = flatten
-        loggers = []
         for logger in self.loggers:
-            if isinstance(logger, (list, LoggerCollection)):
-                loggers.extend(logger)
-            else:
-                loggers.append(logger)
-
-        for logger in loggers:
             if isinstance(logger, TensorBoardLogger):
                 writer: SummaryWriter = logger.experiment
                 writer.add_image("spectrograms", grid, global_step=step)
