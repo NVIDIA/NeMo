@@ -1,4 +1,4 @@
-# It contains the default values for training a streaming Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
+# It contains the default values for training a cache-aware streaming Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
 
 # Architecture and training config:
 # You may find more detail on the architecture and training config at NeMo/examples/asr/conf/conformer/conformer_transducer_bpe.yaml

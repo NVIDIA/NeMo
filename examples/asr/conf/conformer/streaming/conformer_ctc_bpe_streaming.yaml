@@ -1,4 +1,4 @@
-# It contains the default values for training a streaming Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
+# It contains the default values for training a cache-aware streaming Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
 
 # Architecture and training config:
 # You may find more detail on the architecture and training config at NeMo/examples/asr/conf/conformer/conformer_ctc_bpe.yaml

@@ -16,6 +16,7 @@
 import copy
 
 import torch
+import torch.nn.functional as F
 from torch import nn as nn
 from torch.nn import LayerNorm
 
@@ -314,7 +315,7 @@ class ConformerConvolution(nn.Module):
                     self.depthwise_conv.bias,
                     stride=1,
                     padding=(self.kernel_size - 1) // 2,
-                    groups=self.self.depthwise_conv.groups,
+                    groups=self.depthwise_conv.groups,
                 )
 
         if self.norm_type == "layer_norm":
