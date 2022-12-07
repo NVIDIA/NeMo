@@ -282,7 +282,7 @@ class Generator(nn.Module):
         # add and mask
         result = (target + condition) / 2
         result = mask(result, (condition_lengths / scale).ceil().long())
-        
+
         return result
 
     def forward(self, condition: Tensor, lengths: Tensor, ws: List[Tensor], noise: Tensor):
@@ -298,7 +298,7 @@ class Generator(nn.Module):
             x, rgb = block(x, rgb, style, noise)
 
             x = self.add_scaled_condition(x, condition, lengths)
-            rgb = self.add_scaled_condition(rgb, condition, lengths) 
+            rgb = self.add_scaled_condition(rgb, condition, lengths)
 
         return rgb
 

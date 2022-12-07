@@ -125,6 +125,7 @@ def consistency_loss(condition, output, lengths):
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
     """GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch."""
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         self.spectrogram_model = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -144,7 +145,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         )
 
     def init_spectrogram_model(self):
-        if (path := self._cfg.get("spectrogram_model_path")):
+        if (path := self._cfg.get("spectrogram_model_path")) :
             self.spectrogram_model = SpectrogramGenerator.restore_from(path, map_location=torch.device("cpu"))
             self.spectrogram_model.freeze()
 
@@ -198,7 +199,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             raise ValueError(f"Got spectrogram tensor of shape {condition.shape}, expected B x C x L or B x 1 x C x L")
         if condition.shape == 3:
             condition = rearrange("b c l -> b 1 c l")
-        
+
         batch_size, *_, max_length = condition.shape
 
         # generate noise
@@ -233,7 +234,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     def prepare_batch(self, batch):
         if not isinstance(self.spectrogram_model, FastPitchModel):
-            raise NotImplementedError(f"{type(self.spectrogram_model)} is not supported, please implement batch preparation for this model.")
+            raise NotImplementedError(
+                f"{type(self.spectrogram_model)} is not supported, please implement batch preparation for this model."
+            )
 
         attn_prior, durs, speaker = None, None, None
         (audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker,) = batch
@@ -366,10 +369,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         idx = 0
         length = int(lengths.flatten()[idx].item())
-        tensor = (
-            torch.stack([enhanced - condition, condition, enhanced, target], dim=0)
-            .cpu()[:, idx, :, :, :length]
-        )
+        tensor = torch.stack([enhanced - condition, condition, enhanced, target], dim=0).cpu()[:, idx, :, :, :length]
 
         grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
