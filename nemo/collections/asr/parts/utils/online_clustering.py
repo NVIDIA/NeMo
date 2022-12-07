@@ -356,7 +356,7 @@ def get_closest_embeddings(
     label_aff_mat: torch.Tensor, target_emb_index: torch.Tensor, merge_quantity: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Get the indeces of the embedding vectors we want to merge.
+    Get the indices of the embedding vectors we want to merge.
     Example:
         >>> merge_quantity = 2
         >>> label_aff_mat = [[1.0, 0.2, 0.8],
