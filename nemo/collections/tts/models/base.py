@@ -228,6 +228,7 @@ class MelToSpec(ModelPT, ABC):
                 list_of_models.extend(subclass_models)
         return list_of_models
 
+
 class TextToWaveform(ModelPT, ABC):
     """ Base class for all end-to-end TTS models that generate a waveform from text """
 

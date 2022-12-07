@@ -14,6 +14,7 @@
 
 
 import contextlib
+
 import omegaconf
 import torch
 import wandb
@@ -25,17 +26,8 @@ from pytorch_lightning.utilities import rank_zero_only
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.helpers import (
-    slice_segments, 
-    clip_grad_value_, 
-    plot_spectrogram_to_numpy, 
-)
-from nemo.collections.tts.losses.vits_losses import (
-    KlLoss, 
-    FeatureMatchingLoss, 
-    DiscriminatorLoss, 
-    GeneratorLoss
-)
+from nemo.collections.tts.helpers.helpers import clip_grad_value_, plot_spectrogram_to_numpy, slice_segments
+from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
 from nemo.collections.tts.torch.data import DistributedBucketSampler
@@ -44,13 +36,12 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
 
-
-
 HAVE_WANDB = True
 try:
     import wandb
 except ModuleNotFoundError:
     HAVE_WANDB = False
+
 
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -82,14 +73,16 @@ class VitsModel(TextToWaveform):
         self.gen_loss = GeneratorLoss()
         self.kl_loss = KlLoss()
 
-        self.net_g = instantiate(cfg.synthesizer, 
+        self.net_g = instantiate(
+            cfg.synthesizer,
             n_vocab=num_tokens,
             spec_channels=cfg.n_fft // 2 + 1,
             segment_size=cfg.segment_size // cfg.n_window_stride,
-            padding_idx=self.tokenizer_pad,)
-        
+            padding_idx=self.tokenizer_pad,
+        )
+
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
-        
+
         self.automatic_optimization = False
 
     def _setup_normalizer(self, cfg):
@@ -148,14 +141,18 @@ class VitsModel(TextToWaveform):
 
         optim_g = instantiate(optim_config, params=self.net_g.parameters(),)
         optim_d = instantiate(optim_config, params=self.net_d.parameters(),)
-        
+
         if sched_config is not None:
             if sched_config.name == 'ExponentialLR':
                 scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=sched_config.lr_decay)
                 scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=sched_config.lr_decay)
             elif sched_config.name == 'CosineAnnealing':
-                scheduler_g = CosineAnnealing(optimizer=optim_g, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,)
-                scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,)
+                scheduler_g = CosineAnnealing(
+                    optimizer=optim_g, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,
+                )
+                scheduler_d = CosineAnnealing(
+                    optimizer=optim_d, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,
+                )
 
             scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
             scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
@@ -164,10 +161,17 @@ class VitsModel(TextToWaveform):
             return [optim_g, optim_d]
 
     # for inference
-    def forward(self, tokens, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=1000):
+    def forward(self, tokens, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=1000):
         text_len = torch.tensor([tokens.size(-1)]).to(int).to(tokens.device)
-        audio_pred, attn, y_mask, (z, z_p, m_p, logs_p) = self.net_g.infer(tokens, text_len, sid=sid, noise_scale=noise_scale,
-            length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=max_len)
+        audio_pred, attn, y_mask, (z, z_p, m_p, logs_p) = self.net_g.infer(
+            tokens,
+            text_len,
+            sid=sid,
+            noise_scale=noise_scale,
+            length_scale=length_scale,
+            noise_scale_w=noise_scale_w,
+            max_len=max_len,
+        )
         return audio_pred, attn, y_mask, (z, z_p, m_p, logs_p)
 
     def training_step(self, batch, batch_idx):
@@ -178,7 +182,7 @@ class VitsModel(TextToWaveform):
             (audio, audio_len, text, text_len) = batch
 
         spec, spec_lengths = self.audio_to_melspec_processor(audio, audio_len, linear_spec=True)
-        
+
         with autocast(enabled=True):
             audio_pred, l_length, attn, ids_slice, text_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
                 text, text_len, spec, spec_lengths, speakers
@@ -186,28 +190,29 @@ class VitsModel(TextToWaveform):
 
         audio_pred = audio_pred.float()
 
-        audio_pred_mel, _ = self.audio_to_melspec_processor(audio_pred.squeeze(1), audio_len, linear_spec=False)        
-        
+        audio_pred_mel, _ = self.audio_to_melspec_processor(audio_pred.squeeze(1), audio_len, linear_spec=False)
+
         audio = slice_segments(audio.unsqueeze(1), ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
         audio_mel, _ = self.audio_to_melspec_processor(audio.squeeze(1), audio_len, linear_spec=False)
-        
+
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(audio, audio_pred.detach())
 
         with autocast(enabled=False):
-            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
-            disc_generated_outputs=y_d_hat_g)
+            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(
+                disc_real_outputs=y_d_hat_r, disc_generated_outputs=y_d_hat_g
+            )
             loss_disc_all = loss_disc
 
         # get optimizers
         optim_g, optim_d = self.optimizers()
-        
+
         # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
         optim_d.step()
-        
+
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(audio, audio_pred)
         # Generator
@@ -219,7 +224,6 @@ class VitsModel(TextToWaveform):
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
-        
         # train generator
         optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
@@ -229,8 +233,11 @@ class VitsModel(TextToWaveform):
         schedulers = self.lr_schedulers()
         if schedulers is not None:
             sch1, sch2 = schedulers
-            if self.trainer.is_last_batch and isinstance(sch1, torch.optim.lr_scheduler.ExponentialLR) \
-            or isinstance(sch1, CosineAnnealing):
+            if (
+                self.trainer.is_last_batch
+                and isinstance(sch1, torch.optim.lr_scheduler.ExponentialLR)
+                or isinstance(sch1, CosineAnnealing)
+            ):
                 sch1.step()
                 sch2.step()
 
@@ -278,12 +285,13 @@ class VitsModel(TextToWaveform):
             # audio = self.convert_text_to_waveform(tokens=tokens)
             # audio_len = torch.tensor(audio.size(-1)).unsqueeze(0).cuda()
             # spec, _ = self.audio_to_melspec_processor(audio, audio_len)
-            
+
             specs = []
             audios = []
             specs += [
                 wandb.Image(
-                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()), caption=f"val_mel_target",
+                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
+                    caption=f"val_mel_target",
                 ),
                 wandb.Image(
                     plot_spectrogram_to_numpy(audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()),
@@ -324,7 +332,7 @@ class VitsModel(TextToWaveform):
         )
 
     def train_dataloader(self):
-    # default used by the Trainer
+        # default used by the Trainer
         dataset = instantiate(
             self.cfg.train_ds.dataset,
             text_normalizer=self.normalizer,
@@ -332,14 +340,13 @@ class VitsModel(TextToWaveform):
             text_tokenizer=self.tokenizer,
         )
 
-        train_sampler = DistributedBucketSampler(
-            dataset,
-            **self.cfg.train_ds.batch_sampler)
+        train_sampler = DistributedBucketSampler(dataset, **self.cfg.train_ds.batch_sampler)
 
-        dataloader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, batch_sampler=train_sampler, 
-        **self.cfg.train_ds.dataloader_params,)
+        dataloader = torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, batch_sampler=train_sampler, **self.cfg.train_ds.dataloader_params,
+        )
         return dataloader
-    
+
     def setup_training_data(self, cfg):
         self._train_dl = self._loader(cfg)
 
