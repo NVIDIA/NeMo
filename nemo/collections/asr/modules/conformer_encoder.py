@@ -76,7 +76,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self_attention_model (str): type of the attention layer and positional encoding
             'rel_pos': relative positional embedding and Transformer-XL
             'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
-                overlapping windows. Attention context is determined by att_context_size parameter.
+                overlapping chunks. Attention context is determined by att_context_size parameter.
             'abs_pos': absolute positional embedding and Transformer
             Default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
@@ -198,6 +198,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.scale = math.sqrt(self.d_model)
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
+        self.self_attention_model = self_attention_model
 
         if att_context_size:
             self.att_context_size = list(att_context_size)
@@ -269,7 +270,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     feat_in=feat_in,
                     feat_out=d_model,
                     conv_channels=subsampling_conv_channels,
-                    activation=nn.ReLU(),
+                    activation=nn.ReLU(True),
                     is_causal=causal_downsampling,
                 )
         else:
@@ -299,7 +300,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pos_bias_v = None
 
         self.pos_emb_max_len = pos_emb_max_len
-        self.use_att_mask = True
+        self.att_mask = None
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
@@ -309,7 +310,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 dropout_rate_emb=dropout_emb,
             )
         elif self_attention_model == 'rel_pos_local_attn':
-            self.use_att_mask = False
             self.pos_enc = ChunkedRelPositionalEncoding(
                 att_context_size=att_context_size,
                 d_model=d_model,
@@ -379,7 +379,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         device = next(self.parameters()).device
         self.pos_enc.extend_pe(max_audio_length, device)
 
-        if self.use_att_mask:
+        if self.self_attention_model != "rel_pos_local_attn":
             att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
             if self.chunk_size is None:
                 if self.att_context_size[0] >= 0:
@@ -399,6 +399,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 self.att_mask = att_mask
             else:
                 self.register_buffer('att_mask', att_mask, persistent=False)
+        else:
+            self.att_mask = None
 
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
@@ -447,14 +449,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             cache_last_channel_next = None
             cache_len = 0
 
-        audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+        if self.self_attention_model == 'abs_pos':
+            audio_signal, pos_emb = self.pos_enc(x=audio_signal)
+        else:
+            audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
         # Create the self-attention and padding masks
         pad_mask, att_mask = self._create_masks(max_audio_length, padding_length, audio_signal.device)
 
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
-            if self.use_att_mask:
+            if self.att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
 
         for lth, layer in enumerate(self.layers):
@@ -497,9 +502,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             padding_length.size(0), -1
         ) < padding_length.unsqueeze(-1)
 
-        pad_mask = ~pad_mask
-
-        if self.use_att_mask:
+        if self.att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
             pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
@@ -511,6 +514,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             att_mask = ~att_mask
         else:
             att_mask = None
+
+        pad_mask = ~pad_mask
 
         return pad_mask, att_mask
 

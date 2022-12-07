@@ -337,7 +337,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        merge_into_model_config: Optional[OmegaConf] = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -351,8 +350,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
-            merge_into_model_config (OmegaConf): If provided, this will be merged with the model config,
-                overriding existing parameters.
+
         Example:
             ```
             model = nemo.collections.nlp.models.TextClassification.restore_from('asr.nemo')
@@ -365,14 +363,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
-            calling_cls,
-            restore_path,
-            override_config_path,
-            map_location,
-            strict,
-            return_config,
-            trainer,
-            merge_into_model_config,
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
         )
         if not isinstance(loaded_params, tuple):
             return loaded_params

@@ -561,7 +561,6 @@ class FileIO(ABC):
         return_config: bool = False,
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
-        merge_into_model_config: Optional[OmegaConf] = None,
     ):
         """
         Restores model instance (weights and configuration) from a .nemo file
@@ -578,8 +577,6 @@ class FileIO(ABC):
             trainer: An optional Trainer object, passed to the model constructor.
             save_restore_connector: An optional SaveRestoreConnector object that defines the implementation
                 of the restore_from() method.
-            merge_into_model_config (OmegaConf): If provided, this will be merged with the model config,
-                overriding existing parameters.
         """
         raise NotImplementedError()
 

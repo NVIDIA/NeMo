@@ -184,15 +184,18 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location, merge_into_model_config=cfg.merge_into_model_config
+            restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
+        if cfg.change_self_attention_model is not None:
+            asr_model.change_conformer_attention_model(
+                self_attention_model=cfg.change_self_attention_model,
+                att_context_size=(cfg.att_context_left, cfg.att_context_right),
+            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name,
-            map_location=map_location,
-            merge_into_model_config=cfg.merge_into_model_config,
+            model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 

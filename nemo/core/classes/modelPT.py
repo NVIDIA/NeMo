@@ -271,7 +271,6 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
-        merge_into_model_config: Optional[OmegaConf] = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -288,8 +287,7 @@ class ModelPT(LightningModule, Model):
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
-            merge_into_model_config (OmegaConf): If provided, this will be merged with the model config,
-                overriding existing parameters.
+
             Example:
                 ```
                 model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
@@ -316,14 +314,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            cls,
-            restore_path,
-            override_config_path,
-            map_location,
-            strict,
-            return_config,
-            trainer,
-            merge_into_model_config,
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector

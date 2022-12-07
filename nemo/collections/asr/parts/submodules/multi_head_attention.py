@@ -34,7 +34,7 @@ Part of this code is adopted from https://github.com/espnet/espnet
 
 import math
 from functools import lru_cache
-from typing import Union
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -254,14 +254,16 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
             scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+
             out = self.forward_attention(v, scores, mask)
 
         return out
 
 
-class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
-    """Multi-Head Attention layer of Transformer-XL with sliding window local attention.
-    Paper: https://arxiv.org/abs/1901.02860
+class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
+    """Multi-Head Attention layer of Transformer-XL with sliding window local attention from Longformer.
+    Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
+           https://arxiv.org/abs/2004.05150 (Longformer)
     Args:
         n_head (int): number of heads
         n_feat (int): size of the features
@@ -284,16 +286,34 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
         )
         self.att_context_size = att_context_size
 
-    # Longformer implementation for no overlap case adapted for arbitrary left and right chunk size
+    # Longformer implementation for overlap case adapted for arbitrary left and right chunk size
     # https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py
-    def _skew(self, x, direction, padding_value):
-        '''Convert diagonals into columns (or columns into diagonals depending on `direction`'''
+    def _skew(self, x: torch.Tensor, direction: List[int], padding_value: float) -> torch.Tensor:
+        """Convert diagonals into columns (or columns into diagonals depending on `direction`
+
+        Args:
+            x (torch.Tensor): (batch x head, chunk_count, 2w, 2w)
+            direction (List[int]): padding directions
+            padding_value (float): value to pad with
+
+        Returns:
+            output (torch.Tensor): (batch x head, chunk_count, 2w, 2w + 1)
+
+        """
         x_padded = F.pad(x, direction, value=padding_value)
         x_padded = x_padded.view(*x_padded.size()[:-2], x_padded.size(-1), x_padded.size(-2))
         return x_padded
 
-    def _skew2(self, x, padding_value):
-        '''shift every row 1 step to right converting columns into diagonals'''
+    def _skew2(self, x: torch.Tensor, padding_value: float) -> torch.Tensor:
+        """Shift every row 1 step to right converting columns into diagonals
+
+        Args:
+            x (torch.Tensor): (batch x head, chunks_count + 1, w, 2w + 1)
+            padding_value (float): value to pad with
+
+        Returns:
+            output (torch.Tensor): (batch x head, chunks_count + 1, w, 3w)
+        """
         # X = B x C x M x L
         B, C, M, L = x.size()
         x = F.pad(x, (0, M + 1), value=padding_value)  # B x C x M x (L+M+1)
@@ -303,8 +323,16 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
         x = x[:, :, :, :-1]
         return x
 
-    def _chunk_overlap(self, x, w):
-        '''convert into overlapping chunkings. Chunk size = 2w, overlap size = w'''
+    def _chunk_overlap(self, x: torch.Tensor, w: int) -> torch.Tensor:
+        """Convert into overlapping chunks.
+
+        Args:
+            x (torch.Tensor): # (batch x head, time, size)
+            w (int): Chunk overlap size
+
+        Returns:
+            output (torch.Tensor): # (batch x head, chunk_count, 2w, size)
+        """
 
         # non-overlapping chunks of size = 2w
         x = x.view(x.size(0), x.size(1) // (w * 2), w * 2, x.size(2))
@@ -317,53 +345,55 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
         chunk_stride[1] = chunk_stride[1] // 2
         return x.as_strided(size=chunk_size, stride=chunk_stride)
 
-    def _get_invalid_locations_mask_fixed_dilation(self, seq_len: int, w: int, d: int):
+    @lru_cache()
+    def _get_invalid_locations_mask(self, w: int, device: str):
+
         diagonals_list = []
-        for j in range(-d * w, d, d):
-            diagonal_mask = torch.zeros(seq_len, device='cpu', dtype=torch.uint8)
+        for j in range(-w, 1):
+            diagonal_mask = torch.zeros(w, device='cpu', dtype=torch.uint8)
             diagonal_mask[:-j] = 1
             diagonals_list.append(diagonal_mask)
-        return torch.stack(diagonals_list, dim=-1)
 
-    @lru_cache()
-    def _get_invalid_locations_mask(self, w: int, d: Union[torch.Tensor, int], autoregressive: bool, device: str):
-        if isinstance(d, int):
-            affected_seq_len = w * d
-            mask = self._get_invalid_locations_mask_fixed_dilation(affected_seq_len, w, d)
-            mask = mask[None, None, :, :]
-        else:
-            affected_seq_len = w * d.max()
-            head_masks = []
-            d_list = d.cpu().numpy().tolist()
-            for d in d_list:
-                one_head_mask = self._get_invalid_locations_mask_fixed_dilation(affected_seq_len, w, d)
-                head_masks.append(one_head_mask)
-            mask = torch.stack(head_masks, dim=-2)
-            mask = mask[None, :, :, :]
+        mask = torch.stack(diagonals_list, dim=-1)
+        mask = mask[None, None, :, :]
 
-        ending_mask = None if autoregressive else mask.flip(dims=(2, 3)).bool().to(device)
-        return affected_seq_len, mask.bool().to(device), ending_mask
+        ending_mask = mask.flip(dims=(2, 3)).bool().to(device)
+        return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int, d: Union[torch.Tensor, int], autoregressive: bool
-    ) -> torch.Tensor:
-        affected_seq_len, beginning_mask, ending_mask = self._get_invalid_locations_mask(
-            w, d, autoregressive, input_tensor.device
-        )
+        self, input_tensor: torch.Tensor, w: int,
+    ):
+        """
+        Mask locations invalid for the sliding window attention
+
+        Args:
+            input_tensor (torch.Tensor): # (batch x head, time, size)
+            w (int): Chunk overlap size
+        """
+        beginning_mask, ending_mask = self._get_invalid_locations_mask(w, input_tensor.device)
         seq_len = input_tensor.size(2)
-        # NOTE shape diff from original code
-        beginning_input = input_tensor[:, :, :affected_seq_len, : w + 1]
+        beginning_input = input_tensor[:, :, :w, : w + 1]
         beginning_mask = beginning_mask[:, :, :seq_len].expand(beginning_input.size())
         beginning_input.masked_fill_(beginning_mask, -float('inf'))
-        if not autoregressive:
-            ending_input = input_tensor[:, :, -affected_seq_len:, -(w + 1) :]
-            ending_mask = ending_mask[:, :, -seq_len:].expand(ending_input.size())
-            ending_input.masked_fill_(ending_mask, -float('inf'))
 
-    def sliding_chunks_matmul_qk(self, q: torch.Tensor, k: torch.Tensor, w: int, padding_value: float):
-        '''Matrix multiplicatio of query x key tensors using with a sliding window attention pattern.
-        This implementation splits the input into overlapping chunks of size 2w (e.g. 512 for pretrained Longformer)
-        with an overlap of size w'''
+        ending_input = input_tensor[:, :, -w:, -(w + 1) :]
+        ending_mask = ending_mask[:, :, -seq_len:].expand(ending_input.size())
+        ending_input.masked_fill_(ending_mask, -float('inf'))
+
+    def sliding_chunks_matmul_qk(self, q: torch.Tensor, k: torch.Tensor, w: int, padding_value: float) -> torch.Tensor:
+        """Matrix multiplication of query x key tensors using with a sliding window attention pattern.
+        This implementation splits the input into overlapping chunks of size 2w
+        with an overlap of size w
+
+        Args:
+            q (torch.Tensor): (batch, head, time, size)
+            k (torch.Tensor): (batch, head, time, size)
+            w (int): Chunk overlap size
+            padding_value (float): Value to pad with
+
+        Returns:
+            output (torch.Tensor): (batch, head, time, 2w + 1)
+        """
         bsz, num_heads, seqlen, head_dim = q.size()
         assert seqlen % (w * 2) == 0
         assert q.size() == k.size()
@@ -374,24 +404,27 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
         q = q.reshape(bsz * num_heads, seqlen, head_dim)
         k = k.reshape(bsz * num_heads, seqlen, head_dim)
 
-        chunk_q = self._chunk_overlap(q, w)
-        chunk_k = self._chunk_overlap(k, w)
+        chunk_q = self._chunk_overlap(q, w)  # (batch x head, chunk_count, 2w, size)
+        chunk_k = self._chunk_overlap(k, w)  # (batch x head, chunk_count, 2w, size)
 
         # matrix multipication
         # bcxd: bsz*num_heads x chunks x 2w x head_dim
         # bcyd: bsz*num_heads x chunks x 2w x head_dim
         # bcxy: bsz*num_heads x chunks x 2w x 2w
         chunk_attn = torch.einsum('bcxd,bcyd->bcxy', (chunk_q, chunk_k))  # multiply
+        # (batch x head, chunk_count, 2w, 2w)
 
         # convert diagonals into columns
         diagonal_chunk_attn = self._skew(chunk_attn, direction=(0, 0, 0, 1), padding_value=padding_value)
+        # (batch x head, chunk_count, 2w, 2w + 1)
 
-        # allocate space for the overall attention matrix where the chunks are compined. The last dimension
+        # allocate space for the overall attention matrix where the chunks are combined. The last dimension
         # has (w * 2 + 1) columns. The first (w) columns are the w lower triangles (attention from a word to
         # w previous words). The following column is attention score from each word to itself, then
         # followed by w columns for the upper triangle.
 
         diagonal_attn = diagonal_chunk_attn.new_empty((bsz * num_heads, chunks_count + 1, w, w * 2 + 1))
+        # (batch x head, chunk_count + 1, w, 2w + 1)
 
         # copy parts from diagonal_chunk_attn into the compined matrix of attentions
         # - copying the main diagonal and the upper triangle
@@ -403,39 +436,65 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
 
         # separate bsz and num_heads dimensions again
         diagonal_attn = diagonal_attn.view(bsz, num_heads, seqlen, 2 * w + 1)
+        # (batch, head, time, 2w + 1)
 
-        self.mask_invalid_locations(diagonal_attn, w, 1, False)
+        self.mask_invalid_locations(diagonal_attn, w)
+
         return diagonal_attn
 
     def sliding_chunks_matmul_pv(self, prob: torch.Tensor, v: torch.Tensor, w: int):
-        '''Same as sliding_chunks_matmul_qk but for prob and value tensors. It is expecting the same output
-        format from sliding_chunks_matmul_qk'''
+        """Same as sliding_chunks_matmul_qk but for prob and value tensors.
+
+        Args:
+            prob (torch.Tensor): (batch, head, time, size)
+            v (torch.Tensor): (batch, head, time, size)
+            w (int): Chunk overlap size
+
+        Returns:
+            output (torch.Tensor): (batch, time, head, size)
+        """
         bsz, num_heads, seqlen, head_dim = v.size()
-        assert seqlen % (w * 2) == 0
-        assert prob.size()[:3] == v.size()[:3]
-        assert prob.size(3) == 2 * w + 1
         chunks_count = seqlen // w - 1
         # group bsz and num_heads dimensions into one, then chunk seqlen into chunks of size 2w
         chunk_prob = prob.reshape(bsz * num_heads, seqlen // w, w, 2 * w + 1)
+        # (batch x head, chunks_count + 1, w, 2w + 1)
 
         # group bsz and num_heads dimensions into one
         v = v.reshape(bsz * num_heads, seqlen, head_dim)
+        # (batch x head, time, size)
 
         # pad seqlen with w at the beginning of the sequence and another w at the end
         padded_v = F.pad(v, (0, 0, w, w), value=-1)
+        # (batch x head, time + 2w, size)
 
         # chunk padded_v into chunks of size 3w and an overlap of size w
         chunk_v_size = (bsz * num_heads, chunks_count + 1, 3 * w, head_dim)
         chunk_v_stride = padded_v.stride()
         chunk_v_stride = chunk_v_stride[0], w * chunk_v_stride[1], chunk_v_stride[1], chunk_v_stride[2]
         chunk_v = padded_v.as_strided(size=chunk_v_size, stride=chunk_v_stride)
+        # (batch x head, chunks_count + 1, 3w, size)
 
         skewed_prob = self._skew2(chunk_prob, padding_value=0)
+        # (batch x head, chunks_count + 1, w, 3w)
 
         context = torch.einsum('bcwd,bcdh->bcwh', (skewed_prob, chunk_v))
+        # (batch x head, chunks_count + 1, w, size)
+
         return context.view(bsz, num_heads, seqlen, head_dim).transpose(1, 2)
 
     def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
+        """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
+        Args:
+            query (torch.Tensor): (batch, time, size)
+            key (torch.Tensor): (batch, time, size)
+            value(torch.Tensor): (batch, time, size)
+            mask (torch.Tensor): (batch, time)
+            pos_emb (torch.Tensor) : (batch, 2w + 1, size)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+        Returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
 
         key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
 
@@ -444,34 +503,36 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
 
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
-
             q, k, v = self.forward_qkv(query, key, value)
             n_batch, _, T, _ = q.size()
 
             w = max(self.att_context_size[0], self.att_context_size[1])
-            assert w > 0
-            pad_len = (2 * w - T % (2 * w)) % (2 * w)
-            q = F.pad(q, (0, 0, 0, pad_len))
-            k = F.pad(k, (0, 0, 0, pad_len))
-            v = F.pad(v, (0, 0, 0, pad_len))
+            if w <= 0:
+                raise ValueError("When using local attention, context size must be set > 0")
+            pad_len = (2 * w - T % (2 * w)) % (2 * w)  # pad time to 2w
+            q = F.pad(q, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            k = F.pad(k, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            v = F.pad(v, (0, 0, 0, pad_len))  # (batch, head, time, size)
             mask = F.pad(mask, (0, pad_len), value=1.0)
 
-            # B x H x T x D
-            q_with_bias_u = q + self.pos_bias_u.unsqueeze(1)
-            q_with_bias_v = q + self.pos_bias_v.unsqueeze(1)
+            q_with_bias_u = q + self.pos_bias_u.unsqueeze(1)  # (batch, head, time, size)
+            q_with_bias_v = q + self.pos_bias_v.unsqueeze(1)  # (batch, head, time, size)
 
-            diagonal_matrix_ac = self.sliding_chunks_matmul_qk(q_with_bias_u, k, w, padding_value=0.0)
+            diagonal_matrix_ac = self.sliding_chunks_matmul_qk(
+                q_with_bias_u, k, w, padding_value=0.0
+            )  # (batch, head, time, 2w + 1)
+
             # add relative positional embedding
 
             n_batch_pos = pos_emb.size(0)
             p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k).transpose(1, 2)
-            # B x H x pos_emb_len x D
+            # (batch, head, 2w, size)
             diagonal_matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
+            # (batch, head, time, 2w + 1)
 
             start_pos = w - self.att_context_size[0]
             end_pos = w + self.att_context_size[1]
 
-            # B x H x T // chunk_size x chunk_size x total_chunk_size
             diagonal_matrix_ac[:, :, :, : self.att_context_size[0]] += diagonal_matrix_bd[
                 :, :, :, : self.att_context_size[0]
             ]
@@ -479,6 +540,7 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
                 :, :, :, self.att_context_size[0] :
             ]
             scores = diagonal_matrix_ac / self.s_d_k
+            # (batch, head, time, 2w + 1)
 
             # mask invalid positions
             scores[:, :, :, :start_pos] = -10000.0
@@ -492,13 +554,16 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
             ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
             # diagonal mask with zeros everywhere and -inf inplace of padding
             d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
+            # (batch, head, time, 2w + 1)
 
             scores += d_mask
 
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
             p_attn = self.dropout(attn)
+            # (batch, head, time, 2w + 1)
 
             x = self.sliding_chunks_matmul_pv(p_attn, v, w).reshape(n_batch, -1, self.h * self.d_k)[:, :T]
+            # (batch, time, size)
 
         return self.linear_out(x)
 

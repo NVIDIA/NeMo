@@ -394,6 +394,27 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             self, context_window=context_window, update_config=update_config
         )
 
+    def change_conformer_attention_model(
+        self, self_attention_model: str, att_context_size: List[int] = None, update_config: bool = True
+    ):
+        """
+        Update the self_attention_model in a Conformer Encoder,
+        which changes the positional encoding and attention layers.
+
+        Args:
+            self_attention_model (str): type of the attention layer and positional encoding
+                'rel_pos': relative positional embedding and Transformer-XL
+                'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+                    overlapping windows. Attention context is determined by att_context_size parameter.
+                'abs_pos': absolute positional embedding and Transformer
+            att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
+                or None for full context.
+            update_config: Whether to update the config or not with the new attention model
+        """
+        asr_module_utils.change_conformer_attention_model(
+            self, self_attention_model=self_attention_model, att_context_size=att_context_size
+        )
+
     def conformer_stream_step(
         self,
         processed_signal: torch.Tensor,

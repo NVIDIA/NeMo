@@ -116,8 +116,15 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
-    # This will be merged with the model config, overriding existing parameters.
-    merge_into_model_config: Optional[Any] = None
+    # Change self_attention_model for Conformer
+    # Options:
+    # 'rel_pos': relative positional embedding and Transformer-XL
+    # 'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+    #   overlapping chunks. Attention context is determined by att_context_size parameter.
+    #  'abs_pos': absolute positional embedding and Transformer
+    change_self_attention_model: Optional[str] = None
+    att_context_left: int = -1  # Size of the left attention context
+    att_context_right: int = -1  # Size of the right attention context
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
