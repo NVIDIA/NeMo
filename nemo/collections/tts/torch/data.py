@@ -1017,6 +1017,7 @@ class VocoderDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+
 class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     """
     Maintain similar input lengths in a batch.
