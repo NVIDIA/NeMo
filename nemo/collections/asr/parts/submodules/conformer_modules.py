@@ -313,8 +313,8 @@ class ConformerConvolution(nn.Module):
                     x,
                     kernel,
                     self.depthwise_conv.bias,
-                    stride=1,
-                    padding=(self.kernel_size - 1) // 2,
+                    stride=self.depthwise_conv.stride,
+                    padding=self.depthwise_conv.padding,
                     groups=self.depthwise_conv.groups,
                 )
 
