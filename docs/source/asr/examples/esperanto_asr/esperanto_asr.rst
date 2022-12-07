@@ -364,7 +364,7 @@ As you can see, the best way to get Esperanto ASR model is finetuning from the p
 Decoding
 **************************
 
-At the end of the training, several checkpoints (usually 5) and one the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not improve the CTC models. However, for some RNNT models, it was possible to get an improvement in the range of 0.1-0.2% WER. To make averaging use the following command:
+At the end of the training, several checkpoints (usually 5) and the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not improve the CTC models. However, it was possible to get an improvement in the range of 0.1-0.2% WER for some RNNT models. To make averaging, use the following command:
 
 .. code-block:: bash
 
@@ -384,7 +384,7 @@ For decoding you can use:
         use_cer=False)
 
 You can use the Speech Data Explorer to analyze recognition errors, similar to the Kinyarwanda example.
-After listening to files with an abnormally high WER (>50%), we found many problematic files with wrong transcriptions and cut or empty audio files in the dev and test sets.
+We listened to files with an anomally high WER (>50%) and we found many problematic files. They have wrong transcriptions and cut or empty audio files in the dev and test sets.
 
 .. code-block:: bash
 
