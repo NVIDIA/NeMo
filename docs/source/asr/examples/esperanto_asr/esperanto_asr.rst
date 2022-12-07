@@ -201,7 +201,7 @@ By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. 
 
 Warmup steps
 #################################
-Number of warpup steps determines how quickly the scheduler will reach the peak learning rate during model training. One step equals a global batch size. If you increase the learning rate too fast, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
+Number of warmup steps determines how quickly the scheduler will reach the peak learning rate during model training. One step equals a global batch size. If you increase the learning rate too fast, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
 
 Now we can plot our learning rate for CosineAnnealing schedule:
 
@@ -357,7 +357,7 @@ We can also look at the general trend of test WER decreasing in the training pro
     :alt: Test WER.
     :width: 800px
 
-As you can see, the best way to get Esperanto ASR model is finetuning from the pretraind SSL model for English.
+As you can see, the best way to get the Esperanto ASR model is finetuning from the pretraind SSL model for English.
 
 
 **************************
