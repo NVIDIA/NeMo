@@ -245,3 +245,86 @@ An example script is:
     --output_file=pubmed_knn_final.save \
     --shard_index_input=pubmed_knn_shard
 
+Train NeMo RETRO Model
+-----------------------
+
+Once the training data, retrieval data, KNN index, Faiss index are prepared, we are ready to train the RETRO model. In our NeMo implementation,
+RETRO model can be pre-trained with/without `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ feature. We will introduce both ways.
+
+Option 1: Train the NeMo RETRO model *without* mu-Transfer
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An example RETRO pre-training script is:
+
+.. code-block:: bash
+
+    python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+        trainer.devices=8 \
+        trainer.num_nodes=2 \
+        trainer.accelerator=gpu \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=800000 \
+        trainer.precision=16 \
+        trainer.val_check_interval=1000 \
+        trainer.log_every_n_steps=100 \
+        trainer.limit_val_batches=200 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=/result/retro_model \
+        exp_manager.resume_if_exists=True \
+        exp_manager.resume_ignore_no_checkpoint=True \
+        model.apply_query_key_layer_scaling=False \
+        model.tensor_model_parallel_size=8 \
+        model.megatron_amp_O2=False \
+        model.add_position_embedding=False \
+        model.optim.name=adamw \
+        model.optim.lr=2e-4 \
+        model.optim.weight_decay=0.1 \
+        model.optim.betas=[0.9,0.95] \
+        model.optim.sched.warmup_steps=1000 \
+        model.optim.sched.constant_steps=0 \
+        model.optim.sched.min_lr=2e-5 \
+        model.enc_num_layers=2 \
+        model.dec_num_layers=32 \
+        model.enc_cross_attention=[0] \
+        model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+        model.hidden_size=4096 \
+        model.ffn_hidden_size=16384 \
+        model.init_method_std=0.023 \
+        model.num_attention_heads=32 \
+        model.max_position_embeddings=2048 \
+        model.encoder_seq_length=2048 \
+        model.tokenizer.library=megatron \
+        model.tokenizer.type=GPT2BPETokenizer \
+        model.tokenizer.merge_file=/dataset/gpt2-merges.txt \
+        model.tokenizer.vocab_file=/dataset/gpt2-vocab.json \
+        model.data.data_prefix=[/result/pubmed_eval_text_document] \
+        model.data.knn_index=[dataset/pubmed_knn_final.save] \
+        model.data.retrieval_prefix=/result/pubmed_eval_text_document \
+        model.data.neighbors=2 \
+        model.data.splits_string=\'9999,1,0\' \
+        model.data.num_workers=12 \
+        model.transformer_block_type=pre_ln \
+        model.bias_activation_fusion=True \
+        model.bias_dropout_add_fusion=True \
+        model.masked_softmax_fusion=True \
+        model.normalization=rmsnorm \
+        model.micro_batch_size=8 \
+        model.hidden_dropout=0 \
+        model.attention_dropout=0 \
+        model.fp32_residual_connection=True \
+        +model.activations_checkpoint_granularity=full \
+        model.activations_checkpoint_method=block \
+        model.activations_checkpoint_num_layers=1
+
+During the training, launch Tensorboard to monitor training like so:
+
+.. code-block:: bash
+
+    tensorboard --logdir /result/retro_model --bind_all
+
+Option 2: Train the NeMo RETRO model *with* mu-Transfer
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run NeMo RETRO Model Inference
+-------------------------------
+
