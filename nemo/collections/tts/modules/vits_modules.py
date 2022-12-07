@@ -35,13 +35,10 @@
 # SOFTWARE.
 
 import math
-
-import numpy as np
 import torch
 from torch import nn
 from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn import functional as F
-from librosa.filters import mel as librosa_mel_fn
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
 from nemo.collections.tts.modules.hifigan_modules import ResBlock1, ResBlock2, init_weights, get_padding

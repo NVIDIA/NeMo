@@ -21,7 +21,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.utilities import rank_zero_only
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
