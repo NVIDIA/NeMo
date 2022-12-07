@@ -354,7 +354,7 @@ def get_closest_embeddings(
     affinity_mat: torch.Tensor, n_closest: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Get the indeces of the embedding vectors we want to merge.
+    Get the indices of the embedding vectors we want to merge.
 
     Example:
         >>> n_closest = 2
