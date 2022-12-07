@@ -60,7 +60,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
             r_list = r.split()
         words += len(r_list)
         # May deprecate using editdistance in future release for here and rest of codebase
-        # once we confirm Levenshtein is reliable and faster.
+        # once we confirm jiwer is reliable.
         scores += editdistance.eval(h_list, r_list)
     if words != 0:
         wer = 1.0 * scores / words
