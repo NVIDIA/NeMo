@@ -1043,10 +1043,7 @@ class OnlineSpeakerClustering:
                 if Y_matched[self.history_n :].shape[0] != self.current_n:
                     raise ValueError("Update point sync is not correct.")
                 # Concatenate the newly generated speaker labels
-                try:
-                    Y_out = torch.hstack((self.Y_fullhist[: self.history_buffer_seg_end], Y_matched[self.history_n :]))
-                except:
-                    import ipdb; ipdb.set_trace()
+                Y_out = torch.hstack((self.Y_fullhist[: self.history_buffer_seg_end], Y_matched[self.history_n :]))
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
