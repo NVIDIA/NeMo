@@ -62,7 +62,6 @@ model:
     punct: true
     apostrophe: true
     pad_with_space: false
-    sep_with_space: false
     g2p:
       _target_: nemo_text_processing.g2p.modules.IPAG2P
       phoneme_dict: ${phoneme_dict_path}

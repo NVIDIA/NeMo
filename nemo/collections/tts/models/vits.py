@@ -264,12 +264,13 @@ class VitsModel(TextToWaveform):
         self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
+        speakers = None
         if self.cfg.n_speakers > 1:
             (audio, audio_len, text, text_len, speakers) = batch
         else:
             (audio, audio_len, text, text_len) = batch
 
-        audio_pred, attn, mask, *_ = self.net_g.infer(text, text_len, speakers, max_len=1000)
+        audio_pred, _, mask, *_ = self.net_g.infer(text, text_len, speakers, max_len=1000)
 
         audio_pred = audio_pred.squeeze()
         audio_pred_len = mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length

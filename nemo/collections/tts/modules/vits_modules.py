@@ -36,7 +36,6 @@
 
 import math
 import torch
-from librosa.filters import mel as librosa_mel_fn
 from torch import nn
 from torch.nn import Conv1d, Conv2d, ConvTranspose1d
 from torch.nn import functional as F
