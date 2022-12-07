@@ -315,7 +315,7 @@ To finetune a model with the same vocab size, just set the desired model via the
 
     +init_from_pretrained_model=${PRETRAINED_MODEL_NAME}
 
-as it done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the `finetuning tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
+as it is done in the Kinyarwanda example. If the size of the vocab differs from the one presented in the pretrained model, you need to change the vocab manually as done in the `finetuning tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
 
 .. code-block:: python
 
@@ -357,7 +357,7 @@ We can also look at the general trend of test WER decreasing in the training pro
     :alt: Test WER.
     :width: 800px
 
-As you can see, the best way to get the Esperanto ASR model is finetuning from the pretraind SSL model for English.
+As you can see, the best way to get the Esperanto ASR model is finetuning from the pretrained SSL model for English.
 
 
 **************************
