@@ -384,7 +384,7 @@ For decoding you can use:
         use_cer=False)
 
 You can use the Speech Data Explorer to analyze recognition errors, similar to the Kinyarwanda example.
-We listened to files with an anomally high WER (>50%) and we found many problematic files. They have wrong transcriptions and cut or empty audio files in the dev and test sets.
+We listened to files with an anomaly high WER (>50%) and found many problematic files. They have wrong transcriptions and cut or empty audio files in the dev and test sets.
 
 .. code-block:: bash
 
