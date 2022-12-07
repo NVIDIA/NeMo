@@ -15,7 +15,7 @@
 import os
 from contextlib import nullcontext
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Type
+from typing import Callable, Dict, Optional, Type
 
 import onnx
 import torch
@@ -122,8 +122,12 @@ def verify_torchscript(model, output, input_examples, input_names, check_toleran
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
-
-        all_good = all_good and run_ts_and_compare(ts_model, input_list, input_dict, output_example, check_tolerance)
+        # We disable autocast here to make sure exported TS will run under Triton or other C++ env
+        with torch.cuda.amp.autocast(enabled=False):
+            ts_model = torch.jit.load(output)
+            all_good = all_good and run_ts_and_compare(
+                ts_model, input_list, input_dict, output_example, check_tolerance
+            )
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
     return all_good
@@ -326,7 +330,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     Returns:
         exportable module
     """
-
     # including the import here to avoid circular imports
     from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 
@@ -334,7 +337,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     mod = MatchedScaleMaskSoftmax(
         n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
     )
-
     return mod
 
 
@@ -399,8 +401,7 @@ def replace_modules(
 
 
 def script_module(m: nn.Module):
-    m1 = torch.jit.script(m)
-    return m1
+    return torch.jit.script(m)
 
 
 default_replacements = {
@@ -412,7 +413,6 @@ default_replacements = {
 
 script_replacements = {
     "BiLSTM": script_module,
-    "ConvLSTMLinear": script_module,
 }
 
 
