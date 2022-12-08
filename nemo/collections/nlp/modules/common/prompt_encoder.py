@@ -423,11 +423,11 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         """
         super().__init__()
         self.total_virtual_tokens = total_virtual_tokens
-        if limit_vocab > -1 and top_tokens is not None:
-            top_tokens = top_tokens[:limit_vocab]
-            self.original_embeddings = original_embeddings[top_tokens, :]
-        else:
-            self.original_embeddings = original_embeddings
+        #if limit_vocab > -1 and top_tokens is not None:
+        #    top_tokens = top_tokens[:limit_vocab]
+        #    self.original_embeddings = original_embeddings[top_tokens, :]
+        #else:
+        self.original_embeddings = original_embeddings
         self.l1_scale = l1_scale
         self.l2_scale = l2_scale
         self.cs_scale = cs_scale

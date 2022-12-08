@@ -424,6 +424,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
+        if self.cfg.p_tuning.encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+                self.prompt_encoder.load_state_dict(state_dict_, strict)
+                print(self.prompt_encoder)
+                return
+
         if self.frozen_model.model.pre_process:
             if self._prompt_table_key in state_dict:
                 state_dict_ = state_dict[self._prompt_table_key]
@@ -602,7 +607,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Find the indicies where virtual tokens should be inserted
         virtual_token_locations = input_ids >= self.pseudo_token_ids_start
         virtual_token_locations = virtual_token_locations.unsqueeze(-1)
-        virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():
@@ -614,14 +618,24 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
 
         # Only get needed virtual token embeddings from the prompt table according to virtual token ids
-        virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
-        virtual_token_embeds = torch.stack(virtual_token_embeds)
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+            virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
+            virtual_token_embeds = torch.stack(virtual_token_embeds)
+            # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+            discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
 
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        # Put virtual and discrete token embs in their correct locations for final output
-        input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
+            # Put virtual and discrete token embs in their correct locations for final output
+            virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
+            input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
+        
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_embeddings = self.word_embeddings(taskname_ids)
+            virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
+            # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+            discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+            vti = virtual_token_locations[0, :, 0]
+            discrete_token_embeds[:, vti, :] = virtual_token_embeds
+            input_embeds = discrete_token_embeds
         return input_embeds
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):

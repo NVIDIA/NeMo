@@ -65,7 +65,7 @@ class PromptTable(NeuralModule, Exportable):
                 self.prompt_table[taskname] = PromptEmbedding(
                     init_from_prompt_text=False,
                     hidden_size=self.hidden_size,
-                    total_virtual_tokens=x,
+                    total_virtual_tokens=total_virtual_tokens,
                 )
 
         # Make sure tasknames and task id nums line up correctly in prompt table
