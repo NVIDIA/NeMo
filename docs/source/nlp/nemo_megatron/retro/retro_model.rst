@@ -322,9 +322,178 @@ During the training, launch Tensorboard to monitor training like so:
 
     tensorboard --logdir /result/retro_model --bind_all
 
+After the training, the model nemo file can be found at the result checkpoint directory.
+
 Option 2: Train the NeMo RETRO model *with* mu-Transfer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+`mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ paper proposed a method to zero-shot transfer hyperparameter to train a larger model.
+This can be done in 3 steps in NeMo RETRO implementation. 
+
+
+Step 1. find optimal hyper parameter for a small base model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the pre-training code in Option 1, either manually or automatically ind a set of optimal hyperparameter for a small base RETRO 
+model. This is can be done cheaply ans fast due to the small model size.
+
+Step 2. calculate the shape file that can be used to run mu-Transfer 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The shape file determines which hyperparameter will be scaled up so the model knows how to adjust learning rate, weight scaling factor etc.
+
+An example shape file calculation script is:
+
+.. code-block:: bash
+    python examples/nlp/language_modeling/megatron_retro_cal_shape.py
+    trainer.devices=8 \
+    trainer.num_nodes=1 \
+    trainer.accelerator=gpu \
+    trainer.accumulate_grad_batches=1 \
+    trainer.max_steps=500000 \
+    trainer.precision=bf16 \
+    trainer.val_check_interval=2000 \
+    trainer.limit_val_batches=200 \
+    trainer.gradient_clip_val=1.0 \
+    exp_manager.exp_dir=/result/retro_model \
+    base_model.enc_num_layers=2 \
+    delta_model.enc_num_layers=2 \
+    base_model.dec_num_layers=12 \
+    delta_model.dec_num_layers=12 \
+    base_model.dec_num_layers=32 \
+    delta_model.dec_num_layers=32 \
+    base_model.tensor_model_parallel_size=8 \
+    delta_model.tensor_model_parallel_size=8 \
+    base_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+    delta_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+    base_model.enc_cross_attention=[0] \
+    delta_model.enc_cross_attention=[0] \
+    base_model.hidden_size=768 \
+    base_model.ffn_hidden_size=3072 \
+    delta_model.hidden_size=96 \
+    delta_model.ffn_hidden_size=384 \
+    base_model.num_attention_heads=16 \
+    delta_model.num_attention_heads=16 \
+    base_model.add_position_embedding=False \
+    delta_model.add_position_embedding=False \
+    base_model.normalization=rmsnorm \
+    delta_model.normalization=rmsnorm \
+    base_model.megatron_amp_O2=False \
+    delta_model.megatron_amp_O2=False \
+    model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
+
+where the base_model refers to the small base model that an optimal hyperparameter is determined. The delta_model refers to a model
+that has certain hyperparameter scaled up or down. In the example shown, 'hidden_size' and 'ffn_hidden_size' is changed in the delta
+model, so we can scale these two parameters freely later.
+
+Step 3. pretrain mu-Transfer RETRO model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Once the shape file is ready, we can start to train a RETRO model that can be scaled freely with the hyperparameter determined by 
+the delta model.
+
+An example mu-Transfer pre-training script is:
+
+.. code-block:: bash
+    python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
+        trainer.devices=8 \
+        trainer.num_nodes=2 \
+        trainer.accelerator=gpu \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=500000 \
+        trainer.precision=16 \
+        trainer.val_check_interval=1000 \
+        trainer.log_every_n_steps=100 \
+        trainer.limit_val_batches=200 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=/result/retro_model \
+        exp_manager.resume_if_exists=True \
+        exp_manager.resume_ignore_no_checkpoint=True \
+        exp_manager.create_wandb_logger=True \
+        model.apply_query_key_layer_scaling=False \
+        model.tensor_model_parallel_size=8 \
+        model.megatron_amp_O2=False \
+        model.add_position_embedding=False \
+        model.optim.name=muadamw \
+        model.optim.lr=6e-4 \
+        model.optim.weight_decay=0.1 \
+        model.optim.betas=[0.9,0.95] \
+        model.optim.sched.warmup_steps=1000 \
+        model.optim.sched.constant_steps=0 \
+        model.optim.sched.min_lr=6e-5 \
+        model.enc_num_layers=2 \
+        model.dec_num_layers=32 \
+        model.enc_cross_attention=[0] \
+        model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+        model.hidden_size=4096 \
+        model.ffn_hidden_size=16384 \
+        model.init_method_std=0.023 \
+        model.num_attention_heads=32 \
+        model.max_position_embeddings=2048 \
+        model.encoder_seq_length=2048 \
+        model.tokenizer.library=megatron \
+        model.tokenizer.type=GPT2BPETokenizer \
+        model.tokenizer.merge_file=/dataset/gpt2-merges.txt \
+        model.tokenizer.vocab_file=/dataset/gpt2-vocab.json \
+        model.data.data_prefix=[/result/pubmed_eval_text_document] \
+        model.data.knn_index=[dataset/pubmed_knn_final.save] \
+        model.data.retrieval_prefix=/result/pubmed_eval_text_document \
+        model.data.neighbors=2 \
+        model.data.splits_string=\'9999,1,0\' \
+        model.data.num_workers=12 \
+        model.transformer_block_type=pre_ln \
+        model.bias_activation_fusion=True \
+        model.bias_dropout_add_fusion=True \
+        model.masked_softmax_fusion=True \
+        model.normalization=rmsnorm \
+        model.micro_batch_size=8 \
+        model.hidden_dropout=0 \
+        model.attention_dropout=0 \
+        model.fp32_residual_connection=True \
+        model.activations_checkpoint_granularity=full \
+        model.activations_checkpoint_method=block \
+        model.activations_checkpoint_num_layers=1 \
+        model.shape_file=tp8_32depth_o1_rel_shape_info.yaml
+
+Note, we choose to use ``muadamw`` as optimizer to work with mu-transfer method. Currently only ``muadam`` and ``muadamw`` are supported.
+Similarly to the Option 1 pre-training, after the training, the model nemo file can be found at the result checkpoint directory.
+
+
 Run NeMo RETRO Model Inference
 -------------------------------
+
+Once the NeMo RETRO model is trained, we can start to put the model in inference mode and play with it. During inference time, we are not
+limited to the static Faiss index that we built before to run KNN queries. We can feed any external data to the model as retrieval context. In NeMo RETRO
+implementation, it supports dynamic retrieval service that user can add, reset and query new documents on the fly. 
+
+We have built a simple web client that users can play with it easily. Here is an example script to launch the server:
+
+
+.. code-block:: bash
+
+    python examples/nlp/language_modeling/megatron_retro_eval.py \
+    trainer.devices=8 \
+    trainer.num_nodes=1 \
+    trainer.accelerator=gpu \
+    trainer.precision=16 \
+    retro_model_file=megatron_retro.nemo \
+    tensor_model_parallel_size=8 \
+    pipeline_model_parallel_size=1 \
+    retrieval_service.sentence_bert.devices=\'0,1,2,3,4,5,6,7\' \
+    retrieval_service.services.0.faiss_devices=\'0,1,2,3,4,5,6,7\' \
+    retrieval_service.services.1.faiss_devices=\'0,1,2,3,4,5,6,7\' \
+    retrieval_service.services.0.faiss_index=/result/pubmed_faiss_final.index \
+    retrieval_service.services.0.retrieval_index=/result/pubmed_eval_text_document \
+    retrieval_service.neighbors=2 \
+    retrieval_service.pad_tokens=True \
+    retrieval_service.store_retrieved=True \
+    server=True \
+    web_server=True \
+    share=True \
+    username=test \
+    password=test123
+
+Set the ``retro_model_file`` to use the generated nemo file from the pre-training step. After launching the server, copy-paste the 
+URL from the terminal to the browser. Use the specified username and password to login. Have fun to play with the RETRO model. 
+
 
