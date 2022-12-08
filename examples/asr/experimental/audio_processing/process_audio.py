@@ -159,8 +159,7 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
         # get filenames from manifest
         filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
-            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
-            return None
+            raise RuntimeError(f"The input dataset_manifest {cfg.dataset_manifest} is empty.")
 
         input_key = 'audio_filepath' if cfg.input_key is None else cfg.input_key
         manifest_dir = Path(cfg.dataset_manifest).parent

@@ -774,10 +774,10 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Multi-channel signal
-        golden_target = _rng.normal(size=(num_samples, num_channels * num_targets))
+        golden_target = _rng.normal(size=(num_channels * num_targets, num_samples))
 
         # Create a list of num_targets signals with num_channels channels
-        target_list = [golden_target[:, n * num_channels : (n + 1) * num_channels] for n in range(num_targets)]
+        target_list = [golden_target[n * num_channels : (n + 1) * num_channels, :] for n in range(num_targets)]
 
         # Check the original signal is not modified
         assert (ASRAudioProcessor.list_to_multichannel(golden_target) == golden_target).all()
@@ -812,7 +812,7 @@ class TestAudioDatasets:
         for n in range(batch_size):
             item = dict()
             for signal, num_channels in signal_to_channels.items():
-                random_signal = _rng.normal(size=(signal_to_length[signal][n], num_channels))
+                random_signal = _rng.normal(size=(num_channels, signal_to_length[signal][n]))
                 random_signal = np.squeeze(random_signal)  # get rid of channel dimention for single-channel
                 item[signal] = torch.tensor(random_signal)
             batch.append(item)
@@ -900,7 +900,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -917,7 +917,7 @@ class TestAudioDatasets:
                     signal_filename = f'{signal}_{n:02d}.wav'
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1027,7 +1027,7 @@ class TestAudioDatasets:
                 for signal in data:
                     cs = channel_selector[signal]
                     item_signal = item[signal].cpu().detach().numpy()
-                    golden_signal = data[signal][n][..., cs]
+                    golden_signal = data[signal][n][cs, ...]
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
@@ -1067,7 +1067,7 @@ class TestAudioDatasets:
                         # of the first signal, and then use it fixed for other signals
                         if golden_start is None:
                             golden_start = get_segment_start(
-                                signal=full_golden_signal[:, 0], segment=item_signal[:, 0]
+                                signal=full_golden_signal[0, :], segment=item_signal[0, :]
                             )
                             if not random_offset:
                                 assert (
@@ -1075,12 +1075,12 @@ class TestAudioDatasets:
                                 ), f'Expecting the signal to start at 0 when random_offset is False'
 
                             golden_end = golden_start + audio_duration_samples
-                        golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                        golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                         # Test length is correct
                         assert (
-                            len(item_signal) == audio_duration_samples
-                        ), f'Test 4: Signal length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                            item_signal.shape[-1] == audio_duration_samples
+                        ), f'Test 4: Signal length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
 
                         assert (
                             item_signal.shape == golden_signal.shape
@@ -1102,8 +1102,8 @@ class TestAudioDatasets:
 
                 assert signal_shape == (
                     batch_size,
-                    audio_duration_samples,
                     data_num_channels[signal],
+                    audio_duration_samples,
                 ), f'Test 5: Unexpected signal {signal} shape {signal_shape}'
                 assert len(signal_len) == batch_size, f'Test 5: Unexpected length of signal_len ({len(signal_len)})'
                 assert all(signal_len == audio_duration_samples), f'Test 5: Unexpected signal_len {signal_len}'
@@ -1154,7 +1154,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1176,7 +1176,7 @@ class TestAudioDatasets:
                             # write audio file
                             sf.write(
                                 os.path.join(test_dir, signal_filename[-1]),
-                                data[signal][n][:, ch],
+                                data[signal][n][ch, :],
                                 sample_rate,
                                 'float',
                             )
@@ -1185,7 +1185,7 @@ class TestAudioDatasets:
                         signal_filename = f'{signal}_{n:02d}.wav'
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1252,7 +1252,7 @@ class TestAudioDatasets:
                     golden_signal = data[signal][n]
                     if signal == 'target_signal':
                         # add the first channel of the input
-                        golden_signal = np.concatenate([data['input_signal'][n][..., 0:1], golden_signal], axis=1)
+                        golden_signal = np.concatenate([data['input_signal'][n][0:1, ...], golden_signal], axis=0)
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
@@ -1304,7 +1304,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1316,7 +1316,7 @@ class TestAudioDatasets:
                     # filenames
                     signal_filename = f'{signal}_{n:02d}.wav'
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
                     # update metadata
                     meta[data_key[signal]] = signal_filename
                 meta['duration'] = data_duration[n]
@@ -1419,7 +1419,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1436,7 +1436,7 @@ class TestAudioDatasets:
                     signal_filename = f'{signal}_{n:02d}.wav'
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1520,14 +1520,14 @@ class TestAudioDatasets:
                     # Find random segment using correlation on the first channel
                     # of the first signal, and then use it fixed for other signals
                     if golden_start is None:
-                        golden_start = get_segment_start(signal=full_golden_signal[:, 0], segment=item_signal[:, 0])
+                        golden_start = get_segment_start(signal=full_golden_signal[0, :], segment=item_signal[0, :])
                         golden_end = golden_start + audio_duration_samples
-                    golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                    golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                     # Test length is correct
                     assert (
-                        len(item_signal) == audio_duration_samples
-                    ), f'Test 2: Signal {signal} length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                        item_signal.shape[-1] == audio_duration_samples
+                    ), f'Test 2: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
 
                     # Test signal values
                     assert np.isclose(
@@ -1569,15 +1569,15 @@ class TestAudioDatasets:
                         # of the first signal, and then use it fixed for other signals
                         if golden_start is None:
                             golden_start = get_segment_start(
-                                signal=full_golden_signal[:, 0], segment=item_signal[:, 0]
+                                signal=full_golden_signal[0, :], segment=item_signal[0, :]
                             )
                             golden_end = golden_start + audio_duration_samples
-                        golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                        golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                         # Test length is correct
                         assert (
-                            len(item_signal) == audio_duration_samples
-                        ), f'Test 3: Signal {signal} length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                            item_signal.shape[-1] == audio_duration_samples
+                        ), f'Test 3: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
@@ -1643,7 +1643,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_length))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_length, num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_length))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1665,7 +1665,7 @@ class TestAudioDatasets:
                         signal_filename = f'{signal}_{n:02d}.wav'
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename

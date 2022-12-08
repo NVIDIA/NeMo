@@ -49,7 +49,7 @@ class AudioProcessingModel(ModelPT, ABC):
         pass
 
     @abstractmethod
-    def evaluation_step(self, batch, batch_idx, dataloader_idx=0):
+    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
         pass
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):

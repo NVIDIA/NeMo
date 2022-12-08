@@ -43,9 +43,9 @@ class TestAudioLosses:
                 for n in range(num_batches):
 
                     # Generate random signal
-                    target = _rng.normal(size=(batch_size, num_samples, num_channels))
+                    target = _rng.normal(size=(batch_size, num_channels, num_samples))
                     # Random noise + scaling
-                    noise = _rng.uniform(low=0.01, high=1) * _rng.normal(size=(batch_size, num_samples, num_channels))
+                    noise = _rng.uniform(low=0.01, high=1) * _rng.normal(size=(batch_size, num_channels, num_samples))
                     # Estimate
                     estimate = target + noise
 
@@ -62,18 +62,12 @@ class TestAudioLosses:
                     for b in range(batch_size):
                         for m in range(num_channels):
                             golden_sdr[b, m] = calculate_sdr(
-                                estimate=estimate[b, ..., m],
-                                target=target[b, ..., m],
-                                remove_mean=remove_mean,
-                                eps=eps,
+                                estimate=estimate[b, m, :], target=target[b, m, :], remove_mean=remove_mean, eps=eps,
                             )
 
                     # Calculate SDR in torch
                     uut_sdr = calculate_sdr_batch(
-                        estimate=tensor_estimate.clone(),
-                        target=tensor_target.clone(),
-                        remove_mean=remove_mean,
-                        eps=eps,
+                        estimate=tensor_estimate, target=tensor_target, remove_mean=remove_mean, eps=eps,
                     )
 
                     # Calculate SDR loss
@@ -109,7 +103,7 @@ class TestAudioLosses:
         for n in range(num_batches):
 
             # Generate random signal
-            target = _rng.normal(size=(batch_size, num_samples, num_channels))
+            target = _rng.normal(size=(batch_size, num_channels, num_samples))
             # Random noise + scaling
             noise = _rng.uniform(low=0.001, high=10) * _rng.normal(size=target.shape)
             # Estimate
@@ -122,7 +116,7 @@ class TestAudioLosses:
             # Reference SDR
             golden_sdr = 0
             for b in range(batch_size):
-                sdr = [calculate_sdr(estimate=estimate[b, :, m], target=target[b, :, m]) for m in range(num_channels)]
+                sdr = [calculate_sdr(estimate=estimate[b, m, :], target=target[b, m, :]) for m in range(num_channels)]
                 # weighted sum
                 sdr = np.sum(np.array(sdr) * channel_weight)
                 golden_sdr += sdr
@@ -154,7 +148,7 @@ class TestAudioLosses:
         for n in range(num_batches):
 
             # Generate random signal
-            target = _rng.normal(size=(batch_size, max_num_samples, num_channels))
+            target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
             noise = _rng.uniform(low=0.001, high=10) * _rng.normal(size=target.shape)
             # Estimate
@@ -172,7 +166,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, :b_len, m], target=target[b, :b_len, m])
+                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len])
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -205,7 +199,7 @@ class TestAudioLosses:
         for n in range(num_batches):
 
             # Generate random signal
-            target = _rng.normal(size=(batch_size, max_num_samples, num_channels))
+            target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
             noise = _rng.uniform(low=0.001, high=10) * _rng.normal(size=target.shape)
             # Estimate
@@ -223,7 +217,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, :b_len, m], target=target[b, :b_len, m], scale_invariant=True)
+                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], scale_invariant=True)
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -256,7 +250,7 @@ class TestAudioLosses:
         for n in range(num_batches):
 
             # Generate random signal
-            target = _rng.normal(size=(batch_size, max_num_samples, num_channels))
+            target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
             noise = _rng.uniform(low=0.001, high=10) * _rng.normal(size=target.shape)
             # Estimate
@@ -274,7 +268,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b in range(batch_size):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, mask[b, :] > 0, m], target=target[b, mask[b, :] > 0, m])
+                    calculate_sdr(estimate=estimate[b, m, mask[b, :] > 0], target=target[b, m, mask[b, :] > 0])
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -308,7 +302,7 @@ class TestAudioLosses:
         for n in range(num_batches):
 
             # Generate random signal
-            target = _rng.normal(size=(batch_size, max_num_samples, num_channels))
+            target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
             noise = _rng.uniform(low=0.001, high=10) * _rng.normal(size=target.shape)
             # Estimate
@@ -326,7 +320,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, :b_len, m], target=target[b, :b_len, m], sdr_max=sdr_max)
+                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], sdr_max=sdr_max)
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))

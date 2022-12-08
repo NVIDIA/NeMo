@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Iterable, Optional, Union
 
 import librosa
@@ -19,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy
 import soundfile as sf
+import torch
 from scipy.spatial.distance import pdist, squareform
 
 from nemo.utils import logging
@@ -444,3 +446,16 @@ def calculate_sdr(
 
     sdr = 10 * np.log10(target_pow / (distortion_pow + eps) + eps)
     return sdr
+
+
+def wraptopi(x: torch.Tensor) -> torch.Tensor:
+    """Wrap angle in radians to [-pi, pi]
+
+    Args:
+        x: angle in radians
+
+    Returns:
+        Angle in radians wrapped to [-pi, pi]
+    """
+    pi = torch.tensor(math.pi, device=x.device)
+    return torch.remainder(x + pi, 2 * pi) - pi

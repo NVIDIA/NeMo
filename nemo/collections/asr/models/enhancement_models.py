@@ -162,21 +162,21 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
                     # Expand channel dimension, if necessary
                     # For consistency, the model uses multi-channel format, even if the channel dimension is 1
                     if input_signal.ndim == 2:
-                        input_signal = input_signal.unsqueeze(2)
+                        input_signal = input_signal.unsqueeze(1)
 
-                    processed_batch = self.forward(
+                    processed_batch, _ = self.forward(
                         input_signal=input_signal.to(device), input_length=input_length.to(device)
                     )
 
-                    for b in range(processed_batch.shape[0]):
+                    for example_idx in range(processed_batch.size(0)):
                         # This assumes the data loader is not shuffling files
                         file_name = os.path.basename(paths2audio_files[file_idx])
                         # Prepare output file
                         output_file = os.path.join(output_dir, f'processed_{file_name}')
                         # Crop the output signal to the actual length
-                        output_signal = processed_batch[b, : input_length[b], :].cpu().numpy()
+                        output_signal = processed_batch[example_idx, :, : input_length[example_idx]].cpu().numpy()
                         # Write audio
-                        sf.write(output_file, output_signal, self.sample_rate, 'float')
+                        sf.write(output_file, output_signal.T, self.sample_rate, 'float')
                         # Update the file counter
                         file_idx += 1
                         # Save processed file
@@ -325,7 +325,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
     def input_types(self) -> Dict[str, NeuralType]:
         return {
             "input_signal": NeuralType(
-                ('B', 'T', 'C'), AudioSignal(freq=self.sample_rate)
+                ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
             "input_length": NeuralType(tuple('B'), LengthsType()),
         }
@@ -334,24 +334,25 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
     def output_types(self) -> Dict[str, NeuralType]:
         return {
             "output_signal": NeuralType(
-                ('B', 'T', 'C'), AudioSignal(freq=self.sample_rate)
+                ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
+            "output_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def match_batch_length(self, signal: torch.Tensor, batch_length: int):
         """Trim or pad the output to match the batch length.
 
         Args:
-            signal: tensor with shape (B, T, C)
+            signal: tensor with shape (B, C, T)
             batch_length: int
 
         Returns:
-            Tensor with shape (B, T, C), where T matches the
+            Tensor with shape (B, C, T), where T matches the
             batch length.
         """
-        signal_length = signal.shape[1]
+        signal_length = signal.size(-1)
         pad_length = batch_length - signal_length
-        pad = (0, 0, 0, pad_length)
+        pad = (0, pad_length, 0, 0)
         # pad with zeros or crop
         return torch.nn.functional.pad(signal, pad, 'constant', 0)
 
@@ -369,7 +370,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
 
         Returns:
         """
-        batch_length = input_signal.size(1)
+        batch_length = input_signal.size(-1)
 
         # Encoder
         encoded, encoded_length = self.encoder(input=input_signal, input_length=input_length)
@@ -381,11 +382,11 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         enhanced, enhanced_length = self.processor(input=encoded, input_length=encoded_length, mask=mask)
 
         # Decoder
-        enhanced, _ = self.decoder(input=enhanced, input_length=enhanced_length)
+        enhanced, enhanced_length = self.decoder(input=enhanced, input_length=enhanced_length)
 
         # Trim or pad the estimated signal to match input length
         enhanced = self.match_batch_length(signal=enhanced, batch_length=batch_length)
-        return enhanced
+        return enhanced, enhanced_length
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
@@ -394,11 +395,11 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(2)
+            input_signal = input_signal.unsqueeze(1)
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(2)
+            target_signal = target_signal.unsqueeze(1)
 
-        processed_signal = self.forward(input_signal=input_signal, input_length=input_length)
+        processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
         loss_value = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 
@@ -416,11 +417,11 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(2)
+            input_signal = input_signal.unsqueeze(1)
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(2)
+            target_signal = target_signal.unsqueeze(1)
 
-        processed_signal = self.forward(input_signal=input_signal, input_length=input_length)
+        processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
         loss_value = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 

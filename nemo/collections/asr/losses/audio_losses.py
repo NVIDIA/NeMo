@@ -28,9 +28,9 @@ __all__ = ['SDRLoss']
 
 def temporal_mean(
     input: torch.Tensor,
-    keepdim: bool = False,
     input_length: Optional[torch.Tensor] = None,
     mask: Optional[torch.Tensor] = None,
+    keepdim: bool = False,
     eps: float = 1e-10,
 ) -> torch.Tensor:
     """Calculate mean along temporal dimension with optionally
@@ -38,13 +38,13 @@ def temporal_mean(
 
     Args:
         input: Batch of signals, shape (B, T, C)
-        keepdim: Whether to keep the temporal dimension
         input_length: Optional, length of each example in the batch, shape (B,)
         mask: Optional, temporal mask for each example in the batch, shape (B, T)
+        keepdim: Whether to keep the temporal dimension
         eps: Regularization to avoid division by zero
 
     Returns:
-        (B, 1, C) if keepdim=True, otherwise (B, C)
+        (B, C, 1) if keepdim=True, otherwise (B, C)
     """
     if (input_length is not None) and (mask is not None):
         raise RuntimeError(
@@ -53,21 +53,21 @@ def temporal_mean(
 
     if input_length is None and mask is None:
         # No length information, assume all samples are valid
-        mean = torch.mean(input, dim=1, keepdim=keepdim)
+        mean = torch.mean(input, dim=-1, keepdim=keepdim)
     elif input_length is not None:
-        assert (input_length <= input.shape[1]).all(), f'Check input length {input_length}, input shape {input.shape}'
+        assert (input_length <= input.shape[-1]).all(), f'Check input length {input_length}, input shape {input.shape}'
         # Average only over valid elements
         mean = []
         for b, b_len in enumerate(input_length):
-            mean_b = torch.sum(input[b, :b_len, :], axis=0, keepdim=keepdim) / b_len
+            mean_b = torch.sum(input[b, :, :b_len], axis=-1, keepdim=keepdim) / b_len
             mean.append(mean_b)
         mean = torch.stack(mean, axis=0)
     elif mask is not None:
         # Average using temporal mask
-        mean = mask.unsqueeze(-1) * input
-        mean = torch.sum(mean, axis=1, keepdim=keepdim)
-        normalization = torch.sum(mask, axis=1, keepdim=keepdim)
-        mean = mean / (normalization.unsqueeze(-1) + eps)
+        mean = mask.unsqueeze(1) * input
+        mean = torch.sum(mean, axis=-1, keepdim=keepdim)
+        normalization = torch.sum(mask, axis=-1, keepdim=keepdim)
+        mean = mean / (normalization.unsqueeze(1) + eps)
     else:
         raise RuntimeError(f'Unexpected input with both input_length and mask provided.')
 
@@ -84,7 +84,7 @@ def calculate_sdr_batch(
     sdr_max: Optional[float] = None,
     eps: float = 1e-10,
 ) -> torch.Tensor:
-    """Calculate signal-to-distortion ratio.
+    """Calculate signal-to-distortion ratio per channel.
 
         SDR = 10 * log10( ||t||_2^2 / (||e-t||_2^2 + alpha * ||t||^2)
 
@@ -103,21 +103,21 @@ def calculate_sdr_batch(
         eps: Small regularization constant
 
     Returns:
-        SDR in dB, shape (B, C)
+        SDR in dB for each channel, shape (B, C)
     """
     assert (
         estimate.shape == target.shape
     ), f'Estimate shape ({estimate.shape}) not matching target shape ({target.shape})'
 
     if remove_mean:
-        estimate = estimate - temporal_mean(estimate, keepdim=True, input_length=input_length, mask=mask, eps=eps)
-        target = target - temporal_mean(target, keepdim=True, input_length=input_length, mask=mask, eps=eps)
+        estimate = estimate - temporal_mean(estimate, input_length=input_length, mask=mask, keepdim=True, eps=eps)
+        target = target - temporal_mean(target, input_length=input_length, mask=mask, keepdim=True, eps=eps)
 
     if scale_invariant:
         estimate_dot_target = temporal_mean(
-            estimate * target, keepdim=True, input_length=input_length, mask=mask, eps=eps
+            estimate * target, input_length=input_length, mask=mask, keepdim=True, eps=eps
         )
-        target_pow = temporal_mean(torch.abs(target) ** 2, keepdim=True, input_length=input_length, mask=mask, eps=eps)
+        target_pow = temporal_mean(torch.abs(target) ** 2, input_length=input_length, mask=mask, keepdim=True, eps=eps)
         target_scale = estimate_dot_target / (target_pow + eps)
         target = target_scale * target
 
@@ -138,7 +138,7 @@ def calculate_sdr_batch(
 @experimental
 class SDRLoss(Loss, Typing):
     """
-    Computes SDR loss with weighted average across channels.
+    Computes signal-to-distortion ratio (SDR) loss with weighted average across channels.
 
     Args:
         weight: weight for SDR of each output channel, used for averaging the loss across channels. Defaults to `None` (averaging).
@@ -176,7 +176,7 @@ class SDRLoss(Loss, Typing):
         if reduction == 'mean':
             self.reduce = torch.mean
         else:
-            raise ValueError(f'Unexpected redction mode {reduction}.')
+            raise ValueError(f'Unexpected reduction mode {reduction}.')
 
         # SDR calculation setup
         self.scale_invariant = scale_invariant
@@ -188,7 +188,7 @@ class SDRLoss(Loss, Typing):
     def input_types(self):
         """Input types definitions for SDRLoss.
         """
-        signal_shape = ('B', 'T', 'C')
+        signal_shape = ('B', 'C', 'T')
         return {
             "estimate": NeuralType(signal_shape, AudioSignal()),
             "target": NeuralType(signal_shape, AudioSignal()),

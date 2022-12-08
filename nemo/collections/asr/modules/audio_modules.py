@@ -17,7 +17,7 @@ from typing import Dict, Optional, Tuple
 import torch
 
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.asr.parts.utils.audio_utils import db2mag
+from nemo.collections.asr.parts.utils.audio_utils import db2mag, wraptopi
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AudioSignal, FloatType, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
@@ -40,7 +40,6 @@ __all__ = [
 ]
 
 
-@experimental
 class AudioToSpectrogram(NeuralModule):
     """Transform a batch of input multi-channel signals into a batch of
     STFT-based spectrograms.
@@ -82,7 +81,7 @@ class AudioToSpectrogram(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'T', 'C'), AudioSignal()),
+            "input": NeuralType(('B', 'C', 'T'), AudioSignal()),
             "input_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -91,7 +90,7 @@ class AudioToSpectrogram(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -101,31 +100,25 @@ class AudioToSpectrogram(NeuralModule):
         into a batch of complex-valued spectrograms.
 
         Args:
-            input: Time-domain input signal with C channels, shape (B, T, C)
+            input: Time-domain input signal with C channels, shape (B, C, T)
             input_length: Length of valid entries along the time dimension, shape (B,)
 
         Returns:
-            Output spectrogram with F subbands and N time frames, shape (B, F, N, C)
+            Output spectrogram with F subbands and N time frames, shape (B, C, F, N)
             and output length with shape (B,).
         """
         output_length = self.get_output_length(input_length=input_length)
 
-        B, T = input.shape[0:2]
-        input = input.view(B, T, -1)
-
-        # (B, T, C) -> (B, C, T)
-        input = input.permute(0, 2, 1)
+        B, T = input.size(0), input.size(-1)
+        input = input.view(B, -1, T)
 
         # STFT output (B, C, F, N)
         with torch.cuda.amp.autocast(enabled=False):
             output = self.stft(input)
 
-        # Permute channels to back
-        output = output.permute(0, 2, 3, 1)
-
         # Mask padded frames
         length_mask: torch.Tensor = make_seq_mask_like(
-            lengths=output_length, like=output, time_dim=-2, valid_ones=False
+            lengths=output_length, like=output, time_dim=-1, valid_ones=False
         )
         output = output.masked_fill(length_mask, 0.0)
 
@@ -144,7 +137,6 @@ class AudioToSpectrogram(NeuralModule):
         return output_length
 
 
-@experimental
 class SpectrogramToAudio(NeuralModule):
     """Transform a batch of input multi-channel spectrograms into a batch of
     time-domain signals.
@@ -185,7 +177,7 @@ class SpectrogramToAudio(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -194,7 +186,7 @@ class SpectrogramToAudio(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'T', 'C'), AudioSignal()),
+            "output": NeuralType(('B', 'C', 'T'), AudioSignal()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -204,32 +196,26 @@ class SpectrogramToAudio(NeuralModule):
         signal. Multi-channel IO is supported.
 
         Args:
-            input: Input spectrogram for C channels, shape (B, F, N, C)
+            input: Input spectrogram for C channels, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
 
         Returns:
-            Time-domain signal with T time-domain samples and C channels, (B, T, C)
+            Time-domain signal with T time-domain samples and C channels, (B, C, T)
             and output length with shape (B,).
         """
         output_length = self.get_output_length(input_length=input_length)
 
-        B, F, N = input.shape[0:3]
+        B, F, N = input.size(0), input.size(-2), input.size(-1)
         assert F == self.F, f'Number of subbands F={F} not matching self.F={self.F}'
-        input = input.view(B, F, N, -1)
-
-        # (B, F, N, C) -> (B, C, F, N)
-        input = input.permute(0, 3, 1, 2)
+        input = input.view(B, -1, F, N)
 
         # iSTFT output (B, C, T)
         with torch.cuda.amp.autocast(enabled=False):
             output = self.istft(input.cdouble())
 
-        # (B, C, T) -> (B, T, C)
-        output = output.permute(0, 2, 1)
-
         # Mask padded samples
         length_mask: torch.Tensor = make_seq_mask_like(
-            lengths=output_length, like=output, time_dim=-2, valid_ones=False
+            lengths=output_length, like=output, time_dim=-1, valid_ones=False
         )
         output = output.masked_fill(length_mask, 0.0)
 
@@ -248,22 +234,25 @@ class SpectrogramToAudio(NeuralModule):
         return output_length
 
 
-@experimental
-class SpatialFeatures(NeuralModule):
-    """Generate spatial features from a commplex-valued spectrogram.
+class MultichannelFeatures(NeuralModule):
+    """Generate multi-channel features from a complex-valued spectrogram.
 
     Args:
-        num_subbands: expected number of subbands in the input signal
-        magnitude_reduction: averaging across channels. Default `None`, will calculate
+        num_subbands: Expected number of subbands in the input signal
+        num_input_channels: Optional, provides the number of channels
+                            of the input signal. Used to infer the number
+                            of output channels.
+        magnitude_reduction: Reduction across channels. Default `None`, will calculate
                              magnitude of each channel.
-        use_ipd: Use inter-channel phase difference (IPD). Currently not supported.
-        mag_normalization: normalization for magnitude features
-        ipd_normalization: normalization for IPD features
+        use_ipd: Use inter-channel phase difference (IPD).
+        mag_normalization: Normalization for magnitude features
+        ipd_normalization: Normalization for IPD features
     """
 
     def __init__(
         self,
         num_subbands: int,
+        num_input_channels: Optional[int] = None,
         mag_reduction: Optional[str] = 'rms',
         use_ipd: bool = False,
         mag_normalization: Optional[str] = None,
@@ -283,16 +272,18 @@ class SpatialFeatures(NeuralModule):
         self.ipd_normalization = ipd_normalization
 
         if self.use_ipd:
-            self.num_features = 2 * num_subbands
+            self._num_features = 2 * num_subbands
+            self._num_channels = num_input_channels
         else:
-            self.num_features = num_subbands
+            self._num_features = num_subbands
+            self._num_channels = num_input_channels if self.mag_reduction is None else 1
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -301,9 +292,27 @@ class SpatialFeatures(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
+
+    @property
+    def num_features(self) -> int:
+        """Configured number of features
+        """
+        return self._num_features
+
+    @property
+    def num_channels(self) -> int:
+        """Configured number of channels
+        """
+        if self._num_channels is not None:
+            return self._num_channels
+        else:
+            raise ValueError(
+                'Num channels is not configured. To configure this, `num_input_channels` '
+                'must be provided when constructing the object.'
+            )
 
     @typecheck()
     def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> torch.Tensor:
@@ -313,21 +322,21 @@ class SpatialFeatures(NeuralModule):
         reduced to 1, e.g., if averaging over magnitude and not appending individual IPDs.
 
         Args:
-            input: Spectrogram for C channels with F subbands and N time frames, (B, F, N, C)
+            input: Spectrogram for C channels with F subbands and N time frames, (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
 
         Returns:
-            num_feat features with num_feat_channels, shape (B, num_feat, N, num_feat_channels)
+            num_feat_channels channels with num_feat features, shape (B, num_feat_channels, num_feat, N)
         """
         # Magnitude spectrum
         if self.mag_reduction is None:
             mag = torch.abs(input)
         elif self.mag_reduction == 'abs_mean':
-            mag = torch.abs(torch.mean(input, axis=3, keepdim=True))
+            mag = torch.abs(torch.mean(input, axis=1, keepdim=True))
         elif self.mag_reduction == 'mean_abs':
-            mag = torch.mean(torch.abs(input), axis=3, keepdim=True)
+            mag = torch.mean(torch.abs(input), axis=1, keepdim=True)
         elif self.mag_reduction == 'rms':
-            mag = torch.sqrt(torch.mean(torch.abs(input) ** 2, axis=3, keepdim=True))
+            mag = torch.sqrt(torch.mean(torch.abs(input) ** 2, axis=1, keepdim=True))
         else:
             raise ValueError(f'Unexpected magnitude reduction {self.mag_reduction}')
 
@@ -338,16 +347,21 @@ class SpatialFeatures(NeuralModule):
 
         if self.use_ipd:
             # Calculate IPD relative to average spec
-            spec_mean = torch.mean(input, axis=3, keepdim=True)
-
-            rtf = input / spec_mean
-            ipd = torch.angle(rtf)
+            spec_mean = torch.mean(input, axis=1, keepdim=True)
+            ipd = torch.angle(input) - torch.angle(spec_mean)
+            # Modulo to [-pi, pi]
+            ipd = wraptopi(ipd)
 
             if self.ipd_normalization is not None:
                 ipd = self.ipd_normalization(ipd)
 
             # Concatenate to existing features
-            features = torch.cat([features.expand(ipd.shape), ipd], axis=1)
+            features = torch.cat([features.expand(ipd.shape), ipd], axis=2)
+
+        if self._num_channels is not None and features.size(1) != self._num_channels:
+            raise RuntimeError(
+                f'Number of channels in features {features.size(1)} is different than the configured number of channels {self._num_channels}'
+            )
 
         return features, input_length
 
@@ -366,14 +380,16 @@ class MaskEstimatorRNN(NeuralModule):
         speech recognition (https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8462081)
 
     Args:
-        num_outputs: number of output masks to estiamte
-        num_subbands: number of subbands of the input spectrogram
-        num_features: number of features after the input projections
-        num_layers: number of RNN layers
-        num_hidden_features: number of hidden features in RNN layers
-        dropout: dropout layer for RNN layers
-        bidirectional: If `True`, use bidirectional RNNs
-        rnn_type: `lstm` or `gru`, defaults to `lstm`
+        num_outputs: Number of output masks to estimate
+        num_subbands: Number of subbands of the input spectrogram
+        num_features: Number of features after the input projections
+        num_layers: Number of RNN layers
+        num_hidden_features: Number of hidden features in RNN layers
+        num_input_channels: Number of input channels
+        dropout: If non-zero, introduces dropout on the outputs of each RNN layer except the last layer, with dropout
+                 probability equal to `dropout`. Default: 0
+        bidirectional: If `True`, use bidirectional RNN.
+        rnn_type: Type of RNN, either `lstm` or `gru`. Default: `lstm`
     """
 
     def __init__(
@@ -383,6 +399,7 @@ class MaskEstimatorRNN(NeuralModule):
         num_features: int = 1024,
         num_layers: int = 3,
         num_hidden_features: Optional[int] = None,
+        num_input_channels: Optional[int] = None,
         dropout: float = 0,
         bidirectional=True,
         rnn_type: str = 'lstm',
@@ -393,12 +410,15 @@ class MaskEstimatorRNN(NeuralModule):
         if num_hidden_features is None:
             num_hidden_features = num_features
 
-        self.spatial_features = SpatialFeatures(
-            num_subbands=num_subbands, mag_reduction=mag_reduction, use_ipd=use_ipd
+        self.features = MultichannelFeatures(
+            num_subbands=num_subbands,
+            num_input_channels=num_input_channels,
+            mag_reduction=mag_reduction,
+            use_ipd=use_ipd,
         )
 
         self.input_projection = torch.nn.Linear(
-            in_features=self.spatial_features.num_features, out_features=num_features
+            in_features=self.features.num_features * self.features.num_channels, out_features=num_features
         )
 
         if rnn_type == 'lstm':
@@ -438,7 +458,7 @@ class MaskEstimatorRNN(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -447,7 +467,7 @@ class MaskEstimatorRNN(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'D', 'T', 'C'), FloatType()),
+            "output": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -456,20 +476,20 @@ class MaskEstimatorRNN(NeuralModule):
         """Estimate `num_outputs` masks from the input spectrogram.
 
         Args:
-            input: C-channel input, shape (B, F, N, C)
+            input: C-channel input, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
 
         Returns:
-            Returns `num_outputs` masks in a tensor, shape (B, F, N, num_outputs),
+            Returns `num_outputs` masks in a tensor, shape (B, num_outputs, F, N),
             and output length with shape (B,)
         """
-        input, _ = self.spatial_features(input=input, input_length=input_length)
-        B, num_features, N, num_feature_channels = input.shape
+        input, _ = self.features(input=input, input_length=input_length)
+        B, num_feature_channels, num_features, N = input.shape
 
-        # (B, num_feat, N, num_feat_channels) -> (B, N, num_feat, num_feat_channels)
-        input = input.transpose(1, 2)
+        # (B, num_feat_channels, num_feat, N) -> (B, N, num_feat_channels, num_feat)
+        input = input.permute(0, 3, 1, 2)
 
-        # (B, N, num_feat, num_feat_channels) -> (B, N, num_feat * num_feat_channels)
+        # (B, N, num_feat_channels, num_feat) -> (B, N, num_feat_channels * num_features)
         input = input.view(B, N, -1)
 
         # Apply projection on num_feat
@@ -498,19 +518,18 @@ class MaskEstimatorRNN(NeuralModule):
             # Append to the output
             output.append(mask)
 
-        # Stack along channel dimension to get (B, F, N, M)
-        output = torch.stack(output, axis=-1)
+        # Stack along channel dimension to get (B, M, F, N)
+        output = torch.stack(output, axis=1)
 
         # Mask frames beyond input length
         length_mask: torch.Tensor = make_seq_mask_like(
-            lengths=input_length, like=output, time_dim=-2, valid_ones=False
+            lengths=input_length, like=output, time_dim=-1, valid_ones=False
         )
         output = output.masked_fill(length_mask, 0.0)
 
         return output, input_length
 
 
-@experimental
 class MaskReferenceChannel(NeuralModule):
     """A simple mask processor which applies mask
     on ref_channel of the input signal.
@@ -533,9 +552,9 @@ class MaskReferenceChannel(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
-            "mask": NeuralType(('B', 'D', 'T', 'C'), FloatType()),
+            "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
         }
 
     @property
@@ -543,7 +562,7 @@ class MaskReferenceChannel(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -556,20 +575,18 @@ class MaskReferenceChannel(NeuralModule):
         If `mask` has `M` channels, the output will have `M` channels as well.
 
         Args:
-            input: Input signal complex-valued spectrogram, shape (B, F, N, C)
+            input: Input signal complex-valued spectrogram, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
-            mask: Mask for M outputs, shape (B, F, N, M)
+            mask: Mask for M outputs, shape (B, M, F, N)
 
         Returns:
-            M-channel output complex-valed spectrogram with shape (B, F, N, M)
+            M-channel output complex-valed spectrogram with shape (B, M, F, N)
         """
-        num_outputs = mask.shape[-1]
-
         # Apply thresholds
         mask = torch.clamp(mask, min=self.mask_min, max=self.mask_max)
 
         # Apply each output mask on the ref channel
-        output = torch.stack([mask[..., m] * input[..., self.ref_channel] for m in range(num_outputs)], axis=-1)
+        output = mask * input[:, self.ref_channel : self.ref_channel + 1, ...]
         return output, input_length
 
 
@@ -615,9 +632,9 @@ class MaskBasedBeamformer(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "input": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
-            "mask": NeuralType(('B', 'D', 'T', 'C'), FloatType()),
+            "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
         }
 
     @property
@@ -625,7 +642,7 @@ class MaskBasedBeamformer(NeuralModule):
         """Returns definitions of module output ports.
         """
         return {
-            "output": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
+            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
         }
 
@@ -636,20 +653,13 @@ class MaskBasedBeamformer(NeuralModule):
         If `mask` has `M` channels, the output will have `M` channels as well.
 
         Args:
-            input: Input signal complex-valued spectrogram, shape (B, F, N, C)
+            input: Input signal complex-valued spectrogram, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
-            mask: Mask for M output signals, shape (B, F, N, M)
+            mask: Mask for M output signals, shape (B, M, F, N)
         
         Returns:
-            M-channel output signal complex-valued spectrogram, shape (B, F, N, M)
+            M-channel output signal complex-valued spectrogram, shape (B, M, F, N)
         """
-        num_outputs = mask.shape[-1]
-
-        # Permute to TorchAudio format
-        # (B, F, N, C) -> (B, C, F, N)
-        input = input.permute(0, 3, 1, 2)
-        # (B, F, N, M) -> (B, M, F, N)
-        mask = mask.permute(0, 3, 1, 2)
         # Apply threshold on the mask
         mask = torch.clamp(mask, min=self.mask_min, max=self.mask_max)
         # Length mask
@@ -658,7 +668,7 @@ class MaskBasedBeamformer(NeuralModule):
         )
         # Use each mask to generate an output at ref_channel
         output = []
-        for m in range(num_outputs):
+        for m in range(mask.size(1)):
             # Prepare mask for the desired and the undesired signal
             mask_desired = mask[:, m, ...].masked_fill(length_mask, 0.0)
             mask_undesired = (1 - mask_desired).masked_fill(length_mask, 0.0)
@@ -671,6 +681,6 @@ class MaskBasedBeamformer(NeuralModule):
             # Save the current output (B, F, N)
             output.append(output_m)
 
-        output = torch.stack(output, axis=-1)
+        output = torch.stack(output, axis=1)
 
         return output, input_length
