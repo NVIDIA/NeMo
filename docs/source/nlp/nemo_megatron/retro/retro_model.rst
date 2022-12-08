@@ -10,16 +10,14 @@ context and cross-attention layers that integrate the context to improve the mod
     :width: 800px
     :alt: RETRO model architecture
  
-For full details of the model, please refer to the Deepmind's 
-`RETRO paper <https://arxiv.org/abs/2112.04426>`_.  NeMo RETRO Model is an open source implementation of it, compared 
-with Deepmind's proposed implementation, it has the following differences/features: 
+For more detailed information on the model, please refer to the `RETRO paper <https://arxiv.org/abs/2112.04426>`_ by Deepmind. 
+The NeMo RETRO Model is an open-source implementation of the paper, and it has the following differences/features compared to Deepmind's proposed implementation:
 
-1. NeMo RETRO Model is built on top of NeMo Megatron code, which can train large language model efficiently in a cluster environment. 
-2. NeMo RETRO Model uses `Faiss <https://github.com/facebookresearch/faiss>`_ as the KNN search library, which can be accelerated by GPU. 
-3. NeMo RETRO uses `RoPe relative positional encoding <https://arxiv.org/abs/2104.09864>`_. 
-4. NeMo RETRO uses `SentenceTransformers <https://www.sbert.net>`_ as the retriever encoder.
-5. NeMo RETRO supports `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_, which scale the RETRO model training via Zero-Shot Hyperparameter Transfer.
-
+1. The NeMo RETRO Model is built on top of NeMo Megatron code, allowing for efficient training of large language models in a cluster environment.
+2. The NeMo RETRO Model uses `Faiss <https://github.com/facebookresearch/faiss>`_ as the K$N search library, which can be accelerated by GPUs. 
+3. The NeMo RETRO uses `RoPe relative positional encoding <https://arxiv.org/abs/2104.09864>`_. 
+4. The NeMo RETRO uses `SentenceTransformers <https://www.sbert.net>`_ as the retriever encoder.
+5. The NeMo RETRO supports `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_, allowing for scalable training of the RETRO model via Zero-Shot Hyperparameter Transfer.
 
 Quick start
 ===========
