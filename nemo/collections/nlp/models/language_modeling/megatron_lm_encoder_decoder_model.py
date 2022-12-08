@@ -1094,10 +1094,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return output_tensor.transpose(1, 0)
 
     def _one_step_forward(
-        self, 
-        enc_output, 
-        enc_output_attn_mask, 
-        predicted_tokens_dec, 
+        self,
+        enc_output,
+        enc_output_attn_mask,
+        predicted_tokens_dec,
         dec_mask,
         tensor_shape,
         vocab_size,
@@ -1135,7 +1135,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.is_pipeline_last_stage():
             output_tensor = output_tensor[0]['logits']
             # make sure it won't sample outside the vocab_size range
-            output_tensor[:, :, vocab_size :] = -float('Inf')
+            output_tensor[:, :, vocab_size:] = -float('Inf')
             # ignore selected indices
             if ignore_ids:
                 output_tensor = output_tensor.index_fill(
@@ -1147,7 +1147,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             log_probs = torch.zeros(
                 (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
             ).cuda()
-            
+
         return log_probs
 
     def compute_len_penalty(self, lengths, alpha):
@@ -1155,7 +1155,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return ((5 + lengths) / 6).pow(alpha)
 
     def decode(
-        self, 
+        self,
         tokens_enc,
         enc_mask,
         num_tokens_to_generate,
@@ -1171,6 +1171,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # prepare init data
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
+
             def dummy():
                 return
 
@@ -1225,7 +1226,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # single step forward
         dec_mask = predicted_tokens_dec != tokenizer.pad_id
         log_probs = self._one_step_forward(
-            enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, tensor_shape, tokenizer.vocab_size, device, ignore_ids
+            enc_output,
+            enc_output_attn_mask,
+            predicted_tokens_dec,
+            dec_mask,
+            tensor_shape,
+            tokenizer.vocab_size,
+            device,
+            ignore_ids,
         )
 
         # get scores and tokens
@@ -1240,9 +1248,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # repeat source sequence beam_size times for beam search
         _, src_length, hidden_size = enc_output.size()
         enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
-        enc_output = enc_output.repeat(1, beam_size, 1).view(
-            -1, src_length, hidden_size
-        )
+        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
 
         # pad_profile tracks finished hypotheses to generate only <pad> tokens
         # if <eos> or <pad> has been generated
@@ -1266,12 +1272,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         for _ in range(num_tokens_to_generate):
             # generate and score candidates for prefixes continuation
             log_probs = self._one_step_forward(
-                enc_output, enc_output_attn_mask, prefixes, prefixes != tokenizer.pad_id, tensor_shape, tokenizer.vocab_size, device, ignore_ids
+                enc_output,
+                enc_output_attn_mask,
+                prefixes,
+                prefixes != tokenizer.pad_id,
+                tensor_shape,
+                tokenizer.vocab_size,
+                device,
+                ignore_ids,
             )
 
             # get top candidates for each item in batch
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], beam_size, dim=-1)
-
 
             # mask all finished hypotheses to exclude them from beam
             pad_mask = pad_profile.repeat(1, beam_size)
