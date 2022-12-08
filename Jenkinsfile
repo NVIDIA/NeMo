@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:22.09-py3'
+          image 'nvcr.io/nvidia/pytorch:22.11-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -58,12 +58,12 @@ pipeline {
     }
 
     // TODO: remove this when PTL updates their torchtext import logic
-    stage('Remove torchtext from PTL Imports') {
-      steps {
-        sh "sed -i 's/_module_available(\"torchtext\")/False/g' /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
-        sh "cat /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
-      }
-    }
+    // stage('Remove torchtext from PTL Imports') {
+    //   steps {
+    //     sh "sed -i 's/_module_available(\"torchtext\")/False/g' /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
+    //     sh "cat /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
+    //   }
+    // }
 
     stage('PyTorch Lightning version') {
       steps {
@@ -102,18 +102,6 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests Speech Data Processor') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'pip install -r tools/speech_data_processor/requirements.txt'
-        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
-      }
-    }
 
     stage('L0: TN/ITN Tests CPU') {
       when {
@@ -560,6 +548,54 @@ pipeline {
     //         +trainer.fast_dev_run=True \
     //         exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
     //         sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
+    //       }
+    //     }
+    //     stage('L3: Speech to Text Hybrid Transducer-CTC WPE') {
+    //       steps {
+    //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/asr_hybrid_transducer_ctc/speech_to_text_hybrid_rnnt_ctc_bpe.py \
+    //         --config-path="../conf/conformer/hybrid_transducer_ctc/conformer_hybrid_transducer_ctc/" --config-name="conformer_hybrid_transducer_ctc_bpe.yaml" \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         model.encoder.n_layers= 2 \
+    //         model.train_ds.batch_size=2 \
+    //         model.validation_ds.batch_size=2 \
+    //         model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+    //         model.tokenizer.type="wpe" \
+    //         trainer.devices=[0] \
+    //         trainer.accelerator="gpu" \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_hybrid_transducer_ctc_wpe_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_hybrid_transducer_ctc_wpe_results'
+    //       }
+    //     }
+    //   }
+    // }
+
+    // stage('L2: Hybrid ASR RNNT-CTC dev run') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Speech to Text Hybrid Transducer-CTC WPE') {
+    //       steps {
+    //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/asr_hybrid_transducer_ctc/speech_to_text_hybrid_rnnt_ctc_bpe.py \
+    //         --config-path="../conf/conformer/hybrid_transducer_ctc/conformer_hybrid_transducer_ctc/" --config-name="conformer_hybrid_transducer_ctc_bpe.yaml" \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         model.encoder.n_layers= 2 \
+    //         model.train_ds.batch_size=2 \
+    //         model.validation_ds.batch_size=2 \
+    //         model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+    //         model.tokenizer.type="wpe" \
+    //         trainer.devices=[0] \
+    //         trainer.accelerator="gpu" \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_hybrid_transducer_ctc_wpe_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_hybrid_transducer_ctc_wpe_results'
     //       }
     //     }
     //   }
