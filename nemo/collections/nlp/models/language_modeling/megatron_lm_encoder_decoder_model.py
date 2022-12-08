@@ -630,7 +630,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 return output_tensor[0], {output_name: output_tensor[0], 'memory': output_tensor[1]}
 
             if 'return_memory' in arg_names:
-                print('YYYYYYYY')
                 return output, id_func_memory
 
             return output, id_func
@@ -1121,6 +1120,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, cached_keys, cached_values, return_memory_arr]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'cached_keys', 'cached_values', 'return_memory']
         else:
+            print('>>> Not using cache ...')
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
@@ -1150,8 +1150,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
         # get output tensor
+        new_cache = None
         if parallel_state.is_pipeline_last_stage():
-            new_cache = output_tensor[0]['memory']
+            if 'memory' in output_tensor[0]:
+                new_cache = output_tensor[0]['memory']
             output_tensor = output_tensor[0]['logits']
             # make sure it won't sample outside the vocab_size range
             output_tensor[:, :, vocab_size :] = -float('Inf')
@@ -1171,7 +1173,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     @staticmethod
     def compute_len_penalty(lengths, alpha):
-        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
+        """ Returns length penalty """
         return ((5 + lengths) / 6).pow(alpha)
 
     def decode(
@@ -1185,6 +1187,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         beam_size=5,
+        beam_alpha=0.1,
         use_memory=False,
         return_cache=False,
     ):
@@ -1242,25 +1245,29 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_output_attn_mask = enc_mask
 
         # single step forward
-        key_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
-        val_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
+        key_cache, val_cache = None, None
+        if return_cache:
+            key_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
+            val_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
 
         dec_mask = predicted_tokens_dec != tokenizer.pad_id
         log_probs, new_cache = self._one_step_forward(
             enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, tensor_shape, tokenizer.vocab_size, device, cached_keys=key_cache, cached_values=val_cache
         )
 
-        # concat the new cache
-        key_cache = torch.cat((key_cache, new_cache[:, 0].transpose(0, 1).unsqueeze(2)), dim=2)
-        val_cache = torch.cat((val_cache, new_cache[:, 1].transpose(0, 1).unsqueeze(2)), dim=2)
+        # concat the new cache if exists
+        if new_cache is not None:
+            key_cache = torch.cat((key_cache, new_cache[:, 0].transpose(0, 1).unsqueeze(2)), dim=2)
+            val_cache = torch.cat((val_cache, new_cache[:, 1].transpose(0, 1).unsqueeze(2)), dim=2)
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
         tgt = torch.ones((batch_size, 1)).to(device) * tokenizer.bos_id
         prefixes = torch.cat((tgt.repeat(1, beam_size).view(-1, 1), prefixes), dim=1).long()
-        key_cache = key_cache.repeat(5, 1, 1, 1, 1)
-        val_cache = val_cache.repeat(5, 1, 1, 1, 1)
+        if new_cache is not None:
+            key_cache = key_cache.repeat(5, 1, 1, 1, 1)
+            val_cache = val_cache.repeat(5, 1, 1, 1, 1)
 
         # repeat source sequence beam_size times for beam search
         _, src_length, hidden_size = enc_output.size()
@@ -1280,26 +1287,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # reconfigure batch size for apex
         global_batch_per_gpu = prefixes.shape[0]
         tensor_shape[1] = prefixes.shape[0]
-        
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+            micro_batch_size=global_batch_per_gpu,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
-        for i in range(num_tokens_to_generate):
+        for _ in range(num_tokens_to_generate):
             # generate and score candidates for prefixes continuation
             log_probs, new_cache = self._one_step_forward(
-                enc_output, enc_output_attn_mask, prefixes[:, -1].unsqueeze(1), prefixes[:, -1].unsqueeze(1) != tokenizer.pad_id, tensor_shape, tokenizer.vocab_size, device, cached_keys=key_cache, cached_values=val_cache
+                enc_output, enc_output_attn_mask, prefixes, prefixes != tokenizer.pad_id, tensor_shape, tokenizer.vocab_size, device, cached_keys=key_cache, cached_values=val_cache
             )
 
             # get top candidates for each item in batch
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], beam_size, dim=-1)
 
-            key_cache = torch.cat((key_cache, new_cache[:, 0].transpose(0, 1).unsqueeze(2)), dim=2)
-            val_cache = torch.cat((val_cache, new_cache[:, 1].transpose(0, 1).unsqueeze(2)), dim=2)
+            if new_cache is not None:
+                key_cache = torch.cat((key_cache, new_cache[:, 0].transpose(0, 1).unsqueeze(2)), dim=2)
+                val_cache = torch.cat((val_cache, new_cache[:, 1].transpose(0, 1).unsqueeze(2)), dim=2)
 
             # mask all finished hypotheses to exclude them from beam
             pad_mask = pad_profile.repeat(1, beam_size)
@@ -1315,7 +1322,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
 
             # choose top-k hypotheses with length penalty applied
-            len_penalties = self.compute_len_penalty(prefixes_len, 0)
+            len_penalties = self.compute_len_penalty(prefixes_len, beam_alpha)
             scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, beam_size ** 2), beam_size, dim=1)
             scores = scores.view(-1, 1) * len_penalties
@@ -1347,7 +1354,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tgt_text = prefixes.view(batch_size, beam_size, -1).gather(1, best_guesses).squeeze(1)
         return tgt_text, None
 
-    def decode_old(
+    def decode_greedy(
         self,
         tokens_enc,
         enc_mask,

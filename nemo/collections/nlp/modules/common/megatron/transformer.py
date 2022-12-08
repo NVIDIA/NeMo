@@ -1570,6 +1570,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         cached_keys=None,
         cached_values=None,
         checkpoint_core_attention=False,
+        key_infused_adapter=None,
+        value_infused_adapter=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
