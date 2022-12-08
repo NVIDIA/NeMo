@@ -1219,7 +1219,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_output = self.encode(
                 tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
             )
-            batch_size = enc_output.shape[0]
+        batch_size = enc_output.shape[0]
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
