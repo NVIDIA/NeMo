@@ -13,12 +13,9 @@
 # limitations under the License.
 
 """
-Given NMT model's .nemo file(s), this script can be used to translate text.
+Given NMT model's .nemo file, this script can be used to translate text.
 USAGE Example:
-1. Obtain text file in src language. You can use sacrebleu to obtain standard test sets like so:
-    sacrebleu -t wmt14 -l de-en --echo src > wmt14-de-en.src
-2. Translate:
-    python nmt_transformer_infer.py --model=[Path to .nemo file(s)] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
+    python nmt_transformer_infer_megatron.py --config-path=conf --config-name="nmt_megatron_infer" model_file=[Path to .nemo file] srctext=[Path to source text file] tgtout=[Path to output text file] source_lang=[source language] target_lang=[target language] batch_size=[batch size] beam_size=[beam search length] beam_alpha=[beam search penalty param] 
 """
 
 
@@ -93,13 +90,13 @@ def main(cfg) -> None:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
                 translations = model.translate(
-                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,
+                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang, beam_size=cfg.beam_size, beam_alpha=cfg.beam_alpha,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
                 src_text = []
         if len(src_text) > 0:
-            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,)
+            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang, beam_size=cfg.beam_size, beam_alpha=cfg.beam_alpha,)
             for translation in translations:
                 tgt_f.write(translation + "\n")
 
