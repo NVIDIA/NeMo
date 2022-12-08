@@ -734,6 +734,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         averaged_metric = []
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
+        if len(outputs) == 0:
+            return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
         for dataloader_idx, output in enumerate(outputs):
