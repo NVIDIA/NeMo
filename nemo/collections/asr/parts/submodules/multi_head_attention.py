@@ -270,7 +270,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         dropout_rate (float): dropout rate
         pos_bias_u (Tensor): the positional bias matrix U
         pos_bias_v (Tensor): the positional bias matrix V
-        att_context_size (
+        att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes.
         max_cache_len (int): the maximum size of cache
     """
 
