@@ -365,7 +365,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
         self._macro_accuracy.update(preds=logits, target=labels)
-        stats = self._macro_accuracy._get_final_stats()
+        stats = self._macro_accuracy._final_state()
 
         return {
             f'{tag}_loss': loss_value,
