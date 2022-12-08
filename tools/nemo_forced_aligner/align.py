@@ -15,14 +15,9 @@
 from pathlib import Path
 
 import torch
-from nemo.collections.asr.models import ASRModel
+from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
 
-from utils import (
-    get_manifest_lines,
-    get_log_probs_y_T_U,
-    make_basetoken_ctm,
-    make_word_ctm,
-)
+from nemo.collections.asr.models import ASRModel
 
 V_NEG_NUM = -1e30
 
@@ -48,7 +43,7 @@ def viterbi_decoding(log_probs, y, T, U):
     padding_for_log_probs = V_NEG_NUM * torch.ones((B, T_max, 1))
     log_probs_padded = torch.cat((log_probs, padding_for_log_probs), dim=2)
     log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=y.unsqueeze(1).repeat(1, T_max, 1))
-    log_probs_reordered = log_probs_reordered.cpu() # TODO: do alignment on GPU if available
+    log_probs_reordered = log_probs_reordered.cpu()  # TODO: do alignment on GPU if available
 
     v_matrix = V_NEG_NUM * torch.ones_like(log_probs_reordered)
     backpointers = -999 * torch.ones_like(v_matrix)
@@ -111,7 +106,7 @@ def align(
     model_downsample_factor,
     output_ctm_folder,
     grouping_for_ctm,
-    utt_id_extractor_func=lambda fp : Path(fp).resolve().stem,
+    utt_id_extractor_func=lambda fp: Path(fp).resolve().stem,
     audio_sr=16000,  # TODO: get audio SR automatically
     device="cuda:0",
     batch_size=1,

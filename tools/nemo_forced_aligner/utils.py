@@ -14,6 +14,7 @@
 
 import json
 import os
+
 import torch
 
 V_NEG_NUM = -1e30
@@ -108,6 +109,7 @@ def get_log_probs_y_T_U(data, model):
     U_dash = torch.tensor(U_dash_list)
 
     return log_probs, y, T, U_dash
+
 
 def make_basetoken_ctm(
     data, alignments, model, model_downsample_factor, output_ctm_folder, utt_id_extractor_func, audio_sr,
@@ -223,7 +225,7 @@ def make_word_ctm(
 
             for word_i, word in enumerate(manifest_line["text"].split(" ")):
                 word_info = {
-                    "word": word, 
+                    "word": word,
                     "u_start": u_counter,
                     "u_end": None,
                     "t_start": None,
@@ -239,7 +241,7 @@ def make_word_ctm(
                 if word_i < len(manifest_line["text"].split(" ")) - 1:
                     # add the space after every word except the final word
                     word_info = {
-                        "word": "<space>", 
+                        "word": "<space>",
                         "u_start": u_counter,
                         "u_end": None,
                         "t_start": None,
