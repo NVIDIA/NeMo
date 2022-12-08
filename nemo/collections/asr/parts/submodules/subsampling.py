@@ -49,7 +49,7 @@ class StackingSubsampling(torch.nn.Module):
         if hidden_sizes:
             layers = []
             in_size = subsampling_factor * feat_in
-            for size in hidden_sizes:
+            for out_size in hidden_sizes:
                 layers.append(torch.nn.Linear(in_size, out_size))
                 layers.append(activation)
                 in_size = out_size
