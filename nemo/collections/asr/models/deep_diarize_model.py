@@ -25,7 +25,7 @@ from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.combined_data import CombinedSegmentDataset
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
-from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
+from nemo.collections.asr.data.deep_diarize.train_data import MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.utils import ContextWindow
 from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -415,10 +415,20 @@ class DeepDiarizeModel(ModelPT):
         self.sub_sample_length = int(self.train_sequence_length / self.cfg.subsampling) + 1
         return featurizer, preprocessor, context_window
 
+    def _get_global_step(self) -> int:
+        global_step = self.trainer.global_step
+        if self.trainer.resume_from_checkpoint:
+            x = torch.load(self.trainer.resume_from_checkpoint)
+            global_step = x['global_step']
+            del x
+        return global_step
+
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor, context_window = self._setup_preprocessor(cfg)
 
         spec_augmentation = ASRModel.from_config_dict(self.cfg.spec_augment)
+
+        global_step = self._get_global_step()
 
         datasets = CombinedSegmentDataset.create_streaming_datasets(
             manifest_filepaths=cfg.manifest_filepaths,
@@ -434,6 +444,7 @@ class DeepDiarizeModel(ModelPT):
             batch_size=cfg.batch_size,
             max_workers=cfg.num_workers,
             max_speakers=self.cfg.num_speakers,
+            global_step=global_step,
             add_speaker_per_n_steps=self.add_speaker_per_n_steps,
         )
         self._train_dl = MultiStreamDataLoader(datasets)

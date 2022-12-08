@@ -68,6 +68,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         max_workers,
         weights: List[float],
         max_speakers: int,
+        global_step: int,
         add_speaker_per_n_steps: Optional[int],
     ):
         num_workers = max_workers
@@ -90,6 +91,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
             window_stride=window_stride,
             weights=weights,
             max_speakers=max_speakers,
+            global_step=global_step,
             add_speaker_per_n_steps=add_speaker_per_n_steps,
         )
 
@@ -109,6 +111,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         window_stride: float,
         weights: List[float],
         max_speakers: int,
+        global_step: int,
         add_speaker_per_n_steps: Optional[int],
     ):
         datasets = []
@@ -130,6 +133,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
                     max_speakers=max_speakers,
                     add_speaker_per_n_steps=add_speaker_per_n_steps,
                     batch_size=split_size,
+                    global_step=global_step,
                 )
             )
         if voxceleb_config.voxceleb_path is not None:

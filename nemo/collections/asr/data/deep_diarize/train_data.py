@@ -75,6 +75,7 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         train_segment_seconds: int,
         max_speakers: int,
         batch_size: int,
+        global_step: int,
         add_speaker_per_n_steps: Optional[int] = None,
     ):
         self.data_list = data_list
@@ -89,10 +90,21 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.manifest_filepath = manifest_filepath
         self.add_speaker_per_n_steps = add_speaker_per_n_steps
-        self.data_step = 0
+        self.data_step = global_step
         self.cur_speakers = max_speakers if not add_speaker_per_n_steps else 2
         self.batch_size = batch_size
-        print(f"Incrementing speakers every {add_speaker_per_n_steps} steps, starting from 2 to {max_speakers}")
+        print(f"Current datastep {self.data_step}")
+        if self.data_step > 0:
+            self._fast_forward_cur_speaker()
+
+        print(
+            f"Incrementing speakers every {add_speaker_per_n_steps} steps, "
+            f"starting from {self.cur_speakers} to {max_speakers}"
+        )
+
+    def _fast_forward_cur_speaker(self):
+        for x in range(0, self.data_step):
+            self._increment_cur_speaker_if_steps_reached(data_step=x)
 
     def parse_rttm_for_ms_targets(
         self, rttm_timestamps: list, offset: float, end_duration: float, speakers: List,
@@ -191,15 +203,18 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                         # todo: data_step assumes that we have stepped this particular data-loader
                         # with multiple data-loaders this isn't true
                         self.data_step += 1
-                        total_data_steps = self.add_speaker_per_n_steps * self.batch_size
-                        if self.data_step > 0 and self.data_step % total_data_steps == 0:
-                            if self.cur_speakers < self.max_speakers:
-                                self.cur_speakers += 1
-                                print(f"Incrementing speakers to {self.cur_speakers}")
+                        self._increment_cur_speaker_if_steps_reached(self.data_step)
 
         except Exception as e:
             print("Failed data-loading for", sample.audio_file, e)
             raise e
+
+    def _increment_cur_speaker_if_steps_reached(self, data_step):
+        total_data_steps = self.add_speaker_per_n_steps * self.batch_size
+        if data_step > 0 and data_step % total_data_steps == 0:
+            if self.cur_speakers < self.max_speakers:
+                self.cur_speakers += 1
+                print(f"Incrementing speakers to {self.cur_speakers}")
 
     @staticmethod
     def data_setup(manifest_filepath: str, max_speakers: int):
