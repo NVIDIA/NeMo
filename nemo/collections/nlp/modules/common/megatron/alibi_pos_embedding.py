@@ -14,9 +14,11 @@
 # limitations under the License.
 
 import math
+
 import torch
 
 __all__ = ['DecoderALiBiRelativePositionEmbedding', 'EncoderALiBiRelativePositionEmbedding']
+
 
 def get_slopes(n):
     def get_slopes_power_of_2(n):
@@ -32,6 +34,7 @@ def get_slopes(n):
             get_slopes_power_of_2(closest_power_of_2)
             + get_slopes(2 * closest_power_of_2)[0::2][: n - closest_power_of_2]
         )
+
 
 def build_relative_position(query_length, key_length, num_attention_heads):
     context_position = torch.arange(query_length)[:, None].cuda()
@@ -120,9 +123,7 @@ class DecoderALiBiRelativePositionEmbedding(torch.nn.Module):
         self.alibi = self.slopes.unsqueeze(1).unsqueeze(1) * relative_position
         self.alibi = self.alibi.view(1, attn_heads, maxpos, maxpos)
 
-        slopes = torch.Tensor(
-            get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads)
-        )
+        slopes = torch.Tensor(get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads))
         alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
             num_attention_heads, -1, -1
         )
@@ -134,6 +135,7 @@ class DecoderALiBiRelativePositionEmbedding(torch.nn.Module):
 
         alibi = alibi.repeat(batch_size, 1, 1)
         return alibi
+
 
 class EncoderALiBiRelativePositionEmbedding(torch.nn.Module):
     """
