@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-
-__all__ = ['ALiBiRelativePositionEmbedding']
+__all__ = ['DecoderALiBiRelativePositionEmbedding', 'EncoderALiBiRelativePositionEmbedding']
 
 def get_slopes(n):
     def get_slopes_power_of_2(n):
@@ -98,8 +97,7 @@ class DecoderALiBiRelativePositionEmbedding(torch.nn.Module):
         # shape (1, num_heads, query_length, key_length)
         return relative_position.unsqueeze(0) * self.slopes.unsqueeze(-1).unsqueeze(-1)
 
-    @staticmethod
-    def build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
+    def _build_alibi_tensor(self, max_seq_len, num_attention_heads, batch_size):
         """
         Based on https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
         Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)
@@ -189,8 +187,7 @@ class EncoderALiBiRelativePositionEmbedding(torch.nn.Module):
         # shape (1, num_heads, query_length, key_length)
         return relative_position.unsqueeze(0) * self.slopes.unsqueeze(-1).unsqueeze(-1)
 
-    @staticmethod
-    def build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
+    def _build_alibi_tensor(self, max_seq_len, num_attention_heads, batch_size):
         """
         Based on https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
         Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)
