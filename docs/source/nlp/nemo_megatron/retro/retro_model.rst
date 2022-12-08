@@ -1,8 +1,16 @@
 NeMo RETRO Model
 ================
 
-Retrieval-Enhanced Transformer (RETRO) Model is an auto-regressive language models which can condition 
-on document chunks retrieved from a large corpus. For full details of the model, please refer to the Deepmind's 
+The Retrieval-Enhanced Transformer (RETRO) model is an autoregressive language model that takes into account document chunks retrieved from a large 
+corpus when making predictions. The RETRO model has a similar architecture to the GPT model, but it includes an encoder that encodes the retrieved 
+context and cross-attention layers that integrate the context to improve the model's output. Below is a simple diagram of the RETRO model architecture.
+
+.. image:: images/arch.png
+    :align: center
+    :width: 800px
+    :alt: RETRO model architecture
+ 
+For full details of the model, please refer to the Deepmind's 
 `RETRO paper <https://arxiv.org/abs/2112.04426>`_.  NeMo RETRO Model is an open source implementation of it, compared 
 with Deepmind's proposed implementation, it has the following differences/features: 
 
@@ -23,11 +31,10 @@ Data pre-processing
 Step 1: Collect training data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are two types of data for the RETRO model: training data (typically has 64 tokens chunks) and retrieval data (typically has 128 tokens chunks).
-The training data is used to train the RETRO model, while the retrieval data is used as external data to augment the language model. 
-Note that we can use the same data for both training and retrieval, as long as we remove duplicates properly, as explained later.
-
-Both types of raw data are prepared in a loose json format, with one json containing a text sample per line. For example:
+The RETRO model uses two types of data: training data, which typically consists of 64-token chunks, and retrieval data, which typically consists of 128-token chunks.
+The training data is used to train the model, while the retrieval data is used to supplement the language model. 
+It's possible to use the same data for both training and retrieval, as long as duplicates are removed properly, as described below. 
+Both types of data are stored in a loose JSON format, with each line containing a single text sample. For example:
 
 .. code-block:: json
 
@@ -106,9 +113,8 @@ Following is the retro memory map binary data format:
 Step 3: Create Faiss index for retrieval data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Once we have the memory map retrieval data binary file and index files ready from the previous steps, we can begin to build the Faiss
-index that can query the K-nearest neighbors of the chunk IDs given a query embedding vector. Since the retrieval data is typically 
-large in size, we break the process down into three sub-steps.
+After creating the memory map retrieval data binary file and index files, we can build a Faiss index that can quickly find the K-nearest neighbors of a given
+chunk ID based on a query embedding vector. Because the retrieval data is typically very large, we break this process down into three steps.
 
 Step 3.1: Train the Faiss index structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -132,15 +138,14 @@ In this step, it uses a subset of the retrieval data to train a empty Faiss inde
     --stage=0 \
     --output_file=/result/pubmed_faiss_learn.index
 
-This will build the empty Faiss index using the ``2000000`` training data in pubmed_train_text_document. 
-the ``all-mpnet-base-v2`` sentence transformer model is used to encode the chunk tokens into embedding vector.
-The index will be saved in the result directory as ``pubmed_faiss_learn.index``. Here we specify to use 8 GPUs to train
-the Faiss index.
+This command is used to build an empty Faiss index using the 2000000 training data in ``pubmed_train_text_document``. 
+The ``all-mpnet-base-v2`` sentence transformer model is used to encode the chunk tokens into an embedding vector. 
+The index will be saved in the result directory as ``pubmed_faiss_learn.index``. This command specifies using 8 GPUs to train the Faiss index.
 
 Step 3.2: Add retrieval data into sharding index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this step, it adds all the retrieval data into the empty Faiss index created in the previous step.  An example script is:
+This step adds all the retrieval data to the empty Faiss index created in the previous step. An example script is:
 
 .. code-block:: bash
 
@@ -161,13 +166,13 @@ In this step, it adds all the retrieval data into the empty Faiss index created 
         --learned_index=/result/pubmed_faiss_learn.index \
         --output_file=/result/pubmed_faiss_shard0.save
 
-This will break down the retrieval data into ``--total_shards`` shards, and add the data in shard id specified by ``--shard_id``. The 
-result will be saved as a file specified by ``--output_file``. In the above example, it will create 10 sharding indexes.
+This command breaks the retrieval data into ``total_shards`` shards and adds the data in the shard specified by ``shard_id``. 
+The result is saved to a file specified by ``output_file``. In the example above, 10 sharding indexes are created.
 
 Step 3.3: Merge the sharding indexes into final Faiss index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this step, it merges all the sharding indexes created in the previous step into the final Faiss index.  An example script is:
+This step merges all the sharding indexes created in the previous step into the final Faiss index.  An example script is:
 
 .. code-block:: bash
 
@@ -181,9 +186,9 @@ In this step, it merges all the sharding indexes created in the previous step in
 Step 4: Build KNN index
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-During training, it is wasteful to run query for KNN chunk IDs for each of the training data point. This can be pre-calculated by 
-building the KNN index before training. The KNN index maps the training data chunk id to K-nearest neighbors chunk id in the retrieval 
-data. Similarly to building Faiss index, we break the process down into two sub-steps.
+During training, it is inefficient to run a query to find the K-nearest neighbor chunk IDs for each training data point. 
+This can be pre-calculated by building a KNN index before training. The KNN index maps the training data chunk IDs to the K-nearest neighbor chunk IDs 
+in the retrieval data. As with building the Faiss index, this process is divided into two steps.
 
 Following is the KNN index data format:
 
@@ -199,8 +204,8 @@ Following is the KNN index data format:
 Step 4.1: Build KNN sharding index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To build the KNN index, it uses the memory mapping training data created by `preprocess_data_for_megatron.py` script.
-It also uses the Faiss Index file for the retrieval data built by `build_retrieval_index.py` script.
+The KNN index is built using the memory-mapped training data created by the ``preprocess_data_for_megatron.py`` script and the Faiss index 
+file for the retrieval data built by the ``build_retrieval_index.py`` script.
 
 An example script is:
 
@@ -227,11 +232,10 @@ An example script is:
         --output_file=/dataset/pubmed_knn_shard0.save \
         --faiss_index=/result/pubmed_faiss_final.index
 
-In this example, it break down the training data into ``--total_shards`` shards, and calculate the KNN index for shard id specified by ``--shard_id``.
-The result will be saved as a file specified by ``--output_file``. In the above example, it will create 10 KNN sharding indexes.
+In this example, the training data is broken into ``total_shards`` shards, and the KNN index is calculated for the shard specified by ``shard_id``. 
+The result is saved to a file specified by ``output_file``. In the example above, 10 KNN sharding indexes are created.
 
-Use ``--remove_duplicate`` flag if the training data and retrieval data are the same. It will remove the neighbors from the same 
-document. 
+Use the ``remove_duplicate`` flag if the training data and retrieval data are the same to remove neighbors from the same document.
 
 Step 4.2: Merge KNN sharding index into final KNN index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -248,8 +252,8 @@ An example script is:
 Train NeMo RETRO Model
 -----------------------
 
-Once the training data, retrieval data, KNN index, Faiss index are prepared, we are ready to train the RETRO model. In our NeMo implementation,
-RETRO model can be pre-trained with/without `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ feature. We will introduce both ways.
+Once the training data, retrieval data, KNN index, and Faiss index are prepared, we are ready to train the RETRO model. In the NeMo implementation, 
+the RETRO model can be pre-trained with or without the `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ feature. We will introduce both ways.
 
 Option 1: Train the NeMo RETRO model *without* mu-Transfer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -340,9 +344,9 @@ model. This is can be done cheaply ans fast due to the small model size.
 Step 2. calculate the shape file that can be used to run mu-Transfer 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The shape file determines which hyperparameter will be scaled up so the model knows how to adjust learning rate, weight scaling factor etc.
+The shape file determines which hyperparameters will be scaled up, allowing the model to adjust the learning rate, weight scaling factor, etc.
 
-An example shape file calculation script is:
+Here is an example shape file calculation script:
 
 .. code-block:: bash
     python examples/nlp/language_modeling/megatron_retro_cal_shape.py
@@ -382,15 +386,15 @@ An example shape file calculation script is:
     delta_model.megatron_amp_O2=False \
     model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
 
-where the base_model refers to the small base model that an optimal hyperparameter is determined. The delta_model refers to a model
-that has certain hyperparameter scaled up or down. In the example shown, 'hidden_size' and 'ffn_hidden_size' is changed in the delta
-model, so we can scale these two parameters freely later.
+In this example, the ``base_model`` refers to the small base model for which an optimal set of hyperparameters has been determined. 
+The ``delta_model`` refers to a model with certain hyperparameters that have been scaled up or down. In this case, 
+the ``hidden_size`` and ``ffn_hidden_size`` have been changed in the ``delta_model``, allowing these two parameters to be scaled freely later.
 
-Step 3. pretrain mu-Transfer RETRO model
+Step 3. Pretrain mu-Transfer RETRO model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once the shape file is ready, we can start to train a RETRO model that can be scaled freely with the hyperparameter determined by 
-the delta model.
+Once the shape file is created, we can start training a RETRO model.  The model training can be scale up freely using the hyperparameters 
+specified by the delta model and the shape file. 
 
 An example mu-Transfer pre-training script is:
 
@@ -455,19 +459,19 @@ An example mu-Transfer pre-training script is:
         model.activations_checkpoint_num_layers=1 \
         model.shape_file=tp8_32depth_o1_rel_shape_info.yaml
 
-Note, we choose to use ``muadamw`` as optimizer to work with mu-transfer method. Currently only ``muadam`` and ``muadamw`` are supported.
-Similarly to the Option 1 pre-training, after the training, the model nemo file can be found at the result checkpoint directory.
-
+Note: we have chosen to use ``muadamw`` as the optimizer for use with the mu-transfer method. 
+Currently, only ``muadam`` and ``muadamw`` are supported. Similarly to the pre-training in Option 1, the model nemo file can be found at the result
+checkpoint directory after training is complete.
 
 Run NeMo RETRO Model Inference
 -------------------------------
 
-Once the NeMo RETRO model is trained, we can start to put the model in inference mode and play with it. During inference time, we are not
-limited to the static Faiss index that we built before to run KNN queries. We can feed any external data to the model as retrieval context. In NeMo RETRO
-implementation, it supports dynamic retrieval service that user can add, reset and query new documents on the fly. 
+Once the NeMo RETRO model has been trained, we can put it into inference mode and experiment with it. 
+During inference, we are not limited to the static Faiss index that we built earlier for KNN queries. 
+We can feed any external data to the model as retrieval context. NeMo RETRO implementation supports dynamic retrieval service, 
+allowing users to add, reset, and query new documents on the fly.
 
-We have built a simple web client that users can play with it easily. Here is an example script to launch the server:
-
+We have built a simple web client that makes it easy for users to play around with the model. Here is an example script to launch the server:
 
 .. code-block:: bash
 
@@ -493,7 +497,7 @@ We have built a simple web client that users can play with it easily. Here is an
     username=test \
     password=test123
 
-Set the ``retro_model_file`` to use the generated nemo file from the pre-training step. After launching the server, copy-paste the 
-URL from the terminal to the browser. Use the specified username and password to login. Have fun to play with the RETRO model. 
+Set the retro_model_file to use the nemo file generated in the pre-training step. After launching the server, copy-paste the URL from 
+the terminal into your browser. Use the specified username and password to log in and have fun experimenting with the RETRO model.
 
 
