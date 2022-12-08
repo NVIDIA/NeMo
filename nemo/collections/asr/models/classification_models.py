@@ -124,8 +124,10 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         else:
             audio_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(('B', 'T'), audio_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -133,19 +135,30 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         pass
 
-    def forward(self, input_signal, input_signal_length):
-        processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
-        )
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+    ):
+        has_input_signal = input_signal is not None and input_signal_length is not None
+        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        if (has_input_signal ^ has_processed_signal) == False:
+            raise ValueError(
+                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
+                " with ``processed_signal`` and ``processed_signal_length`` arguments."
+            )
+
+        if not has_processed_signal:
+            processed_signal, processed_signal_length = self.preprocessor(
+                input_signal=input_signal, length=input_signal_length,
+            )
         # Crop or pad is always applied
         if self.crop_or_pad is not None:
-            processed_signal, processed_signal_len = self.crop_or_pad(
-                input_signal=processed_signal, length=processed_signal_len
+            processed_signal, processed_signal_length = self.crop_or_pad(
+                input_signal=processed_signal, length=processed_signal_length
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         logits = self.decoder(encoder_output=encoded)
         return logits
 
@@ -562,8 +575,15 @@ class EncDecClassificationModel(_EncDecBaseModel):
         return {'log': tensorboard_log}
 
     @typecheck()
-    def forward(self, input_signal, input_signal_length):
-        logits = super().forward(input_signal=input_signal, input_signal_length=input_signal_length)
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+    ):
+        logits = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
         return logits
 
     def change_labels(self, new_labels: List[str]):
