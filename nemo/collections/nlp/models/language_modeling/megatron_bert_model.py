@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
@@ -471,7 +471,7 @@ class MegatronBertModel(MegatronBaseModel):
         padding_mask = batch['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
-    def _build_train_valid_test_datasets(self):
+    def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
@@ -492,7 +492,7 @@ class MegatronBertModel(MegatronBaseModel):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+        self._train_ds, self._validation_ds, self._test_ds = dataset_utils.build_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
             data_prefix=self.cfg.data.data_prefix,
