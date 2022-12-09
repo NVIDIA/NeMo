@@ -67,13 +67,13 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
-
+import torch.multiprocessing as mp
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_bpe_ts_models import TSEncDecCTCModelBPE
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
+mp.set_start_method("spawn", force=True)
 
 @hydra_runner(config_path="../conf/conformer/", config_name="conformer_ctc_bpe_ts")
 def main(cfg):
