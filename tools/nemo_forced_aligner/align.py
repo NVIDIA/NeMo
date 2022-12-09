@@ -18,6 +18,7 @@ import torch
 from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 
 V_NEG_NUM = -1e30
 
@@ -119,8 +120,6 @@ def align(
     Results are saved in ctm files in `output_ctm_folder`.
     Returns the most recent alignment, v_matrix, log_probs_reordered, in case you want to inspect them
     in a parent function.
-
-    TODO: add check that Model is CTC/CTCBPE model
     """
 
     # load model
@@ -129,6 +128,12 @@ def align(
         model = ASRModel.restore_from(model_name, map_location=device)
     else:
         model = ASRModel.from_pretrained(model_name, map_location=device)
+
+    if not isinstance(model, EncDecCTCModel):
+        raise NotImplementedError(
+            f"Model {model_name} is not an instance of NeMo EncDecCTCModel."
+            " Currently only instances of EncDecCTCModels are supported"
+        )
 
     # define start and end line IDs of batches
     with open(manifest_filepath, 'r') as f:
