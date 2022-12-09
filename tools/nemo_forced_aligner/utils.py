@@ -147,7 +147,6 @@ def make_basetoken_ctm(
         #   ...
         # ]
         basetokens_info = []
-        u = 0
         for t, u in enumerate(alignment):
             alignment_token_in_vocab = u_list[u]
             if alignment_token_in_vocab == blank_index:
@@ -286,7 +285,7 @@ def make_word_ctm(
 
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for word_info in words_info:
-                if not (word_info["word"] == "initial_silence" and word_info["t_end"] == None):
+                if not (word_info["word"] == "initial_silence" and word_info["t_end"] is None):
                     word = word_info["word"]
                     # print('word_info', word_info)
                     start_sample = word_info["t_start"] * timestep_to_sample_ratio
