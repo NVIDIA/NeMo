@@ -16,6 +16,7 @@ from pathlib import Path
 
 import torch
 from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
+
 from nemo.collections.asr.models import ASRModel
 
 V_NEG_NUM = -1e30
