@@ -25,15 +25,16 @@ from collections import Counter
 
 parser = ArgumentParser(description="Sample phrases")
 parser.add_argument("--input_name", required=True, type=str, help='File with input data')
-parser.add_argument("--output_name", required=True, type=str, help='File with output data')
+parser.add_argument("--output_phrases_name", required=True, type=str, help='File with output data, phrases part')
+parser.add_argument("--output_paragraphs_name", required=True, type=str, help='File with output data, paragraphs part')
 parser.add_argument("--max_count", required=True, type=int, help='Maximum count after which we ignore lines that do not contain any new phrases')
 parser.add_argument("--each_n_line", type=int, default=1, help='Take only each n-th line, default n=1')
 args = parser.parse_args()
 
 vocab = Counter()
 
-out_phrases = open(args.output_name + ".phrases", "w", encoding="utf-8")
-out_paragraph = open(args.output_name + ".paragraph", "w", encoding="utf-8")
+out_phrases = open(args.output_phrases_name, "w", encoding="utf-8")
+out_paragraph = open(args.output_paragraphs_name, "w", encoding="utf-8")
 
 n = 0
 with open(args.input_name, "r", encoding="utf-8") as f:
