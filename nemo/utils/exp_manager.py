@@ -409,7 +409,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Setup a stateless timer for use on clusters.
     if cfg.max_time_per_run is not None:
         if trainer.max_time is not None:
-            raise ValueError(f"trainer.max_time is not None, Cannot set both trainer.max_time and exp_manager.max_time_per_run")
+            raise ValueError(
+                f"trainer.max_time is not None, Cannot set both trainer.max_time and exp_manager.max_time_per_run"
+            )
         trainer.max_time = cfg.max_time_per_run
         trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
