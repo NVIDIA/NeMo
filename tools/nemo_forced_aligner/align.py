@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-
 import torch
 from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
 
