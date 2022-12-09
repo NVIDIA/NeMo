@@ -108,6 +108,12 @@ def get_log_probs_y_T_U(data, model):
 
     U_dash = torch.tensor(U_dash_list)
 
+    # transfer all tensors to device
+    log_probs = log_probs.to(model.device)
+    y = y.to(model.device)
+    T = T.to(model.device)
+    U_dash = U_dash.to(model.device)
+
     return log_probs, y, T, U_dash
 
 

@@ -16,7 +16,6 @@ from pathlib import Path
 
 import torch
 from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
-
 from nemo.collections.asr.models import ASRModel
 
 V_NEG_NUM = -1e30
@@ -40,10 +39,11 @@ def viterbi_decoding(log_probs, y, T, U):
     B, T_max, V = log_probs.shape
     U_max = y.shape[1]
 
-    padding_for_log_probs = V_NEG_NUM * torch.ones((B, T_max, 1))
+    device = log_probs.device
+
+    padding_for_log_probs = V_NEG_NUM * torch.ones((B, T_max, 1), device=device)
     log_probs_padded = torch.cat((log_probs, padding_for_log_probs), dim=2)
     log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=y.unsqueeze(1).repeat(1, T_max, 1))
-    log_probs_reordered = log_probs_reordered.cpu()  # TODO: do alignment on GPU if available
 
     v_matrix = V_NEG_NUM * torch.ones_like(log_probs_reordered)
     backpointers = -999 * torch.ones_like(v_matrix)
@@ -53,6 +53,8 @@ def viterbi_decoding(log_probs, y, T, U):
     letter_repetition_mask = y - y_shifted_left
     letter_repetition_mask[:, :2] = 1  # make sure dont apply mask to first 2 tokens
     letter_repetition_mask = letter_repetition_mask == 0
+
+    bp_absolute_template = torch.arange(U_max, device=device).unsqueeze(0).repeat(B, 1)
 
     for t in range(1, T_max):
 
@@ -64,7 +66,7 @@ def viterbi_decoding(log_probs, y, T, U):
 
         v_prev_shifted2 = torch.roll(v_prev, shifts=2, dims=1)
         v_prev_shifted2[:, :2] = V_NEG_NUM
-        v_prev_shifted2 = v_prev_shifted2.masked_fill(letter_repetition_mask, V_NEG_NUM)  # TODO: do in-place instead?
+        v_prev_shifted2.masked_fill_(letter_repetition_mask, V_NEG_NUM)
 
         v_prev_dup = torch.cat(
             (v_prev.unsqueeze(2), v_prev_shifted.unsqueeze(2), v_prev_shifted2.unsqueeze(2),), dim=2,
@@ -73,7 +75,7 @@ def viterbi_decoding(log_probs, y, T, U):
         candidates_v_current = v_prev_dup + e_current.unsqueeze(2)
         v_current, bp_relative = torch.max(candidates_v_current, dim=2)
 
-        bp_absolute = torch.arange(U_max).unsqueeze(0).repeat(B, 1) - bp_relative
+        bp_absolute = bp_absolute_template - bp_relative
 
         v_matrix[:, t, :] = v_current
         backpointers[:, t, :] = bp_absolute
