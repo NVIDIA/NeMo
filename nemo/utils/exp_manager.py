@@ -402,6 +402,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # extend training loop to skip initial validation when resuming from checkpoint
         configure_no_restart_validation_training_loop(trainer)
 
+    # Setup a stateless timer for use on clusters.
+    if cfg.max_time is not None:
+        if trainer.max_time is not None:
+            raise ValueError(f"trainer.max_time is not None, Cannot set both trainer.max_time and exp_manager.max_time")
+        trainer.callbacks.append(StatelessTimer(cfg.max_time))
+
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
