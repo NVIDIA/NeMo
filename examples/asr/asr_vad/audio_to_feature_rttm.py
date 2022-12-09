@@ -12,6 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Given a manifest containing audio files, first extract and save audio features, 
+then perform voice activity detection (VAD) and save the detected speech segments 
+as RTTM files. The manifest file must contain `audio_filepath` field:
+{"audio_filepath": "/path/to/audio.wav"}
+
+Example usage with default configurations:
+```bash
+python audio_to_rttm.py \
+    --config-path=./configs --config-name=vad_inference_postprocess \
+    manifest_filepath=/PATH/TO/MANIFEST.json output_dir=./vad_output
+```
+"""
+
+
 import json
 import os
 import time

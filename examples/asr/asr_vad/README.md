@@ -36,3 +36,5 @@ python feature_rttm_to_text.py \
     use_rttm=True \
     use_feature=True
 ```
+
+To enable profiling, set `profiling=True` in the shell script, which will show the runtime and memory cost for model inference and dataloader. However, enabling profiling will bring a large overhead in runtime.

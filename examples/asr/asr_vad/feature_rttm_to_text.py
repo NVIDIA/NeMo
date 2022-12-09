@@ -12,6 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Given audios or their pre-processed features, as well as their RTTM files,
+peform automatic speech recognition (ASR), and save predicted transcriptions
+in a new manifest.
+
+The input manifest should look like this example, where `rttm_file` is optional:
+```
+{"audio_filepath": "/path/to/audio_file1", "rttm_file": "/path/to/rttm.rttm", "offset": 0, "duration": null,  "text": "a b c d e"}
+{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": null,  "text": "f g h i j"}
+```
+
+Please find details of configuration in the dataclass `TranscriptionConfig` below.
+
+To run with default setting:
+```bash
+python feature_rttm_to_text.py \
+    pretrained_name="stt_en_conformer_ctc_large" \
+    dataset_manifest=./vad_output/manifest_vad_feat_rttm.json \
+    num_workers=8 \
+    normalize=post_norm \
+    use_pure_noise=False \
+    use_rttm=True \
+    use_feature=True
+```
+
+"""
+
 import contextlib
 import json
 import os
