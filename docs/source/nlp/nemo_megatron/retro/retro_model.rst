@@ -21,7 +21,7 @@ The NeMo RETRO Model is an open-source implementation of the paper, and it has t
 
 Quick start
 ===========
-Steps below demonstrate training and evaluate a NeMo RETRO model
+Steps below demonstrate training and evaluating a NeMo RETRO model
 
 Data pre-processing
 -------------------
@@ -94,10 +94,9 @@ Following is the retro memory map index data format:
 
 :sup:`1` 1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16
 
-:sup:`2` When building the indexed dataset, we pad each of the sentences to be a multiple of chunk_size with pad_id from tokenizer. 
-The number of tokens for each of sentences include the padded token ids. For retrieval data, there is an extra chunk_size padding at
-the end of each sentence and ``retrieved_db`` flag is set to True. But the number of tokens for each of sentences exclude this extra 
-chunk_size padding.
+:sup:`2` When building the indexed dataset, we pad each sentence to be a multiple of ``chunk_size`` with ``pad_id`` from the tokenizer. 
+The number of tokens for each sentence includes the padded token ids. For retrieval data, there is an extra ``chunk_size`` padding at 
+the end of each sentence, and the ``retrieved_db`` flag is set to True. However, the number of tokens for each sentence excludes this extra ``chunk_size`` padding.
 
 Following is the retro memory map binary data format:
 
