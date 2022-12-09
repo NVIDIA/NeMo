@@ -290,6 +290,8 @@ During the training, launch Tensorboard to monitor training like so:
 
     tensorboard --logdir /result/retro_model --bind_all
 
+.. note:: Weights and Biases (WandB) is supported too. Add ``exp_manager.create_wandb_logger=True`` to the model training arguments to enable it.
+
 After the training, the model nemo file can be found at the result checkpoint directory.
 
 Option 2: Train the NeMo RETRO model *with* mu-Transfer
@@ -374,9 +376,9 @@ An example mu-Transfer pre-training script is:
         model.micro_batch_size=8 \
         model.shape_file=tp8_32depth_o1_rel_shape_info.yaml
 
-Note: we have chosen to use ``muadamw`` as the optimizer for use with the mu-transfer method. 
-Currently, only ``muadam`` and ``muadamw`` are supported. Similarly to the pre-training in Option 1, the model nemo file can be found at the result
-checkpoint directory after training is complete.
+.. note:: We have chosen to use ``muadamw`` as the optimizer for use with the mu-transfer method.  Currently, only ``muadam`` and ``muadamw`` are supported. 
+    
+Similarly to the pre-training in Option 1, the model nemo file can be found at the result checkpoint directory after training is complete.
 
 Run NeMo RETRO Model Inference
 -------------------------------
