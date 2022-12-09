@@ -201,6 +201,7 @@ def index_by_vocab() -> None:
         raise ValueError(f"Vocab file {args.vocab_filename} does not exist")
     # load vocab from file
     vocab = defaultdict(dict)
+    ban_ngram = set()
 
     with open(args.vocab_filename, "r", encoding="utf-8") as f:
         for line in f:
@@ -212,7 +213,6 @@ def index_by_vocab() -> None:
 
     index_freq = defaultdict(int)
     ngram_to_phrase_and_position = defaultdict(list)
-    ban_ngram = set()
 
     out = open(args.out_filename, "w", encoding="utf-8")
     with open(args.alignment_filename, "r", encoding="utf-8") as f:
@@ -225,7 +225,6 @@ def index_by_vocab() -> None:
             if t is None:
                 continue
             phrase, _, _ = t
-            ok = True
             inputs = phrase.split(" ")
             begin = 0
             index_keys = [{} for i in inputs]  # key - letter ngram, index - beginning positions in phrase
@@ -236,7 +235,6 @@ def index_by_vocab() -> None:
                     if inp not in vocab:
                         continue
                     for rep in vocab[inp]:
-                        rep_before_clean = rep
                         lp = math.log(vocab[inp][rep])
                         rep = rep.replace("<DELETE>", "=")
                         if rep.strip() == "":
