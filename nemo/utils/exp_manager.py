@@ -32,7 +32,6 @@ from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
-from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -353,17 +352,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
 
     # Handle logging to file
-    # Logs local rank 0 only
-    if local_rank == 0 and cfg.log_local_rank_0_only is True and nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs only on global rank 0
-    elif global_rank == 0 and cfg.log_global_rank_0_only is True and not nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs on all ranks.
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+    if cfg.log_local_rank_0_only is True and not nemo_testing:
+        if local_rank == 0:
+            logging.add_file_handler(log_file)
+    elif cfg.log_global_rank_0_only is True and not nemo_testing:
+        if global_rank == 0:
+            logging.add_file_handler(log_file)
     else:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        # Logs on all ranks.
         logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
@@ -691,24 +688,6 @@ def get_git_diff():
         return "{}\n".format(err.output.decode("utf-8"))
 
 
-class LoggerList(_LoggerCollection):
-    """ A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager
-    """
-
-    def __init__(self, _logger_iterable, nemo_name=None, nemo_version=""):
-        super().__init__(_logger_iterable)
-        self._nemo_name = nemo_name
-        self._nemo_version = nemo_version
-
-    @property
-    def name(self) -> str:
-        return self._nemo_name
-
-    @property
-    def version(self) -> str:
-        return self._nemo_version
-
-
 def configure_loggers(
     trainer: 'pytorch_lightning.Trainer',
     exp_dir: [Path, str],
@@ -759,9 +738,6 @@ def configure_loggers(
         logger_list.append(mlflow_logger)
         logging.info('MLFlowLogger has been set up')
 
-    logger_list = (
-        LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
-    )
     trainer._logger_connector.configure_logger(logger_list)
 
 

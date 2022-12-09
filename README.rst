@@ -61,6 +61,7 @@ Key Features
 ------------
 
 * Speech processing
+    * `HuggingFace Space for Audio Transcription (File, Micriphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
         * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, ...
         * Supports CTC and Transducer/RNNT losses/decoders
@@ -223,7 +224,7 @@ Install it manually if not using the NVIDIA PyTorch container.
 
     git clone https://github.com/ericharper/apex.git
     cd apex
-    git checkout nm_v1.11.0
+    git checkout nm_v1.13.0
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 Transformer Engine
@@ -253,13 +254,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.09-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.11-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.09-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.11-py3
 
 Examples
 --------

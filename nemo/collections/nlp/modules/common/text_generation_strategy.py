@@ -66,6 +66,7 @@ class TextGenerationStrategy:
                 forward_only=True,
                 tensor_shape=tensor_shape,
                 dtype=self.model.autocast_dtype,
+                sync_batch_comm=self.model.cfg.get('sync_batch_comm', False),
             )
         else:
             output_tensor = forward_backward_no_pipelining(
@@ -75,6 +76,7 @@ class TextGenerationStrategy:
                 forward_only=True,
                 tensor_shape=tensor_shape,
                 dtype=self.model.autocast_dtype,
+                sync_batch_comm=self.model.cfg.get('sync_batch_comm', False),
             )
         return output_tensor
 
@@ -90,7 +92,7 @@ class TextGenerationStrategy:
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
@@ -426,7 +428,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         if self.pad_token_for_retrieval:
@@ -456,7 +458,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         tokenizer = self.model.tokenizer
         if add_BOS:
             context_tokens = [
-                [[tokenizer.eos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
+                [[tokenizer.bos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
             ]
         else:
             context_tokens = [[tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]

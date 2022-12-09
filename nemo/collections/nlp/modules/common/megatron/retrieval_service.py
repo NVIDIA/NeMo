@@ -49,6 +49,10 @@ def request_data(data, port=PORT_NUM):
 
 
 class RetrievalService:
+    """
+    Abstract class for Retrieval Service. 
+    """
+
     @abc.abstractmethod
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         pass
@@ -65,6 +69,10 @@ class RetrievalService:
 
 
 class ChunkStore:
+    """
+    ChunkStore maps chunk id to tokens. It is used as an in memory storage for dynamic retrieval DB.
+    """
+
     def __init__(self, chunk_size, pad_id):
         self.store = {}
         self._count = 0
@@ -85,6 +93,11 @@ class ChunkStore:
 
 
 class SentenceBertResource(Resource):
+    """
+    SentenceBERT Flask resource.
+    The PUT method is to get token/str embedding.
+    """
+
     def __init__(
         self, bert_model, tokenizer, pool, sentence_bert_batch,
     ):
@@ -96,8 +109,6 @@ class SentenceBertResource(Resource):
         self.embedding_dim = self.bert_model.get_sentence_embedding_dimension()
 
     def put(self):
-        # logging.info("request IP: " + str(request.remote_addr))
-        # logging.info(json.dumps(request.get_json()))
         data = request.get_json()
         if isinstance(data, dict):
             return jsonify({'dim': self.embedding_dim})
@@ -122,6 +133,10 @@ class SentenceBertResource(Resource):
 
 
 class SentenceBertServer(object):
+    """
+    Flask SentenceBERT server, which helps to calculate str/token embeddings
+    """
+
     def __init__(
         self,
         devices: str,
@@ -154,6 +169,12 @@ class SentenceBertServer(object):
 def start_sentence_bert_server(
     devices: str, tokenizer: TokenizerSpec, sentence_bert: str = 'all-mpnet-base-v2', sentence_bert_batch: int = 4
 ):
+    """
+    Start the sentence bert server method.
+    It only starts the server at rank 0 worker.
+    Doesn't support multiple nodes yet.
+    """
+
     if torch.distributed.get_rank() == 0:
         server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
         server.run("0.0.0.0")
@@ -161,6 +182,11 @@ def start_sentence_bert_server(
 
 
 class FaissRetrievalResource(Resource):
+    """
+    Static Faiss Retrieval Flask resource.
+    The PUT method is to get KNN tokens.
+    """
+
     def __init__(
         self, index, tokenizer, ds,
     ):
@@ -170,8 +196,6 @@ class FaissRetrievalResource(Resource):
         self.ds = ds
 
     def put(self):
-        # logging.info("request IP: " + str(request.remote_addr))
-        # logging.info(json.dumps(request.get_json()))
         data = request.get_json()
         sentences = data['sentences']
         num_neighbors = data['neighbors']
@@ -210,6 +234,10 @@ class FaissRetrievalResource(Resource):
 
 
 class RetrievalServer(object):
+    """
+    Flask Retrieval server, which helps to get the KNN tokens given the query chunk
+    """
+
     def __init__(
         self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
     ):
@@ -245,6 +273,11 @@ class RetrievalServer(object):
 
 
 class DynamicRetrievalResource(FaissRetrievalResource):
+    """
+    Dynamic Faiss Retrieval Flask resource.
+    The PUT method is to get KNN tokens, add new chunks, reset index.
+    """
+
     def __init__(
         self, index, tokenizer, chunk_size, stride, store,
     ):
@@ -310,6 +343,10 @@ class DynamicRetrievalResource(FaissRetrievalResource):
 
 
 class DynamicRetrievalServer(object):
+    """
+    Flask Dynamic Retrieval server, which helps to build dynamic retrieval index.
+    """
+
     def __init__(
         self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32,
     ):
@@ -351,6 +388,12 @@ class DynamicRetrievalServer(object):
 
 
 class FaissRetrievalService(RetrievalService):
+    """
+    Top level static retrieval service class.
+    It starts the server at rank 0 worker, currently doesn't support multiple nodes yet.
+    It implements the retrieval services interface, has a simple client to do KNN queries.
+    """
+
     def __init__(
         self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
     ):
@@ -384,6 +427,13 @@ class FaissRetrievalService(RetrievalService):
 
 
 class DynamicFaissRetrievalService(RetrievalService):
+    """
+    Top level dynamic retrieval service class.
+    It starts the server at rank 0 worker, currently doesn't support multiple nodes yet.
+    It implements the retrieval services interface, has a simple client to add, reset and query
+    the dynamic retrieval index.
+    """
+
     def __init__(
         self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int,
     ):
@@ -432,6 +482,12 @@ class DynamicFaissRetrievalService(RetrievalService):
 
 
 class ComboRetrievalService(RetrievalService):
+    """
+    Top level retrieval service class.
+    It combines other retrieval services as a combo retrieval service.
+    It uses `weights` to determine the number of neighbors for each of the retrieval service members.
+    """
+
     def __init__(self, retrieval_services, weights):
         self.retrieval_services = retrieval_services
         self.updatable = any([service.updatable for service in retrieval_services])
