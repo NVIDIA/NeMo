@@ -57,7 +57,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
         add_sep: bool = True,
         sep_id: int = None,
         for_train: bool = True,
-        answer_only_loss = True,
+        answer_only_loss=True,
         tokens_to_generate=None,
         cache_data_path: str = None,  # the cache file
         load_cache: bool = True,  # whether to load from the cache if it is available
@@ -128,9 +128,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
             else:
                 doc = json.loads(json_line)
 
-            self._input_sanity_checks(
-                doc,
-            )
+            self._input_sanity_checks(doc,)
 
             # Format and truncate inputs (text + sep + answer)
             input_ids, answer_start_idx = self._append_text_answer_and_truncate(doc)
@@ -150,16 +148,13 @@ class GPTSupervisedFineTuningDataset(Dataset):
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def _input_sanity_checks(
-        self,
-        doc,
+        self, doc,
     ):
         # Sanity check amount of virtual token
 
         # Answer field checks
         if self.for_train:
-            assert (
-                'answer' in doc.keys()
-            ), f"You must provide both 'text' and 'answer' fields"
+            assert 'answer' in doc.keys(), f"You must provide both 'text' and 'answer' fields"
             # Truncation field will always be answer
 
     def _append_text_answer_and_truncate(self, doc):
@@ -174,19 +169,19 @@ class GPTSupervisedFineTuningDataset(Dataset):
         if self.add_sep:
             total_ids += 1
         if self.add_eos:
-            total_ids +=1
+            total_ids += 1
 
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            answer_ids = answer_ids[:-min(truncation_length, len(answer_ids))]
+            answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
 
         input_ids = text_ids
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             input_ids = input_ids + [self.sep_id]
-        
+
         answer_start_idx = len(input_ids)
 
         input_ids = input_ids + answer_ids
@@ -268,7 +263,7 @@ class GPTSupervisedFineTuningDataset(Dataset):
         """
         input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
-        #task_id_nums = torch.cuda.LongTensor(task_id_nums)
+        # task_id_nums = torch.cuda.LongTensor(task_id_nums)
         batch_max = input_lengths.max().item()
         batch_max += self.tokens_to_generate
 
@@ -277,4 +272,3 @@ class GPTSupervisedFineTuningDataset(Dataset):
         input_ids = torch.cuda.LongTensor(input_ids)
 
         return (input_ids, input_lengths)
-

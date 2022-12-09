@@ -13,25 +13,25 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List, Optional, Union
-from functools import partial
 import os
+import re
+from functools import partial
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-import re
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSupervisedFineTuningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
@@ -50,11 +50,10 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 
 try:
     from apex.transformer import parallel_state
@@ -92,11 +91,11 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         super().__init__(cfg, trainer)
-        
+
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('restore_path')):
             save_restore_connector.model_extracted_dir = cfg.get('restore_path')
-        #restored_model_cfg = MegatronGPTModel.restore_from(
+        # restored_model_cfg = MegatronGPTModel.restore_from(
         restored_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('restore_path'),
             trainer=trainer,
@@ -110,12 +109,8 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             restored_model_cfg.global_batch_size = cfg.global_batch_size
             restored_model_cfg.precision = trainer.precision
             restored_model_cfg.sequence_parallel = cfg.get("sequence_parallel", False)
-            restored_model_cfg.activations_checkpoint_granularity = cfg.get(
-                "activations_checkpoint_granularity", None
-            )
-            restored_model_cfg.activations_checkpoint_num_layers = cfg.get(
-                "activations_checkpoint_num_layers", None
-            )
+            restored_model_cfg.activations_checkpoint_granularity = cfg.get("activations_checkpoint_granularity", None)
+            restored_model_cfg.activations_checkpoint_num_layers = cfg.get("activations_checkpoint_num_layers", None)
             restored_model_cfg.activations_checkpoint_method = cfg.get("activations_checkpoint_method", None)
             restored_model_cfg.data = cfg.data
             restored_model_cfg.optim = cfg.optim
@@ -163,7 +158,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
-    
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -253,8 +248,8 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             # The intermediate pipeline stages do not need any inputs from data loader
             # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
             batch_for_pipeline = None
-            
-        #TODO remove hard coding
+
+        # TODO remove hard coding
         tensor_shape = [2048, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
@@ -453,7 +448,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
                 position_ids,
                 attention_mask,
                 labels,
-#                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                #                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
 
             def loss_func(output_tensor):
@@ -600,7 +595,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         min_seq_length=1,
         add_bos=False,
         add_eos=False,
-        add_sep=False, 
+        add_sep=False,
         for_train=True,
         drop_last=False,
         shuffle=False,
@@ -661,7 +656,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         return dataset, dataloader
 
-
     def process_global_batch(self, global_batch, global_batch_size=None):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
@@ -719,38 +713,40 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.data.train_ds is not None:
             self._train_ds, self._train_dl = self.build_finetuning_dataset(
-                data = self.cfg.data.train_ds,
-                batch_size = self.cfg.global_batch_size,
-                max_seq_length = self.cfg.data.max_seq_length,
-                min_seq_length = 1,
-                add_bos = self.cfg.data.add_bos,
+                data=self.cfg.data.train_ds,
+                batch_size=self.cfg.global_batch_size,
+                max_seq_length=self.cfg.data.max_seq_length,
+                min_seq_length=1,
+                add_bos=self.cfg.data.add_bos,
                 add_eos=self.cfg.data.add_eos,
-                add_sep=self.cfg.data.add_sep, 
+                add_sep=self.cfg.data.add_sep,
                 for_train=True,
                 drop_last=False,
                 shuffle=False,
                 tokens_to_generate=None,
                 get_dataset_only=False,
                 cache_data_path=None,
-                load_cache=False)
+                load_cache=False,
+            )
 
         if self.cfg.data.validation_ds is not None:
             self._validation_ds, self._validation_dl = self.build_finetuning_dataset(
-                data = self.cfg.data.validation_ds,
-                batch_size = self.cfg.global_batch_size,
-                max_seq_length = self.cfg.data.max_seq_length,
-                min_seq_length = 1,
-                add_bos = self.cfg.data.add_bos,
+                data=self.cfg.data.validation_ds,
+                batch_size=self.cfg.global_batch_size,
+                max_seq_length=self.cfg.data.max_seq_length,
+                min_seq_length=1,
+                add_bos=self.cfg.data.add_bos,
                 add_eos=self.cfg.data.add_eos,
-                add_sep=self.cfg.data.add_sep, 
+                add_sep=self.cfg.data.add_sep,
                 for_train=True,
                 drop_last=False,
                 shuffle=False,
                 tokens_to_generate=None,
                 get_dataset_only=False,
                 cache_data_path=None,
-                load_cache=False)
-        
+                load_cache=False,
+            )
+
         self._test_ds = None
 
         if self._train_ds is not None:
@@ -762,7 +758,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'Finished building GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
-
 
     def build_finetuning_data_loader(
         self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
@@ -859,9 +854,9 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             self.build_train_valid_test_datasets()
-            #self.setup_training_data(self.cfg.data)
-            #self.setup_validation_data(self.cfg.data)
-            #self.setup_test_data(self.cfg.data)
+            # self.setup_training_data(self.cfg.data)
+            # self.setup_validation_data(self.cfg.data)
+            # self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
