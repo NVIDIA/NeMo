@@ -1239,7 +1239,7 @@ def construct_manifest_eval(
     return aligned_vad_asr_output_manifest
 
 
-def extract_audio_features(vad_model, manifest_vad_input: str, out_dir: str) -> str:
+def extract_audio_features(vad_model: EncDecClassificationModel, manifest_vad_input: str, out_dir: str) -> str:
     """
     Extract audio features and write to out_dir
     """
@@ -1265,7 +1265,11 @@ def extract_audio_features(vad_model, manifest_vad_input: str, out_dir: str) -> 
     return out_dir
 
 
-def setup_feature_segment_infer_dataloader(config):
+def setup_feature_segment_infer_dataloader(config: dict) -> torch.utils.data.DataLoader:
+    """
+    setup dataloader for VAD inference with audio features as input
+    """
+
     if 'augmentor' in config:
         augmentor = process_augmentations(config['augmentor'])
     else:
@@ -1290,6 +1294,9 @@ def setup_feature_segment_infer_dataloader(config):
 
 
 def load_rttm_file(filepath: str) -> pd.DataFrame:
+    """
+    Load rttm file and extract speech segments
+    """
     if not Path(filepath).exists():
         raise ValueError(f"File not found: {filepath}")
     data = pd.read_csv(filepath, sep=" ", delimiter=None, header=None)
@@ -1306,6 +1313,9 @@ def load_rttm_file(filepath: str) -> pd.DataFrame:
 
 
 def merge_intervals(intervals: List[List[float]]) -> List[List[float]]:
+    """
+    Merge speech segments into non-overlapping segments
+    """
     intervals.sort(key=lambda x: x[0])
     merged = []
     for interval in intervals:
@@ -1323,7 +1333,7 @@ def merge_intervals(intervals: List[List[float]]) -> List[List[float]]:
 def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
     """
     load speech segments from rttm file, where each segment is represented
-    as [start, end]
+    as [start, end] interval
     """
     speech_segments = list(load_rttm_file(rttm_file)['segment'])
     speech_segments = [list(x) for x in speech_segments]

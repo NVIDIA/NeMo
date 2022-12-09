@@ -22,6 +22,7 @@ import torch
 from torch.profiler import ProfilerActivity, profile, record_function
 from tqdm import tqdm
 
+from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.collections.asr.parts.utils.vad_utils import (
     extract_audio_features,
     generate_overlap_vad_seq,
@@ -113,6 +114,7 @@ def main(cfg):
     vad_model = vad_model.to(device)
     vad_model.eval()
 
+    # Extract and save audio features
     logging.info("Extracting audio features...")
     vad_model.setup_test_data(
         test_data_config={
@@ -142,6 +144,7 @@ def main(cfg):
     logging.info(f"Time elapsed: {t1 - t0: .2f} seconds")
     logging.info("-------------------------------------")
 
+    # Run VAD inference
     use_feat = cfg.vad.get("use_feat", False)
     if use_feat:
         logging.info("VAD using pre-calculated features as input")
@@ -172,8 +175,6 @@ def main(cfg):
                 'normalize_audio': cfg.vad.parameters.normalize_audio,
             }
         )
-
-    logging.info("-------------------------------------")
     logging.info("Generating frame-level prediction ")
     pred_dir = Path(cfg.output_dir) / Path("frame_pred")
     pred_dir.mkdir(parents=True, exist_ok=True)
@@ -229,6 +230,7 @@ def main(cfg):
         pred_dir = smoothing_pred_dir
         frame_length_in_sec = 0.01
 
+    # Turn frame-wise prediction into speech intervals
     logging.info(f"Generating segment tables with postprocessing params: {cfg.vad.parameters.postprocessing}")
     segment_dir = Path(cfg.output_dir) / Path("segment_predictions")
     segment_dir.mkdir(exist_ok=True, parents=True)
@@ -249,14 +251,14 @@ def main(cfg):
     logging.info("Finished.")
 
 
-def get_files_map(files_dir, ext=""):
+def get_files_map(files_dir: str, ext: str = "") -> dict:
     data = {}
     for filepath in Path(files_dir).glob(f"*{ext}"):
         data[filepath.stem] = str(filepath.absolute())
     return data
 
 
-def dump_final_manifest(manifest_origin, rttm_dir, feat_dir, out_dir):
+def dump_final_manifest(manifest_origin: dict, rttm_dir: str, feat_dir: str, out_dir: str) -> None:
     rttm_map = get_files_map(rttm_dir, ".rttm")
     feat_map = get_files_map(feat_dir, ".pt")
     out_file = Path(out_dir, "manifest_vad_feat_rttm.json")
@@ -269,7 +271,7 @@ def dump_final_manifest(manifest_origin, rttm_dir, feat_dir, out_dir):
     logging.info(f"Manifest saved to {out_file}")
 
 
-def update_audio_manifest(manifest_data, files_dir, pattern, new_key):
+def update_audio_manifest(manifest_data: dict, files_dir: str, pattern: str, new_key: str) -> dict:
     manifest_new = []
     files_map = get_files_map(files_dir, pattern)
     for item in manifest_data:
@@ -279,13 +281,13 @@ def update_audio_manifest(manifest_data, files_dir, pattern, new_key):
     return manifest_new
 
 
-def save_manifest(manifest_data, out_file):
+def save_manifest(manifest_data: dict, out_file: str) -> None:
     with Path(out_file).open("w") as fout:
         for item in manifest_data:
             fout.write(f"{json.dumps(item)}\n")
 
 
-def load_manifest(manifest_file):
+def load_manifest(manifest_file: str) -> dict:
     data = []
     with Path(manifest_file).open("r") as fin:
         for line in fin.readlines():
@@ -297,7 +299,7 @@ def load_manifest(manifest_file):
 
 
 def generate_vad_frame_pred(
-    vad_model,
+    vad_model: EncDecClassificationModel,
     window_length_in_sec: float,
     shift_length_in_sec: float,
     manifest_vad_input: str,

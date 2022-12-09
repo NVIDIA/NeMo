@@ -2,7 +2,6 @@ from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor
 from nemo.collections.asr.data.feature_to_label import _audio_feature_collate_fn
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
