@@ -23,8 +23,6 @@ import torch
 from pytorch_lightning import Callback
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
-from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
-
 
 class EMA(Callback):
     """
@@ -87,10 +85,21 @@ class EMA(Callback):
     def _ema_initialized(self, trainer: "pl.Trainer") -> bool:
         return any(isinstance(optimizer, EMAOptimizer) for optimizer in trainer.optimizers)
 
-    def swap_model_weights(self, trainer: "pl.Trainer"):
+    def swap_model_weights(self, trainer: "pl.Trainer", saving_ema_model: bool = False):
         for optimizer in trainer.optimizers:
             assert isinstance(optimizer, EMAOptimizer)
-            optimizer.switch_main_parameter_weights()
+            optimizer.switch_main_parameter_weights(saving_ema_model)
+
+    @contextlib.contextmanager
+    def save_ema_model(self, trainer: "pl.Trainer"):
+        """
+        Saves an EMA copy of the model + EMA optimizer states for resume.
+        """
+        self.swap_model_weights(trainer, saving_ema_model=True)
+        try:
+            yield
+        finally:
+            self.swap_model_weights(trainer, saving_ema_model=False)
 
     @contextlib.contextmanager
     def save_original_optimizer_state(self, trainer: "pl.Trainer"):
@@ -120,10 +129,11 @@ class EMA(Callback):
             ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
             if os.path.exists(ema_path):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
+
+                # this is wrong, basically when we save the EMA weights, optimizer_states actually contains the model parameters
+                # as we swapped the model parameters with the state dict parameters.
+                # we could enforce that if you trained with EMA and want to continue training
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
-                for optimizer_state in checkpoint['optimizer_states']:
-                    # update the ema state with the EMA saved model weights
-                    optimizer_state['ema'] = list(ema_state_dict['state_dict'].values())
                 del ema_state_dict
                 logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
             else:
@@ -210,10 +220,9 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.thread = None
 
         self.ema_params = ()
+        self.in_saving_ema_model_context = False
 
     def all_parameters(self) -> Iterable[torch.Tensor]:
-        if isinstance(self.optimizer, MainParamsOptimizerWrapper):
-            return (param for group in self.optimizer.float16_groups for param in group)
         return (param for group in self.param_groups for param in group['params'])
 
     def step(self, closure=None, **kwargs):
@@ -233,10 +242,7 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.rebuild_ema_params = False
 
-        if isinstance(self.optimizer, MainParamsOptimizerWrapper):
-            loss = self.optimizer.step(**kwargs)
-        else:
-            loss = self.optimizer.step(closure)
+        loss = self.optimizer.step(closure)
 
         if self._should_update_at_step():
             self.update()
@@ -271,9 +277,9 @@ class EMAOptimizer(torch.optim.Optimizer):
         tensor1.copy_(tensor2)
         tensor2.copy_(tmp)
 
-    def switch_main_parameter_weights(self):
+    def switch_main_parameter_weights(self, saving_ema_model: bool = False):
         self.join()
-
+        self.in_saving_ema_model_context = saving_ema_model
         for param, ema_param in zip(self.all_parameters(), self.ema_params):
             self.swap_tensors(param.data, ema_param)
 
@@ -313,9 +319,11 @@ class EMAOptimizer(torch.optim.Optimizer):
         if self.save_original_optimizer_state:
             return self.optimizer.state_dict()
 
+        # if we are in the context of saving an EMA model, the EMA weights are in the modules' actual weights
+        ema_params = self.ema_params if not self.in_saving_ema_model_context else list(self.all_parameters())
         state_dict = {
             'opt': self.optimizer.state_dict(),
-            'ema': self.ema_params,
+            'ema': ema_params,
             'current_step': self.current_step,
             'decay': self.decay,
             'every_n_steps': self.every_n_steps,

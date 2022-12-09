@@ -930,12 +930,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
 
             # save EMA copy of the model as well.
-            ema_callback.swap_model_weights(trainer)
-            filepath = self._ema_format_filepath(filepath)
-            if self.verbose:
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-            super()._save_checkpoint(trainer, filepath)
-            ema_callback.swap_model_weights(trainer)
+            with ema_callback.save_ema_model(trainer):
+                filepath = self._ema_format_filepath(filepath)
+                if self.verbose:
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
         else:
             super()._save_checkpoint(trainer, filepath)
 
