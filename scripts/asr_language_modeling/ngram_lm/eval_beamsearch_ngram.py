@@ -165,7 +165,6 @@ def beam_search_eval(
         it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
     for batch_idx in it:
         # disabling type checking
-        # with nemo.core.typecheck.disable_checks():
         probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
         probs_lens = torch.tensor([prob.shape[0] for prob in probs_batch])
         with torch.no_grad():
@@ -179,7 +178,6 @@ def beam_search_eval(
             _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
                 packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
             )
-        # beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
 
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]
@@ -281,15 +279,20 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 f"match the manifest file. You may need to delete the probabilities cached file."
             )
     else:
+        @contextlib.contextmanager
+        def default_autocast():
+            yield
+
         if cfg.use_amp:
             if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
+
+            else:
+                autocast = default_autocast
         else:
 
-            @contextlib.contextmanager
-            def autocast():
-                yield
+            autocast = default_autocast
 
         with autocast():
             with torch.no_grad():
