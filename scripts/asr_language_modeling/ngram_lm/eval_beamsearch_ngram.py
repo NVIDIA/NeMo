@@ -279,6 +279,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 f"match the manifest file. You may need to delete the probabilities cached file."
             )
     else:
+
         @contextlib.contextmanager
         def default_autocast():
             yield
