@@ -85,7 +85,7 @@ class TestASRDatasets:
     @pytest.mark.unit
     def test_feat_seqlabel_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/feat/emb.json'))
-        feature_loader = ExternalFeatureLoader(file_path=manifest_path, sample_rate=16000, augmentor=None)
+        feature_loader = ExternalFeatureLoader(augmentor=None)
         ds_braceexpand = FeatureToSeqSpeakerLabelDataset(
             manifest_filepath=manifest_path, labels=self.unique_labels_in_seq, feature_loader=feature_loader
         )
