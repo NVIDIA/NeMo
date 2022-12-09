@@ -18,16 +18,16 @@ from nemo.collections.asr.data.feature_to_text import FeatureToBPEDataset, Featu
 from nemo.utils import logging
 
 
-def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None) -> FeatureToCharDataset:
+def get_char_dataset(config: dict, augmentor: Optional['FeatureAugmentor'] = None) -> FeatureToCharDataset:
     """
-    Instantiates a Character Encoding based AudioToCharDataset.
+    Instantiates a Character Encoding based FeatureToCharDataset.
 
     Args:
-        config: Config of the AudioToCharDataset.
+        config: Config of the FeatureToCharDataset.
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
-        An instance of AudioToCharDataset.
+        An instance of FeatureToCharDataset.
     """
     if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
@@ -54,18 +54,18 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
 
 
 def get_bpe_dataset(
-    config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None
+    config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['FeatureAugmentor'] = None
 ) -> FeatureToBPEDataset:
     """
-    Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
+    Instantiates a Byte Pair Encoding / Word Piece Encoding based FeatureoToBPEDataset.
 
     Args:
-        config: Config of the AudioToBPEDataset.
+        config: Config of the FeatureToBPEDataset.
         tokenizer: An instance of a TokenizerSpec object.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+        augmentor: Optional FeatureAugmentor object for augmentations on audio features.
 
     Returns:
-        An instance of AudioToBPEDataset.
+        An instance of FeatureToBPEDataset.
     """
     dataset = FeatureToBPEDataset(
         manifest_filepath=config['manifest_filepath'],

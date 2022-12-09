@@ -79,10 +79,10 @@ class _FeatureTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
     Each new line is a different sample. Example below:
-    {"feature_filepath": "/path/to/audio.pt", "text_filepath": "/path/to/audio.txt", 
+    {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath": "/path/to/audio.txt", 
     "rttm_filepath": "/path/to/audio_rttm.rttm", "duration": 23.147}
     ...
-    {"feature_filepath": "/path/to/audio.pt", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    {"feature_filepath": "/path/to/audio_feature.pt", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
@@ -104,7 +104,6 @@ class _FeatureTextDataset(Dataset):
 
     ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
     NORM_MODES = ["pre_norm", "post_norm"]
-    MASK_MODES = ["zero", "avg", "min"]
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -222,6 +221,41 @@ class _FeatureTextDataset(Dataset):
 
 
 class FeatureToCharDataset(_FeatureTextDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147, "rttm_filepath": "/path/to/audio_rttm.rttm",}
+    ...
+    {"feature_filepath": "/path/to/audio_feature.pt", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels: String containing all the possible characters to map to
+        normalize: how to normalize feature, either None, "post_norm", or "pre_norm"
+        use_rttm: whether to use RTTM files if there is any, default to False
+        frame_unit_time_secs: time in seconds for each frame
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        blank_index: blank character index, default = -1
+        unk_index: unk_character index, default = -1
+        normalize: whether to normalize transcript text (default): True
+        bos_id: Id of beginning of sequence symbol to append if not None
+        eos_id: Id of end of sequence symbol to append if not None
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+    """
+
     def __init__(
         self,
         manifest_filepath: str,
@@ -271,6 +305,45 @@ class FeatureToCharDataset(_FeatureTextDataset):
 
 
 class FeatureToBPEDataset(_FeatureTextDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147, "rttm_filepath": "/path/to/audio_rttm.rttm",}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    In practice, the dataset and manifest used for character encoding and byte pair encoding
+    are exactly the same. The only difference lies in how the dataset tokenizes the text in
+    the manifest.
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        tokenizer: A subclass of the Tokenizer wrapper found in the common collection,
+            nemo.collections.common.tokenizers.TokenizerSpec. ASR Models support a subset of
+            all available tokenizers.
+        normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        use_rttm: whether to use RTTM files if there is any, default to False
+        frame_unit_time_secs: time in seconds for each frame
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        trim: Whether to trim silence segments
+        use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
+            tokens to beginning and ending of speech respectively.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+    """
+
     def __init__(
         self,
         manifest_filepath: str,

@@ -258,6 +258,20 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
 
 
 class FeatureToLabelDataset(Dataset):
+    """
+    Dataset that loads tensors via a json file containing paths to feature files and their labels. 
+    Each new line is a different sample. Example below:
+    and their target labels. JSON files should be of the following format:
+        {"feature_filepath": "/path/to/audio_feature.pt", "label": "1"} \
+        ...
+        {"feature_filepath": "/path/to/audio_feature.pt", "label": "0"} 
+    Args:
+        manifest_filepath (str): Dataset parameter. Path to JSON containing data.
+        labels (Optional[list]): Dataset parameter. List of unique labels collected from all samples.
+        augmentor (Optional): feature augmentation
+
+    """
+
     ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
     FRAME_UNIT_TIME_SECS = 0.01
 
@@ -268,6 +282,8 @@ class FeatureToLabelDataset(Dataset):
         output_types = {
             'audio_feat': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             'feat_length': NeuralType(tuple('B'), LengthsType()),
+            'labels': NeuralType(('B'), LabelsType()),
+            'labels_length': NeuralType(tuple('B'), LengthsType()),
         }
 
         return output_types
