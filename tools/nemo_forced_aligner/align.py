@@ -109,7 +109,7 @@ def align(
     model_downsample_factor,
     output_ctm_folder,
     grouping_for_ctm,
-    utt_id_extractor_func=lambda fp: Path(fp).resolve().stem,
+    n_parts_for_ctm_id=1,
     audio_sr=16000,  # TODO: get audio SR automatically
     device="cuda:0",
     batch_size=1,
@@ -147,12 +147,12 @@ def align(
 
         if grouping_for_ctm == "basetoken":
             make_basetoken_ctm(
-                data, alignments, model, model_downsample_factor, output_ctm_folder, utt_id_extractor_func, audio_sr,
+                data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
             )
 
         elif grouping_for_ctm == "word":
             make_word_ctm(
-                data, alignments, model, model_downsample_factor, output_ctm_folder, utt_id_extractor_func, audio_sr,
+                data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
             )
 
         else:

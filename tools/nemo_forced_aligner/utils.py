@@ -14,6 +14,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import torch
 
@@ -117,8 +118,14 @@ def get_log_probs_y_T_U(data, model):
     return log_probs, y, T, U_dash
 
 
+def _get_utt_id(audio_filepath, n_parts_for_ctm_id):
+    fp_parts = Path(audio_filepath).parts[-n_parts_for_ctm_id:]
+    utt_id = Path("_".join(fp_parts)).stem
+    return utt_id
+
+
 def make_basetoken_ctm(
-    data, alignments, model, model_downsample_factor, output_ctm_folder, utt_id_extractor_func, audio_sr,
+    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -172,7 +179,8 @@ def make_basetoken_ctm(
 
         basetokens_info[-1]["t_end"] = len(alignment) - 1
 
-        utt_id = utt_id_extractor_func(manifest_line["audio_filepath"])
+        # get utt_id that will be used for saving CTM file as <utt_id>.ctm
+        utt_id = _get_utt_id(manifest_line['audio_filepath'], n_parts_for_ctm_id)
 
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for basetoken_info in basetokens_info:
@@ -189,7 +197,7 @@ def make_basetoken_ctm(
 
 
 def make_word_ctm(
-    data, alignments, model, model_downsample_factor, output_ctm_folder, utt_id_extractor_func, audio_sr,
+    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -281,7 +289,8 @@ def make_word_ctm(
         if alignment[-1] == words_info[-1]["u_end"]:
             words_info[-1]["t_end"] = len(alignment) - 1
 
-        utt_id = utt_id_extractor_func(manifest_line["audio_filepath"])
+        # get utt_id that will be used for saving CTM file as <utt_id>.ctm
+        utt_id = _get_utt_id(manifest_line['audio_filepath'], n_parts_for_ctm_id)
 
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for word_info in words_info:
