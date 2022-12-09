@@ -2,32 +2,6 @@
 
 A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based models.
 
-## How do I use NeMo Forced Aligner?
-To use NFA, all you need to provide is a correct NeMo manifest (with 'audio_filepath' and 'text' fields).
-
-Call the align function in align.py, specifying the parameters as follows:
-
-* `model_name`: Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). You can provide a pretrained model name or a path to a saved '.nemo' file.
-
-> Note: If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely OOM.
-
-* `model_downsample_factor`: should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet.
-
-* `manifest_filepath`: The path to the manifest of the data you want to align.
-
-* `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called <output_ctm_folder>/<utt_id>.ctm. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `utt_id_extractor_func`.
-
-* `grouping_for_ctm`: A string, either 'word' or 'basetoken'. 'basetoken' can mean either a token or character, depending on the model used for alignment. If you select 'basetoken' - the code will output a CTM with alignments at the token/character level. If you select 'word' - the code will group the tokens/characters into words.
-
-* [OPTIONAL] `utt_id_extractor_func`: The function mapping the audio_filepath to the utt_id that will be used to save CTM files.
-
-* `audio_sr`: The sample rate of your audio
-
-* `device`: The device where you want your ASR Model to be loaded into.
-
-* `batch_size`: The batch_size you wish to use for transcription and alignment.
-
-
 # Example script
 
 ```python
@@ -35,14 +9,38 @@ from align import align
 
 if __name__ == "__main__":
     align(
-        model_name="stt_en_citrinet_1024_gamma_0_25", 
-        model_downsample_factor=8,
         manifest_filepath=<path to manifest of utterances you want to align>,
         output_ctm_folder=<path to where your ctm files will be saved>,
-        grouping_for_ctm="word", # either "word" or "basetoken"
-        audio_sr=16000, # the sampling rate of your audio files
-        device="cuda:0", # the device that the ASR model will be loaded into 
-        batch_size=1,
     )
 
 ```
+
+## How do I use NeMo Forced Aligner?
+To use NFA, all you need to provide is a correct NeMo manifest (with 'audio_filepath' and 'text' fields).
+
+Call the align function in align.py, specifying the parameters as follows:
+
+* `manifest_filepath`: The path to the manifest of the data you want to align.
+
+* `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
+
+* [OPTIONAL] `model_name`: Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). You can provide a pretrained model name or a path to a saved '.nemo' file. (Default: "stt_en_citrinet_1024_gamma_0_25")
+> Note: If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
+
+* [OPTIONAL] `model_downsample_factor`: the downsample factor of the ASR model. It should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet (Default: 8, to match with the default model_name "stt_en_citrinet_1024_gamma_0_25").
+
+* [OPTIONAL] `grouping_for_ctm`: A string, either 'word' or 'basetoken'. 'basetoken' can mean either a token or character, depending on the model used for alignment. If you select 'basetoken' - the code will output a CTM with alignments at the token/character level. If you select 'word' - the code will group the tokens/characters into words (Default: "word"). 
+
+* [OPTIONAL] `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath)
+
+* [OPTIONAL] `audio_sr`: The sample rate (in Hz) of your audio. (Default: 16000)
+
+* [OPTIONAL] `device`: The device that will be used for generating log-probs and doing Viterbi decoding. (Default: 'cpu').
+
+* [OPTIONAL] `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
+
+# CTM file format
+For each utterance specified in a line of `manifest_filepath`, one CTM file will be generated at the location of `<output_ctm_folder>/<utt_id>.ctm`.
+Each CTM file will contain lines of the format:
+`<utt_id> 1 <start time in samples> <duration in samples> <word or token>`.
+Note the second item in the line (the 'channel ID', which is required by the CTM file format) is always 1, as NFA operates on single channel audio.

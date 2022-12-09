@@ -103,26 +103,61 @@ def align_batch(data, model):
 
 
 def align(
-    manifest_filepath,
-    model_name,
-    model_downsample_factor,
-    output_ctm_folder,
-    grouping_for_ctm,
-    n_parts_for_ctm_id=1,
-    audio_sr=16000,
-    device="cuda:0",
-    batch_size=1,
+    manifest_filepath: str,
+    output_ctm_folder: str,
+    model_name: str = "stt_en_citrinet_1024_gamma_0_25",
+    model_downsample_factor: int = 8,
+    grouping_for_ctm: str = "word",
+    n_parts_for_ctm_id: int = 1,
+    audio_sr: int = 16000,
+    device: str = "cpu",
+    batch_size: int = 1,
 ):
     """
-    Function that does alignment of utterances in `manifest_filepath`.
-    Results are saved in ctm files in `output_ctm_folder`.
-    Returns the most recent alignment, v_matrix, log_probs_reordered, in case you want to inspect them
-    in a parent function.
+    Function that does alignment of utterances in manifest_filepath. 
+    Results are saved in ctm files in output_ctm_folder.
+
+    Args:
+        manifest_filepath: filepath to the manifest of the data you want to align.
+        output_ctm_folder: the folder where output CTM files will be saved.
+        model_name: string specifying a NeMo ASR model to use for generating the log-probs
+            which we will use to do alignment.
+            If the string ends with '.nemo', the code will treat `model_name` as a local filepath
+            from which it will attempt to restore a NeMo model.
+            If the string does not end with '.nemo', the code will attempt to download a model
+            with name `model_name` from NGC.  
+        model_downsample_factor: an int indicating the downsample factor of the ASR model, ie the ratio of input 
+            timesteps to output timesteps. 
+            If the ASR model is a QuartzNet model, its downsample factor is 2.
+            If the ASR model is a Conformer CTC model, its downsample factor is 4.
+            If the ASR model is a Citirnet model, its downsample factor is 8.
+        grouping_for_ctm: a string, either 'word' or 'basetoken'.
+            If 'basetoken', the CTM files will contain timestamps for either the tokens or
+            characters in the ground truth (depending on whether it is a token-based or
+            character-based model).
+            If 'word', the basetokens will be grouped into words, and the CTM files
+            will contain word timestamps instead of basetoken timestamps.
+        n_parts_for_ctm_id: int specifying how many  how many of the 'parts' of the audio_filepath
+            we will use (starting from the final part of the audio_filepath) to determine the 
+            utt_id that will be used in the CTM files.
+            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e"
+            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e"
+            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e"
+        audio_sr: int specifying the sample rate of your audio files.
+        device: string specifying the device that will be used for generating log-probs and doing 
+            Viterbi decoding. The string needs to be in a format recognized by torch.device()
+        batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+
+
+    Returns:
+        alignment:
+        v_matrix:
+        log_probs_reordered:
     """
 
     # load model
     device = torch.device(device)
-    if ".nemo" in model_name:
+    if model_name.endswith('.nemo'):
         model = ASRModel.restore_from(model_name, map_location=device)
     else:
         model = ASRModel.from_pretrained(model_name, map_location=device)
