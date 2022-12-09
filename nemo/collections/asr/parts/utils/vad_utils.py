@@ -1245,8 +1245,9 @@ def extract_audio_features(vad_model, manifest_vad_input: str, out_dir: str) -> 
     """
 
     file_list = []
-    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
-        file_list.append(Path(json.loads(line)['audio_filepath']).stem)
+    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
+        for line in fin.readlines():
+            file_list.append(Path(json.loads(line)['audio_filepath']).stem)
 
     logging.info(f"Extracting features on {len(file_list)} audio files/json lines!")
 

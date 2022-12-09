@@ -314,9 +314,10 @@ def generate_vad_frame_pred(
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
-        file = json.loads(line)['audio_filepath'].split("/")[-1]
-        data.append(file.split(".wav")[0])
+    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
+        for line in fin.readlines():
+            file = json.loads(line)['audio_filepath'].split("/")[-1]
+            data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)

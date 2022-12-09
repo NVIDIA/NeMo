@@ -10,11 +10,10 @@ from nemo.collections.asr.parts.utils.vad_utils import load_speech_segments_from
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import *
-from nemo.utils import logging
+from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
 
 
-class ASRFeatureManifestProcessor(ASRManifestProcessor):
+class ASRFeatureManifestProcessor:
     def __init__(
         self,
         manifest_filepath: str,
@@ -27,10 +26,7 @@ class ASRFeatureManifestProcessor(ASRManifestProcessor):
         pad_id: int = 0,
         index_by_file_id: bool = False,
     ):
-        super().__init__(
-            manifest_filepath, parser, max_duration, min_duration, max_utts, bos_id, eos_id, pad_id, index_by_file_id
-        )
-
+        self.parser = parser
         self.collection = collections.ASRFeatureText(
             manifests_files=manifest_filepath,
             parser=parser,
@@ -39,6 +35,31 @@ class ASRFeatureManifestProcessor(ASRManifestProcessor):
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
         )
+
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.pad_id = pad_id
+
+    def process_text_by_id(self, index: int) -> Tuple[List[int], int]:
+        sample = self.collection[index]
+        return self.process_text_by_sample(sample)
+
+    def process_text_by_file_id(self, file_id: str) -> Tuple[List[int], int]:
+        manifest_idx = self.collection.mapping[file_id][0]
+        sample = self.collection[manifest_idx]
+        return self.process_text_by_sample(sample)
+
+    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> Tuple[List[int], int]:
+        t, tl = sample.text_tokens, len(sample.text_tokens)
+
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return t, tl
 
 
 class _FeatureTextDataset(Dataset):
@@ -88,7 +109,7 @@ class _FeatureTextDataset(Dataset):
         self,
         manifest_filepath: str,
         parser: Union[str, Callable],
-        normalize: str = "post_norm",
+        normalize: Optional[str] = "post_norm",
         use_rttm: bool = False,
         mask_mode: str = "zero",
         frame_unit_time_secs: float = 0.01,
@@ -115,9 +136,6 @@ class _FeatureTextDataset(Dataset):
         if normalize is not None and normalize not in self.NORM_MODES:
             raise ValueError(f"`normalize` must be one of {self.NORM_MODES}, got `{normalize}` instead")
 
-        if use_rttm and mask_mode not in self.MASK_MODES:
-            raise ValueError(f"`mask_mode` must be one of {self.MASK_MODES}, got `{mask_mode}` instead")
-
         self.frame_unit_time_secs = frame_unit_time_secs
 
         self.manifest_processor = ASRFeatureManifestProcessor(
@@ -134,9 +152,6 @@ class _FeatureTextDataset(Dataset):
         self.trim = trim
         self.return_sample_id = return_sample_id
         self.channel_selector = channel_selector
-
-    def get_manifest_sample(self, sample_id):
-        return self.manifest_processor.collection[sample_id]
 
     def __getitem__(self, index):
         sample = self.manifest_processor.collection[index]
@@ -160,8 +175,9 @@ class _FeatureTextDataset(Dataset):
             if self.use_rttm and sample.rttm_file:
                 f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.ZERO_LEVEL_SPEC_DB_VAL)
             f = self.featurizer.normalize_per_feature(f)
-        else:
+        else:  # pre-norm
             f = self.featurizer.normalize_per_feature(f)
+            # (Optional) Masking based on RTTM file
             if self.use_rttm and sample.rttm_file:
                 f = self.mask_features_from_rttm(f, offset, sample.rttm_file, 0.0)  # similar to SpecAug
 

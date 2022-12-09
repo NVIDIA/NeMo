@@ -131,15 +131,11 @@ def main(cfg):
 
     asr_model = asr_model.eval()
 
-    # set True to collect additional transcription information
-    return_hypotheses = False
-
     # Setup decoding strategy
-    is_rnnt = False
+    decode_function = None
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
         if hasattr(asr_model, 'joint'):  # RNNT model
-            is_rnnt = True
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
@@ -147,6 +143,8 @@ def main(cfg):
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
             decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
+    else:
+        raise ValueError(f"only support CTC or RNNT models that have `change_decoding_strategy()` implemented.")
 
     # Compute output filename
     if cfg.output_filename is None:
@@ -232,16 +230,7 @@ def main(cfg):
                         with record_fn("infer_other"):
                             logits, logits_len = outputs[0], outputs[1]
 
-                            current_hypotheses, all_hyp = decode_function(
-                                logits, logits_len, return_hypotheses=return_hypotheses,
-                            )
-
-                            if return_hypotheses and not is_rnnt:
-                                # dump log probs per file
-                                for idx in range(logits.shape[0]):
-                                    current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-                                    if current_hypotheses[idx].alignments is None:
-                                        current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
+                            current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=False,)
 
                             hypotheses += current_hypotheses
                             if all_hyp is not None:

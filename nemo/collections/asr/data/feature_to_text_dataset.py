@@ -25,7 +25,6 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         use_rttm=config.get('use_rttm', False),
         frame_unit_time_secs=config.get('frame_unit_time_secs', 0.01),
         sample_rate=config.get('sample_rate', 16000),
-        int_values=config.get('int_values', False),
         augmentor=augmentor,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
