@@ -152,7 +152,7 @@ def datastore_path_to_local_path(store_path: str) -> str:
     if store_path.startswith('ais://'):
         endpoint = ais_endpoint()
         if endpoint is None:
-            raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
+            raise RuntimeError(f'AIS endpoint not set, cannot resolve {store_path}')
 
         local_ais_cache = os.path.join(ais_cache_base(), ais_endpoint_to_dir(endpoint))
         store_bucket, store_object = bucket_and_object_from_uri(store_path)

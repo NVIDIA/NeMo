@@ -251,17 +251,22 @@ def cache_datastore_manifests(
         def cache_data(manifest_filepaths, cache_audio, num_workers, max_num_workers):
             """Cache manifests and audio data from object store.
             """
+            # Determine the number of workers to use
             if num_workers is None:
                 num_workers = os.cpu_count() - 1
             num_workers = min(num_workers, max_num_workers)
 
+            # Process each manifest file
             for manifest_file in manifest_filepaths:
+                # If manifest is on a data store, then cache it.
+                # Otherwise, nothing to do.
                 if is_datastore_path(manifest_file):
                     logging.info('Cache manifest file: %s', manifest_file)
                     cached_manifest_file = DataStoreObject(manifest_file).get()
                     logging.info('Cached at: %s', str(cached_manifest_file))
 
                     if cache_audio:
+                        # Each audio file from manifest will be cached.
                         logging.info('Cache audio from manifest file: %s', manifest_file)
                         # Assumes that manifest is using relative paths
                         manifest_dir = os.path.dirname(manifest_file)
@@ -285,13 +290,13 @@ def cache_datastore_manifests(
                             for audio_object in tqdm(audio_objects):
                                 result.append(audio_object.get() is not None)
 
-                        if any(result) == False:
+                        if not all(result):
                             raise RuntimeError('Some files not downloaded successfully')
                         logging.info('Caching complete')
 
                 else:
                     # Nothing to do here
-                    logging.debug('Manifest is not on a store: %s', manifest_file)
+                    logging.debug('Manifest is not on a data store: %s', manifest_file)
 
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             logging.debug('Distributed environment is available and initialized.')
