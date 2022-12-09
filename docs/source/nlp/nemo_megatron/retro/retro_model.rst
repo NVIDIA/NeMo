@@ -423,7 +423,7 @@ the terminal into your browser. Use the specified username and password to log i
 References
 ================
 
-.. bibliography:: ../nlp_all.bib
+.. bibliography:: ../../nlp_all.bib
     :style: plain
     :labelprefix: nlp-retro
     :keyprefix: nlp-retro-
