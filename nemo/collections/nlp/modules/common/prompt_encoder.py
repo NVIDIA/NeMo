@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Mapping, Any
 
 import torch
 from torch import nn
@@ -423,11 +423,8 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         """
         super().__init__()
         self.total_virtual_tokens = total_virtual_tokens
-        #if limit_vocab > -1 and top_tokens is not None:
-        #    top_tokens = top_tokens[:limit_vocab]
-        #    self.original_embeddings = original_embeddings[top_tokens, :]
-        #else:
         self.original_embeddings = original_embeddings
+
         self.l1_scale = l1_scale
         self.l2_scale = l2_scale
         self.cs_scale = cs_scale
@@ -439,40 +436,31 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
 
         assert self.original_embeddings.requires_grad == False
         vocab_size, _ = self.original_embeddings.size()
-        group_size = vocab_size // self.total_virtual_tokens
+
         t = torch.zeros((vocab_size, self.total_virtual_tokens))
-        
-        if init_val == 'group':
-            self.init_val = 1.0 / group_size
-        elif init_val == 'one':
+        if init_val == 'one':
             self.init_val = 1.0
         elif init_val == 'zero':
             self.init_val = 0.0
         else:
             self.init_val == 1.0 / vocab_size
-        
 
-        if self.spaced_init == 'random':
-            r = torch.randperm(group_size * self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
-        elif self.spaced_init == 'spaced':
-            r = torch.arange(0, group_size * self.total_virtual_tokens, self.total_virtual_tokens).tile(self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
-            s = torch.arange(self.total_virtual_tokens).unsqueeze(1)
-            r = r + s
-        else:
-            r = torch.arange(group_size * self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
-
-        for i in range(self.total_virtual_tokens):
-            t[r[i,:], i] = self.init_val
-
-        m = torch.ones_like(t)
-        if self.mask_restrict:
-            m = (t > 0.0).int()
-        self.mask = torch.nn.parameter.Parameter(data=m, requires_grad=False)
+        t = t + self.init_val
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
         self.cos = torch.nn.CosineSimilarity(dim=0)
+    
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        for k, v in state_dict.items():
+            if k == 'linear_combination':
+                #self.linear_combination = v
+                self.linear_combination = torch.nn.parameter.Parameter(data=v)
+            else:
+                raise RuntimeError(f"Linear Combination cant parse key {k} in state_dict")
+        super().load_state_dict(state_dict, strict)
+        return True
 
     def encoder_reg(self,):
-        w = self.linear_combination * self.mask
+        w = self.linear_combination
         if self.use_relu:
             w = torch.nn.functional.relu(w)
         if self.normalize:
@@ -481,7 +469,9 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         l2 = (w ** 2).sum(dim=0)
         l1 = torch.abs(w).sum(dim=0)
 
-        output_embeds = self.original_embeddings.transpose(0, 1) @ w
+        selected_original_embeddings = self.original_embeddings
+
+        output_embeds = selected_original_embeddings.transpose(0, 1) @ w
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
         output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-4
         output_embeds = output_embeds / output_embeds_norm
@@ -493,17 +483,19 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         batch_size, _, _ = taskname_embeddings.shape
-        w = self.linear_combination * self.mask
+        w = self.linear_combination
         if self.use_relu:
             w = torch.nn.functional.relu(w)
 
         if self.normalize:
             w = w / w.sum(dim=0)
 
+        selected_original_embeddings = self.original_embeddings
+
         if self.noise_std == 0.0:
-            output_embeds = self.original_embeddings.transpose(0, 1) @ w
+            output_embeds = selected_original_embeddings.transpose(0, 1) @ w
         else:
-            _n = (torch.randn_like(self.original_embeddings) * self.noise_std) + self.original_embeddings
+            _n = (torch.randn_like(selected_original_embeddings) * self.noise_std) + selected_original_embeddings
             output_embeds = _n.transpose(0, 1) @ w
 
 
