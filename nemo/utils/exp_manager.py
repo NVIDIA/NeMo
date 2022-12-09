@@ -152,6 +152,8 @@ class ExpManagerConfig:
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
     ema: Optional[EMAParams] = EMAParams()
+    # Wall clock time limit
+    max_time_per_run: Optional[str] = None
 
 
 class TimingCallback(Callback):
@@ -260,6 +262,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+                a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -403,10 +407,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         configure_no_restart_validation_training_loop(trainer)
 
     # Setup a stateless timer for use on clusters.
-    if cfg.max_time is not None:
+    if cfg.max_time_per_run is not None:
         if trainer.max_time is not None:
-            raise ValueError(f"trainer.max_time is not None, Cannot set both trainer.max_time and exp_manager.max_time")
-        trainer.callbacks.append(StatelessTimer(cfg.max_time))
+            raise ValueError(f"trainer.max_time is not None, Cannot set both trainer.max_time and exp_manager.max_time_per_run")
+        trainer.max_time = cfg.max_time_per_run
+        trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
