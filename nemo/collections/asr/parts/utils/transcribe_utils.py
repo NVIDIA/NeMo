@@ -187,7 +187,7 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
             restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
         if cfg.get("change_self_attention_model", None) is not None:
-            asr_model.change_conformer_attention_model(
+            asr_model.change_attention_model(
                 self_attention_model=cfg.change_self_attention_model,
                 att_context_size=(cfg.att_context_left, cfg.att_context_right),
             )

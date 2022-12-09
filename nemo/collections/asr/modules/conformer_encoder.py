@@ -26,10 +26,12 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
-    ChunkedRelPositionalEncoding,
+    LocalAttRelPositionalEncoding,
     MultiHeadAttention,
     PositionalEncoding,
     RelPositionalEncoding,
+    RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttentionLongformer,
 )
 from nemo.collections.asr.parts.submodules.subsampling import (
     ConvSubsampling,
@@ -310,7 +312,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 dropout_rate_emb=dropout_emb,
             )
         elif self_attention_model == 'rel_pos_local_attn':
-            self.pos_enc = ChunkedRelPositionalEncoding(
+            if max(att_context_size) <= 0:
+                raise ValueError("When using local attention, context size must be set > 0")
+            self.pos_enc = LocalAttRelPositionalEncoding(
                 att_context_size=att_context_size,
                 d_model=d_model,
                 dropout_rate=dropout,
@@ -637,6 +641,123 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         )
 
         return cache_last_channel, cache_last_time
+
+    def change_attention_model(
+        self,
+        self_attention_model: str = None,
+        att_context_size: List[int] = None,
+        update_config: bool = True,
+        device: torch.device = None,
+    ):
+
+        """
+        Update the self_attention_model which changes the positional encoding and attention layers.
+    
+        Args:
+            self_attention_model (str): type of the attention layer and positional encoding
+                'rel_pos': relative positional embedding and Transformer-XL
+                'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+                    overlapping windows. Attention context is determined by att_context_size parameter.
+                'abs_pos': absolute positional embedding and Transformer
+                If None is provided, the self_attention_model isn't changed. Defauts to None.
+            att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
+                or None to keep as it is. Defauts to None.
+            update_config (bool): Whether to update the config or not with the new attention model.
+                Defaults to True.
+            device (torch.device): If provided, new layers will be moved to the device.
+                Defaults to None.
+        """
+
+        if att_context_size:
+            att_context_size = list(att_context_size)
+        else:
+            att_context_size = self._cfg.att_context_size
+
+        if self_attention_model is None:
+            self_attention_model = self._cfg.self_attention_model
+
+        if self_attention_model == "rel_pos":
+            self.att_mask = None
+            new_pos_enc = RelPositionalEncoding(
+                d_model=self._cfg.d_model,
+                dropout_rate=self._cfg.dropout,
+                max_len=self._cfg.pos_emb_max_len,
+                xscale=self.xscale,
+                dropout_rate_emb=self._cfg.dropout_emb,
+            )
+        elif self_attention_model == 'rel_pos_local_attn':
+            new_pos_enc = LocalAttRelPositionalEncoding(
+                att_context_size=att_context_size,
+                d_model=self._cfg.d_model,
+                dropout_rate=self._cfg.dropout,
+                max_len=self._cfg.pos_emb_max_len,
+                xscale=self.xscale,
+                dropout_rate_emb=self._cfg.dropout_emb,
+            )
+        elif self_attention_model == "abs_pos":
+            new_pos_enc = PositionalEncoding(
+                d_model=self._cfg.d_model,
+                dropout_rate=self._cfg.dropout,
+                max_len=self._cfg.pos_emb_max_len,
+                xscale=self.xscale,
+            )
+        else:
+            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+
+        if device is not None:
+            new_pos_enc = new_pos_enc.to(device=device)
+        new_pos_enc.load_state_dict(state_dict=self.pos_enc.state_dict(), strict=False)
+        del self.pos_enc
+        self.pos_enc = new_pos_enc
+
+        self.self_attention_model = self_attention_model
+        self.set_max_audio_length(self.pos_emb_max_len)
+
+        for name, m in self.named_modules():
+            if type(m) == ConformerLayer:
+
+                if self_attention_model == 'rel_pos':
+                    new_attn = RelPositionMultiHeadAttention(
+                        n_head=self._cfg.n_heads,
+                        n_feat=self._cfg.d_model,
+                        dropout_rate=self._cfg.dropout_att,
+                        max_cache_len=att_context_size[0],
+                        pos_bias_u=None,
+                        pos_bias_v=None,
+                    )
+                elif self_attention_model == 'rel_pos_local_attn':
+                    new_attn = RelPositionMultiHeadAttentionLongformer(
+                        n_head=self._cfg.n_heads,
+                        n_feat=self._cfg.d_model,
+                        dropout_rate=self._cfg.dropout_att,
+                        max_cache_len=att_context_size[0],
+                        att_context_size=att_context_size,
+                        pos_bias_u=None,
+                        pos_bias_v=None,
+                    )
+                elif self_attention_model == 'abs_pos':
+                    new_attn = MultiHeadAttention(
+                        n_head=self._cfg.n_heads,
+                        n_feat=self._cfg.d_model,
+                        dropout_rate=self._cfg.dropout_att,
+                        max_cache_len=att_context_size[0],
+                    )
+                else:
+                    raise ValueError(
+                        f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
+                        f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos']"
+                    )
+                if device is not None:
+                    new_attn = new_attn.to(device=device)
+                new_attn.load_state_dict(m.self_attn.state_dict(), strict=False)
+                del m.self_attn
+                m.self_attn = new_attn
+                m.self_attention_model = self_attention_model
+                m.att_context_size = att_context_size
+
+        if update_config:
+            self._cfg.self_attention_model = self_attention_model
+            self._cfg.att_context_size = att_context_size
 
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):

@@ -286,6 +286,91 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         )
         self.att_context_size = att_context_size
 
+    def forward(self, query, key, value, pad_mask, pos_emb, cache=None, cache_next=None):
+        """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
+        Args:
+            query (torch.Tensor): (batch, time, size)
+            key (torch.Tensor): (batch, time, size)
+            value(torch.Tensor): (batch, time, size)
+            pad_mask (torch.Tensor): (batch, time)
+            pos_emb (torch.Tensor) : (batch, 2w + 1, size)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+        Returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
+
+        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+
+        if torch.is_autocast_enabled():
+            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
+
+        # temporary until we solve this more gracefully
+        with avoid_float16_autocast_context():
+            q, k, v = self.forward_qkv(query, key, value)
+            n_batch, _, T, _ = q.size()
+
+            w = max(self.att_context_size[0], self.att_context_size[1])
+            if w <= 0:
+                raise ValueError("When using local attention, context size must be set > 0")
+            pad_len = (2 * w - T % (2 * w)) % (2 * w)  # pad time to 2w
+            q = F.pad(q, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            k = F.pad(k, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            v = F.pad(v, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            mask = F.pad(pad_mask, (0, pad_len), value=1.0)
+
+            q_with_bias_u = q + self.pos_bias_u.unsqueeze(1)  # (batch, head, time, size)
+            q_with_bias_v = q + self.pos_bias_v.unsqueeze(1)  # (batch, head, time, size)
+
+            diagonal_matrix_ac = self.sliding_chunks_matmul_qk(
+                q_with_bias_u, k, w, padding_value=0.0
+            )  # (batch, head, time, 2w + 1)
+
+            # add relative positional embedding
+
+            n_batch_pos = pos_emb.size(0)
+            p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k).transpose(1, 2)
+            # (batch, head, 2w, size)
+            diagonal_matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
+            # (batch, head, time, 2w + 1)
+
+            start_pos = w - self.att_context_size[0]
+            end_pos = w + self.att_context_size[1]
+
+            diagonal_matrix_ac[:, :, :, : self.att_context_size[0]] += diagonal_matrix_bd[
+                :, :, :, : self.att_context_size[0]
+            ]
+            diagonal_matrix_ac[:, :, :, -(self.att_context_size[1] + 1) :] += diagonal_matrix_bd[
+                :, :, :, self.att_context_size[0] :
+            ]
+            scores = diagonal_matrix_ac / self.s_d_k
+            # (batch, head, time, 2w + 1)
+
+            # mask invalid positions
+            scores[:, :, :, :start_pos] = -10000.0
+            scores[:, :, :, end_pos + 1 :] = -10000.0
+
+            # This implementation is fast and takes very little memory because num_heads x hidden_size = 1
+            # from (bsz x seq_len) to (bsz x num_heads x seqlen x hidden_size)
+            mask = mask.unsqueeze(dim=1).unsqueeze(dim=-1)
+            # cast to float/half then replace 1's with -inf
+            float_mask = mask.type_as(scores).masked_fill(mask, -10000.0)
+            ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
+            # diagonal mask with zeros everywhere and -inf inplace of padding
+            d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
+            # (batch, head, time, 2w + 1)
+
+            scores += d_mask
+
+            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
+            p_attn = self.dropout(attn)
+            # (batch, head, time, 2w + 1)
+
+            x = self.sliding_chunks_matmul_pv(p_attn, v, w).reshape(n_batch, -1, self.h * self.d_k)[:, :T]
+            # (batch, time, size)
+
+        return self.linear_out(x)
+
     # Longformer implementation for overlap case adapted for arbitrary left and right chunk size
     # https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py
     def _skew(self, x: torch.Tensor, direction: List[int], padding_value: float) -> torch.Tensor:
@@ -482,91 +567,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         return context.view(bsz, num_heads, seqlen, head_dim).transpose(1, 2)
 
-    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
-        """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
-        Args:
-            query (torch.Tensor): (batch, time, size)
-            key (torch.Tensor): (batch, time, size)
-            value(torch.Tensor): (batch, time, size)
-            mask (torch.Tensor): (batch, time)
-            pos_emb (torch.Tensor) : (batch, 2w + 1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
-        Returns:
-            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-        """
-
-        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
-
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
-
-        # temporary until we solve this more gracefully
-        with avoid_float16_autocast_context():
-            q, k, v = self.forward_qkv(query, key, value)
-            n_batch, _, T, _ = q.size()
-
-            w = max(self.att_context_size[0], self.att_context_size[1])
-            if w <= 0:
-                raise ValueError("When using local attention, context size must be set > 0")
-            pad_len = (2 * w - T % (2 * w)) % (2 * w)  # pad time to 2w
-            q = F.pad(q, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            k = F.pad(k, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            v = F.pad(v, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            mask = F.pad(mask, (0, pad_len), value=1.0)
-
-            q_with_bias_u = q + self.pos_bias_u.unsqueeze(1)  # (batch, head, time, size)
-            q_with_bias_v = q + self.pos_bias_v.unsqueeze(1)  # (batch, head, time, size)
-
-            diagonal_matrix_ac = self.sliding_chunks_matmul_qk(
-                q_with_bias_u, k, w, padding_value=0.0
-            )  # (batch, head, time, 2w + 1)
-
-            # add relative positional embedding
-
-            n_batch_pos = pos_emb.size(0)
-            p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k).transpose(1, 2)
-            # (batch, head, 2w, size)
-            diagonal_matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
-            # (batch, head, time, 2w + 1)
-
-            start_pos = w - self.att_context_size[0]
-            end_pos = w + self.att_context_size[1]
-
-            diagonal_matrix_ac[:, :, :, : self.att_context_size[0]] += diagonal_matrix_bd[
-                :, :, :, : self.att_context_size[0]
-            ]
-            diagonal_matrix_ac[:, :, :, -(self.att_context_size[1] + 1) :] += diagonal_matrix_bd[
-                :, :, :, self.att_context_size[0] :
-            ]
-            scores = diagonal_matrix_ac / self.s_d_k
-            # (batch, head, time, 2w + 1)
-
-            # mask invalid positions
-            scores[:, :, :, :start_pos] = -10000.0
-            scores[:, :, :, end_pos + 1 :] = -10000.0
-
-            # This implementation is fast and takes very little memory because num_heads x hidden_size = 1
-            # from (bsz x seq_len) to (bsz x num_heads x seqlen x hidden_size)
-            mask = mask.unsqueeze(dim=1).unsqueeze(dim=-1)
-            # cast to float/half then replace 1's with -inf
-            float_mask = mask.type_as(scores).masked_fill(mask, -10000.0)
-            ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
-            # diagonal mask with zeros everywhere and -inf inplace of padding
-            d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
-            # (batch, head, time, 2w + 1)
-
-            scores += d_mask
-
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
-            p_attn = self.dropout(attn)
-            # (batch, head, time, 2w + 1)
-
-            x = self.sliding_chunks_matmul_pv(p_attn, v, w).reshape(n_batch, -1, self.h * self.d_k)[:, :T]
-            # (batch, time, size)
-
-        return self.linear_out(x)
-
 
 class PositionalEncoding(torch.nn.Module):
     """Fixed sinusoidal positional encoding.
@@ -676,7 +676,7 @@ class RelPositionalEncoding(PositionalEncoding):
         return self.dropout(x), pos_emb
 
 
-class ChunkedRelPositionalEncoding(PositionalEncoding):
+class LocalAttRelPositionalEncoding(PositionalEncoding):
     """Relative positional encoding for sliding window attention or chunked attention.
     See above for relative positional encoding based on Transformer-XL paper
     Args:
@@ -690,7 +690,7 @@ class ChunkedRelPositionalEncoding(PositionalEncoding):
     """
 
     def __init__(self, att_context_size, **kwargs):
-        super(ChunkedRelPositionalEncoding, self).__init__(**kwargs)
+        super(LocalAttRelPositionalEncoding, self).__init__(**kwargs)
         self.left_context = att_context_size[0]
         self.right_context = att_context_size[1]
 

@@ -394,12 +394,11 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             self, context_window=context_window, update_config=update_config
         )
 
-    def change_conformer_attention_model(
-        self, self_attention_model: str, att_context_size: List[int] = None, update_config: bool = True
+    def change_attention_model(
+        self, self_attention_model: str = None, att_context_size: List[int] = None, update_config: bool = True
     ):
         """
-        Update the self_attention_model in a Conformer Encoder,
-        which changes the positional encoding and attention layers.
+        Update the self_attention_model if function is available in encoder.
 
         Args:
             self_attention_model (str): type of the attention layer and positional encoding
@@ -407,13 +406,26 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
                     overlapping windows. Attention context is determined by att_context_size parameter.
                 'abs_pos': absolute positional embedding and Transformer
+                If None is provided, the self_attention_model isn't changed. Defauts to None.
             att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
-                or None for full context.
-            update_config: Whether to update the config or not with the new attention model
+                or None to keep as it is. Defauts to None.
+            update_config (bool): Whether to update the config or not with the new attention model.
+                Defaults to True.
         """
-        asr_module_utils.change_conformer_attention_model(
-            self, self_attention_model=self_attention_model, att_context_size=att_context_size
-        )
+        if not hasattr(self, 'encoder'):
+            logging.info(
+                "Could not change the self_attention_model in encoder "
+                "since the model provided does not contain an `encoder` module in its config."
+            )
+            return
+
+        if not hasattr(self.encoder, "change_attention_model"):
+            logging.info("Model encoder doesn't have a change_attention_model method ")
+            return
+
+        self.encoder.change_attention_model(self_attention_model, att_context_size, update_config, self.device)
+
+        return
 
     def conformer_stream_step(
         self,
