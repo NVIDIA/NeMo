@@ -472,6 +472,18 @@ class AudioToCharDataset(_AudioTextDataset):
         )
 
 
+class TokenizerWrapper:
+    def __init__(self, tokenizer):
+        if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+            self.is_aggregate = True
+        else:
+            self.is_aggregate = False
+        self._tokenizer = tokenizer
+
+    def __call__(self, *args):
+        t = self._tokenizer.text_to_ids(*args)
+        return t
+
 class AudioToBPEDataset(_AudioTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -551,17 +563,6 @@ class AudioToBPEDataset(_AudioTextDataset):
         else:
             pad_id = 0
 
-        class TokenizerWrapper:
-            def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
-                    self.is_aggregate = True
-                else:
-                    self.is_aggregate = False
-                self._tokenizer = tokenizer
-
-            def __call__(self, *args):
-                t = self._tokenizer.text_to_ids(*args)
-                return t
 
         super().__init__(
             manifest_filepath=manifest_filepath,
