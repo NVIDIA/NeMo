@@ -810,157 +810,6 @@ def _rescale(x, gain):
     out = out.squeeze(0)
     return out
 
-class StaticTargetAudioToBPEDataset(AudioToBPEDataset):
-    """
-    """
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
-        output = super().output_types
-        sample_id = output.pop('sample_id')
-        output['speaker_features'] = NeuralType(('B', 'T'), AudioSignal())
-        output['features_lengths'] = NeuralType(tuple('B'), LengthsType())
-        output['target_pt'] = NeuralType(('B', 'T'), AudioSignal())
-        output['sample_id'] = sample_id
-        return output
-
-    def __init__(
-        self,
-        manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
-        sample_rate: int,
-        int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
-        max_duration: Optional[int] = None,
-        min_duration: Optional[int] = None,
-        max_utts: int = 0,
-        trim: bool = False,
-        use_start_end_token: bool = True,
-        return_sample_id: bool = False,
-        num_sources: int = 2,
-    ):
-        keep_fields = [
-            "other_audio_files",
-            "other_durations",
-            "scale_factors",
-        ]
-        
-        super().__init__(
-            manifest_filepath=manifest_filepath,
-            tokenizer=tokenizer,
-            sample_rate=sample_rate,
-            int_values=int_values,
-            augmentor=augmentor,
-            max_duration=max_duration,
-            min_duration=min_duration,
-            max_utts=max_utts,
-            trim=trim,
-            use_start_end_token=use_start_end_token,
-            return_sample_id=return_sample_id,
-            index_by_speaker_id=False,
-            keep_fields=keep_fields,
-        )  # inits  ASRManifestProcessor
-
-
-        # self.tmp_dir= '/home/yangzhang/code/ts_asr/data/'
-        # if "train" in manifest_filepath:
-        #     self.tmp_dir += "train/"
-        # else:
-        #     self.tmp_dir += "eval/"
-        # self.manifest_tmp= self.tmp_dir + '/manifest.json'
-        # os.makedirs(self.tmp_dir, exist_ok=True)
-        # with open(self.manifest_tmp, 'w') as fp:
-        #     pass
-        
-        self.manifest_filepath = manifest_filepath
-        self.num_sources = num_sources
-
-
-    def __getitem__(self, index):
-        sample = self.manifest_processor.collection[index]
-
-        
-        other_audio_files = sample.other_audio_files
-        other_durations = sample.other_durations
-        scale_factors = sample.scale_factors
-        
-
-        target_pt, target_pt_len, text, text_len = super().__getitem__(index)[:4]
-
-        overlap_audio_files = other_audio_files[:-1]
-        enrollment_audio_file = other_audio_files[-1]
-        overlap_durations = other_durations[:-1]
-        enrollment_duration = other_durations[-1]
-
-        overlapping_pts = [self.featurizer.process(
-            x, duration=y, trim=self.trim, orig_sr=sample.orig_sr) for x, y in zip(overlap_audio_files, overlap_durations)]
-        
-        enroll_pt = self.featurizer.process(
-            enrollment_audio_file, duration=enrollment_duration, trim=self.trim, orig_sr=sample.orig_sr)
-
-        enroll_pt_len = torch.tensor(enroll_pt.shape[0]).long()
-
-        target_pt *= scale_factors[0]
-        for i in range(len(overlapping_pts)):
-            overlapping_pts[i] *= scale_factors[1:][i]
-        
-
-
-        features_list = [target_pt] + overlapping_pts
-        features_lengths = [torch.tensor(x.shape[0]).long() for x in features_list]
-        ll = torch.max(torch.stack(features_lengths)).item()
-        mix_len = torch.tensor(ll).long()
-
-
-        mix = torch.zeros(ll, device=features_list[0].device)
-        rand_idx = random.randint(0, ll - features_list[0].shape[0])
-        mix[rand_idx: rand_idx + features_list[0].shape[0]] = features_list[0]
-
-        # so far only target is mixed
-        target_pt = copy.deepcopy(mix)
-
-        for x in features_list[1:]:
-            rand_idx = random.randint(0, ll - x.shape[0])
-            mix[rand_idx: rand_idx + x.shape[0]] += x
-
-
-        def pad_audio_to_length(audio, target_len): # target_len in samples 
-            if target_len <= len(audio):
-                return audio
-            audio = np.append(audio, np.zeros(target_len - len(audio)))
-            return audio
-
-        
-        # mix = pad_audio_to_length(mix.numpy(), 46 * 16000)
-        # mix = torch.tensor(mix, dtype=torch.float)
-        # mix_len = torch.tensor(len(mix)).long()
-        max_amp = torch.abs(mix).max().item()
-
-        # mix_scaling = 1 / max_amp * 0.9
-        # mix = mix_scaling * mix
-
-
-        # for generating eval data
-        # f = f"{self.tmp_dir}/{index}.wav"
-        # sf.write(f, mix, 16000)
-        # with open(self.manifest_tmp, 'a') as fp:
-        #     tmp = {"audio_filepath": f, "duration": len(mix)/16000, "text": sample.text_raw, "enroll": enrollment_audio_file}
-        #     print(tmp)
-        #     fp.write(json.dumps(tmp) + "\n")
-
-        if self.return_sample_id:
-            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len, target_pt, index
-        else:
-            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len, target_pt 
-
-        return output
-
-    def _collate_fn(self, batch):
-        # to change
-        return _speech_embedding_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
-
 
 class DynamicTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
     """
@@ -1142,7 +991,7 @@ class DynamicTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
         return _speech_embedding_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
 
 
-class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
+class StaticTargetAudioToBPEDataset(AudioToBPEDataset):
     """
     """
 
@@ -1171,13 +1020,14 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
         trim: bool = False,
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
-        num_sources: int = 2,
+        normalize_amp: bool = False,
+        num_sources: int = 1
     ):
         keep_fields = [
             "other_audio_files",
             "other_durations",
             "scale_factors",
-            "other_durations"
+            "other_offsets"
         ]
         
         super().__init__(
@@ -1210,7 +1060,7 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
         #     pass
         
         self.manifest_filepath = manifest_filepath
-        self.num_sources = num_sources
+        self.normalize_amp = normalize_amp
 
 
     def __getitem__(self, index):
@@ -1275,12 +1125,14 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
             rand_idx = random.randint(0, ll - x.shape[0])
             mix[rand_idx: rand_idx + x.shape[0]] += x
 
-        max_amp = torch.abs(mix).max().item()
 
-        mix_scaling = 1 / max_amp * 0.9
-        mix = mix_scaling * mix
+        if self.normalize_amp:
+            max_amp = torch.abs(mix).max().item()
 
-        target_pt = target_pt * mix_scaling
+            mix_scaling = 1 / max_amp * 0.9
+            mix = mix_scaling * mix
+
+            target_pt = target_pt * mix_scaling
 
         if self.return_sample_id:
             output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len, target_pt, index

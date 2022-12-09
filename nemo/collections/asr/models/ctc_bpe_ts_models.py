@@ -368,6 +368,7 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
         return tensorboard_logs
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
@@ -429,17 +430,11 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
                     )
             else:
                 if config['dataset'] == 'wsj0':
-                    dataset = audio_to_text_dataset.get_static_target_audio_bpe_dataset_wsj(
+                    config['normalize_amp'] = True
+                dataset = audio_to_text_dataset.get_static_target_audio_bpe_dataset(
                         config=config,
                         tokenizer=self.tokenizer,
-                        augmentor=augmentor,
-                    )
-                else:
-                    dataset = audio_to_text_dataset.get_static_target_audio_bpe_dataset(
-                        config=config,
-                        tokenizer=self.tokenizer,
-                        augmentor=augmentor,
-                    )
+                        augmentor=augmentor,)
 
 
         loader = torch.utils.data.DataLoader(

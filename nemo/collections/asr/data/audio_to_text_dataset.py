@@ -194,9 +194,10 @@ def get_static_target_audio_bpe_dataset(
         min_duration=config.get('min_duration', None),
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', False),
-        num_sources = config['num_sources'],
+        num_sources = config.get('num_sources', 1),
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
+        normalize_amp=config.get('normalize_amp', False),
     )
     return dataset
 
@@ -232,36 +233,6 @@ def get_dynamic_target_audio_bpe_dataset_wsj(
     )
     return dataset
 
-
-def get_static_target_audio_bpe_dataset_wsj(
-    config: dict,
-    tokenizer: 'TokenizerSpec',
-    augmentor: Optional['AudioAugmentor'] = None,
-) -> audio_to_text.AudioToBPEDataset:
-    """
-    Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
-    Args:
-        config: Config of the AudioToBPEDataset.
-        tokenizer: An instance of a TokenizerSpec object.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
-    Returns:
-        An instance of AudioToBPEDataset.
-    """
-    dataset = audio_to_text.StaticTargetAudioToBPEDataset_wsj(
-        manifest_filepath=config['manifest_filepath'],
-        tokenizer=tokenizer,
-        sample_rate=config['sample_rate'],
-        int_values=config.get('int_values', False),
-        augmentor=augmentor,
-        max_duration=config.get('max_duration', None),
-        min_duration=config.get('min_duration', None),
-        max_utts=config.get('max_utts', 0),
-        trim=config.get('trim_silence', False),
-        num_sources = config['num_sources'],
-        use_start_end_token=config.get('use_start_end_token', True),
-        return_sample_id=config.get('return_sample_id', False),
-    )
-    return dataset
 
 def get_tarred_dataset(
     config: dict,
