@@ -110,7 +110,7 @@ def align(
     output_ctm_folder,
     grouping_for_ctm,
     n_parts_for_ctm_id=1,
-    audio_sr=16000,  # TODO: get audio SR automatically
+    audio_sr=16000,
     device="cuda:0",
     batch_size=1,
 ):
