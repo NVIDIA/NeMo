@@ -312,7 +312,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             l1_scale = self.cfg.p_tuning.get("l1_scale", 0.0)
             l2_scale = self.cfg.p_tuning.get("l2_scale", 0.0)
             cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
-            limit_vocab = self.cfg.p_tuning.get("limit_vocab", -1)
             normalize = self.cfg.p_tuning.get("normalize", False)
             use_relu = self.cfg.p_tuning.get("use_relu", False)
             init_val = self.cfg.p_tuning.get("init_val", "group")
@@ -325,13 +324,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 l1_scale, 
                 l2_scale, 
                 cs_scale, 
-                limit_vocab, 
                 normalize, 
                 use_relu, 
                 init_val, 
                 spaced_init, 
                 mask_restrict,
-                top_tokens=self.training_top_tokens,
                 noise_std=noise_std,
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION_BASELINE:

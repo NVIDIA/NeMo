@@ -404,13 +404,11 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         l1_scale: float,
         l2_scale: float,
         cs_scale: float,
-        limit_vocab: int,
         normalize: bool,
         use_relu: bool,
         init_val: str,
         spaced_init: str,
         mask_restrict: bool,
-        top_tokens: List[int],
         noise_std: float,
     ):
         """
