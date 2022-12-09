@@ -10,14 +10,14 @@ context and cross-attention layers that integrate the context to improve the mod
     :width: 800px
     :alt: RETRO model architecture
  
-For more detailed information on the model, please refer to the `RETRO paper <https://arxiv.org/abs/2112.04426>`_ by Deepmind. 
+For more detailed information on the model, please refer to the `RETRO paper <https://arxiv.org/abs/2112.04426>`_ :cite:`nlp-retro-borgeaud2021improving` by Deepmind. 
 The NeMo RETRO Model is an open-source implementation of the paper, and it has the following differences/features compared to Deepmind's proposed implementation:
 
 1. The NeMo RETRO Model is built on top of NeMo Megatron code, allowing for efficient training of large language models in a cluster environment.
-2. The NeMo RETRO Model uses `Faiss <https://github.com/facebookresearch/faiss>`_ as the K$N search library, which can be accelerated by GPUs. 
-3. The NeMo RETRO uses `RoPe relative positional encoding <https://arxiv.org/abs/2104.09864>`_. 
-4. The NeMo RETRO uses `SentenceTransformers <https://www.sbert.net>`_ as the retriever encoder.
-5. The NeMo RETRO supports `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_, allowing for scalable training of the RETRO model via Zero-Shot Hyperparameter Transfer.
+2. The NeMo RETRO Model uses `Faiss <https://github.com/facebookresearch/faiss>`_ :cite:`nlp-retro-jegou2022faiss` as the K$N search library, which can be accelerated by GPUs. 
+3. The NeMo RETRO uses `RoPe relative positional encoding <https://arxiv.org/abs/2104.09864>`_ :cite:`nlp-retro-su2021roformer`. 
+4. The NeMo RETRO uses `SentenceTransformers <https://www.sbert.net>`_ :cite:`nlp-retro-reimers2019sentence` as the retriever encoder.
+5. The NeMo RETRO supports `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ :cite:`nlp-retro-yang2022tensor`, allowing for scalable training of the RETRO model via Zero-Shot Hyperparameter Transfer.
 
 Quick start
 ===========
@@ -52,20 +52,20 @@ An example script to prepare data for RETRO training is:
 .. code-block:: bash
 
     python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
-    --input=/dataset/pubmed_train.jsonl \
-    --json-keys=text \
-    --tokenizer-library=megatron \
-    --apply-ftfy \
-    --dataset-impl=retmmap \
-    --merge-file=/dataset/gpt2-merges.txt \
-    --vocab-file=/dataset/gpt2-vocab.json \
-    --tokenizer-type=GPT2BPETokenizer \
-    --output-prefix=/result/pubmed_train \
-    --need-pad-id \
-    --append-eod \
-    --retrieval-db \
-    --chunk_size=64 \
-    --workers=48
+        --input=/dataset/pubmed_train.jsonl \
+        --json-keys=text \
+        --tokenizer-library=megatron \
+        --apply-ftfy \
+        --dataset-impl=retmmap \
+        --merge-file=/dataset/gpt2-merges.txt \
+        --vocab-file=/dataset/gpt2-vocab.json \
+        --tokenizer-type=GPT2BPETokenizer \
+        --output-prefix=/result/pubmed_train \
+        --need-pad-id \
+        --append-eod \
+        --retrieval-db \
+        --chunk_size=64 \
+        --workers=48
 
 The RETRO model processes chunked documents using 64 tokens as the default chunk size. The RETRO memory map dataset will add padding 
 tokens to the end of each document to make it a multiple of 64. The ``--need-pad-id`` argument adds a padding token to the tokenizer
@@ -88,7 +88,7 @@ Following is the retro memory map index data format:
    * - retrieved db :sup:`2` (1 byte)
      - number of tokens for each of sentences ( int32 array)
      - start of sentence address in byte (int64 array)	
-     - start of chunk id for each of the sentence * (int64 array)
+     - start of chunk id (int64 array)
      - chunk id address in byte (int64 array)
      -
 
@@ -121,19 +121,19 @@ In this step, it uses a subset of the retrieval data to train a empty Faiss inde
 .. code-block:: bash
 
     python scripts/nlp_language_modeling/build_retrieval_index.py \
-    --input_file=/result/pubmed_train_text_document  \
-    --tokenizer-library=megatron \
-    --tokenizer-type=GPT2BPETokenizer \
-    --merge-file=/dataset/gpt2-merges.txt \
-    --vocab-file=/dataset/gpt2-vocab.json \
-    --percent=1.0 \
-    --sentence_transformer_model=all-mpnet-base-v2 \
-    --batch_size=1024 \
-    --train_index_size=2000000 \
-    --workers=2 \
-    --devices=0,1,2,3,4,5,6,7 \
-    --stage=0 \
-    --output_file=/result/pubmed_faiss_learn.index
+        --input_file=/result/pubmed_train_text_document  \
+        --tokenizer-library=megatron \
+        --tokenizer-type=GPT2BPETokenizer \
+        --merge-file=/dataset/gpt2-merges.txt \
+        --vocab-file=/dataset/gpt2-vocab.json \
+        --percent=1.0 \
+        --sentence_transformer_model=all-mpnet-base-v2 \
+        --batch_size=1024 \
+        --train_index_size=2000000 \
+        --workers=2 \
+        --devices=0,1,2,3,4,5,6,7 \
+        --stage=0 \
+        --output_file=/result/pubmed_faiss_learn.index
 
 This command is used to build an empty Faiss index using the 2000000 training data in ``pubmed_train_text_document``. 
 The ``all-mpnet-base-v2`` sentence transformer model is used to encode the chunk tokens into an embedding vector. 
@@ -174,11 +174,11 @@ This step merges all the sharding indexes created in the previous step into the 
 .. code-block:: bash
 
     python scripts/nlp_language_modeling/build_retrieval_index.py \
-    --stage=2 \
-    --devices=0,1,2,3,4,5,6,7 \
-    --learned_index=/result/pubmed_faiss_learn.index \
-    --shard_index_input=/result/pubmed_faiss_shard \
-    --output_file=/result/pubmed_faiss_final.index
+        --stage=2 \
+        --devices=0,1,2,3,4,5,6,7 \
+        --learned_index=/result/pubmed_faiss_learn.index \
+        --shard_index_input=/result/pubmed_faiss_shard \
+        --output_file=/result/pubmed_faiss_final.index
 
 Step 4: Build KNN index
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -195,8 +195,8 @@ Following is the KNN index data format:
    * - 'KNNRETM\x00\x00' (header 9 bytes)
      - 1 (version 8 byte)
      - K number of neighbors (8 byte)
-     - number chunks (8 byte)
-     - Flatten chunk id in training data to K retrieval dataset chunk ids, shape (number_chunks, K) ( int64 array)
+     - Number chunks (8 byte)
+     - Map to K retrieval data chunk IDs, shape (number_chunks, K) ( int64 array)
  
 Step 4.1: Build KNN sharding index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -250,7 +250,7 @@ Train NeMo RETRO Model
 -----------------------
 
 Once the training data, retrieval data, KNN index, and Faiss index are prepared, we are ready to train the RETRO model. In the NeMo implementation, 
-the RETRO model can be pre-trained with or without the `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ feature. We will introduce both ways.
+the RETRO model can be pre-trained with or without the `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ :cite:`nlp-retro-yang2022tensor` feature. We will introduce both ways.
 
 Option 1: Train the NeMo RETRO model *without* mu-Transfer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -297,7 +297,7 @@ After the training, the model nemo file can be found at the result checkpoint di
 Option 2: Train the NeMo RETRO model *with* mu-Transfer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ paper proposed a method to zero-shot transfer hyperparameter to train a larger model.
+`mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ :cite:`nlp-retro-yang2022tensor` paper proposed a method to zero-shot transfer hyperparameter to train a larger model.
 This can be done in 3 steps in NeMo RETRO implementation. 
 
 
@@ -314,29 +314,31 @@ The shape file determines which hyperparameters will be scaled up, allowing the 
 
 Here is an example shape file calculation script:
 
+
 .. code-block:: bash
-    python examples/nlp/language_modeling/megatron_retro_cal_shape.py
-    trainer.devices=8 \
-    trainer.num_nodes=1 \
-    trainer.accelerator=gpu \
-    exp_manager.exp_dir=/result/retro_model \
-    base_model.enc_num_layers=2 \
-    delta_model.enc_num_layers=2 \
-    base_model.dec_num_layers=32 \
-    delta_model.dec_num_layers=32 \
-    base_model.tensor_model_parallel_size=8 \
-    delta_model.tensor_model_parallel_size=8 \
-    base_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
-    delta_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
-    base_model.enc_cross_attention=[0] \
-    delta_model.enc_cross_attention=[0] \
-    base_model.hidden_size=768 \
-    base_model.ffn_hidden_size=3072 \
-    delta_model.hidden_size=96 \
-    delta_model.ffn_hidden_size=384 \
-    base_model.num_attention_heads=16 \
-    delta_model.num_attention_heads=16 \
-    model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
+
+    python examples/nlp/language_modeling/megatron_retro_cal_shape.py \
+        trainer.devices=8 \
+        trainer.num_nodes=1 \
+        trainer.accelerator=gpu \
+        exp_manager.exp_dir=/result/retro_model \
+        base_model.enc_num_layers=2 \
+        delta_model.enc_num_layers=2 \
+        base_model.dec_num_layers=32 \
+        delta_model.dec_num_layers=32 \
+        base_model.tensor_model_parallel_size=8 \
+        delta_model.tensor_model_parallel_size=8 \
+        base_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+        delta_model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+        base_model.enc_cross_attention=[0] \
+        delta_model.enc_cross_attention=[0] \
+        base_model.hidden_size=768 \
+        base_model.ffn_hidden_size=3072 \
+        delta_model.hidden_size=96 \
+        delta_model.ffn_hidden_size=384 \
+        base_model.num_attention_heads=16 \
+        delta_model.num_attention_heads=16 \
+        model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
 
 In this example, the ``base_model`` refers to the small base model for which an optimal set of hyperparameters has been determined. 
 The ``delta_model`` refers to a model with certain hyperparameters that have been scaled up or down. In this case, 
@@ -351,6 +353,7 @@ specified by the delta model and the shape file.
 An example mu-Transfer pre-training script is:
 
 .. code-block:: bash
+
     python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
         trainer.devices=8 \
         trainer.num_nodes=2 \
@@ -393,28 +396,35 @@ We have built a simple web client that makes it easy for users to play around wi
 .. code-block:: bash
 
     python examples/nlp/language_modeling/megatron_retro_eval.py \
-    trainer.devices=8 \
-    trainer.num_nodes=1 \
-    trainer.accelerator=gpu \
-    trainer.precision=16 \
-    retro_model_file=megatron_retro.nemo \
-    tensor_model_parallel_size=8 \
-    pipeline_model_parallel_size=1 \
-    retrieval_service.sentence_bert.devices=\'0,1,2,3,4,5,6,7\' \
-    retrieval_service.services.0.faiss_devices=\'0,1,2,3,4,5,6,7\' \
-    retrieval_service.services.1.faiss_devices=\'0,1,2,3,4,5,6,7\' \
-    retrieval_service.services.0.faiss_index=/result/pubmed_faiss_final.index \
-    retrieval_service.services.0.retrieval_index=/result/pubmed_eval_text_document \
-    retrieval_service.neighbors=2 \
-    retrieval_service.pad_tokens=True \
-    retrieval_service.store_retrieved=True \
-    server=True \
-    web_server=True \
-    share=True \
-    username=test \
-    password=test123
+        trainer.devices=8 \
+        trainer.num_nodes=1 \
+        trainer.accelerator=gpu \
+        trainer.precision=16 \
+        retro_model_file=megatron_retro.nemo \
+        tensor_model_parallel_size=8 \
+        pipeline_model_parallel_size=1 \
+        retrieval_service.sentence_bert.devices=\'0,1,2,3,4,5,6,7\' \
+        retrieval_service.services.0.faiss_devices=\'0,1,2,3,4,5,6,7\' \
+        retrieval_service.services.1.faiss_devices=\'0,1,2,3,4,5,6,7\' \
+        retrieval_service.services.0.faiss_index=/result/pubmed_faiss_final.index \
+        retrieval_service.services.0.retrieval_index=/result/pubmed_eval_text_document \
+        retrieval_service.neighbors=2 \
+        retrieval_service.pad_tokens=True \
+        retrieval_service.store_retrieved=True \
+        server=True \
+        web_server=True \
+        share=True \
+        username=test \
+        password=test123
 
 Set the retro_model_file to use the nemo file generated in the pre-training step. After launching the server, copy-paste the URL from 
 the terminal into your browser. Use the specified username and password to log in and have fun experimenting with the RETRO model.
 
+References
+================
+
+.. bibliography:: ../nlp_all.bib
+    :style: plain
+    :labelprefix: nlp-retro
+    :keyprefix: nlp-retro-
 
