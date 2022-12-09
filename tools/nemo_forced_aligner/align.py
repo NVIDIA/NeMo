@@ -131,7 +131,9 @@ def align(
         model = ASRModel.from_pretrained(model_name, map_location=device)
 
     # define start and end line IDs of batches
-    num_lines_in_manifest = sum(1 for _ in open(manifest_filepath))
+    with open(manifest_filepath, 'r') as f:
+        num_lines_in_manifest = sum(1 for _ in f)
+
     starts = [x for x in range(0, num_lines_in_manifest, batch_size)]
     ends = [x - 1 for x in starts]
     ends.pop(0)
