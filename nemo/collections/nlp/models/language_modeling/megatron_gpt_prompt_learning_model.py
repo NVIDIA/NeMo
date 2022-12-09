@@ -144,7 +144,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-        self.prompt_encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        if "p_tuning" in self.cfg:
+            self.prompt_encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        else:
+            self.prompt_encoder_type = "tpmlp"
+
 
         if self.pipeline_parallel:
             assert (
@@ -674,13 +678,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
-            l1_tensors_list = [loss_reduced['w_l1'] for loss_reduced in losses_reduced_per_micro_batch]
+            zz = torch.zeros(1).type_as(loss_mean)
+            l1_tensors_list = [loss_reduced.get('w_l1', zz) for loss_reduced in losses_reduced_per_micro_batch]
             l1_tensor = torch.concat(l1_tensors_list)
             l1_mean = l1_tensor.mean()
-            l2_tensors_list = [loss_reduced['w_l2'] for loss_reduced in losses_reduced_per_micro_batch]
+            l2_tensors_list = [loss_reduced.get('w_l2', zz) for loss_reduced in losses_reduced_per_micro_batch]
             l2_tensor = torch.concat(l2_tensors_list)
             l2_mean = l2_tensor.mean()
-            cs_tensors_list = [loss_reduced['w_cs'] for loss_reduced in losses_reduced_per_micro_batch]
+            cs_tensors_list = [loss_reduced.get('w_cs', zz) for loss_reduced in losses_reduced_per_micro_batch]
             cs_tensor = torch.concat(cs_tensors_list)
             cs_mean = cs_tensor.mean()
         else:
