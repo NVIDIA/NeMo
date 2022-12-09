@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -255,7 +255,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             batch_for_pipeline = None
             
         #TODO remove hard coding
-        tensor_shape = [2048, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
         custom_sync_context_handler = None
@@ -520,7 +520,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         # TODO remove hard coding
-        tensor_shape = [2048, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
         # we do this inside validation_step to support pipeline parallelism
@@ -592,6 +592,41 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
+    def process_global_batch(self, global_batch, global_batch_size=None):
+        """ Prepares the global batch for apex fwd/bwd functions.
+            Global batch is a list of micro batches.
+        """
+        tokens, labels, loss_mask, attention_mask, position_ids = global_batch
+        expected_batch_size = None
+        if global_batch_size is not None:
+            expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
+        current_batch_size = tokens.shape[0]
+        if expected_batch_size is not None and expected_batch_size > current_batch_size:
+            logging.info(
+                'Got batch size of '
+                + str(current_batch_size)
+                + ' , expected batch size :'
+                + str(expected_batch_size)
+                + '. Appending dummy data.'
+            )
+            pad_length = expected_batch_size - current_batch_size
+            pad_dim = (int(pad_length), tokens.shape[1])
+            attention_mask_shape = list(attention_mask.shape)
+            attention_mask_shape[0] = int(pad_length)
+            tokens = torch.cat((tokens, torch.ones(pad_dim, dtype=tokens.dtype)))
+            labels = torch.cat((labels, torch.ones(pad_dim, dtype=labels.dtype)))
+            attention_mask = torch.cat((attention_mask, torch.zeros(attention_mask_shape, dtype=attention_mask.dtype)))
+            position_ids = torch.cat((position_ids, torch.ones(pad_dim, dtype=position_ids.dtype)))
+            loss_mask = torch.cat((loss_mask, torch.zeros(pad_dim, dtype=loss_mask.dtype)))
+
+        return [
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+        ]
+
     def build_finetuning_dataset(
         self,
         data,
@@ -660,42 +695,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         )
 
         return dataset, dataloader
-
-
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        tokens, labels, loss_mask, attention_mask, position_ids = global_batch
-        expected_batch_size = None
-        if global_batch_size is not None:
-            expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
-        current_batch_size = tokens.shape[0]
-        if expected_batch_size is not None and expected_batch_size > current_batch_size:
-            logging.info(
-                'Got batch size of '
-                + str(current_batch_size)
-                + ' , expected batch size :'
-                + str(expected_batch_size)
-                + '. Appending dummy data.'
-            )
-            pad_length = expected_batch_size - current_batch_size
-            pad_dim = (int(pad_length), tokens.shape[1])
-            attention_mask_shape = list(attention_mask.shape)
-            attention_mask_shape[0] = int(pad_length)
-            tokens = torch.cat((tokens, torch.ones(pad_dim, dtype=tokens.dtype)))
-            labels = torch.cat((labels, torch.ones(pad_dim, dtype=labels.dtype)))
-            attention_mask = torch.cat((attention_mask, torch.zeros(attention_mask_shape, dtype=attention_mask.dtype)))
-            position_ids = torch.cat((position_ids, torch.ones(pad_dim, dtype=position_ids.dtype)))
-            loss_mask = torch.cat((loss_mask, torch.zeros(pad_dim, dtype=loss_mask.dtype)))
-
-        return [
-            tokens,
-            labels,
-            loss_mask,
-            attention_mask,
-            position_ids,
-        ]
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT SFT datasets.')
