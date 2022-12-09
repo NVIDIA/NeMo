@@ -14,6 +14,7 @@
 
 import os
 import pathlib
+import shutil
 import subprocess
 from typing import Tuple
 
@@ -122,7 +123,21 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
 def ais_binary() -> str:
     """Return location of `ais` binary.
     """
-    return '/usr/local/bin/ais'
+    path = shutil.which('ais')
+
+    if path is not None:
+        logging.debug('Found AIS binary at %s', path)
+        return path
+
+    logging.warning('AIS binary not found with `which ais`.')
+
+    # Double-check if it exists at the default path
+    default_path = '/usr/local/bin/ais'
+    if os.path.isfile(default_path):
+        logging.info('ais available at the default path: %s', default_path)
+        return default_path
+    else:
+        raise RuntimeError(f'AIS binary not found.')
 
 
 def datastore_path_to_local_path(store_path: str) -> str:
@@ -134,7 +149,6 @@ def datastore_path_to_local_path(store_path: str) -> str:
     Returns:
         Path to the same object in local cache.
     """
-
     if store_path.startswith('ais://'):
         endpoint = ais_endpoint()
         if endpoint is None:

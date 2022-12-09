@@ -224,13 +224,12 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
     return audio_tar_filepaths
 
 
-def cache_store_manifests(
+def cache_datastore_manifests(
     manifest_filepaths: Union[str, List[str]],
     cache_audio: bool = False,
     shared_cache: Optional[bool] = None,
     num_workers: Optional[int] = None,
     max_num_workers: int = 20,
-    sleep_seconds: int = 60,
 ):
     """Cache manifests and audio from an object store.
     It is assumed that remote manifests are using relative paths.
@@ -241,14 +240,13 @@ def cache_store_manifests(
         shared_cache: Optional, True if cache is shared across all nodes
         num_workers: Optional, number of workers to be used for download
         max_num_workers: max number of workers to be used for download, used when setting num_workers automatically
-        sleep_seconds: sleep in seconds when waiting for download to complete
     """
     if isinstance(manifest_filepaths, str):
         manifest_filepaths = manifest_filepaths.split(',')
 
-    num_store_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
+    num_datastore_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
 
-    if num_store_manifests > 0:
+    if num_datastore_manifests > 0:
         # Local utility function
         def cache_data(manifest_filepaths, cache_audio, num_workers, max_num_workers):
             """Cache manifests and audio data from object store.
@@ -401,7 +399,7 @@ class _AudioTextDataset(Dataset):
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        cache_store_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -771,7 +769,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return_sample_id: bool = False,
     ):
         # If necessary, cache manifests from object store
-        cache_store_manifests(manifest_filepaths=manifest_filepath)
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
