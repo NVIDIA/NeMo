@@ -232,7 +232,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         return super().configure_optimizers()
 
-    # TODO (yuya): remove text_position_ids, attention_mask, labels
     def forward(self, tokens):
         output_tensor = self.model(tokens)
         return output_tensor
