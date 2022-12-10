@@ -40,12 +40,6 @@ from argparse import ArgumentParser
 from collections import defaultdict
 import sys
 from typing import Dict, List, Set, TextIO, Tuple
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import preprocess_apostrophes_space_diacritics
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics
-
 
 parser = ArgumentParser(description="Preparation of training examples from Yago Wikipedia preprocessed data")
 
@@ -105,8 +99,10 @@ def make_negative_example(text: str, false_positive_vocab: Dict[str, Set[str]], 
                 if phrase in ngrams:  # skip candidates that are present as ngrams in this fragment (they should not appear as incorrect candidates)
                     continue
                 phrases.append(phrase)
-                for phr in random.choices(phrases, k=3):
-                    incorrect_phrases.add("*" + phr)
+            if len(phrases) == 0:
+                continue
+            for phr in random.choices(phrases, k=3):
+                incorrect_phrases.add("*" + phr)
 
     while len(incorrect_phrases) < 10:
         cand = random.choice(big_sample_of_phrases)  # take just random phrase as candidate
@@ -197,7 +193,9 @@ def process_positive_examples(
                             continue
                         phrases.append(related_phrase)
                         weights.append(related_vocab[phrase][related_phrase])
-                    for phr in random.choices(phrases, weights=weights, k=3):  # take 3 or less (if same choice occur)
+                    if len(phrases) == 0:
+                        continue
+                    for phr in random.choices(phrases, weights=weights, k=min(3, len(phrases))):  # take 3 or less (if same choice occur)
                         incorrect_phrases1.add("#" + phr)
 
             incorrect_phrases2 = set()  # here we store incorrect candidates from source 2: false positives
@@ -209,7 +207,9 @@ def process_positive_examples(
                         if phrase in ngrams:
                             continue
                         phrases.append(phrase)
-                    for phr in random.choices(phrases, k=3):
+                    if len(phrases) == 0:
+                        continue
+                    for phr in random.choices(phrases, k=min(3, len(phrases))):
                         incorrect_phrases2.add("*" + phr)
 
             selected_incorrect_candidates = set()
@@ -272,6 +272,8 @@ def main() -> None:
         for line in f:
             phrase, misspelled_phrase, joint_freq, src_freq, dst_freq = line.strip().split("\t")
             if phrase == misspelled_phrase:
+                continue
+            if misspelled_phrase != misspelled_phrase.strip():  # bug fix, found a phrase with space at the end
                 continue
             misspells_vocab[phrase][misspelled_phrase] = int(joint_freq)
 

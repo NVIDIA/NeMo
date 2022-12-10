@@ -89,7 +89,7 @@ def main() -> None:
             for cand in candidate_str.split(";"):
                 candidate = " ".join(list(cand[1:].replace(" ", "_")))
                 candidates.append(candidate) 
-            output.write(text + "\t" + ";".join(candidates) + "\t\n")
+            output.write(text + "\t" + ";".join(candidates) + "\t0\t\n")
         elif len(parts) == 5:  # positive example
             text, candidate_str, target_str, span_str, misspell_str = parts
             spans = []
