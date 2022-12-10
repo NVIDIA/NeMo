@@ -31,7 +31,7 @@ Call the align function in align.py, specifying the parameters as follows:
 
 * [OPTIONAL] `grouping_for_ctm`: A string, either 'word' or 'basetoken'. 'basetoken' can mean either a token or character, depending on the model used for alignment. If you select 'basetoken' - the code will output a CTM with alignments at the token/character level. If you select 'word' - the code will group the tokens/characters into words (Default: "word"). 
 
-* [OPTIONAL] `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath)
+* [OPTIONAL] `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath). Note also that any spaces that are present in the audio_filepath will be stripped away from the utt_id, so as not to change the number of space-separated elements in the CTM files.
 
 * [OPTIONAL] `audio_sr`: The sample rate (in Hz) of your audio. (Default: 16000)
 

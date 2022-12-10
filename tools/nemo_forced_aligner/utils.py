@@ -121,6 +121,7 @@ def get_log_probs_y_T_U(data, model):
 def _get_utt_id(audio_filepath, n_parts_for_ctm_id):
     fp_parts = Path(audio_filepath).parts[-n_parts_for_ctm_id:]
     utt_id = Path("_".join(fp_parts)).stem
+    utt_id = "".join(utt_id.split())  # remove any spaces that may have been in the filepath
     return utt_id
 
 

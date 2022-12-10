@@ -138,12 +138,14 @@ def align(
             character-based model).
             If 'word', the basetokens will be grouped into words, and the CTM files
             will contain word timestamps instead of basetoken timestamps.
-        n_parts_for_ctm_id: int specifying how many  how many of the 'parts' of the audio_filepath
+        n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
             we will use (starting from the final part of the audio_filepath) to determine the 
-            utt_id that will be used in the CTM files.
-            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e"
-            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e"
-            e.g. if audio_filepath is "/a/b/c/d/e.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e"
+            utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
+            will be stripped away from the utt_id, so as not to change the number of space-separated elements in the 
+            CTM files.
+            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
+            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
+            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
         audio_sr: int specifying the sample rate of your audio files.
         device: string specifying the device that will be used for generating log-probs and doing 
             Viterbi decoding. The string needs to be in a format recognized by torch.device()
