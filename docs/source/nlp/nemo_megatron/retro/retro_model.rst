@@ -252,6 +252,46 @@ Train NeMo RETRO Model
 Once the training data, retrieval data, KNN index, and Faiss index are prepared, we are ready to train the RETRO model. In the NeMo implementation, 
 the RETRO model can be pre-trained with or without the `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ :cite:`nlp-retro-yang2022tensor` feature. We will introduce both ways.
 
+
+The table below lists some of the common parameters that can be configured for model pre-training.
+
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| **Parameter**                    | **Default** | **Description**                                                                        |
++==================================+=============+========================================================================================+
+| model.micro_batch_size           | 4           | the micro batch size used for training                                                 |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.tensor_model_parallel_size | 1           | tensor model parallel size                                                             |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.encoder_seq_length         | 2048        | token sequence length                                                                  |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.chunk_size                 | 64          | the chunk size used to retrieve                                                        |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.enc_num_layers             | 4           | total number of encoder layers                                                         |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.dec_num_layers             | 6           | total number of decoder layers                                                         |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.enc_cross_attention        | [3]         | layer numbers for cross attention in encoder                                           |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.dec_cross_attention        | [3,4,5]     | layer numbers for chunked cross attention in decoder                                   |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.add_position_embedding     | FALSE       | whether to add the absolute position encoding                                          |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.hidden_size                | 768         | model hidden size                                                                      |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.ffn_hidden_size            | 3072        | model FFN hidden size. Usually 4 * hidden_size                                         |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.num_attention_heads        | 12          | number of attention heads                                                              |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.init_method_std            | 0.02        | standard deviation of the zero mean normal distribution used for weight initialization |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.hidden_dropout             | 0.1         | dropout probability for hidden state transformer                                       |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.attention_dropout          | 0.1         | dropout probability in the attention layer                                             |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.ffn_dropout                | 0           | dropout probability in the feed-forward layer                                          |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+
+
 Option 1: Train the NeMo RETRO model *without* mu-Transfer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
