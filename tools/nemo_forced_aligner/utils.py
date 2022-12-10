@@ -212,12 +212,12 @@ def make_word_ctm(
     for manifest_line, alignment in zip(data, alignments):
         # make 'words_info' - a list of dictionaries:
         # e.g. [
-        #   {"word": "h#", "u_start": 0, "u_end": 0, "t_start": 0, "t_end", 0 },
+        #   {"word": "<initial_silence>", "u_start": 0, "u_end": 0, "t_start": 0, "t_end", 0 },
         #   {"word": "she", "u_start": 1, "u_end": 5, "t_start": 1, "t_end", 5 },
         #   {"word": "had", "u_start": 7, "u_end": 10, "t_start": 6, "t_end", 8 }
         #   ...
         # ]
-        words_info = [{"word": "h#", "u_start": 0, "u_end": 0, "t_start": 0, "t_end": None}]
+        words_info = [{"word": "<initial_silence>", "u_start": 0, "u_end": 0, "t_start": 0, "t_end": None}]
         u_counter = 1
         if " " not in model.decoder.vocabulary:
             for word in manifest_line["text"].split(" "):
