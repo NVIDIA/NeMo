@@ -118,7 +118,8 @@ def align(
     Results are saved in ctm files in output_ctm_folder.
 
     Args:
-        manifest_filepath: filepath to the manifest of the data you want to align.
+        manifest_filepath: filepath to the manifest of the data you want to align,
+            containing 'audio_filepath' and 'text' fields.
         output_ctm_folder: the folder where output CTM files will be saved.
         model_name: string specifying a NeMo ASR model to use for generating the log-probs
             which we will use to do alignment.

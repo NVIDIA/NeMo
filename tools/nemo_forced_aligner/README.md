@@ -20,7 +20,7 @@ To use NFA, all you need to provide is a correct NeMo manifest (with 'audio_file
 
 Call the align function in align.py, specifying the parameters as follows:
 
-* `manifest_filepath`: The path to the manifest of the data you want to align.
+* `manifest_filepath`: The path to the manifest of the data you want to align, containing 'audio_filepath' and 'text' fields.
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
 
@@ -39,7 +39,16 @@ Call the align function in align.py, specifying the parameters as follows:
 
 * [OPTIONAL] `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
-# CTM file format
+
+# Input manifest file format
+NFA needs to be provided with a 'manifest' file where each line specifies the "audio_filepath" and "text" of each utterance that you wish to produce alignments for, like the format below:
+```json
+{"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance"}
+```
+> Note: NFA does not require "duration" fields, and can align long audio files without running out of memory. Depending on your machine specs, you can align audios up to 5-10 minutes on Conformer CTC models, up to around 1.5 hours for QuartzNet models, and up to several hours for Citrinet models. NFA will also produce better alignments the more accurate the ground-truth "text" is.
+
+
+# Output CTM file format
 For each utterance specified in a line of `manifest_filepath`, one CTM file will be generated at the location of `<output_ctm_folder>/<utt_id>.ctm`.
 Each CTM file will contain lines of the format:
 `<utt_id> 1 <start time in samples> <duration in samples> <word or token>`.
