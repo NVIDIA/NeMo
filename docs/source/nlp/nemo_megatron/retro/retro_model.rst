@@ -20,7 +20,7 @@ The NeMo RETRO Model is an open-source implementation of the paper, and it has t
 5. The NeMo RETRO supports `mu-Transfer <https://openreview.net/pdf?id=Bx6qKuBM2AD>`_ :cite:`nlp-retro-yang2022tensor`, allowing for scalable training of the RETRO model via Zero-Shot Hyperparameter Transfer.
 
 Quick start
-===========
+************
 Steps below demonstrate training and evaluating a NeMo RETRO model
 
 Data pre-processing
@@ -461,7 +461,7 @@ Set the retro_model_file to use the nemo file generated in the pre-training step
 the terminal into your browser. Use the specified username and password to log in and have fun experimenting with the RETRO model.
 
 References
-================
+************
 
 .. bibliography:: ../../nlp_all.bib
     :style: plain
