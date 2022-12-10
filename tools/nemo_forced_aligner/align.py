@@ -36,7 +36,7 @@ def viterbi_decoding(log_probs, y, T, U):
             tensor of shape (Batch, Time, Length_of_U_including_interspersed_blanks) 
             This is returned in case you want to examine it in a parent function
     """
-    B, T_max, V = log_probs.shape
+    B, T_max, _ = log_probs.shape
     U_max = y.shape[1]
 
     device = log_probs.device
@@ -92,14 +92,14 @@ def viterbi_decoding(log_probs, y, T, U):
             alignment_b.insert(0, int(backpointers[b, t, alignment_b[0]]))
         alignments.append(alignment_b)
 
-    return alignments, v_matrix, log_probs_reordered
+    return alignments
 
 
 def align_batch(data, model):
     log_probs, y, T, U = get_log_probs_y_T_U(data, model)
-    alignments, v_matrix, log_probs_reordered = viterbi_decoding(log_probs, y, T, U)
+    alignments = viterbi_decoding(log_probs, y, T, U)
 
-    return alignments, v_matrix, log_probs_reordered
+    return alignments
 
 
 def align(
@@ -148,11 +148,6 @@ def align(
             Viterbi decoding. The string needs to be in a format recognized by torch.device()
         batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
 
-
-    Returns:
-        alignment:
-        v_matrix:
-        log_probs_reordered:
     """
 
     # load model
@@ -181,7 +176,7 @@ def align(
     for start, end in zip(starts, ends):
         data = get_manifest_lines(manifest_filepath, start, end)
 
-        alignments, v_matrix, log_probs_reordered = align_batch(data, model)
+        alignments = align_batch(data, model)
 
         if grouping_for_ctm == "basetoken":
             make_basetoken_ctm(
@@ -196,4 +191,4 @@ def align(
         else:
             raise ValueError(f"Unexpected value for grouping_for_ctm: {grouping_for_ctm}")
 
-    return alignments, v_matrix, log_probs_reordered
+    return None
