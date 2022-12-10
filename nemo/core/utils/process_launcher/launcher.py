@@ -142,14 +142,7 @@ def execute_job(
     # call proc.communicate(). It should not happen in general case as stderr is filled only in case retcode != 0
     # If it does happen though, implement the code here
     # https://stackoverflow.com/questions/39607172/python-subprocess-popen-poll-seems-to-hang-but-communicate-works
-    std_err_data = []
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
-
-    # Trivial thread just reads lines from stdout into the list
-    drainerthread = None
-    # drainerthread = threading.Thread(target=std_err_data.extend, args=(proc.stderr,))
-    # drainerthread.daemon = True
-    # drainerthread.start()
 
     # Construct JobReturn object for Hydra
     res = JobReturn()
@@ -159,7 +152,7 @@ def execute_job(
     res.working_dir = os.getcwd()
     res.return_value = None
 
-    return proc, res, (std_err_data, drainerthread)
+    return proc, res
 
 
 def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: int,) -> Sequence[JobReturn]:
@@ -219,8 +212,6 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
     ret = []  # List of returned JobResult
     subprocess_list = []  # Buffer of subprocess
     results = []  # Buffer of JobResult
-    drain_stderr_buffers = []  # Buffer of list of strins filled with stderr data
-    drain_data_threads = []  # Buffer of Threads that store the result of process.stderr
 
     # Run over all job combinations
     while job_idx < num_overrides:
@@ -231,7 +222,7 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
                 break
 
             # Submit a job as a new process
-            process, res, (stderr_data, drain_thread) = execute_job(
+            process, res = execute_job(
                 initial_job_idx + job_idx,
                 overrides[job_idx],
                 launcher.hydra_context,
@@ -243,37 +234,12 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
             # Store the subprocesses and JobResults
             subprocess_list.append(process)
             results.append(res)
-            drain_stderr_buffers.append(stderr_data)
-            drain_data_threads.append(drain_thread)
 
             job_idx += 1
             gpu_idx += 1
 
         # Poll for samples in batch to finish.
         if len(subprocess_list) > 0:
-            finished_processes = [0] * len(subprocess_list)
-
-            # Check if all processes are completed or not
-            # # TODO: This is busy waiting, need to check if its really needed or we can do one time communicate()
-            # while sum(finished_processes) < len(subprocess_list):
-            #     # Check all processes to make sure they have a retcode (doesnt matter yet if 0 or not)
-            #     for proc_idx, proc in enumerate(subprocess_list):
-            #         # poll() is cheaper op than communicate()
-            #         retcode = proc.poll()
-            #
-            #         if retcode is not None:
-            #             # Log that the process with some ID has finished
-            #             if finished_processes[proc_idx] == 0:
-            #                 logging.info(f"Processed job : {len(ret) + proc_idx}")
-            #
-            #                 # Drain that threads stderr pipe
-            #                 drain_data_threads[proc_idx].join()
-            #                 drain_stderr_buffers[proc_idx] = b''.join(drain_stderr_buffers[proc_idx])
-            #
-            #             finished_processes[proc_idx] = 1
-
-                # time.sleep(1.0)
-
             # Process all the subprocess results
             for proc, res in zip(subprocess_list, results):
                 # Wait until completion of process
