@@ -281,10 +281,6 @@ class VitsModel(TextToWaveform):
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             logger = self.logger.experiment
-            # tokens = self.parse('I speak loud and clear').cuda()
-            # audio = self.convert_text_to_waveform(tokens=tokens)
-            # audio_len = torch.tensor(audio.size(-1)).unsqueeze(0).cuda()
-            # spec, _ = self.audio_to_melspec_processor(audio, audio_len)
 
             specs = []
             audios = []
