@@ -758,7 +758,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         logging.info(f'val_loss: {averaged_loss}')
 
         # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_nemo_on_validation_end", False):
+        if self.cfg.get("save_nemo_on_validation_end", True):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
@@ -785,32 +785,35 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         logging.info(f"An inference ready model was saved to {self.cfg.nemo_path}")
 
     def save_checkpoint_as_nemo_file(self):
-        self.add_ptuned_prompts_to_prompt_table()
+        if self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+            self.save_to(save_path=self.cfg.nemo_path)
+        else:
+            self.add_ptuned_prompts_to_prompt_table()
 
-        # Save current config and state dict params in temp values
-        current_virtual_prompt_style = self.virtual_prompt_style
-        current_virtual_prompt_source = self.virtual_prompt_source
-        current_existing_tasks = self.cfg.existing_tasks
-        current_new_tasks = self.cfg.new_tasks
+            # Save current config and state dict params in temp values
+            current_virtual_prompt_style = self.virtual_prompt_style
+            current_virtual_prompt_source = self.virtual_prompt_source
+            current_existing_tasks = self.cfg.existing_tasks
+            current_new_tasks = self.cfg.new_tasks
 
-        # Temporarily overwrite params to save an inference ready .nemo checkpoint
-        self.update_config_for_inference_and_save()
+            # Temporarily overwrite params to save an inference ready .nemo checkpoint
+            self.update_config_for_inference_and_save()
 
-        # Set values back to their training state to continue training
-        self.virtual_prompt_style = current_virtual_prompt_style
-        self.virtual_prompt_source = current_virtual_prompt_source
+            # Set values back to their training state to continue training
+            self.virtual_prompt_style = current_virtual_prompt_style
+            self.virtual_prompt_source = current_virtual_prompt_source
 
-        # Revert prompt table back to previous state
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            for taskname in current_new_tasks:
-                if hasattr(self.prompt_table, 'prompt_table'):
-                    if taskname in self.prompt_table.prompt_table:
-                        del self.prompt_table.prompt_table[taskname]
+            # Revert prompt table back to previous state
+            if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+                for taskname in current_new_tasks:
+                    if hasattr(self.prompt_table, 'prompt_table'):
+                        if taskname in self.prompt_table.prompt_table:
+                            del self.prompt_table.prompt_table[taskname]
 
-        with open_dict(self.cfg):
-            self.cfg.existing_tasks = current_existing_tasks
-            self.cfg.new_tasks = current_new_tasks
-            self.cfg.virtual_prompt_style = current_virtual_prompt_style.value
+            with open_dict(self.cfg):
+                self.cfg.existing_tasks = current_existing_tasks
+                self.cfg.new_tasks = current_new_tasks
+                self.cfg.virtual_prompt_style = current_virtual_prompt_style.value
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
