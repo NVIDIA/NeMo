@@ -24,6 +24,7 @@ from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
+from nemo.collections.common.tokenizers.music_tokenizer import MusicTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
@@ -54,7 +55,7 @@ def get_tokenizer_list() -> List[str]:
     """
     s = set(get_pretrained_lm_models_list())
     s.update(set(get_huggingface_pretrained_lm_models_list(include_external=True)))
-    return ["sentencepiece", "char", "word"] + list(s)
+    return ["sentencepiece", "char", "word","music"] + list(s)
 
 
 @dataclass
@@ -124,6 +125,8 @@ def get_tokenizer(
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
+    elif tokenizer_name == 'music':
+        return MusicTokenizer(vocab_file=vocab_file)
     elif tokenizer_name == 'regex':
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
 
@@ -205,6 +208,8 @@ def get_nmt_tokenizer(
             f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
+    elif library == 'music':
+        return MusicTokenizer(vocab_file=vocab_file)
     elif library == 'tabular':
         return TabularTokenizer(vocab_file, delimiter=delimiter)
     else:

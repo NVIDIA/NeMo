@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_fp32,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
@@ -164,19 +164,23 @@ class MegatronBaseModel(NLPModel):
         All tokenizers are expected to provide compatible interface.
         Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
         """
-        if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
-            legacy = self._cfg.tokenizer.sentencepiece_legacy
+        
+        if self._cfg.tokenizer.library=='music':            
+            self.tokenizer = get_tokenizer(tokenizer_name=self._cfg.tokenizer.library,vocab_file=self._cfg.tokenizer.vocab_file)
         else:
-            legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
-        self.tokenizer = get_nmt_tokenizer(
-            library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
-            delimiter=self.cfg.tokenizer.get('delimiter', None),
-            legacy=legacy,
-        )
+            if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
+                legacy = self._cfg.tokenizer.sentencepiece_legacy
+            else:
+                legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
+            self.tokenizer = get_nmt_tokenizer(
+                library=self._cfg.tokenizer.library,
+                model_name=self._cfg.tokenizer.type,
+                tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
+                vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
+                merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+                delimiter=self.cfg.tokenizer.get('delimiter', None),
+                legacy=legacy,
+            )
 
     def on_train_start(self) -> None:
         super().on_train_start()
