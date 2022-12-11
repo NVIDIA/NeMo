@@ -73,19 +73,11 @@ class TestExportable:
             filename = os.path.join(tmpdir, 'hfg.pt')
             model.export(output=filename, verbose=True, check_trace=True)
 
-<<<<<<< HEAD
-=======
     @pytest.mark.pleasefixme
->>>>>>> origin/main
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_RadTTSModel_export_to_torchscript(self, radtts_model):
         model = radtts_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'rad.ts')
-<<<<<<< HEAD
-            with torch.cuda.amp.autocast(enabled=True):
-                model.export(output=filename, verbose=True, check_trace=True)
-=======
             model.export(output=filename, verbose=True, check_trace=True)
->>>>>>> origin/main
