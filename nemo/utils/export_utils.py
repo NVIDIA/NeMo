@@ -330,7 +330,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     Returns:
         exportable module
     """
-
     # including the import here to avoid circular imports
     from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 
@@ -338,7 +337,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     mod = MatchedScaleMaskSoftmax(
         n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
     )
-
     return mod
 
 

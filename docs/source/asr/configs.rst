@@ -61,6 +61,20 @@ An example ASR train and validation configuration should look similar to the fol
       num_workers: 8
       pin_memory: true
 
+By default, dataloaders are set up when the model is instantiated. However, dataloader setup can be deferred to
+model's `setup()` method by setting ``defer_setup`` in the configuration.
+
+For example, training data setup can be deferred as follows:
+
+.. code-block:: yaml
+
+  model:
+    train_ds:
+      # Configure training data as usual
+      ...
+      # Defer train dataloader setup from `__init__` to `setup`
+      defer_setup: true
+
 
 Preprocessor Configuration
 --------------------------
@@ -631,6 +645,31 @@ The Joint model config has several essential components which we discuss below :
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
       dropout: 0.0
+
+Sampled Softmax Joint Model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are some situations where a large vocabulary with a Transducer model - such as for multilingual models with a large
+number of languages. In this setting, we need to consider the cost of memory of training Transducer networks which does
+not allow large vocabulary.
+
+For such cases, one can instead utilize the ``SampledRNNTJoint`` module instead of the usual ``RNNTJoint`` module, in order
+to compute the loss using a sampled subset of the vocabulary rather than the full vocabulary file.
+
+It adds only one additional parameter :
+
+* ``n_samples``: Specifies the minimum number of tokens to sample from the vocabulary space,
+  excluding the RNNT blank token. If a given value is larger than the entire vocabulary size,
+  then the full vocabulary will be used.
+
+The only difference in config required is to replace ``nemo.collections.asr.modules.RNNTJoint`` with ``nemo.collections.asr.modules.SampledRNNTJoint``
+
+.. code-block:: yaml
+
+  joint:
+    _target_: nemo.collections.asr.modules.SampledRNNTJoint
+    n_samples: 500
+    ...  # All other arguments from RNNTJoint can be used after this.
 
 
 Effect of Batch Splitting / Fused Batch step

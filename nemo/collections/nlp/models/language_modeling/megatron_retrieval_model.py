@@ -309,16 +309,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 # If the grad scaler skipped its optimizer step due to infs/nans,
                 # decrement the step of all schedulers.
                 if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    schedulers = self.trainer.lr_schedulers
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
 
-                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
                         return
 
-                    for scheduler in schedulers:
+                    for scheduler_cfg in scheduler_cfgs:
                         # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                         # as well as update the optimizer lr in all param groups
-                        scheduler['scheduler'].last_epoch -= 2
-                        scheduler['scheduler'].step()
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
 
                     # Increase the max step count by 1
 
@@ -340,6 +340,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
+        if len(outputs) == 0:
+            return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
         # formula to compute the perplexity
@@ -457,7 +459,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config
-        self._inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+        self.inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self._inference_config
@@ -474,13 +476,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
-                response = generate(self, **inference_config, strategy=self._inference_strategy)
+                response = generate(self, **inference_config, strategy=self.inference_strategy)
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
                 del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
-                return generate(self, **inference_config, strategy=self._inference_strategy)
+                return generate(self, **inference_config, strategy=self.inference_strategy)
 
     def generate(
         self,
