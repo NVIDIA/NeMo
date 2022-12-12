@@ -321,6 +321,8 @@ class FastPitchModule(NeuralModule):
         else:
             dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out).transpose(1, 2)
+        import code  # NOQA
+        code.interact(local={**locals(), **globals()})
         return (
             spect,
             dec_lens,
