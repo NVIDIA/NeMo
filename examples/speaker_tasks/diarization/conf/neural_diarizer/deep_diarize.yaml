@@ -7,6 +7,7 @@ model:
 
   num_workers: ${num_workers}
   num_speakers: 5
+  min_speakers: 2
   feat_in: 80
   d_model: 512
   chunk_seconds: ${chunk_seconds}

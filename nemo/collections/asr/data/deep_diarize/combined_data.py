@@ -68,6 +68,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         max_workers,
         weights: List[float],
         max_speakers: int,
+        min_speakers: int,
     ):
         num_workers = max_workers
         for n in range(max_workers, 0, -1):
@@ -89,6 +90,7 @@ class CombinedSegmentDataset(IterableDataset, ABC):
             window_stride=window_stride,
             weights=weights,
             max_speakers=max_speakers,
+            min_speakers=min_speakers,
         )
 
     @classmethod
@@ -107,11 +109,12 @@ class CombinedSegmentDataset(IterableDataset, ABC):
         window_stride: float,
         weights: List[float],
         max_speakers: int,
+        min_speakers: int,
     ):
         datasets = []
         for manifest_filepath in manifest_filepaths:
             calls = LocalRTTMStreamingSegmentsDataset.data_setup(
-                manifest_filepath=manifest_filepath, max_speakers=max_speakers
+                manifest_filepath=manifest_filepath, min_speakers=min_speakers, max_speakers=max_speakers
             )
             datasets.append(
                 LocalRTTMStreamingSegmentsDataset(

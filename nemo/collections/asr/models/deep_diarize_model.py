@@ -434,6 +434,7 @@ class DeepDiarizeModel(ModelPT):
             batch_size=cfg.batch_size,
             max_workers=cfg.num_workers,
             max_speakers=self.cfg.num_speakers,
+            min_speakers=self.cfg.min_speakers,
         )
         self._train_dl = MultiStreamDataLoader(datasets)
 

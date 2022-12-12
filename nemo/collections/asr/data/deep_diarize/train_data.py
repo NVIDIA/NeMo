@@ -180,7 +180,7 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
             print("Failed data-loading for", sample.audio_file, e)
 
     @staticmethod
-    def data_setup(manifest_filepath: str, max_speakers: int):
+    def data_setup(manifest_filepath: str, min_speakers: int, max_speakers: int):
         collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
         )
@@ -199,7 +199,7 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         pruned_samples = []
         for sample in samples:
             _, rttm_timestamps, speakers = sample
-            if len(speakers) <= max_speakers:
+            if min_speakers <= len(speakers) <= max_speakers:
                 pruned_samples.append(sample)
         print(f"pruned {len(samples) - len(pruned_samples)} out of {len(samples)} calls")
         return pruned_samples
