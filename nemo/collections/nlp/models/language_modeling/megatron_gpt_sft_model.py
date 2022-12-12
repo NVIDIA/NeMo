@@ -248,8 +248,8 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
             # The intermediate pipeline stages do not need any inputs from data loader
             # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
             batch_for_pipeline = None
-            
-        #TODO remove hard coding
+
+        # TODO remove hard coding
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
@@ -736,7 +736,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         )
 
         return dataset, dataloader
-
 
     def process_global_batch(self, global_batch, global_batch_size=None):
         """ Prepares the global batch for apex fwd/bwd functions.
