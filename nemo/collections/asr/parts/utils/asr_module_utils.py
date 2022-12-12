@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Optional
 
 from omegaconf import DictConfig, open_dict
 
-from nemo.collections.asr.modules import conformer_encoder, conv_asr
-from nemo.collections.asr.parts.submodules import conformer_modules, jasper, multi_head_attention
+from nemo.collections.asr.modules import conv_asr
+from nemo.collections.asr.parts.submodules import jasper
 from nemo.utils import logging
 
 

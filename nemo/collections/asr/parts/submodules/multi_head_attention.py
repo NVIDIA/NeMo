@@ -703,7 +703,6 @@ class LocalAttRelPositionalEncoding(PositionalEncoding):
             self.left_context, -self.right_context - 1, -1, dtype=torch.float32, device=device
         ).unsqueeze(1)
         self.create_pe(positions=positions)
-        self.center_pos = torch.tensor(self.left_context, dtype=torch.int32, device=device)
 
     def forward(self, x, cache_len=0):
         """Compute positional encoding.
@@ -717,9 +716,8 @@ class LocalAttRelPositionalEncoding(PositionalEncoding):
         if self.xscale:
             x = x * self.xscale
 
-        start_pos = self.center_pos - self.left_context
-        end_pos = self.center_pos + self.right_context + 1
-        pos_emb = self.pe[:, start_pos:end_pos]
+        end_pos = self.left_context + self.right_context + 1
+        pos_emb = self.pe[:, :end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb

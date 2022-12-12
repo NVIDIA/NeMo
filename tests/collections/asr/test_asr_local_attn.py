@@ -26,24 +26,15 @@ class TestASRLocalAttention:
         asr_model = asr_model.eval()
 
         len = 16000 * 60 * 30  # 30 minutes, OOM without local attention
-        input_signal = torch.randn(size=(1, len), device=asr_model.device)
-        length = torch.tensor([len], device=asr_model.device)
+        input_signal_long = torch.randn(size=(1, len), device=asr_model.device)
+        length_long = torch.tensor([len], device=asr_model.device)
 
         # switch to local attn
         asr_model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
         with torch.no_grad():
-            asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            asr_model.forward(input_signal=input_signal_long, input_signal_length=length_long)
 
         # switch context size only (keep local)
         asr_model.change_attention_model(att_context_size=(192, 192))
         with torch.no_grad():
-            asr_model.forward(input_signal=input_signal, input_signal_length=length)
-
-        len = 16000 * 60 * 4
-        input_signal = torch.randn(size=(1, len), device=asr_model.device)
-        length = torch.tensor([len], device=asr_model.device)
-
-        # test switching back
-        asr_model.change_attention_model(self_attention_model="rel_pos", att_context_size=(-1, -1))
-        with torch.no_grad():
-            asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            asr_model.forward(input_signal=input_signal_long, input_signal_length=length_long)

@@ -24,6 +24,7 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -63,13 +64,9 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
-  overwrite_transcripts: Bool which when set allowes repeated transcriptions to overwrite previous results.
+  overwrite_transcripts: Bool which when set allows repeated transcriptions to overwrite previous results.
 
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
-  
-  change_self_attention_model: (Optional) Change self_attention_model for Conformer
-  att_context_left: (Optional) Can be used to specify left attention context if changing self attention
-  att_context_right: (Optional) Can be used to specify right attention context if changing self attention
 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
@@ -92,6 +89,13 @@ python transcribe_speech.py \
     append_pred=False \
     pred_name_postfix="<remove or use another model name for output filename>"
 """
+
+
+@dataclass
+class ModelChangeConfig:
+
+    # Sub-config for changes specific to the Conformer Encoder
+    conformer: ConformerChangeConfig = ConformerChangeConfig()
 
 
 @dataclass
@@ -136,15 +140,8 @@ class TranscriptionConfig:
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
     decoder_type: Optional[str] = None
 
-    # Change self_attention_model for Conformer
-    # Options:
-    # 'rel_pos': relative positional embedding and Transformer-XL
-    # 'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
-    #   overlapping chunks. Attention context is determined by att_context_size parameter.
-    #  'abs_pos': absolute positional embedding and Transformer
-    change_self_attention_model: Optional[str] = None
-    att_context_left: int = -1  # Size of the left attention context
-    att_context_right: int = -1  # Size of the right attention context
+    # Use this for model-specific changes before transcription
+    model_change: ModelChangeConfig = ModelChangeConfig()
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
