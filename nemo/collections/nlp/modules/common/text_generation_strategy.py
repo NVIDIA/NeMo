@@ -325,7 +325,12 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         # Convert attention mask from float to bool
         self.attention_mask = attention_mask < 0.5
         self.position_ids = build_position_ids(tokens)
-        self.prompt_input_mask = tokens != tokenizer.unk_id
+        self.prompt_input_mask = tokens != tokenizer.bos_id
+        if (tokens[:, 0] == tokenizer.bos_id).all().item():
+            # If the first token is BOS, don't mask it
+            # to be consistent with the training data
+            self.prompt_input_mask[:, 0] = True
+            
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""

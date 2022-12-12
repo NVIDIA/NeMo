@@ -291,8 +291,15 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+
+        # calculate the position embedding on the fly
+        seq_length = discrete_token_ids.size(1)
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(input_ids).clone()
+        position_emb = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+
         # [b, s, d] -> [s, b, d]
-        prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
+        prompt_input_emb = (discrete_token_embeds + position_emb) .transpose(0, 1).contiguous()
         v_embeds_list = []
         for i, p_encoder in enumerate(self.prompt_encoder):
             if not self.cfg.perceiver[i].trainable:
@@ -669,7 +676,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         # run inference
         input_ids = batch[0]
         # add three as buffer
-        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0))
+        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
         context_lengths = batch[-1]
         token_to_gen = input_ids.shape[1] - context_lengths.max()
 
@@ -861,7 +868,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         else:
             input_ids = batch[0]
             # add three as buffer
-            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0))
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
             context_lengths = batch[-1]
             token_to_gen = input_ids.shape[1] - context_lengths.max()
             length_params: LengthParam = {
