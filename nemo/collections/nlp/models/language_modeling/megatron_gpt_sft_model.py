@@ -533,7 +533,7 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         # only the last stage of the pipeline returns losses
         if losses_reduced_per_micro_batch:
-            actual_batch_size = batch['tokens'].shape[0]  # Might be lesser than global_batch_size if drop_last=False
+            actual_batch_size = batch[0].shape[0]  # Might be lesser than global_batch_size if drop_last=False
             expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             if actual_batch_size == expected_batch_size:
                 loss_with_batch_size_list = [
