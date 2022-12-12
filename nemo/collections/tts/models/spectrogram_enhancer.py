@@ -36,7 +36,6 @@
 
 # The following is largely based on code from https://github.com/lucidrains/stylegan2-pytorch
 
-import math
 from random import random, randrange
 from typing import List, Optional
 
