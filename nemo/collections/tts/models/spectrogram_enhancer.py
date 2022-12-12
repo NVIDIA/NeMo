@@ -136,15 +136,15 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         self.init_spectrogram_model()
 
         self.G = Generator(
-            n_bands=cfg["n_bands"],
-            latent_dim=cfg["latent_dim"],
-            network_capacity=cfg["network_capacity"],
-            style_depth=cfg["style_depth"],
+            n_bands=cfg.n_bands,
+            latent_dim=cfg.latent_dim,
+            network_capacity=cfg.network_capacity,
+            style_depth=cfg.style_depth,
             channels=1,
-            fmap_max=cfg["fmap_max"],
+            fmap_max=cfg.fmap_max,
         )
         self.D = Discriminator(
-            n_bands=cfg["n_bands"], network_capacity=cfg["network_capacity"], channels=1, fmap_max=cfg["fmap_max"],
+            n_bands=cfg.n_bands, network_capacity=cfg.network_capacity, channels=1, fmap_max=cfg.fmap_max,
         )
 
     def init_spectrogram_model(self):
@@ -159,28 +159,28 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return type_as_recursive(e, next(iter(self.G.parameters())))
 
     def normalize_spectrograms(self, spectrogram: Tensor) -> Tensor:
-        spectrogram = spectrogram - self._cfg["spectrogram_min_value"]
-        spectrogram = spectrogram / (self._cfg["spectrogram_max_value"] - self._cfg["spectrogram_min_value"])
+        spectrogram = spectrogram - self._cfg.spectrogram_min_value
+        spectrogram = spectrogram / (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
         return spectrogram
 
     def unnormalize_spectrograms(self, spectrogram: Tensor) -> Tensor:
-        spectrogram = spectrogram * (self._cfg["spectrogram_max_value"] - self._cfg["spectrogram_min_value"])
-        spectrogram = spectrogram + self._cfg["spectrogram_min_value"]
+        spectrogram = spectrogram * (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
+        spectrogram = spectrogram + self._cfg.spectrogram_min_value
         return spectrogram
 
     def generate_zs(self, batch_size: int = 1, mixing: bool = False):
-        if mixing and self._cfg["mixed_prob"] < random():
+        if mixing and self._cfg.mixed_prob < random():
             mixing_point = randrange(1, self.G.num_layers)
-            first_part = [torch.randn(batch_size, self._cfg["latent_dim"])] * mixing_point
-            second_part = [torch.randn(batch_size, self._cfg["latent_dim"])] * (self.G.num_layers - mixing_point)
+            first_part = [torch.randn(batch_size, self._cfg.latent_dim)] * mixing_point
+            second_part = [torch.randn(batch_size, self._cfg.latent_dim)] * (self.G.num_layers - mixing_point)
             zs = [*first_part, *second_part]
         else:
-            zs = [torch.randn(batch_size, self._cfg["latent_dim"])] * self.G.num_layers
+            zs = [torch.randn(batch_size, self._cfg.latent_dim)] * self.G.num_layers
 
         return self.move_to_correct_device(zs)
 
     def generate_noise(self, batch_size: int = 1) -> Tensor:
-        noise = torch.rand(batch_size, self._cfg["n_bands"], 4096, 1)
+        noise = torch.rand(batch_size, self._cfg.n_bands, 4096, 1)
         return self.move_to_correct_device(noise)
 
     def pad_spectrogram(self, spectrogram):
@@ -253,7 +253,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         batch = process_batch(batch, self._train_dl.dataset.sup_data_types)
         mels, mel_lens = self.spectrogram_model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
 
-        mels_pred, *_, pitch = self.spectrogram_model(
+        mels_pred, *_ = self.spectrogram_model(
             text=batch["text"],
             durs=None,
             pitch=batch["pitch"],
@@ -333,8 +333,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             return g_loss + c_loss
 
     def configure_optimizers(self):
-        generator_opt = torch.optim.Adam(self.G.parameters(), lr=self._cfg["lr"], betas=(0.5, 0.9),)
-        discriminator_opt = torch.optim.Adam(self.D.parameters(), lr=self._cfg["lr"], betas=(0.5, 0.9))
+        generator_opt = torch.optim.Adam(self.G.parameters(), lr=self._cfg.lr, betas=(0.5, 0.9),)
+        discriminator_opt = torch.optim.Adam(self.D.parameters(), lr=self._cfg.lr, betas=(0.5, 0.9))
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):
