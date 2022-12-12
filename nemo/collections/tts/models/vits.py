@@ -152,6 +152,8 @@ class VitsModel(TextToWaveform):
                 scheduler_d = CosineAnnealing(
                     optimizer=optim_d, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,
                 )
+            else:
+                raise ValueError("Unknown optimizer.")
 
             scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
             scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
