@@ -978,9 +978,9 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **126M configuration:**
 
-The 126M model uses the bf16 data type. It can be trained in about 1 day using 8 nodes with 8 GPUs per node. The model includes 12 transformer layers, a hidden size of 768,
+The 126M model uses the bf16 data type. It can be trained in about 20 hours using 8 nodes with 8 GPUs per node. The model includes 12 transformer layers, a hidden size of 768,
 and 12 attention heads. The sequence length is 2048, and the optimizer is
-Adam. This model does not use any model parallelism. See the `gpt3/126m.yaml` config file for parameter details.
+Distributed Adam. This model does not use any model parallelism. See the `gpt3/126m.yaml` config file for parameter details.
 
 To train a 126M model on a Slurm cluster, modify the `conf/config.yaml` file to set:
 ```yaml
@@ -1014,10 +1014,10 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
 
-The 5B model uses the bf16 data type. It can be trained in about 5 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 5B model uses the bf16 data type. It can be trained in about 5 days using 16 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 4096, and 32 attention heads. The
-sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 2. For the details on all the parameters, see the 5b.yaml
+sequence length is 2048, and the optimizer is Distributed Adam. This model uses tensor
+parallelism of 1. For the details on all the parameters, see the 5b.yaml
 config file.
 
 To train a 5B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1032,7 +1032,7 @@ And run:
 python3 main.py
 ```
 
-To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the command:
+To train a 5B GPT-3 model on Base Command Platform cluster on 16 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/5b \
 stages=[training] \
@@ -1048,10 +1048,10 @@ creating the job (number of replicas).
 
 **20B configuration:**
 
-The 20B model uses the bf16 data type. It can be trained in about 6 days using 80 nodes with 8 GPUs per node. The model includes 44
+The 20B model uses the bf16 data type. It can be trained in about 6 days using 64 nodes with 8 GPUs per node. The model includes 44
 transformer layers, a hidden size of 6144, and 48 attention heads. The
-sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 2 and pipeline parallelism of 4. For the details on all the parameters, see the 20b.yaml
+sequence length is 2048, and the optimizer is Distributed Adam. This model uses tensor
+parallelism of 4 and pipeline parallelism of 1. For the details on all the parameters, see the 20b.yaml
 config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1066,7 +1066,7 @@ And run:
 python3 main.py
 ```
 
-To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
+To train a 20B GPT-3 model on Base Command Platform cluster on 64 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/20b \
 stages=[training] \
@@ -1081,10 +1081,10 @@ creating the job (number of replicas).
 
 **40B configuration:**
 
-The 40B model uses the bf16 data type. It can be trained in about 10.3 days using 80 nodes with 8 GPUs per node. The model includes 48
+The 40B model uses the bf16 data type. It can be trained in about 6 days using 128 nodes with 8 GPUs per node. The model includes 48
 transformer layers, a hidden size of 8192, and 64 attention heads. The
-sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 4 and pipeline parallelism of 4. 
+sequence length is 2048, and the optimizer is Distributed Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 1. 
 For the details on all the parameters, see the 40b.yaml config file.
 
 To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1099,7 +1099,7 @@ And run:
 python3 main.py
 ```
 
-To train a 40B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
+To train a 40B GPT-3 model on Base Command Platform cluster on 128 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/40b \
 stages=[training] \
@@ -1114,10 +1114,11 @@ creating the job (number of replicas).
 
 **175B configuration:**
 
-The 175B model uses the bf16 data type. It can be trained in about 27 days using 128 nodes with 8 GPUs per node. The model includes 96
+The 175B model uses the bf16 data type. It can be trained in about 24 days using 128 nodes with 8 GPUs per node. The model includes 96
 transformer layers, a hidden size of 12288, and 96 attention heads. The
-sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 8. 
+sequence length is 2048, and the optimizer is Distributed Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 16. This model uses interleaved pipeline scheduling, 
+with a virtual pipeline chunk size of 6.
 For the details on all the parameters, see the 175b.yaml config file.
 
 To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1148,8 +1149,8 @@ creating the job (number of replicas).
 #### 5.2.2. Predefined Configurations of T5 Models
 <a id="markdown-predefined-configurations-of-t5-models" name="predefined-configurations-of-t5-models"></a>
 
-We provide configuration files for two T5 model sizes: 220M and
-3B parameters. These configurations include carefully selected
+We provide configuration files for five T5 model sizes: 220M,
+3B, 11B, 23B, and 41B parameters. These configurations include carefully selected
 hyperparameters, which should be used as guidelines for any custom model
 configurations. The configuration files are provided in the `conf/training/t5`
 directory. The desired configuration can be chosen by selecting the training
@@ -1158,10 +1159,10 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **220M configuration:**
 
-The 220M model uses the bf16 data type. It can be trained in about 4 days using 4 nodes with 8 GPUs per node. 
+The 220M model uses the bf16 data type. It can be trained in about 3.5 days using 4 nodes with 8 GPUs per node. 
 The model includes 12 transformer layers, a hidden size of 768, a feedforward network size of 2048,
 and 12 attention heads with GeGLU activation function. The sequence length is 512, and the optimizer is
-Adam. This model does not use any model parallelism. See the `t5/220m.yaml` config file for parameter details.
+Distributed Adam. This model does not use any model parallelism. See the `t5/220m.yaml` config file for parameter details.
 
 To train a 220M model on a Slurm cluster, modify the `conf/config.yaml` file to set:
 ```yaml
@@ -1193,11 +1194,10 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **3B configuration:**
 
-The 3B model uses the bf16 data type. It can be trained in about 11 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 3B model uses the bf16 data type. It can be trained in about 7.5 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 2048, a feedforward network size of 5120, and 32 attention heads  with GeGLU activation function. The
-sequence length is 512, and the optimizer is Adam. This model uses tensor
-parallelism of 2. For the details on all the parameters, see the `t5/3b.yaml`
-config file.
+sequence length is 512, and the optimizer is Distributed Adam. 
+For the details on all the parameters, see the `t5/3b.yaml` config file.
 
 To train a 3B model, modify the `conf/config.yaml` file to set:
 ```yaml
@@ -1226,9 +1226,9 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 **11B configuration:**
 
-The 11B model uses the bf16 data type. It can be trained in about 40 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 11B model uses the bf16 data type. It can be trained in about 26.5 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 4096, a feedforward network size of 10240, and 64 attention heads  with GeGLU activation function. The
-sequence length is 512, and the optimizer is Adam. This model uses tensor
+sequence length is 512, and the optimizer is Distributed Adam. This model uses tensor
 parallelism of 4. For the details on all the parameters, see the `t5/11b.yaml`
 config file.
 
@@ -1259,9 +1259,9 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 **23B configuration:**
 
-The 23B model uses the bf16 data type. It can be trained in about 55 days using 40 nodes with 8 GPUs per node. The model includes 36
+The 23B model uses the bf16 data type. It can be trained in about 36 days using 40 nodes with 8 GPUs per node. The model includes 36
 transformer layers, a hidden size of 5120, a feedforward network size of 10880, and 64 attention heads with GeGLU activation function. The
-sequence length is 512, and the optimizer is Adam. This model uses tensor
+sequence length is 512, and the optimizer is Distributed Adam. This model uses tensor
 parallelism of 4 and pipeline parallelism of 2. For the details on all the parameters, see the `t5/23b.yaml`
 config file.
 
@@ -1291,10 +1291,10 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 **41B configuration:**
 
-The 41B model uses the bf16 data type. It can be trained in about 91 days using 40 nodes with 8 GPUs per node. The model includes 36
+The 41B model uses the bf16 data type. It can be trained in about 60 days using 40 nodes with 8 GPUs per node. The model includes 36
 transformer layers, a hidden size of 6144, a feedforward network size of 10880, and 96 attention heads with GeGLU activation function. The
-sequence length is 512, and the optimizer is Adam. This model uses tensor
-parallelism of 4 and pipeline parallelism of 4. For the details on all the parameters, see the `t5/23b.yaml`
+sequence length is 512, and the optimizer is Distributed Adam. This model uses tensor
+parallelism of 4 and pipeline parallelism of 2. For the details on all the parameters, see the `t5/23b.yaml`
 config file.
 
 To train a 41B model, modify the `conf/config.yaml` file to set:
@@ -1337,7 +1337,7 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 The 170M model uses the bf16 data type. It can be trained in about 4 days using 4 nodes with 8 GPUs per node. 
 The model includes 8 transformer layers, a hidden size of 512, a feedforward network size of 1024,
-and 6 attention heads with GeGLU activation function. The sequence length is 512, and the optimizer is
+and 6 attention heads with GeGLU activation function. The sequence length is 512, and the optimizer is Distributed
 Adam. This model does not use any model parallelism. See the `mt5/170m.yaml` config file for parameter details.
 
 To train a 170M model on a Slurm cluster, modify the `conf/config.yaml` file to set:
@@ -1373,7 +1373,7 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 The 390M model uses the bf16 data type. It can be trained in about 4 days using 8 nodes with 8 GPUs per node. 
 The model includes 8 transformer layers, a hidden size of 512, a feedforward network size of 2048,
-and 12 attention heads with GeGLU activation function. The sequence length is 512, and the optimizer is
+and 12 attention heads with GeGLU activation function. The sequence length is 512, and the optimizer is Distributed 
 Adam. This model does not use any model parallelism. See the `mt5/390m.yaml` config file for parameter details.
 
 To train a 390M model on a Slurm cluster, modify the `conf/config.yaml` file to set:
@@ -1404,7 +1404,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 The 3B model uses the bf16 data type. It can be trained in about 14 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 2048, a feedforward network size of 5120, and 32 attention heads with GeGLU activation function. The
-sequence length is 512, and the optimizer is Adam. This model uses tensor
+sequence length is 512, and the optimizer is Distributed Adam. This model uses tensor
 parallelism of 2. For the details on all the parameters, see the `mt5/3b.yaml`
 config file.
 
