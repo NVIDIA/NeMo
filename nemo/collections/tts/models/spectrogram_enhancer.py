@@ -336,7 +336,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     @classmethod
     def list_available_models(cls):
-        return None
+        return []
 
     def save_to(self, save_path: str):
         # when saving this model for further use in a .nemo file, we do not care about TTS model used to train it
