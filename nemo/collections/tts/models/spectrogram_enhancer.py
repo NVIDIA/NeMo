@@ -55,6 +55,7 @@ import nemo
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import Discriminator, Generator, mask
+from nemo.collections.tts.helpers.helpers import process_batch
 from nemo.core import Exportable, ModelPT
 from nemo.utils import logging
 
@@ -236,20 +237,19 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
                 f"{type(self.spectrogram_model)} is not supported, please implement batch preparation for this model."
             )
 
-        attn_prior, durs, speaker = None, None, None
-        (audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker,) = batch
-        mels, mel_lens = self.spectrogram_model.preprocessor(input_signal=audio, length=audio_lens)
+        batch = process_batch(batch, self._train_dl.dataset.sup_data_types)
+        mels, mel_lens = self.spectrogram_model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
 
         mels_pred, *_, pitch = self.spectrogram_model(
-            text=text,
-            durs=durs,
-            pitch=pitch,
-            speaker=speaker,
+            text=batch["text"],
+            durs=None,
+            pitch=batch["pitch"],
+            speaker=batch.get("speaker"),
             pace=1.0,
             spec=mels if self.spectrogram_model.learn_alignment else None,
-            attn_prior=attn_prior,
+            attn_prior=batch.get("attn_prior"),
             mel_lens=mel_lens,
-            input_lens=text_lens,
+            input_lens=batch["text_lens"],
         )
 
         mels = mels.cpu()
