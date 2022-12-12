@@ -216,6 +216,11 @@ class FFTransformerDecoder(NeuralModule):
 
     def _forward(self, inp, mask, conditioning):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
+        # try:
+        #     pos_emb = self.pos_emb(pos_seq) * mask
+        # except Exception as e:
+        #     import code  # NOQA
+        #     code.interact(local={**locals(), **globals()})
         pos_emb = self.pos_emb(pos_seq) * mask
         out = self.drop(inp + pos_emb + conditioning)
 

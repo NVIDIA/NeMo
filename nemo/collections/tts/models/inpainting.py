@@ -4,6 +4,7 @@ NeMo model for audio inpainting
 It uses a TTSDataset to get the preprocessed audio data and then randomly
 erases a window of the spectrogram for the module to regenerate.
 """
+import contextlib
 from nemo.core.classes import ModelPT
 from nemo.core.classes import Exportable
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -13,36 +14,59 @@ from nemo.core.classes import NeuralModule, typecheck
 from nemo.collections.tts.losses.fastpitchloss import MelLoss
 import torch
 import logging
-
+import random
 
 class BaselineModule(NeuralModule):
     def __init__(self):
         """TODO"""
-        pass
+        super().__init__()
+        self.conv = torch.nn.Conv2d(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=3,
+            stride=1,
+            padding='same',
+            dilation=1,
+            groups=1,
+            bias=True,
+            padding_mode='zeros',
+        )
 
     def forward(
-        self, transcripts, transcripts_lens, input_mels, input_mels_len
+        self, transcripts, transcripts_len, input_mels, input_mels_len
     ):
         """TODO"""
-        return input_mels
+        input_mels = input_mels.unsqueeze(1)
+        return self.conv(input_mels).squeeze(1)
 
 
 class InpainterModel(ModelPT, Exportable):
     """TODO"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self.normalizer = self._setup_normalizer(cfg)
+        self.text_normalizer_call = self.normalizer.normalize
+        if "text_normalizer_call_kwargs" in cfg:
+            self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+        self.vocab = self._setup_tokenizer(cfg)
 
         super().__init__(cfg=cfg, trainer=trainer)
+        self.preprocessor = instantiate(cfg.preprocessor)
+        input_fft_kwargs = {
+            "n_embed": len(self.vocab.tokens),
+            "padding_idx": self.vocab.pad,
+        }
 
-        self.preprocessor = instantiate(self._cfg.preprocessor)
-
-        self.normalizer = self._setup_normalizer(cfg)
-        self.vocab = self._setup_tokenizer(cfg)
+        # text_encoder = instantiate(cfg.input_fft, **input_fft_kwargs)
+        # output_fft = instantiate(cfg.output_fft)
+        # self.module = BaselineModule(text_encoder, output_fft)
+        self.module = BaselineModule()
 
         # TODO - review this loss to only look at the reconstructed part
         self.mel_loss = MelLoss()
+        self.audio_sample_rate = cfg.sample_rate
+        self.spectrogram_sample_stride = cfg.n_window_stride
 
-        self.module = BaselineModule()
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -60,10 +84,6 @@ class InpainterModel(ModelPT, Exportable):
                 raise ImportError(
                     "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
                 )
-
-            self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_kwargs" in cfg:
-                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
             return normalizer
 
@@ -87,21 +107,28 @@ class InpainterModel(ModelPT, Exportable):
 
         return instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
+    def forward(self, transcripts, transcripts_len, input_mels, input_mels_len):
+        return self.module(
+            transcripts, transcripts_len, input_mels, input_mels_len)
+
     def forward_pass(self, batch, batch_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, spec_len = self.preprocessor(
             input_signal=audio, length=audio_lens)
 
+        # mask the spectrogram rather than audio to avoid artifacts
+        # at the edge of the spectrogram
+        mels_masked = self.mask_mels(mels, spec_len)
+
         mels_pred = self(
             transcripts=text,
             transcripts_len=text_lens,
-            input_mels=mels,
+            input_mels=mels_masked,
             input_mels_len=spec_len
         )
-        loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
+        loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         return loss
-
 
     def training_step(self, batch, batch_idx):
         loss = self.forward_pass(batch, batch_idx)
@@ -146,19 +173,20 @@ class InpainterModel(ModelPT, Exportable):
                 f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         assert cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset"
+        phon_mode = contextlib.nullcontext()
         if hasattr(self.vocab, "set_phone_prob"):
-            raise ValueError('set phone_prob not supported yet')
+            phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
 
-        dataset = instantiate(
-            cfg.dataset,
-            text_normalizer=self.normalizer,
-            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-            text_tokenizer=self.vocab,
-        )
+        with phon_mode:
+            dataset = instantiate(
+                cfg.dataset,
+                text_normalizer=self.normalizer,
+                text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+                text_tokenizer=self.vocab,
+            )
 
         return torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
-
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
@@ -168,3 +196,25 @@ class InpainterModel(ModelPT, Exportable):
             List of available pre-trained models.
         """
         return []
+
+    def mask_mels(self, mels, mel_lens):
+        mels = torch.clone(mels)  # doing in-place mutation here
+
+        ffts_per_sec = self.audio_sample_rate / self.spectrogram_sample_stride
+
+        # TODO - have these as parameters in the future
+        min_duration_frames = int(ffts_per_sec * 0.5)
+        max_duration_frames = int(ffts_per_sec * 2)
+
+        for i, spec_len in enumerate(mel_lens):
+            start = random.randint(
+                0,
+                # make sure some part of the spectrogram is masked
+                spec_len - (max_duration_frames / 2)
+            )
+            mask_len = random.randint(
+                min_duration_frames, max_duration_frames)
+
+            mels[i, :, start:start + mask_len] = 0
+
+        return mels
