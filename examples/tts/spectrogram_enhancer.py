@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-import torch
 
 from nemo.collections.tts.models import SpectrogramEnhancerModel
 from nemo.core.config import hydra_runner

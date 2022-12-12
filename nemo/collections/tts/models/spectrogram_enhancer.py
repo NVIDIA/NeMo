@@ -38,12 +38,12 @@
 
 import math
 from random import random, randrange
-from typing import Dict, List, Optional, TypedDict, Union
+from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
 import torchvision
-from einops import rearrange, repeat
+from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
