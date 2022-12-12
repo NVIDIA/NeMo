@@ -164,9 +164,11 @@ class MegatronBaseModel(NLPModel):
         All tokenizers are expected to provide compatible interface.
         Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
         """
-        
-        if self._cfg.tokenizer.library=='music':            
-            self.tokenizer = get_tokenizer(tokenizer_name=self._cfg.tokenizer.library,vocab_file=self._cfg.tokenizer.vocab_file)
+
+        if self._cfg.tokenizer.library == 'music':
+            self.tokenizer = get_tokenizer(
+                tokenizer_name=self._cfg.tokenizer.library, vocab_file=self._cfg.tokenizer.vocab_file
+            )
         else:
             if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
                 legacy = self._cfg.tokenizer.sentencepiece_legacy

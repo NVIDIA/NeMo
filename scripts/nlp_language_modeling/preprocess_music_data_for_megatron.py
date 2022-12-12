@@ -94,32 +94,34 @@ import ftfy
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer,get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
+
 
 class IdentitySplitter(object):
     def tokenize(self, *text):
         return text
+
 
 class Encoder(object):
     def __init__(self, args):
         self.args = args
 
     def initializer(self):
-        # Use Encoder class as a container for global data            
+        # Use Encoder class as a container for global data
         Encoder.splitter = IdentitySplitter()
 
-    def encode(self, line):        
-        music_tokenizer = get_tokenizer(tokenizer_name=self.args.tokenizer_library,vocab_file=self.args.vocab_file)
+    def encode(self, line):
+        music_tokenizer = get_tokenizer(tokenizer_name=self.args.tokenizer_library, vocab_file=self.args.vocab_file)
         sentences = line
         ids = {}
-        
+
         doc_ids = []
-        for sentence in sentences :            
-            sentence_ids = music_tokenizer.tokenizer.encode(sentence)            
+        for sentence in sentences:
+            sentence_ids = music_tokenizer.tokenizer.encode(sentence)
             doc_ids.append(sentence_ids)
         if self.args.append_eod:
             doc_ids[-1].append(music_tokenizer.eod)
-        ids['text'] = doc_ids       
+        ids['text'] = doc_ids
         return ids, len(line)
 
 
@@ -143,7 +145,7 @@ def get_args():
         '--tokenizer-library',
         type=str,
         required=True,
-        choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular','music'],
+        choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular', 'music'],
         help='What tokenizer library to use.',
     )
     group.add_argument(
@@ -190,9 +192,11 @@ def get_args():
     assert args.tokenizer_type is not None or args.tokenizer_model is not None
     return args
 
+
 def read_music_txt_file(full_path_to_txt_file):
     fin = open(full_path_to_txt_file, 'r', encoding='utf-8')
     return fin
+
 
 def main():
     args = get_args()
@@ -201,23 +205,23 @@ def main():
     assert os.path.exists(args.input), f'File does not exist: {args.input}'
     print("Path to txt data per file per piece ", args.input)
     if os.path.isfile(args.input):
-        json_files=[args.input]
+        json_files = [args.input]
     else:
-        num_files= os.listdir(args.input)
-        json_files=[os.path.join(args.input,f) for f in num_files if f.endswith('.txt')]
-        print("list of mucis piece file's absolute path : \n",[f for f in json_files])
+        num_files = os.listdir(args.input)
+        json_files = [os.path.join(args.input, f) for f in num_files if f.endswith('.txt')]
+        print("list of mucis piece file's absolute path : \n", [f for f in json_files])
 
-    music_tokenizer = get_tokenizer(tokenizer_name=args.tokenizer_library,vocab_file=args.vocab_file)
+    music_tokenizer = get_tokenizer(tokenizer_name=args.tokenizer_library, vocab_file=args.vocab_file)
     encoder = Encoder(args)
-    encoded_docs=[]    
-    for f in json_files:        
-        fin=open(f,'r', encoding='utf-8')
-        lines=fin.readlines()
-        print("finishing reading {} lines from input file {}".format(str(len(lines)),args.input))
-        out=encoder.encode(lines)
+    encoded_docs = []
+    for f in json_files:
+        fin = open(f, 'r', encoding='utf-8')
+        lines = fin.readlines()
+        print("finishing reading {} lines from input file {}".format(str(len(lines)), args.input))
+        out = encoder.encode(lines)
         print("should be of type list", type(out))
         encoded_docs.append(out)
-    print("total processed pieces ", len(encoded_docs))   
+    print("total processed pieces ", len(encoded_docs))
 
     level = "document"
     if args.split_sentences:
@@ -228,14 +232,12 @@ def main():
     output_bin_files = {}
     output_idx_files = {}
     builders = {}
-    key='text'
-    output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix,
-                                                  key, level)
-    output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix,
-                                                  key, level)
-    builders[key] = indexed_dataset.make_builder(output_bin_files[key],
-                                           impl=args.dataset_impl,
-                                           vocab_size=music_tokenizer.vocab_size)
+    key = 'text'
+    output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix, key, level)
+    output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix, key, level)
+    builders[key] = indexed_dataset.make_builder(
+        output_bin_files[key], impl=args.dataset_impl, vocab_size=music_tokenizer.vocab_size
+    )
 
     startup_end = time.time()
     proc_start = time.time()
@@ -243,19 +245,19 @@ def main():
     print("Time to startup:", startup_end - startup_start)
     print("len(encoded_docs)", len(encoded_docs))
 
-    for i, (doc, bytes_processed) in enumerate(encoded_docs) :        
-        print(type(doc), type(bytes_processed))        
-        assert type(doc)==dict 
-        assert type(bytes_processed)==int
-        #print("bytes_processed=",bytes_processed)
+    for i, (doc, bytes_processed) in enumerate(encoded_docs):
+        print(type(doc), type(bytes_processed))
+        assert type(doc) == dict
+        assert type(bytes_processed) == int
+        # print("bytes_processed=",bytes_processed)
         total_bytes_processed += bytes_processed
         for key, sentences in doc.items():
             if len(sentences) == 0:
                 continue
             for sentence in sentences:
                 builders[key].add_item(torch.IntTensor(sentence))
-            builders[key].end_document()  
-        
+            builders[key].end_document()
+
     builders[key].finalize(output_idx_files[key])
     print("building .idx file")
 
