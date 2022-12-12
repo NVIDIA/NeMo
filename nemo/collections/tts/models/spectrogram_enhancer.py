@@ -70,57 +70,51 @@ def type_as_recursive(e, source: Tensor):
         return e
 
 
-def gradient_penalty(images, output, weight=10):
-    batch_size = images.shape[0]
-    gradients = torch_grad(
-        outputs=output,
-        inputs=images,
-        grad_outputs=torch.ones(output.size(), device=images.device),
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
+class GradientPenaltyLoss(nn.Module):
+    def __init__(self, weight: float = 10.0):
+        super().__init__()
+        self.weight = weight
 
-    gradients = gradients.reshape(batch_size, -1)
-    return weight * ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+    def __call__(self, images, output):
+        batch_size, *_ = images.shape
+        gradients = torch_grad(
+            outputs=output,
+            inputs=images,
+            grad_outputs=torch.ones(output.size(), device=images.device),
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
 
-
-def calc_pl_lengths(styles, images):
-    device = images.device
-    num_pixels = images.shape[2] * images.shape[3]
-    pl_noise = torch.randn(images.shape, device=device) / math.sqrt(num_pixels)
-    outputs = (images * pl_noise).sum()
-
-    pl_grads = torch_grad(
-        outputs=outputs,
-        inputs=styles,
-        grad_outputs=torch.ones(outputs.shape, device=device),
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
-
-    return (pl_grads ** 2).sum(dim=2).mean(dim=1).sqrt()
+        gradients = gradients.reshape(batch_size, -1)
+        return self.weight * ((gradients.norm(2, dim=1) - 1) ** 2).mean()
 
 
-def gen_hinge_loss(fake):
-    return fake.mean()
+class GeneratorLoss(nn.Module):
+    def __call__(self, fake_logits):
+        return fake_logits.mean()
 
 
-def hinge_loss(real, fake):
-    return (F.relu(1 + real) + F.relu(1 - fake)).mean()
+class HingeLoss(nn.Module):
+    def __call__(self, real_logits, fake_logits):
+        return (F.relu(1 + real_logits) + F.relu(1 - fake_logits)).mean()
 
 
-def consistency_loss(condition, output, lengths):
-    *_, w, h = condition.shape
-    w, h = w // 4, h
+class ConsistencyLoss(nn.Module):
+    def __init__(self, weight: float = 10):
+        super().__init__()
+        self.weight = weight
 
-    condition = torch.nn.functional.interpolate(condition, size=(w, h), mode="bilinear", antialias=True)
-    output = torch.nn.functional.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
+    def __call__(self, condition, output, lengths):
+        *_, w, h = condition.shape
+        w, h = w // 4, h
 
-    dist = (condition - output).abs()
-    dist = mask(dist, lengths)
-    return (dist / rearrange(lengths, "b 1 -> b 1 1 1")).sum(dim=-1).mean()
+        condition = torch.nn.functional.interpolate(condition, size=(w, h), mode="bilinear", antialias=True)
+        output = torch.nn.functional.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
+
+        dist = (condition - output).abs()
+        dist = mask(dist, lengths)
+        return (dist / rearrange(lengths, "b 1 -> b 1 1 1")).sum(dim=-1).mean() * self.weight
 
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
@@ -146,6 +140,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         self.D = Discriminator(
             n_bands=cfg.n_bands, network_capacity=cfg.network_capacity, channels=1, fmap_max=cfg.fmap_max,
         )
+
+        self.generator_loss = GeneratorLoss()
+        self.discriminator_loss = HingeLoss()
+        self.consistency_loss = ConsistencyLoss(cfg.consistency_loss_weight)
+        self.gradient_penalty_loss = GradientPenaltyLoss(cfg.gradient_penalty_loss_weight)
 
     def init_spectrogram_model(self):
         if (path := self._cfg.get("spectrogram_model_path")) :
@@ -308,11 +307,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
             real_images = target.requires_grad_()
             real_logits = self.D(real_images, condition, lengths)
-            d_loss = hinge_loss(real=real_logits, fake=fake_logits)
+            d_loss = self.discriminator_loss(real_logits, fake_logits)
             self.log("d_loss", d_loss, prog_bar=True)
 
-            if batch_idx % 4 == 0:
-                gp_loss = gradient_penalty(real_images, real_logits)
+            if batch_idx % self._cfg.gradient_penalty_loss_every_n_steps == 0:
+                gp_loss = self.gradient_penalty_loss(real_images, real_logits)
                 self.log("d_loss_gp", gp_loss, prog_bar=True)
                 return d_loss + gp_loss
 
@@ -322,8 +321,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if optimizer_idx == 1:
             enhanced_spectrograms = self.forward(condition, lengths, mixing=True, normalize=False)
             fake_logits = self.D(enhanced_spectrograms, condition, lengths)
-            g_loss = gen_hinge_loss(fake_logits)
-            c_loss = 10 * consistency_loss(condition, enhanced_spectrograms, lengths)
+            g_loss = self.generator_loss(fake_logits)
+            c_loss = self.consistency_loss(condition, enhanced_spectrograms, lengths)
 
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("c_loss", c_loss, prog_bar=True)

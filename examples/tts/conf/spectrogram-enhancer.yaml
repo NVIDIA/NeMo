@@ -9,6 +9,10 @@ model:
   mixed_prob: 0.9
   fmap_max: 192
 
+  consistency_loss_weight: 10.0  # less for clean datasets, higher for noisier
+  gradient_penalty_loss_weight: 10.0
+  gradient_penalty_loss_every_n_steps: 4
+
   # Needed for treating spectrograms as images with pixel values around [0, 1].
   # Given values are for LibriTTS, might still work for your data.
   # In case of training not converging, calculate min and max values over your TTSDataset and update the config.

@@ -34,6 +34,9 @@ def enhancer_config():
             "fmap_max": 192,
             "spectrogram_min_value": -13.18,
             "spectrogram_max_value": 4.78,
+            "consistency_loss_weight": 10.0,
+            "gradient_penalty_loss_weight": 10.0,
+            "gradient_penalty_loss_every_n_steps": 4,
             "spectrogram_predictor_path": None,
         }
     }
@@ -55,6 +58,9 @@ def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
             "fmap_max": 192,
             "spectrogram_min_value": -13.18,
             "spectrogram_max_value": 4.78,
+            "consistency_loss_weight": 10.0,
+            "gradient_penalty_loss_weight": 10.0,
+            "gradient_penalty_loss_every_n_steps": 4,
             "spectrogram_model_path": fastpitch_model_path,
             "train_ds": {
                 "dataset": {
