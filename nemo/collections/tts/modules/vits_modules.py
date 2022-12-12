@@ -38,7 +38,6 @@ import math
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Conv2d, ConvTranspose1d
 from torch.nn import functional as F
 from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
 
@@ -607,14 +606,14 @@ class Generator(torch.nn.Module):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
+        self.conv_pre = nn.Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
         resblock = ResBlock1 if resblock == '1' else ResBlock2
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
             self.ups.append(
                 weight_norm(
-                    ConvTranspose1d(
+                    nn.ConvTranspose1d(
                         upsample_initial_channel // (2 ** i),
                         upsample_initial_channel // (2 ** (i + 1)),
                         k,
@@ -630,7 +629,7 @@ class Generator(torch.nn.Module):
             for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
                 self.resblocks.append(resblock(ch, k, d))
 
-        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
+        self.conv_post = nn.Conv1d(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
 
         if gin_channels != 0:
@@ -670,15 +669,15 @@ class DiscriminatorP(torch.nn.Module):
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(nn.Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(nn.Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(nn.Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(nn.Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(nn.Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
             ]
         )
         self.dropout = nn.Dropout(0.3)
-        self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
+        self.conv_post = norm_f(nn.Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
         fmap = []
@@ -709,16 +708,16 @@ class DiscriminatorS(torch.nn.Module):
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv1d(1, 16, 15, 1, padding=7)),
-                norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
-                norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
-                norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
-                norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
-                norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+                norm_f(nn.Conv1d(1, 16, 15, 1, padding=7)),
+                norm_f(nn.Conv1d(16, 64, 41, 4, groups=4, padding=20)),
+                norm_f(nn.Conv1d(64, 256, 41, 4, groups=16, padding=20)),
+                norm_f(nn.Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
+                norm_f(nn.Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
+                norm_f(nn.Conv1d(1024, 1024, 5, 1, padding=2)),
             ]
         )
         self.dropout = nn.Dropout(0.3)
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+        self.conv_post = norm_f(nn.Conv1d(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):
         fmap = []
