@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 
@@ -207,8 +207,9 @@ class _FeatureTextDataset(Dataset):
             t = offset + i * self.frame_unit_time_secs
             while sid < len(segments) - 1 and segments[sid][1] < t:
                 sid += 1
-            if t < segments[sid][0] or t > segments[sid][1]:
+            if segments[sid][1] == 0 or t < segments[sid][0] or t > segments[sid][1]:
                 features[:, i] = mask_val
+
         return features
 
     def __len__(self):
@@ -236,7 +237,7 @@ class FeatureToCharDataset(_FeatureTextDataset):
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
         labels: String containing all the possible characters to map to
-        normalize: how to normalize feature, either None, "post_norm", or "pre_norm"
+        normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
         use_rttm: whether to use RTTM files if there is any, default to False
         frame_unit_time_secs: time in seconds for each frame
         sample_rate (int): Sample rate to resample loaded audio to
@@ -249,7 +250,6 @@ class FeatureToCharDataset(_FeatureTextDataset):
         max_utts: Limit number of utterances
         blank_index: blank character index, default = -1
         unk_index: unk_character index, default = -1
-        normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -260,7 +260,7 @@ class FeatureToCharDataset(_FeatureTextDataset):
         self,
         manifest_filepath: str,
         labels: Union[str, List[str]],
-        normalize: str = "post_norm",
+        normalize: Optional[str] = "post_norm",
         use_rttm: bool = False,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
@@ -348,7 +348,7 @@ class FeatureToBPEDataset(_FeatureTextDataset):
         self,
         manifest_filepath: str,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
-        normalize: str = "post_norm",
+        normalize: Optional[str] = "post_norm",
         use_rttm: bool = False,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,

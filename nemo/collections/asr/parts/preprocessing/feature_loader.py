@@ -40,18 +40,13 @@ class ExternalFeatureLoader(object):
         file_path (str) is the path of the file that stores feature/sample.
         """
 
-        if file_path.endswith(".pt") or file_path.endswith(".pth"):
+        if file_path.endswith(".p") or file_path.endswith(".pt") or file_path.endswith(".pth"):
             samples = torch.load(file_path, map_location="cpu").float().numpy()
             return samples
         else:
             # load pickle/npy/npz file
-            try:
-                samples = np.load(file_path, allow_pickle=True)
-                return self._convert_samples_to_float32(samples)
-            except:
-                raise TypeError(
-                    "Error open feature files. Probably not supported the format yet. Support pkl, npz, and npy format now. "
-                )
+            samples = np.load(file_path, allow_pickle=True)
+            return self._convert_samples_to_float32(samples)
             # TODO load other type of files such as kaldi io ark
 
     @staticmethod
