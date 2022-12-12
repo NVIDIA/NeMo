@@ -334,10 +334,10 @@ class Discriminator(nn.Module):
 
         self.blocks = nn.ModuleList(blocks)
 
-        chan_last = filters[-1]
-        latent_dim = chan_last  # 2 * 2 * chan_last
+        channel_last = filters[-1]
+        latent_dim = channel_last
 
-        self.final_conv = nn.Conv2d(chan_last, chan_last, 3, padding=1)
+        self.final_conv = nn.Conv2d(channel_last, channel_last, 3, padding=1)
         self.to_logit = nn.Linear(latent_dim, 1)
 
         for m in self.modules():
