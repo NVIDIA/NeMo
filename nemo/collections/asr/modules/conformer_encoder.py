@@ -677,6 +677,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         if self_attention_model is None:
             self_attention_model = self._cfg.self_attention_model
 
+        if self_attention_model == 'rel_pos_local_attn' and max(att_context_size) <= 0:
+            raise ValueError("When using local attention, context size must be set > 0")
+
         if self_attention_model == "rel_pos":
             self.att_mask = None
             new_pos_enc = RelPositionalEncoding(
