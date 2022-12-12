@@ -185,6 +185,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -406,6 +407,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -627,6 +629,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
