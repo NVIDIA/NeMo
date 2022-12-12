@@ -1647,7 +1647,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
+class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
     """A batch level greedy transducer decoder.
     Batch level greedy decoding, performed auto-repressively.
     Args:
