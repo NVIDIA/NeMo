@@ -1591,7 +1591,7 @@ fastertransformer_dir: ${bignlp_hp_tool_path}/../FasterTransformer
 base_results_dir: ${bignlp_hp_tool_path}/results
 data_dir: ${bignlp_scripts_path}/data
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.09-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.11-py3
 container_mounts:
     - null
 
@@ -1650,6 +1650,8 @@ train_settings:
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+  max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
  
@@ -1701,11 +1703,11 @@ when estimating how long it will take to train the model, to the desired number 
 `vocab_size` parameter must show the vocabulary size that will be used during training. The `logs` 
 parameter can be used to configure where the result logs will be saved. By default, this directory 
 will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
-the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
-parameters can be used to override the heuristics that choose the grid search space for these 
-four parameters. If these are left as `auto`, the tool will select appropriate values. However, 
-if you wish to override them, you can use these parameters. For example, if you only wish to search 
-for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
+the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `min_model_parallel_size`, `max_model_parallel_size`, 
+`micro_batch_sizes`, and `act_ckpt_layers` parameters can be used to override the heuristics that choose 
+the grid search space and the maximum and minimum parallelism allowed for each model. If these are left as `auto`, 
+the tool will select appropriate values. However, if you wish to override them, you can use these parameters. 
+For example, if you only wish to search for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
 
 In the inference parameters, `gpus_per_node` must be used to tell the system how many GPUs are available in each node. 
@@ -1772,6 +1774,8 @@ train_settings:
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+  max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
