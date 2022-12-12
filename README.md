@@ -2743,7 +2743,7 @@ The configuration used for the prompt learning needs to be defined in the
 `conf/config.yaml` file by modifying the `prompt_learning` parameter, which specifies the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
-`prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
+`prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`. It is possible to use optimizations such as sequence-parallelism from the base GPT model while prompt-learning as well. To enable this, set `model.sequence_sequence_parallel=True`.
 
 ##### 5.10.1.1. Common
 <a id="markdown-common" name="common"></a>
