@@ -44,6 +44,7 @@ import torch
 import torch.nn.functional as F
 import torchvision
 from einops import rearrange
+from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -332,8 +333,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             return g_loss + c_loss
 
     def configure_optimizers(self):
-        generator_opt = torch.optim.Adam(self.G.parameters(), lr=self._cfg.lr, betas=(0.5, 0.9),)
-        discriminator_opt = torch.optim.Adam(self.D.parameters(), lr=self._cfg.lr, betas=(0.5, 0.9))
+        generator_opt = instantiate(self._cfg.generator_opt, params=self.G.parameters(),)
+        discriminator_opt = instantiate(self._cfg.discriminator_opt, params=self.D.parameters())
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):

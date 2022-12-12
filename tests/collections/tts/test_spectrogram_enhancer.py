@@ -38,7 +38,17 @@ def enhancer_config():
             "gradient_penalty_loss_weight": 10.0,
             "gradient_penalty_loss_every_n_steps": 4,
             "spectrogram_predictor_path": None,
-        }
+        },
+        "generator_opt": {
+            "_target_": "torch.optim.Adam",
+            "lr": 2e-4,
+            "betas": [0.5, 0.9]
+        },
+        "discriminator_opt": {
+            "_target_": "torch.optim.Adam",
+            "lr": 2e-4,
+            "betas": [0.5, 0.9]
+        },
     }
 
     return DictConfig(config)
@@ -68,6 +78,16 @@ def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
                     "sup_data_path": str(test_data_dir / "tts/mini_ljspeech/sup"),
                 }
             },
+        },
+        "generator_opt": {
+            "_target_": "torch.optim.Adam",
+            "lr": 2e-4,
+            "betas": [0.5, 0.9]
+        },
+        "discriminator_opt": {
+            "_target_": "torch.optim.Adam",
+            "lr": 2e-4,
+            "betas": [0.5, 0.9]
         },
     }
 
