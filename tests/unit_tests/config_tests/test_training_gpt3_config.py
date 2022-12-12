@@ -146,6 +146,7 @@ class TestTrainingGPT3Config:
           optim:
             name: distributed_fused_adam
             bucket_cap_mb: 200
+            overlap_grad_sync: False
             contiguous_grad_buffer: True
             lr: 6e-4
             weight_decay: 0.1 
@@ -380,6 +381,7 @@ class TestTrainingGPT3Config:
           optim:
             name: distributed_fused_adam
             bucket_cap_mb: 200
+            overlap_grad_sync: False
             contiguous_grad_buffer: True
             lr: 1.6e-4
             weight_decay: 0.1 
@@ -522,7 +524,7 @@ class TestTrainingGPT3Config:
             buffer_size: 5
         
         model:
-          micro_batch_size: 4
+          micro_batch_size: 2
           global_batch_size: 2048
           tensor_model_parallel_size: 4
           pipeline_model_parallel_size: 1
@@ -556,8 +558,8 @@ class TestTrainingGPT3Config:
         
           ## Activation Checkpointing
           activations_checkpoint_granularity: selective # 'selective' or 'full'
-          activations_checkpoint_method: uniform # 'uniform', 'block'
-          activations_checkpoint_num_layers: 1
+          activations_checkpoint_method: block # 'uniform', 'block'
+          activations_checkpoint_num_layers: 0
           num_micro_batches_with_partial_activation_checkpoints: null
           activations_checkpoint_layers_per_pipeline: null 
 
@@ -613,6 +615,7 @@ class TestTrainingGPT3Config:
           optim:
             name: distributed_fused_adam
             bucket_cap_mb: 200
+            overlap_grad_sync: False
             contiguous_grad_buffer: True
             lr: 1.4e-4
             weight_decay: 0.1 
@@ -757,8 +760,8 @@ class TestTrainingGPT3Config:
         model:
           micro_batch_size: 2
           global_batch_size: 2048
-          tensor_model_parallel_size: 4
-          pipeline_model_parallel_size: 2
+          tensor_model_parallel_size: 8
+          pipeline_model_parallel_size: 1
           virtual_pipeline_model_parallel_size: null # interleaved pipeline
           resume_from_checkpoint: null # manually set the checkpoint file to load from
         
@@ -789,8 +792,8 @@ class TestTrainingGPT3Config:
         
           ## Activation Checkpointing
           activations_checkpoint_granularity: selective # 'selective' or 'full'
-          activations_checkpoint_method: uniform # 'uniform', 'block'
-          activations_checkpoint_num_layers: 1
+          activations_checkpoint_method: block # 'uniform', 'block'
+          activations_checkpoint_num_layers: 0
           num_micro_batches_with_partial_activation_checkpoints: null
           activations_checkpoint_layers_per_pipeline: null 
 
@@ -846,6 +849,7 @@ class TestTrainingGPT3Config:
           optim:
             name: distributed_fused_adam
             bucket_cap_mb: 200
+            overlap_grad_sync: False
             contiguous_grad_buffer: True
             lr: 1.1e-4
             weight_decay: 0.1 
@@ -988,11 +992,11 @@ class TestTrainingGPT3Config:
             buffer_size: 5
         
         model:
-          micro_batch_size: 2
+          micro_batch_size: 1
           global_batch_size: 2048
           tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 8
-          virtual_pipeline_model_parallel_size: null # interleaved pipeline
+          pipeline_model_parallel_size: 16
+          virtual_pipeline_model_parallel_size: 6 # interleaved pipeline
           resume_from_checkpoint: null # manually set the checkpoint file to load from
         
           # model architecture
@@ -1022,10 +1026,10 @@ class TestTrainingGPT3Config:
         
           ## Activation Checkpointing
           activations_checkpoint_granularity: selective # 'selective' or 'full'
-          activations_checkpoint_method: uniform # 'uniform', 'block'
-          activations_checkpoint_num_layers: 1
-          num_micro_batches_with_partial_activation_checkpoints: null
-          activations_checkpoint_layers_per_pipeline: null 
+          activations_checkpoint_method: block # 'uniform', 'block'
+          activations_checkpoint_num_layers: 0
+          num_micro_batches_with_partial_activation_checkpoints: 108
+          activations_checkpoint_layers_per_pipeline: 0
 
           ## Sequence Parallelism
           sequence_parallel: True
@@ -1079,6 +1083,7 @@ class TestTrainingGPT3Config:
           optim:
             name: distributed_fused_adam
             bucket_cap_mb: 200
+            overlap_grad_sync: False
             contiguous_grad_buffer: True
             lr: 0.9e-4
             weight_decay: 0.1 

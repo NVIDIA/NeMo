@@ -183,6 +183,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -340,9 +341,9 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 24
+  micro_batch_size: 12
   global_batch_size: 1920 # will use more micro batches to reach global batch size
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -464,6 +465,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -621,7 +623,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 12
+  micro_batch_size: 16
   global_batch_size: 1920 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
@@ -745,6 +747,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -902,7 +905,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 4
+  micro_batch_size: 8
   global_batch_size: 1920 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 2
@@ -1026,6 +1029,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
@@ -1183,10 +1187,10 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 4
+  micro_batch_size: 6
   global_batch_size: 1920 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 4
-  pipeline_model_parallel_size: 4
+  pipeline_model_parallel_size: 2
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 
@@ -1307,6 +1311,7 @@ model:
   optim:
     name: distributed_fused_adam
     bucket_cap_mb: 200
+    overlap_grad_sync: False
     contiguous_grad_buffer: True
     lr: 0.0001
     betas:
