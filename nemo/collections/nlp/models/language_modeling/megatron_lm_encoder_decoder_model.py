@@ -175,7 +175,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Initialize a param bucket for each Transformer layer
             buckets = []
-            layers = []
             module = self.enc_dec_model
             if isinstance(module, Float16Module):
                 module = module.module

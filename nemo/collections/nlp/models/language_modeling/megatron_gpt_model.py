@@ -241,7 +241,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Initialize a param bucket for each Transformer layer
             buckets = []
-            layers = []
             modules = self.model if isinstance(self.model, list) else [self.model]
             for module in modules:
                 if isinstance(module, Float16Module):
