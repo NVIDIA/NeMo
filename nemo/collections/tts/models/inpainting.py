@@ -12,9 +12,21 @@ from hydra.utils import instantiate
 from pytorch_lightning import Trainer
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.collections.tts.losses.fastpitchloss import MelLoss
+from nemo.core.classes import Loss
 import torch
 import logging
+import torch.nn.functional as F
 import random
+from nemo.core.neural_types.elements import (
+    LengthsType,
+    LossType,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenLogDurationType,
+)
+from nemo.core.neural_types.neural_type import NeuralType
+
 
 class BaselineModule(NeuralModule):
     def __init__(self):
@@ -40,6 +52,42 @@ class BaselineModule(NeuralModule):
         return self.conv(input_mels).squeeze(1)
 
 
+class InpaintingMSELoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "spect_predicted": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect_tgt": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect_mask": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, spect_predicted, spect_tgt, spect_mask):
+        spect_tgt.requires_grad = False
+        spect_tgt = spect_tgt.transpose(1, 2)  # (B, T, H)
+        spect_predicted = spect_predicted.transpose(1, 2)  # (B, T, H)
+        spect_mask = spect_mask.transpose(1, 2)  # (B, T, H)
+
+        gap_mask = (1 - spect_mask)
+
+        gap_target = spect_tgt * gap_mask
+        gap_predicted = spect_predicted * gap_mask
+
+        loss_fn = F.mse_loss
+        mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
+
+        # TODO - could look into different ways of reducing the per-pixel
+        # loss here such as averaging per example in the batch
+
+        return mse_loss.sum() / spect_predicted.shape[0]
+
+
 class InpainterModel(ModelPT, Exportable):
     """TODO"""
 
@@ -63,7 +111,7 @@ class InpainterModel(ModelPT, Exportable):
         self.module = BaselineModule()
 
         # TODO - review this loss to only look at the reconstructed part
-        self.mel_loss = MelLoss()
+        self.mel_loss = InpaintingMSELoss()
         self.audio_sample_rate = cfg.sample_rate
         self.spectrogram_sample_stride = cfg.n_window_stride
 
@@ -119,7 +167,8 @@ class InpainterModel(ModelPT, Exportable):
 
         # mask the spectrogram rather than audio to avoid artifacts
         # at the edge of the spectrogram
-        mels_masked = self.mask_mels(mels, spec_len)
+        mel_masks = self.make_spectrogram_mask(mels, spec_len)
+        mels_masked = mels * mel_masks
 
         mels_pred = self(
             transcripts=text,
@@ -197,8 +246,8 @@ class InpainterModel(ModelPT, Exportable):
         """
         return []
 
-    def mask_mels(self, mels, mel_lens):
-        mels = torch.clone(mels)  # doing in-place mutation here
+    def make_spectrogram_mask(self, mels, mel_lens):
+        mask = torch.ones_like(mels)  # doing in-place mutation here
 
         ffts_per_sec = self.audio_sample_rate / self.spectrogram_sample_stride
 
@@ -215,6 +264,6 @@ class InpainterModel(ModelPT, Exportable):
             mask_len = random.randint(
                 min_duration_frames, max_duration_frames)
 
-            mels[i, :, start:start + mask_len] = 0
+            mask[i, :, start:start + mask_len] = 0
 
-        return mels
+        return mask
