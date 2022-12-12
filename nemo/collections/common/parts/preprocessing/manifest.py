@@ -121,7 +121,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['rttm_file'] = item.pop('rttm_filepath')
     else:
         item['rttm_file'] = None
-    item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
+    if item['rttm_file'] is not None:
+        item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
 
     # Optional audio feature file
     if 'feature_file' in item:
@@ -132,7 +133,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['feature_file'] = item.pop('feature_filepath')
     else:
         item['feature_file'] = None
-    item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
+    if item['feature_file'] is not None:
+        item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
     item = dict(
         audio_file=item['audio_file'],
