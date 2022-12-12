@@ -125,7 +125,10 @@ def consistency_loss(condition, output, lengths):
 
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
-    """GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch."""
+    """
+    GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch. Based on StyleGAN 2 [1]
+    [1] Karras et. al. - Analyzing and Improving the Image Quality of StyleGAN (https://arxiv.org/abs/1912.04958)
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         self.spectrogram_model = None
@@ -196,6 +199,17 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         mixing: bool = False,
         normalize: bool = True,
     ):
+        """
+        condition: batch of blurred spectrograms
+        lenghts: length for every spectrogam in the batch
+        zs: latent noise inputs on the sphere (either this or ws or neither)
+        ws: latent noise inputs in the style space (either this or zs or neither)
+        noise: per-pixel indepentent gaussian noise
+        mixing: whether to use different style
+
+        For definititions of z, w and style mixing refer to [1]
+        [1] Karras et. al. - Analyzing and Improving the Image Quality of StyleGAN (https://arxiv.org/abs/1912.04958)
+        """
         if len(condition.shape) != 4:
             raise ValueError(f"Got spectrogram tensor of shape {condition.shape}, expected B x 1 x C x L")
 

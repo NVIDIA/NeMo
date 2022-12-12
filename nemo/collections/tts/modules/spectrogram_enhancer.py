@@ -117,6 +117,12 @@ class RGBBlock(nn.Module):
 
 
 class Conv2DMod(nn.Module):
+    """
+    Modulated convolution.
+    For details refer to [1]
+    [1] Karras et. al. - Analyzing and Improving the Image Quality of StyleGAN (https://arxiv.org/abs/1912.04958)
+    """
+
     def __init__(
         self, in_chan, out_chan, kernel, demod=True, stride=1, dilation=1, eps=1e-8, **kwargs,
     ):
