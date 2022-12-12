@@ -51,11 +51,10 @@ from torch import Tensor, nn
 from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard.writer import SummaryWriter
 
-import nemo
+from nemo.collections.tts.helpers.helpers import process_batch
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import Discriminator, Generator, mask
-from nemo.collections.tts.helpers.helpers import process_batch
 from nemo.core import Exportable, ModelPT
 from nemo.utils import logging
 
