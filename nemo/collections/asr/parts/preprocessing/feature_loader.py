@@ -40,7 +40,7 @@ class ExternalFeatureLoader(object):
         file_path (str) is the path of the file that stores feature/sample.
         """
 
-        if file_path.endswith(".p") or file_path.endswith(".pt") or file_path.endswith(".pth"):
+        if file_path.endswith(".pt") or file_path.endswith(".pth"):
             samples = torch.load(file_path, map_location="cpu").float().numpy()
             return samples
         else:
