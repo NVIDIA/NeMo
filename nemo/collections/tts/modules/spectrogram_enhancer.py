@@ -203,7 +203,7 @@ class GeneratorBlock(nn.Module):
 def mask(tensor, lengths):
     batch_size, *_, max_lengths = tensor.shape
     mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
-    mask = mask <= rearrange(lengths, "b 1 -> b 1 1 1")
+    mask = mask <= rearrange(lengths, "b -> b 1 1 1")
     return tensor * mask
 
 
@@ -356,6 +356,6 @@ class Discriminator(nn.Module):
         x = mask(x, (lengths / scale).ceil().long())
 
         x = x.mean(axis=-2)
-        x = (x / rearrange(lengths / scale, "b 1 -> b 1 1")).sum(axis=-1)
+        x = (x / rearrange(lengths / scale, "b -> b 1 1")).sum(axis=-1)
         x = self.to_logit(x)
         return x.squeeze()

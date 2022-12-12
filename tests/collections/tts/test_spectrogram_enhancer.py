@@ -106,8 +106,8 @@ def sample_input(batch_size=15, max_length=1000):
     generator = torch.Generator()
     generator.manual_seed(0)
 
-    lengths = torch.randint(max_length // 4, max_length - 7, (batch_size, 1), generator=generator)
-    condition = torch.randn((batch_size, 1, 80, 1000), generator=generator)
+    lengths = torch.randint(max_length // 4, max_length - 7, (batch_size,), generator=generator)
+    condition = torch.randn((batch_size, 80, 1000), generator=generator)
 
     return condition, lengths
 
@@ -126,6 +126,15 @@ def test_forward_pass_keeps_size(enhancer, sample_input):
     output = enhancer.forward(condition=condition, lengths=lengths)
 
     assert output.shape == condition.shape
+
+
+@pytest.mark.unit
+def test_discriminator_pass(enhancer, sample_input):
+    condition, lengths = sample_input
+    condition = rearrange(condition, "b c l -> b 1 c l")
+    logits = enhancer.D(x=condition, condition=condition, lengths=lengths)
+
+    assert logits.shape == lengths.shape
 
 
 @pytest.mark.unit
