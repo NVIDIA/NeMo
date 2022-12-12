@@ -39,16 +39,8 @@ def enhancer_config():
             "gradient_penalty_loss_every_n_steps": 4,
             "spectrogram_predictor_path": None,
         },
-        "generator_opt": {
-            "_target_": "torch.optim.Adam",
-            "lr": 2e-4,
-            "betas": [0.5, 0.9]
-        },
-        "discriminator_opt": {
-            "_target_": "torch.optim.Adam",
-            "lr": 2e-4,
-            "betas": [0.5, 0.9]
-        },
+        "generator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
+        "discriminator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
     }
 
     return DictConfig(config)
@@ -79,16 +71,8 @@ def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
                 }
             },
         },
-        "generator_opt": {
-            "_target_": "torch.optim.Adam",
-            "lr": 2e-4,
-            "betas": [0.5, 0.9]
-        },
-        "discriminator_opt": {
-            "_target_": "torch.optim.Adam",
-            "lr": 2e-4,
-            "betas": [0.5, 0.9]
-        },
+        "generator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
+        "discriminator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
     }
 
     return DictConfig(config)
