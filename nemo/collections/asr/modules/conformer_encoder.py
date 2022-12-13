@@ -512,7 +512,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         """
         streaming_cfg = CacheAwareStreamingConfig()
         if chunk_size is not None:
-            if chunk_size <= 1:
+            if chunk_size < 1:
                 raise ValueError("chunk_size needs to be a number larger or equal to one.")
             lookahead_steps = chunk_size - 1
             streaming_cfg.cache_drop_size = chunk_size - shift_size
@@ -615,6 +615,14 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
+        self.set_accepted_adapter_types(
+            [
+                adapter_utils.LINEAR_ADAPTER_CLASSPATH,
+                adapter_utils.MHA_ADAPTER_CLASSPATH,
+                adapter_utils.RELMHA_ADAPTER_CLASSPATH,
+            ]
+        )
+
         cfg = self._update_adapter_cfg_input_dim(cfg)
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.add_adapter(name, cfg)
