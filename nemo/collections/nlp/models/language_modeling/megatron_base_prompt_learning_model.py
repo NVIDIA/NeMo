@@ -483,9 +483,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.train_ds.get("path") or self.cfg.data.get('train_ds', None):
             # Needed for backward compatibility when train and valdiation batch sizes were not separately configurable
-            self.train_global_batch_size = self.cfg.data.train_ds.get('global_batch_size', cfg.get('global_batch_size', 8))
-            self.train_micro_batch_size = self.cfg.data.train_ds.get('micro_batch_size', cfg.get('micro_batch_size', 8))
-            
+            self.train_global_batch_size = self.cfg.data.train_ds.get(
+                'global_batch_size', cfg.get('global_batch_size', 8)
+            )
+            self.train_micro_batch_size = self.cfg.data.train_ds.get(
+                'micro_batch_size', cfg.get('micro_batch_size', 8)
+            )
+
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 dataset_paths=self.cfg.data.train_ds.get("path", self.cfg.data.train_ds),
                 batch_size=self.train_global_batch_size,
@@ -499,9 +503,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def setup_validation_data(self, validation_data_config=None):
         if self.cfg.data.validation_ds.get("path") or self.cfg.data.get('validation_ds', None):
             # Needed for backward compatibility when train and valdiation batch sizes were not separately configurable
-            self.validaiton_global_batch_size = self.cfg.data.validation_ds.get('global_batch_size', cfg.get('global_batch_size', 8))
-            self.validation_micro_batch_size = self.cfg.data.validation_ds.get('micro_batch_size', cfg.get('micro_batch_size', 8))
-        
+            self.validaiton_global_batch_size = self.cfg.data.validation_ds.get(
+                'global_batch_size', cfg.get('global_batch_size', 8)
+            )
+            self.validation_micro_batch_size = self.cfg.data.validation_ds.get(
+                'micro_batch_size', cfg.get('micro_batch_size', 8)
+            )
+
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 dataset_paths=self.cfg.data.validation_ds.get("path", self.cfg.data.validation_ds),
                 batch_size=self.validaiton_global_batch_size,
@@ -515,14 +523,16 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def setup_test_data(self, test_data_config=None):
         if self.cfg.data.test_ds.get("path") or self.cfg.data.get('test_ds', None):
             # Needed for backward compatibility when train and valdiation batch sizes were not separately configurable
-            self.test_global_batch_size = self.cfg.data.test_ds.get('global_batch_size', cfg.get('global_batch_size', 8))
+            self.test_global_batch_size = self.cfg.data.test_ds.get(
+                'global_batch_size', cfg.get('global_batch_size', 8)
+            )
             self.test_micro_batch_size = self.cfg.data.test_ds.get('micro_batch_size', cfg.get('micro_batch_size', 8))
-        
+
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 dataset_paths=self.cfg.data.test_ds.get("path", self.cfg.data.test_ds),
                 batch_size=self.cfg.global_batch_size,
                 for_train=False,
-                drop_last=False, # Please set test micro batch size to 1
+                drop_last=False,  # Please set test micro batch size to 1
                 shuffle=self.cfg.data.validation_ds.get("shuffle", self.cfg.data.get("shuffle", False)),
                 num_workers=self.cfg.data.validation_ds.get("num_workers", self.cfg.data.get("num_workers", 1)),
                 pin_memory=self.cfg.data.validation_ds.get("pin_memory", self.cfg.data.get("pin_memory", True)),
