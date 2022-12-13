@@ -18,6 +18,7 @@ import torch
 
 from nemo.collections.asr.data.feature_to_label import _audio_feature_collate_fn
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.asr.parts.utils.vad_utils import load_speech_segments_from_rttm
 from nemo.collections.common import tokenizers
@@ -77,8 +78,8 @@ class ASRFeatureManifestProcessor:
 
 class _FeatureTextDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
-    Each new line is a different sample. Example below:
+    Dataset that loads tensors via a json file containing paths to audio feature files, transcripts,
+    durations (in seconds) and optional RTTM files. Each new line is a different sample. Example below:
     {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath": "/path/to/audio.txt", 
     "rttm_filepath": "/path/to/audio_rttm.rttm", "duration": 23.147}
     ...
@@ -87,6 +88,11 @@ class _FeatureTextDataset(Dataset):
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
         parser: Str for a language specific preprocessor or a callable.
+        normalize: whether and where to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
+        use_rttm: whether to use RTTM files if there is any, default to False
+        feat_mask_val (Optional[float]): value used to mask features with RTTM files, default to None to use zero mel-spectralgram
+        frame_unit_time_secs (float): time in seconds for each frame
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
@@ -122,8 +128,9 @@ class _FeatureTextDataset(Dataset):
         manifest_filepath: str,
         parser: Union[str, Callable],
         normalize: Optional[str] = "post_norm",
+        normalize_type: Union[str, dict] = "per_feature",
         use_rttm: bool = False,
-        mask_mode: str = "zero",
+        feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
         augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
@@ -142,8 +149,14 @@ class _FeatureTextDataset(Dataset):
 
         self.sample_rate = sample_rate
         self.normalize = normalize
+        self.normalize_type = normalize_type
         self.use_rttm = use_rttm
-        self.mask_mode = mask_mode
+        if feat_mask_val is not None:
+            self.feat_mask_val = feat_mask_val
+        elif normalize == "pre_norm":
+            self.feat_mask_val = 0.0  # similar to SpectralAugmentation
+        else:
+            self.feat_mask_val = self.ZERO_LEVEL_SPEC_DB_VAL
 
         if normalize is not None and normalize not in self.NORM_MODES:
             raise ValueError(f"`normalize` must be one of {self.NORM_MODES}, got `{normalize}` instead")
@@ -181,17 +194,17 @@ class _FeatureTextDataset(Dataset):
         # Feature normalization
         if self.normalize is None:
             if self.use_rttm and sample.rttm_file:
-                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.ZERO_LEVEL_SPEC_DB_VAL)
+                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
         elif self.normalize == "post_norm":
             # (Optional) Masking based on RTTM file
             if self.use_rttm and sample.rttm_file:
-                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.ZERO_LEVEL_SPEC_DB_VAL)
-            f = self.featurizer.normalize_per_feature(f)
+                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
+            f = self.normalize_feature(f)
         else:  # pre-norm
-            f = self.featurizer.normalize_per_feature(f)
+            f = self.normalize_feature(f)
             # (Optional) Masking based on RTTM file
             if self.use_rttm and sample.rttm_file:
-                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, 0.0)  # similar to SpecAug
+                f = self.mask_features_from_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
 
         if self.return_sample_id:
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
@@ -217,14 +230,23 @@ class _FeatureTextDataset(Dataset):
 
     def _collate_fn(self, batch):
         return _audio_feature_collate_fn(
-            batch, feat_pad_val=self.ZERO_LEVEL_SPEC_DB_VAL, label_pad_id=self.manifest_processor.pad_id
+            batch, feat_mask_val=self.ZERO_LEVEL_SPEC_DB_VAL, label_pad_id=self.manifest_processor.pad_id
         )
+
+    def normalize_feature(self, feat):
+        """
+        Args:
+            feat: feature tensor of shape [M, T]            
+        """
+        feat = feat.unsqueeze(0)  # add batch dim
+        feat, _, _ = normalize_batch(feat, feat.size(-1), self.normalize_type)
+        return feat.squeeze(0)  # delete batch dim
 
 
 class FeatureToCharDataset(_FeatureTextDataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds). Each new line is a
+    Dataset that loads tensors via a json file containing paths to audio feature
+    files, transcripts, durations (in seconds) and optional RTTM files. Each new line is a
     different sample. Example below:
     {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath":
     "/path/to/audio.txt", "duration": 23.147, "rttm_filepath": "/path/to/audio_rttm.rttm",}
@@ -238,7 +260,9 @@ class FeatureToCharDataset(_FeatureTextDataset):
             be comma-separated paths.
         labels: String containing all the possible characters to map to
         normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
         use_rttm: whether to use RTTM files if there is any, default to False
+        feat_mask_val (Optional[float]): value used to mask features with RTTM files, default to None to use zero mel-spectralgram
         frame_unit_time_secs: time in seconds for each frame
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
@@ -261,7 +285,9 @@ class FeatureToCharDataset(_FeatureTextDataset):
         manifest_filepath: str,
         labels: Union[str, List[str]],
         normalize: Optional[str] = "post_norm",
+        normalize_type: Union[str, dict] = "per_feature",
         use_rttm: bool = False,
+        feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
         augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
@@ -288,7 +314,9 @@ class FeatureToCharDataset(_FeatureTextDataset):
             manifest_filepath=manifest_filepath,
             parser=parser,
             normalize=normalize,
+            normalize_type=normalize_type,
             use_rttm=use_rttm,
+            feat_mask_val=feat_mask_val,
             frame_unit_time_secs=frame_unit_time_secs,
             sample_rate=sample_rate,
             augmentor=augmentor,
@@ -306,9 +334,9 @@ class FeatureToCharDataset(_FeatureTextDataset):
 
 class FeatureToBPEDataset(_FeatureTextDataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds). Each new line is a
-    different sample. Example below:
+    Dataset that loads tensors via a json file containing paths to audio feature
+    files, transcripts, durations (in seconds) and optional RTTM files. Each new line is a different sample. 
+    Example below:
     {"audio_filepath": "/path/to/audio.wav", "text_filepath":
     "/path/to/audio.txt", "duration": 23.147, "rttm_filepath": "/path/to/audio_rttm.rttm",}
     ...
@@ -327,7 +355,9 @@ class FeatureToBPEDataset(_FeatureTextDataset):
             nemo.collections.common.tokenizers.TokenizerSpec. ASR Models support a subset of
             all available tokenizers.
         normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
         use_rttm: whether to use RTTM files if there is any, default to False
+        feat_mask_val (Optional[float]): value used to mask features with RTTM files, default to None to use zero mel-spectralgram
         frame_unit_time_secs: time in seconds for each frame
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
@@ -349,7 +379,9 @@ class FeatureToBPEDataset(_FeatureTextDataset):
         manifest_filepath: str,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
         normalize: Optional[str] = "post_norm",
+        normalize_type: Union[str, dict] = "per_feature",
         use_rttm: bool = False,
+        feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
         augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
@@ -398,7 +430,9 @@ class FeatureToBPEDataset(_FeatureTextDataset):
             manifest_filepath=manifest_filepath,
             parser=TokenizerWrapper(tokenizer),
             normalize=normalize,
+            normalize_type=normalize_type,
             use_rttm=use_rttm,
+            feat_mask_val=feat_mask_val,
             frame_unit_time_secs=frame_unit_time_secs,
             sample_rate=sample_rate,
             augmentor=augmentor,

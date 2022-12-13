@@ -16,8 +16,6 @@ from typing import Optional
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.preprocessing.features import CONSTANT
-
 
 class ExternalFeatureLoader(object):
     """Feature loader that load external features store in certain format. 
@@ -25,15 +23,12 @@ class ExternalFeatureLoader(object):
     """
 
     def __init__(
-        self,
-        augmentor: Optional["nemo.collections.asr.parts.perturb.FeatureAugmentor"] = None,
-        normalize: bool = False,
+        self, augmentor: Optional["nemo.collections.asr.parts.perturb.FeatureAugmentor"] = None,
     ):
         """
         Feature loader
         """
         self.augmentor = augmentor
-        self.normalize = normalize
 
     def load_feature_from_file(self, file_path: str):
         """Load samples from file_path and convert it to be of type float32
@@ -67,8 +62,6 @@ class ExternalFeatureLoader(object):
     def process(self, file_path: str) -> torch.Tensor:
         features = self.load_feature_from_file(file_path)
         features = self.process_segment(features)
-        if self.normalize:
-            features = self.normalize_per_feature(features)
         return features
 
     def process_segment(self, feature_segment):
@@ -78,16 +71,3 @@ class ExternalFeatureLoader(object):
             return torch.tensor(feature_segment, dtype=torch.float)
 
         return torch.tensor(feature_segment, dtype=torch.float)
-
-    def normalize_per_feature(self, x: torch.Tensor, return_mean_std: bool = False) -> torch.Tensor:
-        """
-        Args:
-            x: audio mel-spectrolgram feature of shape [N_MEL, T]
-            return_mean_std: whether to return mean and std
-        """
-        x_mean = x.mean(dim=1, keepdim=True)
-        x_std = x.std(dim=1, keepdim=True) + CONSTANT  # make sure x_std is not zero
-        if return_mean_std:
-            return (x - x_mean) / x_std, x_mean, x_std
-        else:
-            return (x - x_mean) / x_std

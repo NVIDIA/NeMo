@@ -45,7 +45,7 @@ import os
 import time
 from dataclasses import dataclass, is_dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from omegaconf import OmegaConf
@@ -69,10 +69,15 @@ class TranscriptionConfig:
 
     use_pure_noise: bool = False  # whether input is pure noise or not
     use_rttm: bool = True  # whether to use RTTM
+    feat_mask_val: Optional[float] = None  # value used to mask features based on RTTM, set None to use defaults
     use_feature: bool = True  # whether to use preprocessed audio features
-    normalize: Optional[str] = "post_norm"  # choices=[pre_norm, post_norm]
+    normalize: Optional[
+        str
+    ] = "post_norm"  # whether and where to normalize feature, choices=[None, `pre_norm`, `post_norm`]
+    normalize_type: Union[str, dict] = "per_feature"  # how to determine mean and std used for normalization
     frame_unit_time_secs: float = 0.01  # unit time per frame in seconds, equal to `window_stride` in ASR configs
     profiling: bool = False  # whether to enable pytorch profiling
+    clean_text: bool = False  # whether to clean groundtruth text
 
     # General configs
     batch_size: int = 1
@@ -192,10 +197,12 @@ def main(cfg):
         data_config = {
             "manifest_filepath": cfg.dataset_manifest,
             "normalize": cfg.normalize,
-            "frame_unit_time_secs": cfg.frame_unit_time_secs,
+            "normalize_type": cfg.normalize_type,
             "use_rttm": cfg.use_rttm,
+            "feat_mask_val": cfg.feat_mask_val,
+            "frame_unit_time_secs": cfg.frame_unit_time_secs,
         }
-        logging.info(f"use_rttm={cfg.use_rttm}")
+        logging.info(f"use_rttm = {cfg.use_rttm}")
         if hasattr(asr_model, "tokenizer"):
             dataset = feature_to_text_dataset.get_bpe_dataset(config=data_config, tokenizer=asr_model.tokenizer)
         else:
@@ -278,7 +285,10 @@ def main(cfg):
     groundtruth = []
     for i in range(len(manifest_data)):
         manifest_data[i]["pred_text"] = hypotheses[i]
-        groundtruth.append(clean_label(manifest_data[i]["text"]))
+        gt_text = manifest_data[i]["text"]
+        if cfg.clean_text:
+            gt_text = clean_label(gt_text)
+        groundtruth.append(gt_text)
     save_manifest(manifest_data, cfg.output_filename)
     logging.info(f"Output saved at {cfg.output_filename}")
 
