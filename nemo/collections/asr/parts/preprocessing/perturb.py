@@ -130,7 +130,7 @@ class SpeedPerturbation(Perturbation):
     """
 
     def __init__(self, sr, resample_type, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, rng=None):
-
+        
         min_rate = min(min_speed_rate, max_speed_rate)
         if min_rate < 0.0:
             raise ValueError("Minimum sampling rate modifier must be > 0.")
@@ -151,6 +151,7 @@ class SpeedPerturbation(Perturbation):
         return length * self._max_rate
 
     def perturb(self, data):
+
         # Select speed rate either from choice or random sample
         if self._num_rates < 0:
             speed_rate = self._rng.uniform(self._min_rate, self._max_rate)

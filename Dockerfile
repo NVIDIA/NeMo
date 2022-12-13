@@ -83,7 +83,7 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
 
 # TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
 # install pinned numba version
-# RUN conda install -c conda-forge numba==0.54.1
+RUN conda install -c conda-forge numba==0.53.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
