@@ -4723,6 +4723,7 @@ Inference parameters:
 * FP8 support using Transformer Engine (training only)
 * Distributed Adam Optimizer for T5 and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with Sequence Parallelism
+* Training configurations improved throughput by 7.9% (5B GPT-3), 9.6% (3B T5), 4.3% (11B T5), 52.4% (23B T5), and 26.6% (41B T5) 
 
 **NeMo Megatron 22.09**
 * NeMo Megatron supports training and inference containers on OCI. For detail orchestration scripts, reach out to [oci_nm@nvidia.com](mailto:oci_nm@nvidia.com)
