@@ -6,6 +6,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_da
 
 import re
 import torch
+import torch.nn as nn
 from functools import partial
 
 from nemo.core import adapter_mixins
@@ -63,6 +64,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
+        self.layers = nn.ModuleList()
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.load_task_templates(self.cfg.task_templates)
