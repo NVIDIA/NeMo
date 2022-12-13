@@ -447,7 +447,6 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
 
             self.decoder_layers.append(torch.nn.Conv1d(in_size, self._num_classes, kernel_size=1, bias=True))
 
-            self.proj_out = torch.nn.Sequential(*layers)
         else:
             self.decoder_layers = torch.nn.Sequential(
                 torch.nn.Conv1d(self._feat_in, self._num_classes, kernel_size=1, bias=True)
