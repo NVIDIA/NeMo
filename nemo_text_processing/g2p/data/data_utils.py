@@ -46,7 +46,7 @@ _WORDS_RE = re.compile(
     fr"([{LATIN_ALPHABET_BASIC}]+(?:[{LATIN_ALPHABET_BASIC}\-']*[{LATIN_ALPHABET_BASIC}]+)*)|(\|[^|]*\|)|([^{LATIN_ALPHABET_BASIC}|]+)"
 )
 _WORDS_RE_IPA = re.compile(
-    fr"([{LATIN_CHARS_ALL}\d]+(?:[{LATIN_CHARS_ALL}\d\-']*[{LATIN_CHARS_ALL}\d]+)*)|(\|[^|]*\|)|([^{LATIN_CHARS_ALL}\d|]+)"
+    fr"([{LATIN_CHARS_ALL}]+(?:[{LATIN_CHARS_ALL}\-']*[{LATIN_CHARS_ALL}]+)*)|(\|[^|]*\|)|([^{LATIN_CHARS_ALL}|]+)"
 )
 
 # -
