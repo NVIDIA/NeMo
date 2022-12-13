@@ -414,7 +414,7 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
     def output_types(self):
         return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
+    def __init__(self, feat_in, num_classes, hidden_sizes = None, activation=nn.SiLU(), init_mode="xavier_uniform", vocabulary=None):
         super().__init__()
 
         if vocabulary is None and num_classes < 0:
@@ -436,9 +436,22 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         # Add 1 for blank char
         self._num_classes = num_classes + 1
 
-        self.decoder_layers = torch.nn.Sequential(
-            torch.nn.Conv1d(self._feat_in, self._num_classes, kernel_size=1, bias=True)
-        )
+        if hidden_sizes:
+            self.decoder_layers = []
+            in_size = self._feat_in
+
+            for out_size in hidden_sizes:
+                layers.append(torch.nn.Conv1d(in_size, out_size, kernel_size=1, bias=True))
+                layers.append(activation)
+                in_size = out_size
+
+            layers.append(torch.nn.Conv1d(in_size, self._num_classes, kernel_size=1, bias=True))
+
+            self.proj_out = torch.nn.Sequential(*layers)
+        else:
+            self.decoder_layers = torch.nn.Sequential(
+                torch.nn.Conv1d(self._feat_in, self._num_classes, kernel_size=1, bias=True)
+            )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     @typecheck()
