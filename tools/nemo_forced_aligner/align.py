@@ -95,8 +95,8 @@ def viterbi_decoding(log_probs, y, T, U):
     return alignments
 
 
-def align_batch(data, model):
-    log_probs, y, T, U = get_log_probs_y_T_U(data, model)
+def align_batch(data, model, separator):
+    log_probs, y, T, U = get_log_probs_y_T_U(data, model, separator)
     alignments = viterbi_decoding(log_probs, y, T, U)
 
     return alignments
@@ -107,7 +107,7 @@ def align(
     output_ctm_folder: str,
     model_name: str = "stt_en_citrinet_1024_gamma_0_25",
     model_downsample_factor: int = 8,
-    grouping_for_ctm: str = "word",
+    separator: str = " ",
     n_parts_for_ctm_id: int = 1,
     audio_sr: int = 16000,
     device: str = "cpu",
@@ -132,12 +132,18 @@ def align(
             If the ASR model is a QuartzNet model, its downsample factor is 2.
             If the ASR model is a Conformer CTC model, its downsample factor is 4.
             If the ASR model is a Citirnet model, its downsample factor is 8.
-        grouping_for_ctm: a string, either 'word' or 'basetoken'.
-            If 'basetoken', the CTM files will contain timestamps for either the tokens or
-            characters in the ground truth (depending on whether it is a token-based or
-            character-based model).
-            If 'word', the basetokens will be grouped into words, and the CTM files
-            will contain word timestamps instead of basetoken timestamps.
+        separator: the string used to separate CTM segments.
+            If the separator is “”, the CTM segments will be the tokens used by the ASR model.
+            If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
+            text separated by that separator.
+            Default: “ “, ie for languages such as English, the CTM segments will be words.
+            Note: if the separator is not “” or “ “, it will be removed from the CTM, ie it is treated as a marker 
+            which is not part of the ground truth. It will essentially be treated as a space, and any additional spaces 
+            around it will be amalgamated into one, i.e. the following texts will be treated as equivalent:
+            “abc|def”
+            “abc |def”
+            “abc| def”
+            “abc | def”
         n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
             we will use (starting from the final part of the audio_filepath) to determine the 
             utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
@@ -179,19 +185,23 @@ def align(
     for start, end in zip(starts, ends):
         data = get_manifest_lines(manifest_filepath, start, end)
 
-        alignments = align_batch(data, model)
+        alignments = align_batch(data, model, separator)
 
-        if grouping_for_ctm == "basetoken":
+        if separator == "":
             make_basetoken_ctm(
                 data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
             )
 
-        elif grouping_for_ctm == "word":
-            make_word_ctm(
-                data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
-            )
-
         else:
-            raise ValueError(f"Unexpected value for grouping_for_ctm: {grouping_for_ctm}")
+            make_word_ctm(
+                data,
+                alignments,
+                model,
+                model_downsample_factor,
+                output_ctm_folder,
+                n_parts_for_ctm_id,
+                audio_sr,
+                separator,
+            )
 
     return None

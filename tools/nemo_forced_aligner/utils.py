@@ -36,6 +36,26 @@ def get_manifest_lines(manifest_filepath, start, end):
     return data
 
 
+def get_processed_text_and_segments(text, separator):
+    """
+    If the separator is not empty string, ie CTM segments will not just be tokens,
+    this function replaces the separator with a space, amalgamates any spaces around
+    it into one, and returns the new processed text as well as a list of strings
+    containing the segments to be returned in the CTM.
+    """
+    if separator == "":
+        return text, None
+
+    segments = text.split(separator)
+
+    # remove any spaces at start and end of segments
+    segments = [seg.strip() for seg in segments]
+
+    processed_text = " ".join(segments)
+
+    return processed_text, segments
+
+
 def tokenize_text(model, text):
     """ Works for token-based and character-based models """
     if hasattr(model, "tokenizer"):
@@ -56,7 +76,7 @@ def tokenize_text(model, text):
         raise RuntimeError("Can't tokenize this model atm")
 
 
-def get_log_probs_y_T_U(data, model):
+def get_log_probs_y_T_U(data, model, separator):
     """
     Preparing some tensors to be used during Viterbi decoding.
     Returns:
@@ -78,7 +98,8 @@ def get_log_probs_y_T_U(data, model):
     y_list = []
     U_list = []
     for line in data:
-        y_line = tokenize_text(model, line["text"])
+        processed_text, _ = get_processed_text_and_segments(line['text'], separator)
+        y_line = tokenize_text(model, processed_text)
         y_list.append(y_line)
         U_list.append(len(y_line))
 
@@ -198,7 +219,7 @@ def make_basetoken_ctm(
 
 
 def make_word_ctm(
-    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
+    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr, separator
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -220,26 +241,29 @@ def make_word_ctm(
         # ]
         words_info = [{"word": "<initial_silence>", "u_start": 0, "u_end": 0, "t_start": 0, "t_end": None}]
         u_counter = 1
-        if " " not in model.decoder.vocabulary:
-            for word in manifest_line["text"].split(" "):
+        _, segments = get_processed_text_and_segments(manifest_line['text'], separator)
+        if separator not in model.decoder.vocabulary:
+            for word in segments:
                 word_info = {
-                    "word": word,
+                    "word": word.replace(" ", "<space>"),
                     "u_start": u_counter,
                     "u_end": None,
                     "t_start": None,
                     "t_end": None,
                 }
                 word_tokens = tokenize_text(model, word)
-                word_info["u_end"] = word_info["u_start"] + 2 * len(word_tokens) - 2
+                word_info["u_end"] = word_info["u_start"] + 2 * (len(word_tokens) - 1)
+                words_info.append(word_info)
+
                 u_counter += 2 * len(word_tokens)
 
-                words_info.append(word_info)
+                if " " in model.decoder.vocabulary:
+                    u_counter += 2
 
         else:
-
-            for word_i, word in enumerate(manifest_line["text"].split(" ")):
+            for word_i, word in enumerate(segments):
                 word_info = {
-                    "word": word,
+                    "word": word.replace(" ", "<space>"),
                     "u_start": u_counter,
                     "u_end": None,
                     "t_start": None,
@@ -247,15 +271,15 @@ def make_word_ctm(
                 }
                 word_tokens = tokenize_text(model, word)
 
-                word_info["u_end"] = word_info["u_start"] + 2 * len(word_tokens) - 2
+                word_info["u_end"] = word_info["u_start"] + 2 * (len(word_tokens) - 1)
                 u_counter += 2 * len(word_tokens)
 
                 words_info.append(word_info)
 
-                if word_i < len(manifest_line["text"].split(" ")) - 1:
+                if word_i < len(manifest_line["text"].split(separator)) - 1:
                     # add the space after every word except the final word
                     word_info = {
-                        "word": "<space>",
+                        "word": separator.replace(" ", "<space>"),
                         "u_start": u_counter,
                         "u_end": None,
                         "t_start": None,
@@ -297,7 +321,6 @@ def make_word_ctm(
             for word_info in words_info:
                 if not (word_info["word"] == "initial_silence" and word_info["t_end"] is None):
                     word = word_info["word"]
-                    # print('word_info', word_info)
                     start_sample = word_info["t_start"] * timestep_to_sample_ratio
                     end_sample = (word_info["t_end"] + 1) * timestep_to_sample_ratio - 1
 
