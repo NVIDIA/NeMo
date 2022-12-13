@@ -159,10 +159,12 @@ class TestCommonAdapterModuleMixin:
         assert not hasattr(model, '_accepted_adapter_types')
 
         # Explicitly set the accepted types to be the subclasses
-        model.set_accepted_adapter_types([
-            get_classpath(MockLinearAdapter1),  # Pass string class path
-            MockLinearAdapter2,  # Pass actual class itself
-        ])
+        model.set_accepted_adapter_types(
+            [
+                get_classpath(MockLinearAdapter1),  # Pass string class path
+                MockLinearAdapter2,  # Pass actual class itself
+            ]
+        )
 
         # Should throw error because the base class is now no longer in accepted list
         # and the get_types method does not fill in the default
