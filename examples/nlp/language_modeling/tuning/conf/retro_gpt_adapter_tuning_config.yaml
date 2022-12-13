@@ -1,0 +1,147 @@
+name: adapter_tuning_${model.new_tasks[0]}_max_epochs${trainer.max_epochs}_adapter_dim${model.adapter_tuning.adapter_dim}
+
+trainer:
+  devices: 1
+  accelerator: gpu
+  num_nodes: 1
+  precision: 16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  max_epochs: -1
+  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 0.2
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  benchmark: False
+
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: retro_adapters
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 1
+    mode: min
+    save_nemo_on_train_end: True # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
+    filename: 'megatron_gpt_adapter_tuning--{val_loss:.3f}-{step}'
+    model_parallel_size: ${model.tensor_model_parallel_size}
+    save_best_model: True
+
+model:
+  seed: 1234
+  nemo_path: ${exp_manager.exp_dir}/${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  virtual_prompt_style: 'no-prompts' # adapter tuning requires no virtual prompts
+  encoder_seq_length: 2048 
+  gradient_as_bucket_view: false
+  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  pipeline_model_parallel_size: 1 # inter-layer model parallelism
+  global_batch_size: 8
+  micro_batch_size: 4
+
+  restore_path: null # Path to an existing adapter .nemo model you wish to add new tasks to or run inference with
+  language_model_path:  "/dataset/retro/megatron_retro_c4_pile.nemo" # Path to the GPT language model .nemo file, always required "/dataset/retro/retro_1100m_final.nemo"
+  existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
+  new_tasks: ["rte"] # List of new tasknames to be prompt-tuned
+
+  # GPT SPECIFIC
+  hidden_size: 768
+  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 12
+  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  use_scaled_init_method: True # use scaled residuals initialization
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  normalization: layernorm # Type of normalization layers
+  layernorm_epsilon: 1e-5
+  do_layer_norm_weight_decay: False # True means weight decay on all params
+  persist_layer_norm: True # Use of persistent fused layer norm kernel.
+
+
+  # RETRO SPECIFIC
+  max_position_embeddings: ${.encoder_seq_length}
+  dump_debug_info: False # dump out the debug information
+  dump_debug_info_to_file: False # dump out the debug information to files
+
+  chunk_size: 64   # the chunk size used to retrive
+  enc_num_layers: 4    # total number of encoder layers
+  dec_num_layers: 6    # total number of decoder layers
+  enc_cross_attention: [3]    # layer numbers for cross attention in encoder
+  dec_cross_attention: [3, 5]    # layer numbers for chunked cross attention in decoder
+  add_position_embedding: False   # whether use the absolute position encoding
+
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  bert_binary_head: True # BERT binary head
+
+  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  grad_allreduce_chunk_size_mb: 125
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: null
+    merge_file: null 
+    delimiter: null # only used for tabular tokenizer
+
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+  task_templates: # Add more/replace tasks as needed, these are just examples
+  - taskname: "rte" 
+    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "answer"
+
+  adapter_tuning:
+    type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
+    adapter_dim: 50
+    adapter_dropout: 0.1
+    norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+
+  data:
+    train_ds: ["/workspaces/research/downloaded/rte/rte_train.jsonl"] # expects a list of paths to training data files
+    validation_ds: ["/workspaces/research/downloaded/rte/rte_val.jsonl"]  # expects a paths to validation data files
+    add_eos: True
+    shuffle: True
+    num_workers: 0
+    pin_memory: True
+    mock: True
+    splits_string: 900,50,50
+    dataloader_type: single
+
+  optim:
+    name: fused_adam
+    lr: 1e-4
+    weight_decay: 0.01 
+    betas: 
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      constant_steps: 0 # Constant steps should also be 0 when min_lr=0
+      min_lr: 0.0 # min_lr must be 0.0 for prompt learning
+      monitor: val_loss
+      reduce_on_plateau: false
