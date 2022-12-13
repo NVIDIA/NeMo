@@ -21,6 +21,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
+from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
@@ -33,8 +34,8 @@ def model_cfg():
 
     model_cfg_string = """
       precision: ${trainer.precision}
-      micro_batch_size: 256 # limited by GPU memory
-      global_batch_size: 4096 # will use more micro batches to reach global batch size
+      micro_batch_size: 2 # limited by GPU memory
+      global_batch_size: 4 # will use more micro batches to reach global batch size
       tensor_model_parallel_size: 1 # intra-layer model parallelism
       pipeline_model_parallel_size: 1 # inter-layer model parallelism
       virtual_pipeline_model_parallel_size: null # interleaved pipeline
@@ -163,12 +164,12 @@ def trainer_cfg():
         logger: False
         enable_checkpointing: False
         replace_sampler_ddp: False
-        max_epochs: -1
-        max_steps: 95000
-        log_every_n_steps: 10
-        val_check_interval: 100
-        limit_val_batches: 50
-        limit_test_batches: 500
+        max_epochs: 1
+        max_steps: -1
+        log_every_n_steps: 1
+        val_check_interval: 5
+        limit_val_batches: 2
+        limit_test_batches: 2
         accumulate_grad_batches: 1
         gradient_clip_val: 1.0
         benchmark: False
@@ -180,12 +181,41 @@ def trainer_cfg():
 
 
 @pytest.fixture()
+def exp_manager_cfg():
+
+    exp_manager_cfg_string = """
+        exp_manager:
+          explicit_log_dir: null
+          exp_dir: null
+          name: megatron_vit_classify
+          create_wandb_logger: False
+          wandb_logger_kwargs:
+            project: null
+            name: null
+          resume_if_exists: False
+          resume_ignore_no_checkpoint: True
+          create_checkpoint_callback: False
+          checkpoint_callback_params:
+            monitor: val_loss
+            save_top_k: 10
+            mode: min
+            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+            filename: 'megatron_vit_classify--{val_loss:.2f}-{step}-{consumed_samples}'
+            model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    """
+    exp_manager_cfg = OmegaConf.create(exp_manager_cfg_string)
+
+    return exp_manager_cfg
+
+
+@pytest.fixture()
 def precision():
     return 32
 
 
 @pytest.fixture()
-def vit_classification_model(model_cfg, trainer_cfg, precision):
+def vit_classification_trainer_and_model(model_cfg, trainer_cfg, precision):
     model_cfg['precision'] = precision
     trainer_cfg['precision'] = precision
 
@@ -197,19 +227,32 @@ def vit_classification_model(model_cfg, trainer_cfg, precision):
 
     model = MegatronVitClassificationModel(cfg=cfg, trainer=trainer)
 
-    return model
+    return trainer, model
+
+def build_datasets(cfg, test_data_dir):
+    data_path = [
+        os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
+        os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
+    ]
+    return build_train_valid_datasets(
+        model_cfg=cfg,
+        data_path=data_path,
+        image_size=(cfg.img_h, cfg.img_w),
+    )
 
 @pytest.mark.run_only_on('GPU')
 class TestMegatronVitClassificationModel:
     @pytest.mark.unit
-    def test_constructor(self, vit_classification_model):
+    def test_constructor(self, vit_classification_trainer_and_model):
+        vit_classification_model = vit_classification_trainer_and_model[1]
         assert isinstance(vit_classification_model, MegatronVitClassificationModel)
 
         num_weights = vit_classification_model.num_weights
         assert num_weights == 87169000
 
     @pytest.mark.unit
-    def test_build_dataset(self, vit_classification_model, test_data_dir):
+    def test_build_dataset(self, vit_classification_trainer_and_model, test_data_dir):
+        vit_classification_model = vit_classification_trainer_and_model[1]
         data_path = [
             os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
             os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
@@ -221,8 +264,8 @@ class TestMegatronVitClassificationModel:
         )
         assert len(train_ds) == 20
         assert len(validation_ds) == 20
-        assert list(train_ds[0][0].shape) == [3, 224, 224]
-        assert list(validation_ds[0][0].shape) == [3, 224, 224]
+        assert train_ds[0][0].shape == torch.Size([3, 224, 224])
+        assert validation_ds[0][0].shape == torch.Size([3, 224, 224])
 
 
     @pytest.mark.parametrize(
@@ -241,7 +284,8 @@ class TestMegatronVitClassificationModel:
     )
 
     @pytest.mark.unit
-    def test_forward(self, vit_classification_model, test_data_dir, precision):
+    def test_forward(self, vit_classification_trainer_and_model, test_data_dir, precision):
+        trainer, vit_classification_model = vit_classification_trainer_and_model
 
         dtype = None
         if vit_classification_model.cfg['precision'] == 32:
@@ -254,16 +298,8 @@ class TestMegatronVitClassificationModel:
             raise ValueError(f"precision: {vit_classification_model.cfg['precision']} is not supported.")
 
         vit_classification_model.eval()
+        _, validation_ds = build_datasets(vit_classification_model.cfg, test_data_dir)
 
-        data_path = [
-            os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
-            os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
-        ]
-        _, validation_ds = build_train_valid_datasets(
-            model_cfg=vit_classification_model.cfg,
-            data_path=data_path,
-            image_size=(vit_classification_model.cfg.img_h, vit_classification_model.cfg.img_w),
-        )
         # shape: (B, C, H, W)
         images = [validation_ds[i][0] for i in range(4)]
         tokens = torch.stack(images, dim=0)
@@ -276,6 +312,52 @@ class TestMegatronVitClassificationModel:
                     tokens=tokens.cuda(),
                 )
             # output is (B, #classes)
-            assert output_tensor.shape[0] == B
-            assert output_tensor.shape[1] == vit_classification_model.cfg['num_classes']
+            assert output_tensor.shape == torch.Size([B, vit_classification_model.cfg['num_classes']])
             assert output_tensor.dtype == dtype
+
+    # def test_trainer_training_and_validation(self, model_cfg, trainer_cfg, exp_manager_cfg, test_data_dir, precision):
+    #     model_cfg['precision'] = precision
+    #     trainer_cfg['precision'] = precision
+    #     strategy = NLPDDPStrategy()
+    #
+    #     trainer = Trainer(strategy=strategy, **trainer_cfg)
+    #     data_path = [
+    #         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
+    #         os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
+    #     ]
+    #     cfg = DictConfig(model_cfg)
+    #     cfg.data.data_path = data_path
+    #     model = MegatronVitClassificationModel(cfg=cfg, trainer=trainer)
+    #
+    #     exp_manager(trainer, exp_manager_cfg)
+    #
+    #     data_path = [
+    #         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
+    #         os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
+    #     ]
+    #     train_ds, validation_ds = build_train_valid_datasets(
+    #         model_cfg=vit_classification_model.cfg,
+    #         data_path=data_path,
+    #         image_size=(vit_classification_model.cfg.img_h, vit_classification_model.cfg.img_w),
+    #     )
+    #     data_loaders = []
+    #     for dataset in [train_ds, validation_ds]:
+    #         batch_sampler = MegatronVisionPretrainingRandomBatchSampler(
+    #             dataset=dataset,
+    #             total_samples=len(dataset),
+    #             consumed_samples=0,
+    #             micro_batch_size=2,
+    #             global_batch_size=4,
+    #             data_parallel_rank=0,
+    #             data_parallel_size=1,
+    #             drop_last=True,
+    #             data_sharding=True,
+    #         )
+    #         data_loaders.append(torch.utils.data.DataLoader(
+    #             dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True,
+    #         ))
+    #
+    #     for idx, batch in enumerate(data_loaders[0]):
+    #         model.training_step(batch, idx)
+    #
+    #     trainer.fit(model)
