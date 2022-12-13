@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Tuple
+
 import torch
 
 from nemo.collections.tts.helpers.helpers import OperationMode, remove, split_view
@@ -131,13 +133,20 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-            "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-            "sigma": NeuralType(optional=True),
-        }
+        if self.mode == OperationMode.infer:
+            return {
+                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+                "sigma": NeuralType(optional=True),
+            }
+        else:
+            return {
+                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+                "sigma": NeuralType(optional=True),
+            }
 
     @property
     def output_types(self):
@@ -168,7 +177,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         )
         return {"spec": mel, "z": z}
 
-    def audio_to_normal_dist(self, *, spec: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
+    def audio_to_normal_dist(self, *, spec: torch.Tensor, audio: torch.Tensor) -> Tuple[torch.Tensor, list, list]:
         #  Upsample spectrogram to size of audio
         spec = self.upsample(spec)
         assert spec.size(2) >= audio.size(1)

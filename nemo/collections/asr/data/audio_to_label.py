@@ -19,6 +19,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
+from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
@@ -213,7 +214,7 @@ target_label_0, "offset": offset_in_sec_0}
         {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
 target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath (str): Dataset parameter. Path to JSON containing data.
+        manifest_filepath (Union[str, List[str]]): Dataset parameter. Path to JSON containing data.
         labels (list): Dataset parameter. List of target classes that can be output by the speaker recognition model.
         featurizer
         min_duration (float): Dataset parameter. All training files which have a duration less than min_duration
@@ -260,20 +261,24 @@ target_label_n, "offset": offset_in_sec_n}
     def __init__(
         self,
         *,
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
         is_regression_task: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         super().__init__()
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = manifest_filepath.split(',')
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
             is_regression_task=is_regression_task,
+            cal_labels_occurrence=cal_labels_occurrence,
         )
 
         self.featurizer = featurizer
@@ -284,9 +289,16 @@ target_label_n, "offset": offset_in_sec_n}
             self.labels = labels if labels else self.collection.uniq_labels
             self.num_classes = len(self.labels) if self.labels is not None else 1
             self.label2id, self.id2label = {}, {}
+            self.id2occurrence, self.labels_occurrence = {}, []
+
             for label_id, label in enumerate(self.labels):
                 self.label2id[label] = label_id
                 self.id2label[label_id] = label
+                if cal_labels_occurrence:
+                    self.id2occurrence[label_id] = self.collection.labels_occurrence[label]
+
+            if cal_labels_occurrence:
+                self.labels_occurrence = [self.id2occurrence[k] for k in sorted(self.id2occurrence)]
 
             for idx in range(len(self.labels[:5])):
                 logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
@@ -331,7 +343,7 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
     {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
         target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath: Path to manifest json as described above. Can
+        manifest_filepath (Union[str, List[str]]): Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
             if None then automatically picks from ASRSpeechLabel collection.
@@ -358,7 +370,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
     {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
         target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath (str): Path to manifest json as described above. Can
+        manifest_filepath (Union[str, List[str]]): Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
             if None then automatically picks from ASRSpeechLabel collection.
@@ -379,13 +391,16 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal.
             Defaults to False.
-        is_regression_task (bool): Whether the dataset is for a regression task instead of classification
+        is_regression_task (bool): Whether the dataset is for a regression task instead of classification.
+            Defaults to False.
+        cal_labels_occurrence (bool): Wether to calculate occurrence of labels
+            Defaults to False.
     """
 
     def __init__(
         self,
         *,
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         min_duration: Optional[float] = 0.1,
@@ -395,6 +410,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         is_regression_task: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         self.window_length_in_sec = window_length_in_sec
         self.shift_length_in_sec = shift_length_in_sec
@@ -411,6 +427,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             max_duration=max_duration,
             trim=trim,
             is_regression_task=is_regression_task,
+            cal_labels_occurrence=cal_labels_occurrence,
         )
 
     def fixed_seq_collate_fn(self, batch):
@@ -484,10 +501,14 @@ class _TarredAudioLabelDataset(IterableDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         is_regression_task (bool): Whether it is a regression task. Defualts to False.
@@ -532,51 +553,12 @@ class _TarredAudioLabelDataset(IterableDataset):
         for idx in range(len(self.labels[:5])):
             logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
-        valid_shard_strategies = ['scatter', 'replicate']
-        if shard_strategy not in valid_shard_strategies:
-            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
-
-        if isinstance(audio_tar_filepaths, str):
-            # Replace '(' and '[' with '{'
-            brace_keys_open = ['(', '[', '<', '_OP_']
-            for bkey in brace_keys_open:
-                if bkey in audio_tar_filepaths:
-                    audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
-
-            # Replace ')' and ']' with '}'
-            brace_keys_close = [')', ']', '>', '_CL_']
-            for bkey in brace_keys_close:
-                if bkey in audio_tar_filepaths:
-                    audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
-
-        # Check for distributed and partition shards accordingly
-        if world_size > 1:
-            if isinstance(audio_tar_filepaths, str):
-                # Brace expand
-                audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
-
-            if shard_strategy == 'scatter':
-                logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
-
-                if len(audio_tar_filepaths) % world_size != 0:
-                    logging.warning(
-                        f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
-                        f"by number of distributed workers ({world_size})."
-                    )
-
-                begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
-                end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
-                audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
-                logging.info(
-                    "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
-                )
-
-            elif shard_strategy == 'replicate':
-                logging.info("All tarred dataset shards will be replicated across all nodes.")
-
-            else:
-                raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
-
+        audio_tar_filepaths = expand_audio_filepaths(
+            audio_tar_filepaths=audio_tar_filepaths,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
         # Put together WebDataset
         self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
 
@@ -735,10 +717,14 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         is_regression_task (bool): Whether it is a regression task. Defualts to False.
@@ -809,10 +795,14 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """

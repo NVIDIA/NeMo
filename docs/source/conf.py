@@ -20,7 +20,7 @@ import re
 import sys
 import glob
 
-import sphinx_rtd_theme
+import sphinx_book_theme
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -41,8 +41,6 @@ autodoc_mock_imports = [
     'torch.optim',
     'torch.utils.data',
     'torch.utils.data.sampler',
-    'torchvision',
-    'torchvision.models',
     'torchtext',
     'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
     'hydra',  # hydra-core in requirements, hydra during import
@@ -55,6 +53,10 @@ autodoc_mock_imports = [
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
     'apex',
+    'joblib',
+    'IPython',
+    'ipadic',
+    'psutil',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -107,7 +109,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    "sphinx_rtd_theme",
+    "sphinx_copybutton",
 ]
 
 bibtex_bibfiles = [
@@ -115,7 +117,9 @@ bibtex_bibfiles = [
     'nlp/nlp_all.bib',
     'nlp/text_normalization/tn_itn_all.bib',
     'tools/tools_all.bib',
-    'tts_all.bib',
+    'tts/tts_all.bib',
+    'text_processing/text_processing_all.bib',
+    'core/adapters/adapter_bib.bib',
 ]
 
 intersphinx_mapping = {
@@ -201,21 +205,27 @@ htmlhelp_basename = "nemodoc"
 
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "sphinx_book_theme"
 html_logo = os.path.join('nv_logo.png')
+html_title = 'NVIDIA NeMo'
 
 html_theme_options = {
     'logo_only': True,
     'display_version': True,
-    'prev_next_buttons_location': 'bottom',
-    'style_external_links': False,
-    'style_nav_header_background': '#000000',
+    # 'prev_next_buttons_location': 'bottom',
+    # 'style_external_links': False,
+    # 'style_nav_header_background': '#000000',
     # Toc options
     'collapse_navigation': False,
-    'sticky_navigation': False,
-    # 'navigation_depth': 10,
-    'includehidden': False,
-    'titles_only': False,
+    # 'sticky_navigation': False,
+    'navigation_depth': 10,
+    # 'includehidden': False,
+    # 'titles_only': False,
+    # Sphinx Book theme,
+    'repository_url': 'https://github.com/NVIDIA/NeMo',
+    'use_repository_button': True,
+    'show_navbar_depth': 1,
+    'show_toc_level': 10,
 }
 
 

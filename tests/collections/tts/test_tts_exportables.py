@@ -14,32 +14,47 @@
 import os
 import tempfile
 
-import onnx
 import pytest
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import OmegaConf
 
-from nemo.collections.tts.models import FastPitchModel, HifiGanModel, TalkNetSpectModel, WaveGlowModel
+from nemo.collections.tts.models import FastPitchModel, HifiGanModel, RadTTSModel
+from nemo.utils.app_state import AppState
 
 
 @pytest.fixture()
 def fastpitch_model():
-    test_root = os.path.dirname(os.path.abspath(__file__))
-    conf = OmegaConf.load(os.path.join(test_root, '../../../examples/tts/conf/fastpitch.yaml'))
-    conf.train_dataset = conf.validation_datasets = '.'
-    conf.model.train_ds = conf.model.test_ds = conf.model.validation_ds = None
-    model = FastPitchModel(cfg=conf.model)
+    model = FastPitchModel.from_pretrained(model_name="tts_en_fastpitch")
     return model
 
 
 @pytest.fixture()
 def hifigan_model():
-    test_root = os.path.dirname(os.path.abspath(__file__))
     model = HifiGanModel.from_pretrained(model_name="tts_hifigan")
     return model
 
 
+@pytest.fixture()
+def radtts_model():
+    this_test_dir = os.path.dirname(os.path.abspath(__file__))
+
+    cfg = OmegaConf.load(os.path.join(this_test_dir, '../../../examples/tts/conf/rad-tts_feature_pred.yaml'))
+    cfg.model.init_from_ptl_ckpt = None
+    cfg.model.train_ds.dataset.manifest_filepath = "dummy.json"
+    cfg.model.train_ds.dataset.sup_data_path = "dummy.json"
+    cfg.model.validation_ds.dataset.manifest_filepath = "dummy.json"
+    cfg.model.validation_ds.dataset.sup_data_path = "dummy.json"
+    cfg.pitch_mean = 212.35
+    cfg.pitch_std = 68.52
+
+    app_state = AppState()
+    app_state.is_model_being_restored = True
+    model = RadTTSModel(cfg=cfg.model)
+    app_state.is_model_being_restored = False
+    model.eval()
+    return model
+
+
 class TestExportable:
-    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_FastPitchModel_export_to_onnx(self, fastpitch_model):
@@ -58,7 +73,11 @@ class TestExportable:
             filename = os.path.join(tmpdir, 'hfg.pt')
             model.export(output=filename, verbose=True, check_trace=True)
 
-
-if __name__ == "__main__":
-    t = TestExportable()
-    t.test_FastPitchModel_export_to_onnx(fastpitch_model())
+    @pytest.mark.pleasefixme
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_RadTTSModel_export_to_torchscript(self, radtts_model):
+        model = radtts_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'rad.ts')
+            model.export(output=filename, verbose=True, check_trace=True)

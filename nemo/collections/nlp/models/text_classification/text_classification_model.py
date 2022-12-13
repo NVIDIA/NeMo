@@ -85,7 +85,7 @@ class TextClassificationModel(NLPModel, Exportable):
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
         logits = self.classifier(hidden_states=hidden_states)
-        return logits
+        return logits.float()
 
     def training_step(self, batch, batch_idx):
         """
@@ -129,8 +129,6 @@ class TextClassificationModel(NLPModel, Exportable):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        if not outputs:
-            return {}
         if self.trainer.testing:
             prefix = 'test'
         else:

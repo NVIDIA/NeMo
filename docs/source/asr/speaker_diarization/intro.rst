@@ -1,20 +1,38 @@
 Speaker Diarization
-==================================
+===================
 
-Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, which is figuring out "Who spoke when?".
+Speaker diarization is the process of segmenting audio recordings by speaker labels and aims to answer the question “who spoke when?”. Speaker diarization makes a clear distinction when it is compared with speech recognition. As shown in the figure below, before we perform speaker diarization, we know “what is spoken” yet we do not know “who spoke it”. Therefore, speaker diarization is an essential feature for a speech recognition system to enrich the transcription with speaker labels. 
+
+.. image:: images/asr_sd_diagram.png
+        :align: center
+        :width: 800px
+        :alt: Speaker diarization pipeline- VAD, segmentation, speaker embedding extraction, clustering
+
+    
+    
+To figure out "who spoke when", speaker diarization systems need to capture the characteristics of unseen speakers and tell apart which regions in the audio recording belong to which speaker. To achieve this, speaker diarization systems extract voice characteristics, count the number of speakers, then assign the audio segments to the corresponding speaker index.
+
+The following figure shows the overall data flow of the NeMo speaker diarization pipeline. 
 
 .. image:: images/sd_pipeline.png
         :align: center
-        :scale: 75%
-        :alt: Speaker Diarization pipeline [todo]
+        :width: 800px
+        :alt: Speaker diarization pipeline- VAD, segmentation, speaker embedding extraction, clustering
 
+NeMo speaker diarization system consists of the following modules:   
 
-A speaker diarization system consists of a **Voice Activity Detection (VAD)** model to get the timestamps of audio where speech is being spoken while ignoring the background noise and 
-a **Speaker Embedding extractor** model to get speaker embeddings on speech segments obtained from VAD time stamps. 
-These speaker embeddings would then be clustered into clusters based on the number of speakers present in the audio recording.
+- **Voice Activity Detector (VAD)**: A trainable model which detects the presence or absence of speech to generate timestamps for speech activity from the given audio recording.  
 
-In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 
+- **Speaker Embedding Extractor**: A trainable model that extracts speaker embedding vectors containing voice characteristics from raw audio signal.   
 
+- **Clustering Module**: A non-trainable module that groups speaker embedding vectors into a number of clusters.   
+
+- **Neural Diarizer**: A trainable model that estimates speaker labels from the given features.   
+
+Speaker diarization evaluation can be done in two different modes depending on the VAD settings:   
+
+- **oracle VAD**: Speaker diarization based on ground-truth VAD timestamps     
+- **system VAD**: Speaker diarization based on the results from a VAD model     
 
 The full documentation tree is as follows:
 
@@ -26,27 +44,6 @@ The full documentation tree is as follows:
    results
    configs
    api
+   resources
 
-Resource and Documentation Guide
---------------------------------
-
-Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_tasks/``.
-
-There are tutorials for performing inference using :ref:`MarbleNet_model` and :ref:`TitaNet_model`, 
-and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.
-
-Most of the tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
-
-If you are looking for information about a particular model used for speaker diarization inference, or would like to find out more about the model
-architectures available in the `nemo_asr` collection, check out the :doc:`Models <./models>` page.
-
-Documentation on dataset preprocessing can be found on the :doc:`Datasets <./datasets>` page.
-NeMo includes preprocessing scripts for several common ASR datasets, and this page contains instructions on running
-those scripts.
-It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
-
-Information about how to load model checkpoints (either local files or pretrained ones from NGC), perform inference, as well as a list
-of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
-
-Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
-:doc:`Configuration Files <./configs>` page.
+.. include:: resources.rst

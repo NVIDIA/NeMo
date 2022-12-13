@@ -13,7 +13,9 @@
 # limitations under the License.
 
 """Transformer based language model."""
+import torch
 
+from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
@@ -41,15 +43,25 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # AttnMaskType enum mask type (e.g., padding, casual)
         encoder_attn_mask_type: AttnMaskType = None,
         decoder_attn_mask_type: AttnMaskType = None,
+        hidden_steps: int = None,
     ):
         super(MegatronTransformerEncoderDecoderModule, self).__init__()
 
         self.encoder = encoder
         self.decoder = decoder
+        self.hidden_steps = hidden_steps
+        if isinstance(encoder, MegatronPerceiverEncoderModule) and hidden_steps is None:
+            raise ValueError(
+                f"hidden_steps cannot be None for perceiver encoders. It is needed to compute the encoder-decoder cross attention mask."
+            )
+
         # try to infer mask_type if not given
         if encoder_attn_mask_type is None:
             if encoder is None:
                 encoder_attn_mask_type = None
+            # Perceiver does not have a `.model` attribute, assume it always uses padding mask.
+            elif isinstance(encoder, MegatronPerceiverEncoderModule):
+                encoder_attn_mask_type = AttnMaskType.padding
             elif hasattr(encoder.model, 'self_attn_mask_type'):
                 encoder_attn_mask_type = encoder.model.self_attn_mask_type
             else:
@@ -73,7 +85,12 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self._decoder_key = "decoder"
 
     def encode(
-        self, enc_input, enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
+        self,
+        enc_input,
+        enc_attn_mask,
+        enc_layer_past=None,
+        enc_get_key_value=False,
+        enc_self_attention_relative_position_bias=None,
     ):
         if self.encoder is None:
             raise ValueError(f"Cannot call .encode(...) when self.encoder is None.")
@@ -83,12 +100,21 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask=enc_attn_mask,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
+            enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
         )
 
         return enc_output
 
     def decode(
-        self, dec_input, dec_attn_mask, enc_output, enc_attn_mask, dec_layer_past=None, dec_get_key_value=False,
+        self,
+        dec_input,
+        dec_attn_mask,
+        enc_output,
+        enc_attn_mask,
+        dec_layer_past=None,
+        dec_get_key_value=False,
+        dec_self_attention_relative_position_bias=None,
+        dec_cross_attention_relative_position_bias=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -100,6 +126,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
             enc_attn_mask=enc_attn_mask,
+            dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
+            dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
 
         return dec_output
@@ -113,9 +141,13 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_output=None,
+        enc_output_attn_mask=None,
         dec_layer_past=None,
         dec_get_key_value=False,
         output_enc_hidden_only=False,
+        enc_self_attention_relative_position_bias=None,
+        dec_self_attention_relative_position_bias=None,
+        dec_cross_attention_relative_position_bias=None,
     ):
         # encoder
         if enc_output is None:
@@ -125,17 +157,23 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_attn_mask=enc_attn_mask,
                     enc_layer_past=enc_layer_past,
                     enc_get_key_value=enc_get_key_value,
+                    enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
                 )
             else:
                 assert self.encoder_hidden_state is not None
                 enc_output = self.encoder_hidden_state
         else:
-            enc_output = enc_output.to(enc_input.dtype)
+            enc_attn_mask = enc_output_attn_mask.to(enc_attn_mask)
 
         if self.decoder is None or output_enc_hidden_only:
             return enc_output
 
         # decoder
+        # Adjust encoder attention mask if encoder is a perceiver.
+        if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
+            # Attention mask is expected to be of shape [B x S] and enc_output is of size [S x B x H].
+            enc_attn_mask = torch.ones(enc_output.size(1), self.hidden_steps).to(enc_output.device)
+
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
@@ -143,6 +181,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask=enc_attn_mask,
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
+            dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
+            dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
 
         return dec_output, enc_output

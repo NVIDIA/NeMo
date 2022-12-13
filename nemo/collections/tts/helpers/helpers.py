@@ -51,10 +51,15 @@ import numpy as np
 import torch
 from numba import jit, prange
 from numpy import ndarray
-from pesq import pesq
-from pystoi import stoi
 
+from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 try:
     from pytorch_lightning.utilities import rank_zero_only
@@ -91,17 +96,7 @@ def get_batch_size(train_dataloader):
 
 
 def get_num_workers(trainer):
-    if trainer.accelerator is None:
-        return trainer.num_gpus or 1
-    elif trainer.accelerator == "ddp_cpu":
-        return trainer.num_processes * trainer.num_nodes
-    elif trainer.accelerator == "ddp":
-        return trainer.num_gpus * trainer.num_nodes
-    else:
-        logging.warning(
-            f"The lightning trainer received accelerator: {trainer.accelerator}. We " "recommend to use 'ddp' instead."
-        )
-        return trainer.num_gpus * trainer.num_nodes
+    return trainer.num_devices * trainer.num_nodes
 
 
 def binarize_attention(attn, in_len, out_len):
@@ -127,15 +122,15 @@ def binarize_attention(attn, in_len, out_len):
 
 def binarize_attention_parallel(attn, in_lens, out_lens):
     """For training purposes only. Binarizes attention with MAS.
-           These will no longer recieve a gradient.
+           These will no longer receive a gradient.
 
         Args:
             attn: B x 1 x max_mel_len x max_text_len
         """
     with torch.no_grad():
-        attn_cpu = attn.data.cpu().numpy()
-        attn_out = b_mas(attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
-    return torch.from_numpy(attn_out).to(attn.get_device())
+        log_attn_cpu = torch.log(attn.data).cpu().numpy()
+        attn_out = b_mas(log_attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
+    return torch.from_numpy(attn_out).to(attn.device)
 
 
 def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
@@ -178,43 +173,41 @@ def mas(attn_map, width=1):
 
 
 @jit(nopython=True)
-def mas_width1(attn_map):
+def mas_width1(log_attn_map):
     """mas with hardcoded width=1"""
     # assumes mel x text
-    opt = np.zeros_like(attn_map)
-    attn_map = np.log(attn_map)
-    attn_map[0, 1:] = -np.inf
-    log_p = np.zeros_like(attn_map)
-    log_p[0, :] = attn_map[0, :]
-    prev_ind = np.zeros_like(attn_map, dtype=np.int64)
-    for i in range(1, attn_map.shape[0]):
-        for j in range(attn_map.shape[1]):  # for each text dim
-            prev_log = log_p[i - 1, j]
-            prev_j = j
-
-            if j - 1 >= 0 and log_p[i - 1, j - 1] >= log_p[i - 1, j]:
-                prev_log = log_p[i - 1, j - 1]
-                prev_j = j - 1
-
-            log_p[i, j] = attn_map[i, j] + prev_log
-            prev_ind[i, j] = prev_j
+    neg_inf = log_attn_map.dtype.type(-np.inf)
+    log_p = log_attn_map.copy()
+    log_p[0, 1:] = neg_inf
+    for i in range(1, log_p.shape[0]):
+        prev_log1 = neg_inf
+        for j in range(log_p.shape[1]):
+            prev_log2 = log_p[i - 1, j]
+            log_p[i, j] += max(prev_log1, prev_log2)
+            prev_log1 = prev_log2
 
     # now backtrack
-    curr_text_idx = attn_map.shape[1] - 1
-    for i in range(attn_map.shape[0] - 1, -1, -1):
-        opt[i, curr_text_idx] = 1
-        curr_text_idx = prev_ind[i, curr_text_idx]
-    opt[0, curr_text_idx] = 1
+    opt = np.zeros_like(log_p)
+    one = opt.dtype.type(1)
+    j = log_p.shape[1] - 1
+    for i in range(log_p.shape[0] - 1, 0, -1):
+        opt[i, j] = one
+        if log_p[i - 1, j - 1] >= log_p[i - 1, j]:
+            j -= 1
+            if j == 0:
+                opt[1:i, j] = one
+                break
+    opt[0, j] = one
     return opt
 
 
 @jit(nopython=True, parallel=True)
-def b_mas(b_attn_map, in_lens, out_lens, width=1):
+def b_mas(b_log_attn_map, in_lens, out_lens, width=1):
     assert width == 1
-    attn_out = np.zeros_like(b_attn_map)
+    attn_out = np.zeros_like(b_log_attn_map)
 
-    for b in prange(b_attn_map.shape[0]):
-        out = mas_width1(b_attn_map[b, 0, : out_lens[b], : in_lens[b]])
+    for b in prange(b_log_attn_map.shape[0]):
+        out = mas_width1(b_log_attn_map[b, 0, : out_lens[b], : in_lens[b]])
         attn_out[b, 0, : out_lens[b], : in_lens[b]] = out
     return attn_out
 
@@ -294,6 +287,7 @@ def tacotron2_log_to_tb_func(
             step,
             dataformats="HWC",
         )
+
         if add_audio:
             filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
             log_mel = mel_postnet[0].data.cpu().numpy().T
@@ -309,9 +303,74 @@ def tacotron2_log_to_tb_func(
             swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
-def plot_alignment_to_numpy(alignment, info=None):
-    fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none')
+def tacotron2_log_to_wandb_func(
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    log_images=False,
+    log_images_freq=1,
+    add_audio=True,
+    griffin_lim_mag_scale=1024,
+    griffin_lim_power=1.2,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
+):
+    _, spec_target, mel_postnet, gate, gate_target, alignments = tensors
+    if not HAVE_WANDB:
+        return
+    if log_images and step % log_images_freq == 0:
+        alignments = []
+        specs = []
+        gates = []
+        alignments += [
+            wandb.Image(plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",)
+        ]
+        alignments += [
+            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",),
+            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",),
+        ]
+        gates += [
+            wandb.Image(
+                plot_gate_outputs_to_numpy(
+                    gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),
+                ),
+                caption=f"{tag}_gate",
+            )
+        ]
+
+        swriter.log({"specs": specs, "alignments": alignments, "gates": gates})
+
+        if add_audio:
+            audios = []
+            filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+            log_mel = mel_postnet[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio_pred = griffin_lim(magnitude.T ** griffin_lim_power)
+
+            log_mel = spec_target[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
+
+            audios += [
+                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target", sample_rate=sr,),
+                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted", sample_rate=sr,),
+            ]
+
+            swriter.log({"audios": audios})
+
+
+def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
+    if phoneme_seq:
+        fig, ax = plt.subplots(figsize=(15, 10))
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    ax.set_title(title)
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
     if info is not None:
@@ -319,6 +378,12 @@ def plot_alignment_to_numpy(alignment, info=None):
     plt.xlabel(xlabel)
     plt.ylabel('Encoder timestep')
     plt.tight_layout()
+
+    if phoneme_seq != None:
+        # for debugging of phonemes and durs in maps. Not used by def in training code
+        ax.set_yticks(np.arange(len(phoneme_seq)))
+        ax.set_yticklabels(phoneme_seq)
+        ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)
@@ -413,38 +478,6 @@ def remove(conv_list):
     return new_conv_list
 
 
-def eval_tts_scores(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
-) -> Dict[str, float]:
-    """
-    calculate metric using EvalModule. y can be a batch.
-    Args:
-        y_clean: real audio
-        y_est: estimated audio
-        T_ys: length of the non-zero parts of the histograms
-        sampling_rate: The used Sampling rate.
-
-    Returns:
-        A dictionary mapping scoring systems (string) to numerical scores.
-        1st entry: 'STOI'
-        2nd entry: 'PESQ'
-    """
-
-    if y_clean.ndim == 1:
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-    if T_ys == (0,):
-        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
-
-    clean = y_clean[0, : T_ys[0]]
-    estimated = y_est[0, : T_ys[0]]
-    stoi_score = stoi(clean, estimated, sampling_rate, extended=False)
-    pesq_score = pesq(16000, np.asarray(clean), estimated, 'wb')
-    ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
-
-    return {'STOI': stoi_score, 'PESQ': pesq_score}
-
-
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -460,26 +493,26 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
-    reps = (reps + 0.5).long()
+    reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
-    reps_cumsum = reps_cumsum.to(dtype)
+    reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
 
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
     mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)
     enc_rep = torch.matmul(mult, enc_out)
 
-    if mel_max_len:
+    if mel_max_len is not None:
         enc_rep = enc_rep[:, :mel_max_len]
         dec_lens = torch.clamp_max(dec_lens, mel_max_len)
 
     return enc_rep, dec_lens
 
 
-def split_view(tensor, split_size, dim=0):
+def split_view(tensor, split_size: int, dim: int = 0):
     if dim < 0:  # Support negative indexing
         dim = len(tensor.shape) + dim
     # If not divisible by split_size, we need to pad with 0
@@ -492,3 +525,16 @@ def split_view(tensor, split_size, dim=0):
     cur_shape = tensor.shape
     new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
     return tensor.reshape(*new_shape)
+
+
+def process_batch(batch_data, sup_data_types_set):
+    batch_dict = {}
+    batch_index = 0
+    for name, datatype in DATA_STR2DATA_CLASS.items():
+        if datatype in MAIN_DATA_TYPES or datatype in sup_data_types_set:
+            batch_dict[name] = batch_data[batch_index]
+            batch_index = batch_index + 1
+            if issubclass(datatype, WithLens):
+                batch_dict[name + "_lens"] = batch_data[batch_index]
+                batch_index = batch_index + 1
+    return batch_dict
