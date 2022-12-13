@@ -35,6 +35,7 @@ docopt==0.6.2
 docutils==0.19
 editdistance==0.6.1
 einops==0.3.2
+exceptiongroup==1.0.4
 executing==1.2.0
 filelock==3.8.0
 fire==0.4.0
@@ -55,6 +56,7 @@ HyperPyYAML==1.1.0
 idna==3.4
 importlib-metadata==4.13.0
 inflect==6.0.2
+iniconfig==1.1.1
 install==1.3.5
 ipython==8.7.0
 jedi==0.18.2
@@ -89,6 +91,7 @@ pexpect==4.8.0
 pickleshare==0.7.5
 Pillow==9.3.0
 pipini==0.3
+pluggy==1.0.0
 pooch==1.6.0
 prettytable==3.5.0
 primePy==1.3
@@ -115,6 +118,7 @@ pyparsing==3.0.9
 pyperclip==1.8.2
 pypinyin==0.47.1
 pystoi==0.3.3
+pytest==7.2.0
 python-dateutil==2.8.2
 pytorch-lightning==1.8.3.post1
 pytorch-metric-learning==1.6.3
@@ -160,6 +164,7 @@ termcolor==2.1.1
 text-unidecode==1.3
 threadpoolctl==3.1.0
 tokenizers==0.13.2
+tomli==2.0.1
 torch==1.13.0
 torch-audiomentations==0.11.0
 torch-pitch-shift==1.2.2

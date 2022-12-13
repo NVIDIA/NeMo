@@ -216,18 +216,13 @@ class FFTransformerDecoder(NeuralModule):
 
     def _forward(self, inp, mask, conditioning):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
-        # try:
-        #     pos_emb = self.pos_emb(pos_seq) * mask
-        # except Exception as e:
-        #     import code  # NOQA
-        #     code.interact(local={**locals(), **globals()})
         pos_emb = self.pos_emb(pos_seq) * mask
+
         out = self.drop(inp + pos_emb + conditioning)
 
         for layer in self.layers:
             out = layer(out, mask=mask)
 
-        # out = self.drop(out)
         return out, mask
 
 
@@ -265,3 +260,81 @@ class FFTransformerEncoder(FFTransformerDecoder):
     def forward(self, input, conditioning=0):
 
         return self._forward(self.word_emb(input), (input != self.padding_idx).unsqueeze(2), conditioning)  # (B, L, 1)
+
+
+class BiModalTransformerEncoder(FFTransformerDecoder):
+    """encoder for infusing both text and audio embeddings"""
+    def __init__(
+        self,
+        n_layer,
+        n_head,
+        d_model,
+        d_head,
+        d_inner,
+        kernel_size,
+        dropout,
+        dropatt,
+        d_mode,  # size of the modal embedding
+        dropemb=0.0,
+        pre_lnorm=False,
+    ):
+        super(BiModalTransformerEncoder, self).__init__(
+            n_layer, n_head,
+            d_model + d_mode,  # we are concatenating mode embeddings and we want to preserve the size
+            d_head, d_inner, kernel_size, dropout, dropatt, dropemb, pre_lnorm
+        )
+        self.mode_embeddings = nn.Embedding(2, d_mode)
+
+    @property
+    def input_types(self):
+        return {
+            "text_encs": NeuralType(('B', 'T_t', 'D'), EncodedRepresentation()),
+            "text_lens": NeuralType(('B'), LengthsType()),
+            "spec_encs": NeuralType(('B', 'T_s', 'D'), EncodedRepresentation()),
+            "spec_lens": NeuralType(('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "text_encs": NeuralType(('B', 'T_t', 'D'), EncodedRepresentation()),
+            "spec_encs": NeuralType(('B', 'T_s', 'D'), EncodedRepresentation()),
+        }
+
+    def forward(self, text_encs, text_lens, spec_encs, spec_lens):
+        text_embedding = self.mode_embeddings(torch.tensor(0))
+        spec_embedding = self.mode_embeddings(torch.tensor(1))
+
+        text_encs_with_modality = concat_embedding_to_sequence(
+            text_embedding, text_encs)
+        spec_encs_with_modality = concat_embedding_to_sequence(
+            spec_embedding, spec_encs)
+
+        combined_encs = torch.concat(
+            (text_encs_with_modality, spec_encs_with_modality),
+            axis=1
+        )
+
+        text_mask = mask_from_lens(text_lens).unsqueeze(2)
+        spec_mask = mask_from_lens(spec_lens).unsqueeze(2)
+        combined_mask = torch.concat((text_mask, spec_mask), axis=1)
+
+        post_nn, _ = self._forward(combined_encs, combined_mask, conditioning=0)
+        # strip the modal embeddings
+        original_emb_len = text_encs.shape[2]
+        modal_embs_trimmed = post_nn[:, :, :original_emb_len]
+
+        # split back into text and spectrogram outputs
+        split_index = text_encs.shape[1]
+        text_out = modal_embs_trimmed[:, :split_index]
+        spec_out = modal_embs_trimmed[:, split_index:]
+        return text_out, spec_out
+
+
+def concat_embedding_to_sequence(embedding, embedding_sequence):
+    """concatenate an embedding to the end of all embeddings in a sequence
+    """
+    batch_size = embedding_sequence.shape[0]
+    sequence_length = embedding_sequence.shape[1]
+    embedding_repeated = embedding.repeat(batch_size, sequence_length, 1)
+    return torch.concat((embedding_sequence, embedding_repeated), axis=-1)

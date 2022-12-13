@@ -7,37 +7,108 @@ erases a window of the spectrogram for the module to regenerate.
 import contextlib
 from nemo.core.classes import ModelPT
 from nemo.core.classes import Exportable
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from hydra.utils import instantiate
 from pytorch_lightning import Trainer
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.collections.tts.losses.fastpitchloss import MelLoss
+from nemo.core.classes import Loss
 import torch
+from torch.nn import MSELoss, LazyLinear, Linear
 import logging
+import torch.nn.functional as F
 import random
+from nemo.core.neural_types.elements import (
+    LengthsType,
+    LossType,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenLogDurationType,
+)
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.collections.tts.modules.transformer import FFTransformerDecoder, BiModalTransformerEncoder
+
+
 
 class BaselineModule(NeuralModule):
-    def __init__(self):
+    def __init__(
+        self,
+        num_mels,
+        text_encoder, spectrogram_encoder,
+        infuser_model,
+    ):
         """TODO"""
         super().__init__()
-        self.conv = torch.nn.Conv2d(
-            in_channels=1,
-            out_channels=1,
-            kernel_size=3,
-            stride=1,
-            padding='same',
-            dilation=1,
-            groups=1,
-            bias=True,
-            padding_mode='zeros',
-        )
+        self.text_encoder = text_encoder
+
+        # todo experiment using the same params for spectrogram projection
+        internal_dim = spectrogram_encoder.d_model
+        self.spectrogram_in_projection = Linear(num_mels, internal_dim)
+        self.spectrogram_out_projection = Linear(internal_dim, num_mels)
+
+        self.spectrogram_encoder = spectrogram_encoder
+        self.infuser_model = infuser_model
 
     def forward(
         self, transcripts, transcripts_len, input_mels, input_mels_len
     ):
         """TODO"""
-        input_mels = input_mels.unsqueeze(1)
-        return self.conv(input_mels).squeeze(1)
+        # TODO check masking is done correctly here
+        text_encodings, _ = self.text_encoder(transcripts)
+
+        spectrogram_projections = self.spectrogram_in_projection(input_mels)
+        spectrogram_encodings, _ = self.spectrogram_encoder(
+            input=spectrogram_projections, seq_lens=input_mels_len)
+
+        text_encs, spec_encs = self.infuser_model(
+            text_encs=text_encodings,
+            text_lens=transcripts_len,
+            spec_encs=spectrogram_encodings,
+            spec_lens=input_mels_len,
+        )
+
+        spectrogram_preds = self.spectrogram_out_projection(spec_encs)
+        return spectrogram_preds
+
+
+class InpaintingMSELoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "spect_predicted": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spect_tgt": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spect_mask": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, spect_predicted, spect_tgt, spect_mask):
+        spect_tgt.requires_grad = False
+
+        # calculate the error in the gap
+        gap_mask = (1 - spect_mask)
+
+        gap_target = spect_tgt * gap_mask
+        gap_predicted = spect_predicted * gap_mask
+
+        loss_fn = F.mse_loss
+        mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
+
+        gap_error = mse_loss.sum() / spect_predicted.shape[0]
+
+        # TODO - could look into different ways of reducing the per-pixel
+        # loss here such as averaging per example in the batch
+
+        # TODO - loss term for
+        # * whole spectrogram
+        # * coefficient * (just reconstructed part)
+
+        return gap_error
 
 
 class InpainterModel(ModelPT, Exportable):
@@ -57,16 +128,47 @@ class InpainterModel(ModelPT, Exportable):
             "padding_idx": self.vocab.pad,
         }
 
-        # text_encoder = instantiate(cfg.input_fft, **input_fft_kwargs)
-        # output_fft = instantiate(cfg.output_fft)
-        # self.module = BaselineModule(text_encoder, output_fft)
-        self.module = BaselineModule()
+        text_encoder = instantiate(cfg.input_fft, **input_fft_kwargs)
+
+        # todo separate hparams for spectrogram encoder
+        spectrogram_encoder = FFTransformerDecoder(
+            n_layer=cfg.input_fft.n_layer,
+            n_head=cfg.input_fft.n_head,
+            d_model=cfg.input_fft.d_model,
+            d_head=cfg.input_fft.d_head,
+            d_inner=cfg.input_fft.d_inner,
+            kernel_size=cfg.input_fft.kernel_size,
+            dropout=cfg.input_fft.dropout,
+            dropatt=cfg.input_fft.dropatt,
+            dropemb=cfg.input_fft.dropemb,
+        )
+
+        # todo hparams for infuser model
+        infuser_model = BiModalTransformerEncoder(
+            n_layer=cfg.input_fft.n_layer,
+            n_head=cfg.input_fft.n_head,
+            d_model=cfg.input_fft.d_model,
+            d_head=cfg.input_fft.d_head,
+            d_inner=cfg.input_fft.d_inner,
+            kernel_size=cfg.input_fft.kernel_size,
+            dropout=cfg.input_fft.dropout,
+            dropatt=cfg.input_fft.dropatt,
+            dropemb=cfg.input_fft.dropemb,
+            d_mode=cfg.input_fft.d_model // 4
+        )
+
+        # output_decoder = instantiate(cfg.output_fft)
+        self.module = BaselineModule(
+            cfg.n_mel_channels,
+            text_encoder, spectrogram_encoder,
+            infuser_model,
+        )
 
         # TODO - review this loss to only look at the reconstructed part
-        self.mel_loss = MelLoss()
+        self.gap_loss = InpaintingMSELoss()
+        self.mse_loss = MSELoss(reduction='mean')
         self.audio_sample_rate = cfg.sample_rate
         self.spectrogram_sample_stride = cfg.n_window_stride
-
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -116,10 +218,12 @@ class InpainterModel(ModelPT, Exportable):
 
         mels, spec_len = self.preprocessor(
             input_signal=audio, length=audio_lens)
+        mels = mels.transpose(2, 1)  # B x T x E
 
         # mask the spectrogram rather than audio to avoid artifacts
         # at the edge of the spectrogram
-        mels_masked = self.mask_mels(mels, spec_len)
+        mel_masks = self.make_spectrogram_mask(mels, spec_len)
+        mels_masked = mels * mel_masks
 
         mels_pred = self(
             transcripts=text,
@@ -127,21 +231,25 @@ class InpainterModel(ModelPT, Exportable):
             input_mels=mels_masked,
             input_mels_len=spec_len
         )
-        loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
-        return loss
+        gap_loss = self.gap_loss(
+            spect_predicted=mels_pred, spect_tgt=mels,
+            spect_mask=mel_masks
+        )
+        mse_loss = self.mse_loss(mels_pred, mels)
+        return gap_loss + mse_loss
 
     def training_step(self, batch, batch_idx):
         loss = self.forward_pass(batch, batch_idx)
         self.log("train_loss", loss)
         return loss
 
-    def validation_step_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx):
         loss = self.forward_pass(batch, batch_idx)
         self.log("validation_loss", loss)
         return loss
 
     def validation_epoch_end(self, outputs):
-        self.log("validation_mean_loss", outputs.mean())
+        self.log("validation_mean_loss", sum(outputs) / len(outputs))
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
@@ -197,8 +305,8 @@ class InpainterModel(ModelPT, Exportable):
         """
         return []
 
-    def mask_mels(self, mels, mel_lens):
-        mels = torch.clone(mels)  # doing in-place mutation here
+    def make_spectrogram_mask(self, mels, mel_lens):
+        mask = torch.ones_like(mels)  # doing in-place mutation here
 
         ffts_per_sec = self.audio_sample_rate / self.spectrogram_sample_stride
 
@@ -215,6 +323,6 @@ class InpainterModel(ModelPT, Exportable):
             mask_len = random.randint(
                 min_duration_frames, max_duration_frames)
 
-            mels[i, :, start:start + mask_len] = 0
+            mask[i, start:start + mask_len] = 0
 
-        return mels
+        return mask
