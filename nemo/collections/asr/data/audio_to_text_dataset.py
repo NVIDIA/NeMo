@@ -101,8 +101,10 @@ def get_concat_char_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config['concat_sampling'],
-        sampling_probabilities=config['concat_probabilities'],
+        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
+        sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_probabilities=config.get('concat_sampling_probabilities', None),
+        seed=config.get('concat_seed', None),
         global_rank=global_rank,
         world_size=world_size,
         shuffle=config['shuffle'],
@@ -174,8 +176,10 @@ def get_concat_bpe_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config['concat_sampling'],
-        sampling_probabilities=config['concat_probabilities'],
+        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
+        sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_probabilities=config.get('concat_sampling_probabilities', None),
+        seed=config.get('concat_seed', None),
         global_rank=global_rank,
         world_size=world_size,
         shuffle=config['shuffle'],
@@ -260,8 +264,10 @@ def get_concat_tarred_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config['concat_sampling'],
-        sampling_probabilities=config['concat_probabilities'],
+        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
+        sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_probabilities=config.get('concat_sampling_probabilities', None),
+        seed=config.get('concat_seed', None),
         global_rank=global_rank,
         world_size=world_size,
         shuffle=config['shuffle'],

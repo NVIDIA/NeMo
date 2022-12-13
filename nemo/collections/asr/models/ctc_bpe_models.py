@@ -177,8 +177,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
