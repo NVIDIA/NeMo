@@ -20,6 +20,7 @@ from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, m
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
 
 V_NEG_NUM = -1e30
@@ -32,12 +33,13 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_ctm_folder: the folder where output CTM files will be saved.
-    model_name: string specifying a NeMo ASR model to use for generating the log-probs
-        which we will use to do alignment.
-        If the string ends with '.nemo', the code will treat `model_name` as a local filepath
-        from which it will attempt to restore a NeMo model.
-        If the string does not end with '.nemo', the code will attempt to download a model
-        with name `model_name` from NGC.  
+    pretrained_name: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded
+        from NGC and used for generating the log-probs which we will use to do alignment.
+        Note: NFA can only use CTC models (not Transducer models) at the moment.
+    model_path: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the
+        log-probs which we will use to do alignment.
+        Note: NFA can only use CTC models (not Transducer models) at the moment.
+        Note: if a model_path is provided, it will override the pretrained_name.
     model_downsample_factor: an int indicating the downsample factor of the ASR model, ie the ratio of input 
         timesteps to output timesteps. 
         If the ASR model is a QuartzNet model, its downsample factor is 2.
@@ -78,7 +80,8 @@ class AlignmentConfig:
     output_ctm_folder: Optional[str] = None
 
     # General configs
-    model_name: str = "stt_en_citrinet_1024_gamma_0_25"
+    pretrained_name: Optional[str] = "stt_en_citrinet_1024_gamma_0_25"
+    model_path: Optional[str] = None
     model_downsample_factor: int = 8
     separator: str = " "
     n_parts_for_ctm_id: int = 1
@@ -178,12 +181,13 @@ def main(cfg: AlignmentConfig):
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder needs to be specified")
 
+    if cfg.model_path is None and cfg.pretrained_name is None:
+        raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None")
+
     # load model
     device = torch.device(cfg.device)
-    if cfg.model_name.endswith('.nemo'):
-        model = ASRModel.restore_from(cfg.model_name, map_location=device)
-    else:
-        model = ASRModel.from_pretrained(cfg.model_name, map_location=device)
+
+    model, _ = setup_model(cfg, device)
 
     if not isinstance(model, EncDecCTCModel):
         raise NotImplementedError(

@@ -11,16 +11,19 @@ python <path_to_NeMo>/NeMo/tools/nemo_forced_aligner/align.py \
 ```
 
 ## How do I use NeMo Forced Aligner?
-To use NFA, all you need to provide is a correct NeMo manifest (with 'audio_filepath' and 'text' fields).
+To use NFA, all you need to provide is a correct NeMo manifest (with `"audio_filepath"` and `"text"` fields).
 
-Call the align.py script, specifying the parameters as follows:
+Call the `align.py` script, specifying the parameters as follows:
 
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing 'audio_filepath' and 'text' fields.
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
 
-* [OPTIONAL] `model_name`: Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). You can provide a pretrained model name or a path to a saved '.nemo' file. (Default: "stt_en_citrinet_1024_gamma_0_25")
-> Note: If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
+* [OPTIONAL] `pretrained_name`: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded from NGC and used for generating the log-probs which we will use to do alignment. Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). (Default: "stt_en_citrinet_1024_gamma_0_25").
+>Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
+
+* [OPTIONAL] `model_path`: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the log-probs which we will use to do alignment.
+>Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
 
 * [OPTIONAL] `model_downsample_factor`: the downsample factor of the ASR model. It should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet (Default: 8, to match with the default model_name "stt_en_citrinet_1024_gamma_0_25").
 
