@@ -12,13 +12,79 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from typing import Optional
+
 import torch
 from utils import get_log_probs_y_T_U, get_manifest_lines, make_basetoken_ctm, make_word_ctm
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.core.config import hydra_runner
 
 V_NEG_NUM = -1e30
+
+"""
+Align the utterances in manifest_filepath. 
+Results are saved in ctm files in output_ctm_folder.
+
+Arguments:
+    manifest_filepath: filepath to the manifest of the data you want to align,
+        containing 'audio_filepath' and 'text' fields.
+    output_ctm_folder: the folder where output CTM files will be saved.
+    model_name: string specifying a NeMo ASR model to use for generating the log-probs
+        which we will use to do alignment.
+        If the string ends with '.nemo', the code will treat `model_name` as a local filepath
+        from which it will attempt to restore a NeMo model.
+        If the string does not end with '.nemo', the code will attempt to download a model
+        with name `model_name` from NGC.  
+    model_downsample_factor: an int indicating the downsample factor of the ASR model, ie the ratio of input 
+        timesteps to output timesteps. 
+        If the ASR model is a QuartzNet model, its downsample factor is 2.
+        If the ASR model is a Conformer CTC model, its downsample factor is 4.
+        If the ASR model is a Citirnet model, its downsample factor is 8.
+    separator: the string used to separate CTM segments.
+        If the separator is “”, the CTM segments will be the tokens used by the ASR model.
+        If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
+        text separated by that separator.
+        Default: “ “, ie for languages such as English, the CTM segments will be words.
+        Note: if the separator is not “” or “ “, it will be removed from the CTM, ie it is treated as a marker 
+        which is not part of the ground truth. It will essentially be treated as a space, and any additional spaces 
+        around it will be amalgamated into one, i.e. the following texts will be treated as equivalent:
+        “abc|def”
+        “abc |def”
+        “abc| def”
+        “abc | def”
+    n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
+        we will use (starting from the final part of the audio_filepath) to determine the 
+        utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
+        will be stripped away from the utt_id, so as not to change the number of space-separated elements in the 
+        CTM files.
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
+    audio_sr: int specifying the sample rate of your audio files.
+    device: string specifying the device that will be used for generating log-probs and doing 
+        Viterbi decoding. The string needs to be in a format recognized by torch.device()
+    batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+
+"""
+
+
+@dataclass
+class AlignmentConfig:
+    # Required configs
+    manifest_filepath: Optional[str] = None
+    output_ctm_folder: Optional[str] = None
+
+    # General configs
+    model_name: str = "stt_en_citrinet_1024_gamma_0_25"
+    model_downsample_factor: int = 8
+    separator: str = " "
+    n_parts_for_ctm_id: int = 1
+    audio_sr: int = 16000
+    device: str = "cpu"
+    batch_size: int = 1
 
 
 def viterbi_decoding(log_probs, y, T, U):
@@ -102,94 +168,53 @@ def align_batch(data, model, separator):
     return alignments
 
 
-def align(
-    manifest_filepath: str,
-    output_ctm_folder: str,
-    model_name: str = "stt_en_citrinet_1024_gamma_0_25",
-    model_downsample_factor: int = 8,
-    separator: str = " ",
-    n_parts_for_ctm_id: int = 1,
-    audio_sr: int = 16000,
-    device: str = "cpu",
-    batch_size: int = 1,
-):
-    """
-    Function that does alignment of utterances in manifest_filepath. 
-    Results are saved in ctm files in output_ctm_folder.
+@hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
+def main(cfg: AlignmentConfig):
 
-    Args:
-        manifest_filepath: filepath to the manifest of the data you want to align,
-            containing 'audio_filepath' and 'text' fields.
-        output_ctm_folder: the folder where output CTM files will be saved.
-        model_name: string specifying a NeMo ASR model to use for generating the log-probs
-            which we will use to do alignment.
-            If the string ends with '.nemo', the code will treat `model_name` as a local filepath
-            from which it will attempt to restore a NeMo model.
-            If the string does not end with '.nemo', the code will attempt to download a model
-            with name `model_name` from NGC.  
-        model_downsample_factor: an int indicating the downsample factor of the ASR model, ie the ratio of input 
-            timesteps to output timesteps. 
-            If the ASR model is a QuartzNet model, its downsample factor is 2.
-            If the ASR model is a Conformer CTC model, its downsample factor is 4.
-            If the ASR model is a Citirnet model, its downsample factor is 8.
-        separator: the string used to separate CTM segments.
-            If the separator is “”, the CTM segments will be the tokens used by the ASR model.
-            If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
-            text separated by that separator.
-            Default: “ “, ie for languages such as English, the CTM segments will be words.
-            Note: if the separator is not “” or “ “, it will be removed from the CTM, ie it is treated as a marker 
-            which is not part of the ground truth. It will essentially be treated as a space, and any additional spaces 
-            around it will be amalgamated into one, i.e. the following texts will be treated as equivalent:
-            “abc|def”
-            “abc |def”
-            “abc| def”
-            “abc | def”
-        n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
-            we will use (starting from the final part of the audio_filepath) to determine the 
-            utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
-            will be stripped away from the utt_id, so as not to change the number of space-separated elements in the 
-            CTM files.
-            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
-            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
-            e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
-        audio_sr: int specifying the sample rate of your audio files.
-        device: string specifying the device that will be used for generating log-probs and doing 
-            Viterbi decoding. The string needs to be in a format recognized by torch.device()
-        batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+    # Validate config
+    if cfg.manifest_filepath is None:
+        raise ValueError("cfg.manifest_filepath needs to be specified")
 
-    """
+    if cfg.output_ctm_folder is None:
+        raise ValueError("cfg.output_ctm_folder needs to be specified")
 
     # load model
-    device = torch.device(device)
-    if model_name.endswith('.nemo'):
-        model = ASRModel.restore_from(model_name, map_location=device)
+    device = torch.device(cfg.device)
+    if cfg.model_name.endswith('.nemo'):
+        model = ASRModel.restore_from(cfg.model_name, map_location=device)
     else:
-        model = ASRModel.from_pretrained(model_name, map_location=device)
+        model = ASRModel.from_pretrained(cfg.model_name, map_location=device)
 
     if not isinstance(model, EncDecCTCModel):
         raise NotImplementedError(
-            f"Model {model_name} is not an instance of NeMo EncDecCTCModel."
+            f"Model {cfg.model_name} is not an instance of NeMo EncDecCTCModel."
             " Currently only instances of EncDecCTCModels are supported"
         )
 
     # define start and end line IDs of batches
-    with open(manifest_filepath, 'r') as f:
+    with open(cfg.manifest_filepath, 'r') as f:
         num_lines_in_manifest = sum(1 for _ in f)
 
-    starts = [x for x in range(0, num_lines_in_manifest, batch_size)]
+    starts = [x for x in range(0, num_lines_in_manifest, cfg.batch_size)]
     ends = [x - 1 for x in starts]
     ends.pop(0)
     ends.append(num_lines_in_manifest)
 
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
-        data = get_manifest_lines(manifest_filepath, start, end)
+        data = get_manifest_lines(cfg.manifest_filepath, start, end)
 
-        alignments = align_batch(data, model, separator)
+        alignments = align_batch(data, model, cfg.separator)
 
-        if separator == "":
+        if cfg.separator == "":
             make_basetoken_ctm(
-                data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
+                data,
+                alignments,
+                model,
+                cfg.model_downsample_factor,
+                cfg.output_ctm_folder,
+                cfg.n_parts_for_ctm_id,
+                cfg.audio_sr,
             )
 
         else:
@@ -197,11 +222,15 @@ def align(
                 data,
                 alignments,
                 model,
-                model_downsample_factor,
-                output_ctm_folder,
-                n_parts_for_ctm_id,
-                audio_sr,
-                separator,
+                cfg.model_downsample_factor,
+                cfg.output_ctm_folder,
+                cfg.n_parts_for_ctm_id,
+                cfg.audio_sr,
+                cfg.separator,
             )
 
     return None
+
+
+if __name__ == "__main__":
+    main()
