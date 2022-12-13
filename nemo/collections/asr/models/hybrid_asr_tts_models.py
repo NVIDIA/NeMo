@@ -1,12 +1,13 @@
 import copy
 import itertools
+import tempfile
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
@@ -19,6 +20,29 @@ from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
 
 
+@contextmanager
+def preserve_state():
+    """
+    Preserve singleton AppState when combining 2 nemo models
+    """
+    app_state = AppState()
+    nemo_file_folder = app_state.nemo_file_folder
+    model_restore_path = app_state.model_restore_path
+    _tmpdir_name = app_state._tmpdir_name
+    _is_model_being_restored = app_state._is_model_being_restored
+    _all_model_restore_paths = app_state._all_model_restore_paths
+    _model_guid_map = app_state._model_guid_map
+    try:
+        yield
+    finally:
+        AppState().nemo_file_folder = nemo_file_folder
+        AppState().model_restore_path = model_restore_path
+        AppState()._tmpdir_name = _tmpdir_name
+        AppState()._is_model_being_restored = _is_model_being_restored
+        AppState()._all_model_restore_paths = _all_model_restore_paths
+        AppState()._model_guid_map = _model_guid_map
+
+
 def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, fill_value=0.0) -> torch.Tensor:
     device = spectrogram.device
     batch_size, num_channels, max_len = spectrogram.shape
@@ -29,41 +53,90 @@ def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, 
 
 class ASRWithTTSModel(ASRModel):
     asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE]
+    tts_model: FastPitchModel
 
     class ASRModelTypes(PrettyStrEnum):
         RNNT_BPE = "rnnt_bpe"
         CTC_BPE = "ctc_bpe"
+
+        def get_asr_cls(self):
+            if self.value == self.RNNT_BPE:
+                return EncDecRNNTBPEModel
+            if self.value == self.CTC_BPE:
+                return EncDecCTCModelBPE
+            raise NotImplementedError(f"Not implemented for value {self.value}")
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # Convert to Hydra 1.0 compatible DictConfig
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
-        cfg = model_utils.maybe_update_config_version(cfg)
-
-        super().__init__(cfg, trainer=trainer)
-        asr_config = copy.deepcopy(cfg)
-        model_type_str = asr_config.pop("asr_model_type")
-        tts_config = asr_config.pop("tts_model")
-
+        model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
 
-        if model_type == self.ASRModelTypes.CTC_BPE:
-            self.asr_model = EncDecCTCModelBPE(cfg=cfg)
-        elif model_type == self.ASRModelTypes.RNNT_BPE:
-            self.asr_model = EncDecRNNTBPEModel(cfg=cfg)
+        OmegaConf.set_struct(cfg, False)
+
+        with preserve_state():
+            tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
+            tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
+
+        # avoid dataset and optim setup here
+        train_ds_cfg = cfg.pop("train_ds", None)
+        validation_ds_cfg = cfg.pop("validation_ds", None)
+        test_ds_cfg = cfg.pop("test_ds", None)
+        optim_cfg = cfg.pop("optim", None)
+
+        if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
+            with preserve_state():
+                asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
+                asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
+                # get optimizer config from ASR model
+                if optim_cfg is None:
+                    optim_cfg = asr_model.cfg.get("optim", None)
         else:
-            raise ValueError(f"Unsupported model type: {model_type}")
-        self.tts_model = FastPitchModel(cfg=cfg, trainer=None)
+            # instantiate asr model from config
+            with preserve_state():
+                asr_model = model_type.get_asr_cls()(cfg)
+                with tempfile.TemporaryDirectory() as tmp_dir_name:
+                    save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
+                    asr_model.save_to(save_path)
+                    asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
+                    asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
+
+        super().__init__(cfg, trainer=trainer)
+        self.asr_model = asr_model
+        self.tts_model = tts_model
         self.tts_model.freeze()
+
+        if optim_cfg:
+            self.setup_optimization(optim_config=optim_cfg)
+        if train_ds_cfg:
+            self.setup_training_data(train_data_config=train_ds_cfg)
+        if validation_ds_cfg:
+            self.setup_validation_data(val_data_config=validation_ds_cfg)
+        if test_ds_cfg:
+            self.setup_test_data(test_data_config=test_ds_cfg)
 
     @classmethod
     def from_asr_config(
         cls, cfg: DictConfig, model_type: Union[str, ASRModelTypes], tts_model: FastPitchModel, trainer: Trainer = None
     ):
-        pass
+        raise NotImplementedError()
+
+    @classmethod
+    def from_pretrained_models(
+        cls,
+        asr_model_path: str,
+        tts_model_path: str,
+        cfg: DictConfig = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        if cfg is None:
+            cfg = DictConfig(dict())
+        cfg.tts_model_path = tts_model_path
+        cfg.asr_model_path = asr_model_path
+        cfg.asr_model_type = "rnnt_bpe"  # FixMe
+        return ASRWithTTSModel(cfg, trainer=trainer)
 
     def change_vocabulary(
         self,
@@ -77,6 +150,12 @@ class ASRWithTTSModel(ASRModel):
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         return self.asr_model.change_decoding_strategy(decoding_cfg=decoding_cfg)
+
+    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        return self.asr_model.setup_validation_data(val_data_config)
+
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self.asr_model.setup_multiple_validation_data(val_data_config)
@@ -203,20 +282,3 @@ class ASRWithTTSModel(ASRModel):
             tokenizer_workers=train_data_config.dl_workers.get('num_workers', 1),
         )
         return textonly_ds
-
-    # @classmethod
-    # def restore_from_separate_models(
-    #     cls,
-    #     asr_restore_path: str,
-    #     tts_restore_path: str,
-    #     asr_override_config_path: Optional[Union[OmegaConf, str]] = None,
-    #     tts_override_config_path: Optional[Union[OmegaConf, str]] = None,
-    #     asr_strict: bool = True,
-    #     tts_strict: bool = True,
-    #     map_location: Optional[torch.device] = None,
-    #     trainer: Optional[Trainer] = None,
-    # ):
-    #     asr_model = ASRModel.restore_from(restore_path=asr_restore_path, override_config_path=asr_override_config_path, map_location=map_location, strict=asr_strict)
-    #     tts_model = FastPitchModel.restore_from(restore_path=tts_restore_path, override_config_path=tts_override_config_path, map_location=map_location, strict=tts_strict)
-
-    # def from_models(cls, asr_model: ASRModel, tts_model: FastPitchModel, asr_model_type: Union[str,
