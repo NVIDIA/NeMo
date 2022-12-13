@@ -27,8 +27,10 @@ from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
 from nemo.utils import logging, logging_mode
 
+
 class MockLinearAdapter1(LinearAdapter):
     pass
+
 
 class MockLinearAdapter2(LinearAdapter):
     pass
@@ -99,7 +101,6 @@ if adapter_mixins.get_registered_adapter(CommonModule) is None:
 
 
 class TestCommonAdapterModuleMixin:
-
     @pytest.mark.unit
     def test_get_accepted_adapter_types(self):
 
@@ -158,13 +159,11 @@ class TestCommonAdapterModuleMixin:
         assert not hasattr(model, '_accepted_adapter_types')
 
         # Explicitly set the accepted types to be the subclasses
-        model.set_accepted_adapter_types([
-            get_classpath(MockLinearAdapter1),
-            get_classpath(MockLinearAdapter2),
-        ])
+        model.set_accepted_adapter_types(
+            [get_classpath(MockLinearAdapter1), get_classpath(MockLinearAdapter2),]
+        )
 
         # Should throw error because the base class is now no longer in accepted list
         # and the get_types method does not fill in the default
         with pytest.raises(ValueError):
             model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-

@@ -13,7 +13,7 @@
 # limitations under the License.
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import List, Optional, Union, Set
+from typing import List, Optional, Set, Union
 
 import torch
 import torch.distributed
