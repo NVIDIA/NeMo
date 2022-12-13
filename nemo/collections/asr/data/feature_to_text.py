@@ -178,6 +178,9 @@ class _FeatureTextDataset(Dataset):
         self.return_sample_id = return_sample_id
         self.channel_selector = channel_selector
 
+    def get_manifest_sample(self, sample_id):
+        return self.manifest_processor.collection[sample_id]
+
     def __getitem__(self, index):
         sample = self.manifest_processor.collection[index]
         offset = sample.offset
