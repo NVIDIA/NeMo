@@ -1,14 +1,13 @@
-import copy
 import itertools
 import tempfile
 from contextlib import contextmanager
-from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
@@ -20,27 +19,31 @@ from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
 
 
+def print_appstate():
+    # FixMe: remove
+    app_state = AppState()
+    print("=" * 50)
+    print(app_state.nemo_file_folder)
+    print(app_state.model_restore_path)
+    print(app_state._tmpdir_name)
+    print(app_state._is_model_being_restored)
+    print(app_state._all_model_restore_paths)
+    print(app_state._model_guid_map)
+    print("=" * 50)
+
+
 @contextmanager
-def preserve_state():
+def preserve_nemo_file_folder():
     """
     Preserve singleton AppState when combining 2 nemo models
     """
     app_state = AppState()
     nemo_file_folder = app_state.nemo_file_folder
-    model_restore_path = app_state.model_restore_path
-    _tmpdir_name = app_state._tmpdir_name
-    _is_model_being_restored = app_state._is_model_being_restored
-    _all_model_restore_paths = app_state._all_model_restore_paths
-    _model_guid_map = app_state._model_guid_map
     try:
         yield
     finally:
+        # if nemo_file_folder:
         AppState().nemo_file_folder = nemo_file_folder
-        AppState().model_restore_path = model_restore_path
-        AppState()._tmpdir_name = _tmpdir_name
-        AppState()._is_model_being_restored = _is_model_being_restored
-        AppState()._all_model_restore_paths = _all_model_restore_paths
-        AppState()._model_guid_map = _model_guid_map
 
 
 def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, fill_value=0.0) -> torch.Tensor:
@@ -71,12 +74,17 @@ class ASRWithTTSModel(ASRModel):
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        print("State before restore")
+        print_appstate()
+
         model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
+        super().__init__(cfg, trainer=trainer)
 
         OmegaConf.set_struct(cfg, False)
+        print(cfg)
 
-        with preserve_state():
+        with preserve_nemo_file_folder():
             tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
             tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
 
@@ -87,7 +95,7 @@ class ASRWithTTSModel(ASRModel):
         optim_cfg = cfg.pop("optim", None)
 
         if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
-            with preserve_state():
+            with preserve_nemo_file_folder():
                 asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                 asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
                 # get optimizer config from ASR model
@@ -95,7 +103,7 @@ class ASRWithTTSModel(ASRModel):
                     optim_cfg = asr_model.cfg.get("optim", None)
         else:
             # instantiate asr model from config
-            with preserve_state():
+            with preserve_nemo_file_folder():
                 asr_model = model_type.get_asr_cls()(cfg)
                 with tempfile.TemporaryDirectory() as tmp_dir_name:
                     save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
@@ -103,7 +111,6 @@ class ASRWithTTSModel(ASRModel):
                     asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                     asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
 
-        super().__init__(cfg, trainer=trainer)
         self.asr_model = asr_model
         self.tts_model = tts_model
         self.tts_model.freeze()
@@ -116,6 +123,8 @@ class ASRWithTTSModel(ASRModel):
             self.setup_validation_data(val_data_config=validation_ds_cfg)
         if test_ds_cfg:
             self.setup_test_data(test_data_config=test_ds_cfg)
+        print("State after restore")
+        print_appstate()
 
     @classmethod
     def from_asr_config(
@@ -254,14 +263,15 @@ class ASRWithTTSModel(ASRModel):
             dataset = tts_dataset or asr_dataset
         if dataset is None:
             return None
+        collate_fn = dataset.collate_fn
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=train_data_config['batch_size'],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            drop_last=train_data_config.get('drop_last', False),
+            shuffle=train_data_config.get('shuffle', True),
+            num_workers=train_data_config.get('num_workers', 0),
+            pin_memory=train_data_config.get('pin_memory', False),
         )
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
