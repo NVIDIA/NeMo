@@ -117,6 +117,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
             item['text'] = f.read().replace('\n', '')
     elif 'normalized_text' in item:
         item['text'] = item['normalized_text']
+    if 'other_audio_filepaths' in item:
+        item['other_audio_files'] = [expanduser(x) for x in item['other_audio_filepaths']]
 
     item = dict(
         audio_file=item['audio_file'],
@@ -127,6 +129,10 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         orig_sr=item.get('orig_sample_rate', None),
         token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
+        other_audio_files=item.get('other_audio_files', None),
+        other_durations=item.get('other_durations', None),
+        other_offsets=item.get('other_offsets', None),
+        scale_factors=item.get('scale_factors', None),
     )
 
     return item

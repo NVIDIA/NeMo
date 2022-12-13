@@ -53,6 +53,92 @@ from nemo.utils import logging
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
+class Conv2dASRDecoderReconstruction(NeuralModule, Exportable):
+    """2D ASR Decoder for reconstructing masked regions of spectrogram
+    """
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"out": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    def __init__(
+        self,
+        feat_in,
+        feat_out,
+        channels_hidden,
+        stride_layers=2,
+        kernel_size=(3, 3),
+        stride=(1, 2),
+        init_mode="xavier_uniform",
+        activation="relu",
+        conv_transpose=True,
+    ):
+        super().__init__()
+        activation = jasper_activations[activation]()
+        self.channels_hidden = channels_hidden
+
+        self.decoder_layers = []
+        for i in range(stride_layers):
+            in_channels = self.channels_hidden
+            out_channels = self.channels_hidden
+            if i == 0:
+                in_channels = 1
+            if i == stride_layers - 1:
+                out_channels = 1
+
+            if conv_transpose:
+                self.decoder_layers.append(
+                    nn.ConvTranspose2d(
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=(1, 1),
+                        output_padding=(0, 1),
+                        bias=True,
+                        groups=1,
+                    )
+                )
+            else:
+                raise ValueError(f"current support is only for convTranspose layers")
+            self.decoder_layers.append(activation)
+        self.proj_out = nn.Conv1d(in_channels=feat_in, out_channels=feat_out, kernel_size=1)
+
+        self.decoder_layers = nn.Sequential(*self.decoder_layers)
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    @typecheck()
+    def forward(self, encoder_output):
+
+        encoder_output = encoder_output.unsqueeze(1)
+        out = self.decoder_layers(encoder_output)
+        out = self.proj_out(out.squeeze(1))
+        return out
+
+    def input_example(self, max_batch=1, max_dim=256):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        return tuple([input_example])
+
+    def _prepare_for_export(self, **kwargs):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        if m_count > 0:
+            logging.warning(f"Turned off {m_count} masked convolutions")
+        Exportable._prepare_for_export(self, **kwargs)
+
+
 class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.

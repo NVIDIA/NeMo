@@ -361,19 +361,26 @@ class ImpulsePerturbation(Perturbation):
         self._rng = random.Random() if rng is None else rng
 
     def perturb(self, data):
+
+        if isinstance(data, list):
+            data_l = data
+        else:
+            data_l = [data]
         impulse = read_one_audiosegment(
             self._manifest,
-            data.sample_rate,
+            data_l[0].sample_rate,
             self._rng,
             tarred_audio=self._tarred_audio,
             audio_dataset=self._data_iterator,
         )
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
-            data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
-            data._samples = data._samples / max(
-                abs(data._samples)
-            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
+
+            for i in range(len(data_l)):
+                data_l[i]._samples = signal.fftconvolve(data_l[i]._samples, impulse_norm, "same")
+                data_l[i]._samples = data_l[i]._samples / max(
+                    abs(data_l[i]._samples)
+                )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
         else:
             # Find peak and shift peak to left
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
@@ -381,10 +388,11 @@ class ImpulsePerturbation(Perturbation):
 
             impulse_resp = impulse_norm[max_ind:]
             delay_after = len(impulse_resp)
-            data._samples = signal.fftconvolve(data._samples, impulse_resp, "full")[:-delay_after]
-            data._samples = data._samples / max(
-                abs(data._samples)
-            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
+            for i in range(len(data_l)):
+                data_l[i]._samples = signal.fftconvolve(data_l[i]._samples, impulse_resp, "full")[:-delay_after]
+                data_l[i]._samples = data_l[i]._samples / max(
+                    abs(data_l[i]._samples)
+                )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
 
 
 class ShiftPerturbation(Perturbation):
@@ -843,10 +851,10 @@ class AudioAugmentor(object):
         self._rng = random.Random() if rng is None else rng
         self._pipeline = perturbations if perturbations is not None else []
 
-    def perturb(self, segment):
+    def perturb(self, segment, *args, **kwargs):
         for (prob, p) in self._pipeline:
             if self._rng.random() < prob:
-                p.perturb(segment)
+                p.perturb(segment, *args, **kwargs)
         return
 
     def max_augmentation_length(self, length):

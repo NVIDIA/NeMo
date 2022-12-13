@@ -113,6 +113,9 @@ class AudioText(_Collection):
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
+        index_by_speaker_id: bool = False,
+        *args,
+        **kwargs,
     ):
         """Instantiates audio-text manifest with filters and preprocessing.
 
@@ -131,16 +134,30 @@ class AudioText(_Collection):
             max_number: Maximum number of samples to collect.
             do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+            index_by_speaker_id: If True, saves a mapping from speaker id to index in data.
+
         """
 
+        if "keep_fields" in kwargs:
+            self.OUTPUT_TYPE = collections.namedtuple(
+                typename='AudioTextEntity',
+                field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang'
+                + ' '
+                + ' '.join(kwargs["keep_fields"]),
+            )
         output_type = self.OUTPUT_TYPE
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         if index_by_file_id:
             self.mapping = {}
+        if index_by_speaker_id:
+            self.speaker_mapping = {}
+        fields = [ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs]
+        if "keep_fields" in kwargs:
+            fields.extend([kwargs[x] for x in kwargs['keep_fields']])
 
-        for id_, audio_file, duration, offset, text, speaker, orig_sr, token_labels, lang in zip(
-            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs
-        ):
+        for x in zip(*fields):
+            id_, audio_file, duration, offset, text, speaker, orig_sr, token_label, lang = x[0:9]
+            # Duration filters.
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -152,8 +169,8 @@ class AudioText(_Collection):
                 num_filtered += 1
                 continue
 
-            if token_labels is not None:
-                text_tokens = token_labels
+            if token_label is not None:
+                text_tokens = token_label
             else:
                 if text != '':
                     if hasattr(parser, "is_aggregate") and parser.is_aggregate and isinstance(text, str):
@@ -172,20 +189,26 @@ class AudioText(_Collection):
                     continue
 
             total_duration += duration
-
-            data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
+            output = [id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang]
+            if len(x) > 9:
+                output.extend(x[9:])
+            data.append(output_type(*output))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
                     self.mapping[file_id] = []
                 self.mapping[file_id].append(len(data) - 1)
+            if index_by_speaker_id:
+                if speaker not in self.speaker_mapping:
+                    self.speaker_mapping[speaker] = []
+                self.speaker_mapping[speaker].append(len(data) - 1)
 
             # Max number of entities filter.
             if len(data) == max_number:
                 break
 
         if do_sort_by_duration:
-            if index_by_file_id:
+            if index_by_file_id or index_by_speaker_id:
                 logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
             else:
                 data.sort(key=lambda entity: entity.duration)
@@ -217,6 +240,7 @@ class ASRAudioText(AudioText):
             [],
         )
         speakers, orig_srs, token_labels, langs = [], [], [], []
+
         for item in manifest.item_iter(manifests_files):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -227,6 +251,16 @@ class ASRAudioText(AudioText):
             orig_srs.append(item['orig_sr'])
             token_labels.append(item['token_labels'])
             langs.append(item['lang'])
+            if "keep_fields" in kwargs:
+
+                fields = kwargs["keep_fields"]
+                for field in fields:
+                    if field not in kwargs:
+                        kwargs[field] = []
+                    if field not in item:
+                        kwargs[field].append(None)
+                    else:
+                        kwargs[field].append(item[field])
         super().__init__(
             ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )

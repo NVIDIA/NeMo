@@ -124,6 +124,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
+                "emb": NeuralType(('B', 'D'), AcousticEncodedRepresentation(), optional=True),
                 "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
             }
@@ -136,6 +137,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "pre_encoded_outputs": NeuralType(('D', 'B', 'D'), AcousticEncodedRepresentation(), optional=True),
+                "pre_encoded_output_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
                 "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
             }
@@ -183,8 +186,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         dropout_pre_encoder=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
+        use_target_embed=False,
+        emb_dim=256,
+        fusion_type='add',
     ):
         super().__init__()
+
+        self.use_target_embed = use_target_embed
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
         self.n_layers = n_layers
@@ -311,6 +319,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
         self.layers = nn.ModuleList()
+        if self.use_target_embed:
+            self.fusion_mdl = nn.ModuleList([])
         for i in range(n_layers):
             layer = ConformerLayer(
                 d_model=d_model,
@@ -327,6 +337,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 att_context_size=self.att_context_size,
             )
             self.layers.append(layer)
+            if use_target_embed:
+                self.fusion_mdl.append(FusionLayer(d_model, emb_dim, fusion_type))
 
         if feat_out > 0 and feat_out != self._feat_out:
             self.out_proj = nn.Linear(self._feat_out, feat_out)
@@ -383,7 +395,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.register_buffer('att_mask', att_mask, persistent=False)
 
     @typecheck()
-    def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
+    def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None, emb=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         max_audio_length: int = audio_signal.size(-1)
 
@@ -409,6 +421,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 length = (length - self.streaming_cfg.drop_extra_pre_encoded).float()
                 length = torch.clip(length, min=0).int()
 
+        pre_encoded_audio = audio_signal
+        pre_encoded_audio_length = length
+        audio_signal, pos_emb = self.pos_enc(audio_signal)
         max_audio_length = audio_signal.size(1)
 
         if self.reduction_position is not None and cache_last_channel is not None:
@@ -439,6 +454,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             att_mask = att_mask[:, cache_len:]
 
         for lth, layer in enumerate(self.layers):
+            if self.use_target_embed:
+                audio_signal = self.fusion_mdl[lth](audio_signal, emb)
             audio_signal = layer(
                 x=audio_signal,
                 att_mask=att_mask,
@@ -468,9 +485,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if cache_last_channel is not None:
-            return audio_signal, length, cache_last_channel_next, cache_last_time_next
+            return (
+                audio_signal,
+                length,
+                pre_encoded_audio,
+                pre_encoded_audio_length,
+                cache_last_channel_next,
+                cache_last_time_next,
+            )
         else:
-            return audio_signal, length
+            return audio_signal, length, pre_encoded_audio, pre_encoded_audio_length
 
     def _create_masks(self, max_audio_length, padding_length, device):
         # pad_mask is the masking to be used to ignore paddings
@@ -645,6 +669,33 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
+
+
+class FusionLayer(nn.Module):
+    def __init__(self, in_dim, emb_dim, fusion_type='cat'):
+        super().__init__()
+        assert fusion_type in ['cat', 'add', 'mult']
+        self.fusion_type = fusion_type
+        if fusion_type == 'cat':
+            self.layer = nn.Linear(in_dim + emb_dim, in_dim)
+        elif fusion_type in ['add', 'mult']:
+            self.layer = nn.Linear(emb_dim, in_dim)
+
+    def forward(self, x, emb):
+        '''
+            args:
+                x: Tensor with shape [B, T, D],
+                emb: Tensor with shape [B, D']
+        '''
+        emb = emb.unsqueeze(1).expand(-1, x.shape[1], -1)
+        if self.fusion_type == 'cat':
+            raise NotImplementedError("not implemented")
+        elif self.fusion_type == 'add':
+            out = self.layer(emb)
+            out = x + out
+        elif self.fusion_type == 'mult':
+            raise NotImplementedError("not implemented")
+        return out
 
 
 """
