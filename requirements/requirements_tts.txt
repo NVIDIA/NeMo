@@ -7,4 +7,6 @@ nltk
 pandas
 pesq
 pypinyin
+pypinyin-dict
 pystoi
+jieba
