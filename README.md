@@ -1145,6 +1145,26 @@ The command above assumes that the data and results workspaces are mounted in th
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
+
+**FP8 with Transformer Engine**
+Transformer Engine (TE) is a library for accelerating Transformer-based models on **NVIDIA Hopper GPUs**. It enables using 8-bit floating point (FP8) precision to provide better performance with lower memory utilization in both training and inference. NVIDIA open-sourced TE on [github](https://github.com/NVIDIA/TransformerEngine).
+
+In NeMo Megatron, you can now use `fp8` to pre-train GPT-3 models. For example, if you want to turn on `fp8` to pre-train a 
+GPT3 5B model, you can modify `gpt3/5b` training config inside `conf/training/gpt3/5b.yaml` file as following.
+```yaml
+  ## Transformer Engine
+  transformer_engine: True # turn on Transformer Engine
+  fp8: True # enables fp8 in TransformerLayer forward
+  fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
+  fp8_hybrid: True # sets fp8_format = recipe.Format.HYBRID
+  fp8_margin: 0 # scaling margin
+  fp8_interval: 1 # scaling update interval
+  fp8_amax_history_len: 32 # Number of steps for which amax history is recorded per tensor
+  fp8_amax_compute_algo: max # 'most_recent' or 'max'. Algorithm for computing amax from history
+  use_emha: False
+```
+We observed similar convergence behavior but significant speed-up comparing `fp8` and `bf16` precision.
+
 #### 5.2.2. Predefined Configurations of T5 Models
 <a id="markdown-predefined-configurations-of-t5-models" name="predefined-configurations-of-t5-models"></a>
 
