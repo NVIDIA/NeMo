@@ -230,6 +230,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Data parallelism                | Yes                    | N/A                                                                                                                                                                  |
 | Tensor parallelism              | Yes                    | Yes                                                                                                                                                               |
 | Pipeline parallelism            | Yes                     | Yes (Megatron-LM checkpoints)                                                                                                                          |
+| Interleaved Pipeline Parallelism Schedule            | Yes                     | N/A                                                                                                                          |
 | Sequence parallelism            | Yes                     | No                                                                                                                       |
 | Selective activation checkpointing | Yes                     | No                                                                                                                       |
 | Gradient checkpointing          | Yes                    | N/A                                                                                                                                                                  |
@@ -237,6 +238,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | FP32/TF32                       | Yes                    | Yes (FP16 enabled by default)                                                                                                                                     |
 | AMP/FP16                        | No | Yes                                                                                                                                                               |
 | BF16                            | Yes  | Yes                                                                                                                                                                |
+| TransformerEngine/FP8                      | Yes  | No                                                                                                                                                                |
 | Multi-GPU                       | Yes                    | Yes                                                                                                                                                               |
 | Multi-Node                      | Yes                    | Yes                                                                                                                                                               |
 | Inference deployment            | N/A                    | [NVIDIA Triton supported](https://github.com/triton-inference-server/backend#where-can-i-find-all-the-backends-that-are-available-for-triton), Faster Transformer |
@@ -245,7 +247,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 | IA3 and Adapter learning                | Yes             | N/A                                                                                                                                                                  |
-| Distributed Optimizer (ZeRO-2)               | Yes             | N/A                                                                                                                                                                  |
+| Distributed Optimizer   | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5 and mT5 Models
 <a id="markdown-t5-and-mt5-models" name="t5-and-mt5-models"></a>
@@ -271,6 +273,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 | IA3 and Adapter learning                | Yes             | N/A                                                                                                                                                                  |
 | Hyperparameter tool                         | Yes                                                       |    N/A    |
+| Distributed Optimizer   | Yes             | N/A      
 
 
 ## 3. Setup
@@ -465,7 +468,7 @@ node(s) at the same path as on the compute nodes.
 The whole solution uses a set of Docker containers executed on a Slurm
 cluster (using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in) or
 a Base Command Platform cluster. The training container also includes 
-conversion scripts and NVIDIA Triton Model Navigator. The inference container
+conversion scripts. The inference container
 comprises the NVIDIA Triton Inference Server with the FasterTransformer 
 backend installed.
 
@@ -4695,6 +4698,12 @@ Inference parameters:
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
+**NeMo Megatron 22.11**
+* Interleaved Pipeline Scheduling for GPT-3 (training only)
+* FP8 support using Transformer Engine (training only)
+* Distributed Adam Optimizer for T5 and mT5
+* P-Tuning and Prompt Tuning for GPT-3 with Sequence Parallelism
+
 **NeMo Megatron 22.09**
 * NeMo Megatron supports training and inference containers on OCI. For detail orchestration scripts, reach out to [oci_nm@nvidia.com](mailto:oci_nm@nvidia.com)
 * P-Tuning and Prompt Tuning for T5 and mT5 with pipeline parallelism (training only)
@@ -4772,8 +4781,7 @@ Inference parameters:
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
 Fixes for the following issues will be released shortly:
-* The inference hyperparameter search is not available in this release. Please use the NeMo Megatron 22.06.RC2 training container to use this feature
+* The inference hyperparameter search is not available in this release for T5 and mT5
 * Accuracy and performance measurement for GPT-3 is currently not supported. Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
-* In the event of CUDA initialization error in prompt learning, please set `num_workers=0`.
