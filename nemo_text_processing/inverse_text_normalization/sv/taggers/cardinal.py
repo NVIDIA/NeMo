@@ -42,12 +42,12 @@ class CardinalFst(GraphFst):
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+        graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv"))
 
         graph_hundred_component = graph_hundreds | pynutil.insert("0")
-        graph_hundred_component += delete_space
         graph_hundred_component += pynini.union(
             graph_teen | pynutil.insert("00"),
-            (graph_ties | pynutil.insert("0")) + delete_space + (graph_digit | pynutil.insert("0")),
+            (graph_ties | pynutil.insert("0")) + (graph_digit | pynutil.insert("0")),
         )
 
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
@@ -58,73 +58,56 @@ class CardinalFst(GraphFst):
         )
 
         graph_thousands = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
+            graph_hundred_component_at_least_one_none_zero_digit + pynutil.delete("tusen"),
             pynutil.insert("000", weight=0.1),
         )
 
-        graph_millones = pynini.union(
+        graph_miljoner = (
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
-            + (pynutil.delete("miljoner") | pynutil.delete("miljon")),
-            pynutil.insert("000") + pynutil.delete("miljoner"),  # to allow for 'mil millones'
+            + (pynutil.delete("miljoner") | pynutil.delete("miljon"))
         )
 
-        graph_mil_millones = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
-        )
-        graph_mil_millones += delete_space + (
-            graph_millones | pynutil.insert("000") + pynutil.delete("millones")
-        )  # allow for 'mil millones'
-        graph_mil_millones |= pynutil.insert("000000", weight=0.1)
-
-        # also allow 'millardo' instead of 'mil millones'
-        graph_millardo = (
+        graph_miljarder = (
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
             + (pynutil.delete("miljarder") | pynutil.delete("miljard"))
         )
 
-        graph_billones = pynini.union(
+        graph_biljoner = (
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
-            + (pynutil.delete("biljoner") | pynutil.delete("biljon")),
+            + (pynutil.delete("biljoner") | pynutil.delete("biljon"))
         )
 
-        graph_mil_billones = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
-        )
-        graph_mil_billones += delete_space + (
-            graph_billones | pynutil.insert("000") + pynutil.delete("billones")
-        )  # allow for 'mil billones'
-        graph_mil_billones |= pynutil.insert("000000", weight=0.1)
-
-        graph_trillones = pynini.union(
+        graph_biljarder = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
-            + (pynutil.delete("trillones") | pynutil.delete("trillón")),
+            + (pynutil.delete("biljarder") | pynutil.delete("biljard"))
         )
 
-        graph_mil_trillones = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
+        graph_triljoner = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("triljoner") | pynutil.delete("triljon")),
         )
-        graph_mil_trillones += delete_space + (
-            graph_trillones | pynutil.insert("000") + pynutil.delete("trillones")
-        )  # allow for 'mil trillones'
-        graph_mil_trillones |= pynutil.insert("000000", weight=0.1)
+
+        graph_triljarder = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("triljarder") | pynutil.delete("triljard")),
+        )
 
         graph = pynini.union(
-            (graph_mil_trillones | pynutil.insert("000", weight=0.1) + graph_trillones)
+            (graph_triljarder | pynutil.insert("000", weight=0.1) + graph_triljoner)
             + delete_space
-            + (graph_mil_billones | pynutil.insert("000", weight=0.1) + graph_billones)
+            + (graph_biljarder | pynutil.insert("000", weight=0.1) + graph_biljoner)
             + delete_space
             + pynini.union(
-                graph_mil_millones,
-                pynutil.insert("000", weight=0.1) + graph_millones,
-                graph_millardo + graph_millones,
-                graph_millardo + pynutil.insert("000", weight=0.1),
+                graph_miljarder,
+                pynutil.insert("000", weight=0.1) + graph_miljoner,
+                graph_miljarder + graph_miljoner,
+                graph_miljarder + pynutil.insert("000", weight=0.1),
             )
             + delete_space
             + graph_thousands
