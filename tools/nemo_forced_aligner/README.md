@@ -2,23 +2,18 @@
 
 A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based models.
 
-# Example script
+## Usage example 
 
-```python
-from align import align
-
-if __name__ == "__main__":
-    align(
-        manifest_filepath=<path to manifest of utterances you want to align>,
-        output_ctm_folder=<path to where your ctm files will be saved>,
-    )
-
+```
+python <path_to_NeMo>/NeMo/tools/nemo_forced_aligner/align.py \
+        manifest_filepath=<path to manifest of utterances you want to align> \
+        output_ctm_folder=<path to where your ctm files will be saved>
 ```
 
 ## How do I use NeMo Forced Aligner?
 To use NFA, all you need to provide is a correct NeMo manifest (with 'audio_filepath' and 'text' fields).
 
-Call the align function in align.py, specifying the parameters as follows:
+Call the align.py script, specifying the parameters as follows:
 
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing 'audio_filepath' and 'text' fields.
 
