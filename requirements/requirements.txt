@@ -6,7 +6,6 @@ python-dateutil
 ruamel.yaml
 scikit-learn
 setuptools==59.5.0
-setuptools==59.5.0
 tensorboard
 text-unidecode
 torch
