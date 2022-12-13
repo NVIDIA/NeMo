@@ -249,7 +249,7 @@ def build_train_valid_test_datasets(
        Currently only supports one retrieval dataset.
     """
     # make sure there is one to one mapping  between data_prefix and knn_map_path
-    assert len(data_prefix) == len(knn_map_path)
+    # assert len(data_prefix) == len(knn_map_path)
 
     # Single dataset.
     if len(data_prefix) == 1:
@@ -465,3 +465,7 @@ def build_mock_train_valid_test_datasets(
     test_dataset = build_dataset(2, 'test')
 
     return (train_dataset, valid_dataset, test_dataset)
+
+# def build_adapter_train_valid_test_datasets(
+#     cfg, trainer, splits
+# )

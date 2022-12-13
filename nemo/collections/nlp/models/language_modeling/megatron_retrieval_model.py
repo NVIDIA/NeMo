@@ -453,6 +453,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self._train_dl is not None and self._validation_dl is not None:
             return
         self.build_train_valid_test_datasets()
+
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)

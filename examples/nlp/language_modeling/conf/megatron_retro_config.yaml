@@ -97,9 +97,10 @@ model:
     #   - /raid/data/pile/my-gpt3_00_text_document
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
-    data_prefix: ???  # list of training datasets
-    knn_index: ???  # list of KNN map index files
-    retrieval_prefix: ???   # a singe path to retrieval data
+    data_prefix: 
+      - /workspaces/research/downloaded/rte/rte_train.jsonl # list of training datasets
+    knn_index: /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+    retrieval_prefix: /dataset/retro_mc4_text_document/retro_mc4_text_document   # a singe path to retrieval data
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 900,50,50
