@@ -20,28 +20,32 @@ import pytest
 import torch
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
-from nemo.collections.asr.parts.utils.nmesc_clustering import (
-    OnlineSpeakerClustering,
+
+from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
+    get_scale_interpolated_embs,
+    getCosAffinityMatrix,
+    split_input_data,
+)
+from nemo.collections.asr.parts.utils.online_clustering import (
+    OnlineSpeakerClustering,
     get_closest_embeddings,
     get_merge_quantity,
     get_minimal_indices,
-    get_scale_interpolated_embs,
-    getCosAffinityMatrix,
     merge_vectors,
     run_reducer,
-    split_input_data,
     stitch_cluster_labels,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_new_cursor_for_update,
-    get_online_subsegments_from_buffer,
-    get_speech_labels_for_update,
-    get_subsegments,
-    get_target_sig,
-    merge_float_intervals,
-    merge_int_intervals,
+get_subsegments,
+merge_int_intervals,
+merge_float_intervals,
+get_speech_labels_for_update,
+get_online_subsegments_from_buffer,
+get_new_cursor_for_update,
+get_target_sig,
 )
+
 
 MAX_SEED_COUNT = 2
 
@@ -671,12 +675,23 @@ class TestSpeakerClustering:
             # Resolve permutations
             merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
             assert len(merged_clus_labels) == (frame_index + 1) * step_per_frame
-            print(merged_clus_labels)
             # Resolve permutation issue by using stitch_cluster_labels function
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))
 
-        assert online_clus.isOnline
+        assert online_clus.is_online
         assert add_new
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
+
+class TestClusteringUtilFunctions:
+    """Tests diarization and speaker-task related utils.
+    """
+
+    # @pytest.mark.unit
+    # def test_merge_int_intervals_ex1(self):
+        # intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
+        # target = [[1, 6], [8, 10], [15, 18]]
+        # merged = merge_int_intervals(intervals)
+        # assert check_range_values(target, merged)
+

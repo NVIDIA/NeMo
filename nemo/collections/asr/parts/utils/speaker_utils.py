@@ -27,7 +27,7 @@ from pyannote.core import Annotation, Segment
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
-from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering, get_argmin_mat, split_input_data
+from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
 from nemo.utils import logging
 
 
@@ -1586,6 +1586,7 @@ def make_rttm_with_overlap(
 def embedding_normalize(embs, use_std=False, eps=1e-10):
     """
     Mean and l2 length normalize the input speaker embeddings
+
     Args:
         embs: embeddings of shape (Batch,emb_size)
     Returns:
