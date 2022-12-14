@@ -665,10 +665,6 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     """
     A wrapper for generate_vad_segment_table_per_tensor
     """
-    if "audio-1434529408-headset" in pred_filepath:
-        import ipdb
-
-        ipdb.set_trace()
     sequence, name = load_tensor_from_file(pred_filepath)
     out_dir, per_args_float = prepare_gen_segment_table(sequence, per_args)
 
