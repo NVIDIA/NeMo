@@ -149,7 +149,9 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         # For now I'm hard coding some very weird tokens
 
         self.eos_id = self.tokenizer.eos_id
-        # "------------------------------------------------": 47232
+        # Since there's no special SEP token on GPT2 tokenizer, the token 49704
+        # has been selected as hard token for separation. Using simple new line
+        # token proved to be innefective.
         # "////////////////////////////////": 49704
         self.sep_id = 49704
         self._reduced_loss_buffer = []
@@ -557,29 +559,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
 
         return loss_with_batch_size_list
 
-        # # only the last stage of the pipeline returns losses
-        # if losses_reduced_per_micro_batch:
-        #     if self.cfg.data.get('validation_drop_last', True):
-        #         # average loss across micro batches
-        #         loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-        #         return torch.concat(loss_tensors_list).mean()
-        #     else:
-        #         # Get the total loss since micro batches sizes are not uniform
-        #         loss_sum_tensors_list = [
-        #             loss_sum['loss_sum_and_mb_size']
-        #             for loss_sum in losses_reduced_per_micro_batch
-        #             if loss_sum['loss_sum_and_mb_size'][1] > 0
-        #         ]
-        #         loss_sum = (
-        #             torch.vstack(loss_sum_tensors_list).sum(axis=0)
-        #             if len(loss_sum_tensors_list) > 0
-        #             else torch.tensor(0.0)
-        #         )
-        #         return loss_sum
-        # else:
-        #     # we're not on the last pipeline stage so no losses
-        #     return []
-
     def validation_epoch_end(self, outputs):
 
         if parallel_state.is_pipeline_last_stage():
@@ -602,22 +581,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        # if parallel_state.is_pipeline_last_stage():
-        #     # only the last pipeline parallel stages return loss with their batch size
-        #     if self.cfg.data.get('validation_drop_last', True):
-        #         averaged_loss = torch.stack(outputs).mean()
-        #     else:
-        #         # Compute the avg loss by total_loss across all samples / total number of samples
-        #         total_loss_and_total_samples = torch.vstack(outputs).sum(axis=0)
-        #         avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
-        #         averaged_loss = avg_loss.type(torch.float32).cuda()
-        # else:
-        #     averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
-
-        # # we can only log on one rank if it is rank zero so we broadcast from last rank
-        # torch.distributed.broadcast(averaged_loss, get_last_rank())
-
-        # self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -736,7 +699,6 @@ class MegatronGPTSFTModel(MegatronBaseModel, TextGeneration):
         )
 
         return dataset, dataloader
-
 
     def process_global_batch(self, global_batch, global_batch_size=None):
         """ Prepares the global batch for apex fwd/bwd functions.
