@@ -146,20 +146,23 @@ class ASRWithTTSModel(ASRModel):
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     # fix trainer, see https://github.com/Lightning-AI/lightning/issues/13146#issuecomment-1137593172
-    @property
-    def trainer(self) -> Trainer:
-        if self._trainer is None:
-            raise RuntimeError(f"The {self.__class__.__qualname__} is not attached to a Trainer.")
-        return self._trainer
+    # @property
+    # def trainer(self) -> Optional[Trainer]:
+    #     return self._trainer
+    #
+    # @trainer.setter
+    # def trainer(self, trainer: Optional[Trainer]) -> None:
+    #     if trainer is not None and not isinstance(trainer, Trainer):
+    #         raise RuntimeError(f"{self.__class__.__qualname__} should be connected to a `Trainer`, found: {trainer}.")
+    #     self._trainer = trainer
+    #     for v in vars(self).values():
+    #         if isinstance(v, pl.LightningModule):
+    #             v.trainer = trainer
 
-    @trainer.setter
-    def trainer(self, trainer: Trainer) -> None:
-        if not isinstance(trainer, Trainer):
-            raise RuntimeError(f"{self.__class__.__qualname__} should be connected to a `Trainer`, found: {trainer}.")
-        self._trainer = trainer
-        for v in vars(self).values():
-            if isinstance(v, pl.LightningModule):
-                v.trainer = trainer
+    def __setattr__(self, name, value):
+        if name == "_current_fx_name" and self._full_init_guard:
+            self.asr_model._current_fx_name = value
+        return super().__setattr__(name, value)
 
     def change_vocabulary(
         self,
@@ -176,6 +179,12 @@ class ASRWithTTSModel(ASRModel):
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        return self.asr_model.multi_validation_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
