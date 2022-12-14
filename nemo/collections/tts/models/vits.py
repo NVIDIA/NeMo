@@ -42,6 +42,7 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
+@experimental
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig

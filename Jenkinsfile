@@ -307,8 +307,8 @@ pipeline {
     stage('L2: Speech to Text EMA') {
       when {
         anyOf {
-          branch  'main'
-          changeRequest target:  'main'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       steps {
@@ -580,8 +580,8 @@ pipeline {
     // stage('L2: Hybrid ASR RNNT-CTC dev run') {
     //   when {
     //     anyOf {
-    //       branch  'main'
-    //       changeRequest target:  'main'
+    //       branch 'main'
+    //       changeRequest target: 'main'
     //     }
     //   }
     //   failFast true
@@ -2959,8 +2959,8 @@ pipeline {
     stage('L2: Megatron Bert Pretraining and Resume Training with Pipeline Paralleism') {
       when {
         anyOf {
-          branch  'main'
-          changeRequest target:  'main'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -3452,8 +3452,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
     stage('L2: Megatron GPT Prompt Tuning') {
       when {
         anyOf {
-          branch  'main'
-          changeRequest target:  'main'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -3788,8 +3788,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
     stage('L2: Megatron T5 w/ Mixture of Expert Pretraining') {
       when {
         anyOf {
-          branch  'main'
-          changeRequest target:  'main'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
