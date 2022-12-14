@@ -23,6 +23,7 @@ def print_appstate():
     # FixMe: remove
     app_state = AppState()
     print("=" * 50)
+    print("App State")
     print(app_state.nemo_file_folder)
     print(app_state.model_restore_path)
     print(app_state._tmpdir_name)
@@ -33,7 +34,7 @@ def print_appstate():
 
 
 @contextmanager
-def preserve_nemo_file_folder():
+def _preserve_nemo_file_folder():
     """
     Preserve singleton AppState when combining 2 nemo models
     """
@@ -74,17 +75,13 @@ class ASRWithTTSModel(ASRModel):
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        print("State before restore")
-        print_appstate()
-
         model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
         super().__init__(cfg, trainer=trainer)
 
         OmegaConf.set_struct(cfg, False)
-        print(cfg)
 
-        with preserve_nemo_file_folder():
+        with _preserve_nemo_file_folder():
             tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
             tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
 
@@ -95,7 +92,7 @@ class ASRWithTTSModel(ASRModel):
         optim_cfg = cfg.pop("optim", None)
 
         if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
-            with preserve_nemo_file_folder():
+            with _preserve_nemo_file_folder():
                 asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                 asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
                 # get optimizer config from ASR model
@@ -103,7 +100,7 @@ class ASRWithTTSModel(ASRModel):
                     optim_cfg = asr_model.cfg.get("optim", None)
         else:
             # instantiate asr model from config
-            with preserve_nemo_file_folder():
+            with _preserve_nemo_file_folder():
                 asr_model = model_type.get_asr_cls()(cfg)
                 with tempfile.TemporaryDirectory() as tmp_dir_name:
                     save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
@@ -123,8 +120,6 @@ class ASRWithTTSModel(ASRModel):
             self.setup_validation_data(val_data_config=validation_ds_cfg)
         if test_ds_cfg:
             self.setup_test_data(test_data_config=test_ds_cfg)
-        print("State after restore")
-        print_appstate()
 
     @classmethod
     def from_asr_config(
@@ -236,13 +231,13 @@ class ASRWithTTSModel(ASRModel):
             transcript_len = batch.transcript_length
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = batch
-            if isinstance(batch, DALIOutputs):
-                raise NotImplementedError  # FixMe
-            else:
-                spectrogram, spectrogram_len = self.preprocessor(
-                    input_signal=audio_signal,
-                    length=audio_signal_len,
-                )
+            # if isinstance(batch, DALIOutputs):
+            #     raise NotImplementedError  # FixMe
+            # else:
+            spectrogram, spectrogram_len = self.preprocessor(
+                input_signal=audio_signal,
+                length=audio_signal_len,
+            )
         spectrogram = clean_spectrogram(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
@@ -251,7 +246,8 @@ class ASRWithTTSModel(ASRModel):
             logging.warning("No training data")
             return
 
-        if train_data_config.get("textonly_manifest_filepath") is not None:
+        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        if train_data_config.get("text_data") is not None:
             tts_dataset = self._setup_text_dataset_from_config(train_data_config)
         else:
             tts_dataset = None
@@ -275,20 +271,18 @@ class ASRWithTTSModel(ASRModel):
         )
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        assert "textonly_manifest_filepath" in train_data_config
-        # preserve config
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        text_data_config = train_data_config.text_data
         textonly_ds = TextToTextDataset(
-            manifest_filepath=train_data_config.textonly_manifest_filepath,
-            speakers_filepath=train_data_config.speakers_filepath,
-            asr_tokenizer=self.asr_tokenizer,
+            manifest_filepath=text_data_config.manifest_filepath,
+            speakers_filepath=text_data_config.speakers_filepath,
+            asr_tokenizer=self.asr_model.tokenizer,
             asr_use_start_end_token=train_data_config.use_start_end_token,
-            tts_text_normalizer=self.tts_normalizer,
-            tts_text_normalizer_call_kwargs=self.tts_text_normalizer_call_kwargs,
-            tts_parser=self.tts_parser,
-            tts_text_pad_id=self.tts_text_pad,
-            min_words=train_data_config.min_words,
-            max_words=train_data_config.max_words,
+            tts_text_normalizer=self.tts_model.normalizer,
+            tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
+            tts_parser=self.tts_model.parser,
+            tts_text_pad_id=self.vocab.pad,
+            min_words=text_data_config.get("min_words", 1),
+            max_words=text_data_config.get("max_words", 1_000_000),
             tokenizer_workers=train_data_config.dl_workers.get('num_workers', 1),
         )
         return textonly_ds
