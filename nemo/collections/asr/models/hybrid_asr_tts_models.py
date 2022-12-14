@@ -169,7 +169,10 @@ class ASRWithTTSModel(ASRModel):
         optim_config: Optional[Union[DictConfig, Dict]] = None,
         optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        return self.asr_model.setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+        self._optimizer, self._scheduler = self.asr_model.setup_optimization(
+            optim_config=optim_config, optim_kwargs=optim_kwargs
+        )
+        return self._optimizer, self._scheduler
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
