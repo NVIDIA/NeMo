@@ -133,18 +133,17 @@ def english_text_preprocessing(text, lower=True):
 def _word_tokenize(words: List[Tuple[str, str, str]]) -> List[Tuple[List[str], bool]]:
     """
     Process a list of words and attach indicators showing if each word is unchangeable or not. Each word representation
-    can be one of valid word, any substring starting from | to | (unchangeable word), or punctuation marks. This
-    function expects that the unchangeable word will be split by a whitespace. All words are represented as `List[str]`.
-    For example,
+    can be one of valid word, any substring starting from | to | (unchangeable word), or punctuation marks including
+    whitespaces. This function will split unchanged strings by whitespaces and return them as `List[str]`. For example,
 
     .. code-block:: python
         [
-            ('Hello', '', ''),
-            ('', '', ' '),
-            ('World', '', ''),
-            ('', '', ' '),
-            ('', '|NVIDIA unchanged|', ''),
-            ('', '', '!')
+            ('Hello', '', ''),  # valid word
+            ('', '', ' '),  # punctuation mark
+            ('World', '', ''),  # valid word
+            ('', '', ' '),  # punctuation mark
+            ('', '|NVIDIA unchanged|', ''),  # unchangeable word
+            ('', '', '!')  # punctuation mark
         ]
 
     will be converted into,
