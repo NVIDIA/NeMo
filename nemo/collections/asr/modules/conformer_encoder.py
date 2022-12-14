@@ -185,7 +185,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         pos_emb_max_len=5000,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
-        conv_activation='_glu',
+        conv_activation='glu_',
         conv_context_size=None,
         dropout=0.1,
         dropout_pre_encoder=0.1,
