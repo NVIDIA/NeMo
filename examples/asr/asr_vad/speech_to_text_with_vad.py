@@ -20,8 +20,8 @@ and the other one is to pass a directory containing audios to `audio_dir` and sp
 
 The input manifest must be a manifest json file, where each line is a Python dictionary. The fields ["audio_filepath", "offset", "duration",  "text"] are required. An example of a manifest file is:
 ```
-{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": null,  "text": "a b c d e"}
-{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": null,  "text": "f g h i j"}
+{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000,  "text": "a b c d e"}
+{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": 10000,  "text": "f g h i j"}
 ```
 
 To run the code with ASR+VAD default settings:
