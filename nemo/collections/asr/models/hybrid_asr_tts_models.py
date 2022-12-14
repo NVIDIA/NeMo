@@ -10,11 +10,12 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
+from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.tts.models import FastPitchModel
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
@@ -164,19 +165,6 @@ class ASRWithTTSModel(ASRModel):
             self.asr_model._current_fx_name = value
         return super().__setattr__(name, value)
 
-    def change_vocabulary(
-        self,
-        new_tokenizer_dir: Union[str, DictConfig],
-        new_tokenizer_type: str,
-        decoding_cfg: Optional[DictConfig] = None,
-    ):
-        return self.asr_model.change_vocabulary(
-            new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type=new_tokenizer_type, decoding_cfg=decoding_cfg
-        )
-
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
-        return self.asr_model.change_decoding_strategy(decoding_cfg=decoding_cfg)
-
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
 
@@ -262,9 +250,6 @@ class ASRWithTTSModel(ASRModel):
             transcript_len = batch.transcript_length
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = batch
-            # if isinstance(batch, DALIOutputs):
-            #     raise NotImplementedError  # FixMe
-            # else:
             spectrogram, spectrogram_len = self.preprocessor(
                 input_signal=audio_signal,
                 length=audio_signal_len,
@@ -291,7 +276,7 @@ class ASRWithTTSModel(ASRModel):
         if dataset is None:
             return None
         collate_fn = dataset.collate_fn
-        return torch.utils.data.DataLoader(
+        self._train_dl = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=train_data_config['batch_size'],
             collate_fn=collate_fn,
@@ -317,3 +302,20 @@ class ASRWithTTSModel(ASRModel):
             tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
         )
         return textonly_ds
+
+    def training_step(self, batch: Union[TextOrAudioToTextBatch, TextToTextBatch, DALIOutputs, tuple], batch_nb: int):
+        assert not self.tts_model.training
+        if isinstance(batch, DALIOutputs):
+            return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)
+        spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
+        return self.asr_model.training_step(
+            batch=DALIOutputs(
+                dict(
+                    processed_signal=spectrogram,
+                    processed_signal_len=spectrogram_len,
+                    transcript=transcript,
+                    transcript_len=transcript_len,
+                )
+            ),
+            batch_nb=batch_nb,
+        )

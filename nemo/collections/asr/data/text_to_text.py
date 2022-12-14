@@ -44,6 +44,7 @@ class TextToTextBatch(NamedTuple):
             tts_text_length=torch.tensor([item.tts_text.shape[0] for item in batch]).long(),
             transcripts=pad_sequence([item.transcript for item in batch], batch_first=True, padding_value=asr_pad_id),
             transcript_length=torch.tensor([item.transcript.shape[0] for item in batch]).long(),
+            speakers=torch.tensor([item.speaker for item in batch]).long(),
         )
 
 
@@ -60,7 +61,7 @@ class TextOrAudioToTextBatch(NamedTuple):
     def collate_fn(
         batch: List[tuple], tts_text_pad_id: int, asr_pad_id: int
     ) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
-        text_items = [item for item in batch if isinstance(item, TextToTextItem)]
+        text_items: List[TextToTextItem] = [item for item in batch if isinstance(item, TextToTextItem)]
         if not text_items:
             return _speech_collate_fn(batch=batch, pad_id=asr_pad_id)
 
