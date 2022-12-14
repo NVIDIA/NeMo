@@ -34,6 +34,7 @@ from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators.experimental import experimental
 
 HAVE_WANDB = True
 try:
