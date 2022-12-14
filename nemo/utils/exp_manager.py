@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import re
 import subprocess
@@ -114,10 +115,10 @@ class StepTimingParams:
 @dataclass
 class EMAParams:
     enable: Optional[bool] = False
-    evaluate_ema_weights_instead: Optional[bool] = False
     decay: Optional[float] = 0.999
-    apply_ema_every_n_steps: Optional[int] = 1
-    start_step: Optional[int] = 0
+    cpu_offload: Optional[bool] = False
+    validate_original_weights: Optional[bool] = False
+    every_n_steps: int = 1
 
 
 @dataclass
@@ -387,9 +388,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.ema.enable:
         ema_callback = EMA(
             decay=cfg.ema.decay,
-            apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps,
-            start_step=cfg.ema.start_step,
-            evaluate_ema_weights_instead=cfg.ema.evaluate_ema_weights_instead,
+            validate_original_weights=cfg.ema.validate_original_weights,
+            cpu_offload=cfg.ema.cpu_offload,
+            every_n_steps=cfg.ema.every_n_steps,
         )
         trainer.callbacks.append(ema_callback)
 
@@ -914,24 +915,27 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             except:
                 logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
-    def _get_ema_callback(self, trainer) -> Optional[EMA]:
+    def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
         ema_callback = None
         for callback in trainer.callbacks:
             if isinstance(callback, EMA):
                 ema_callback = callback
         return ema_callback
 
-    def _save_checkpoint(self, trainer, filepath: str) -> None:
-        super()._save_checkpoint(trainer, filepath)
-        ema_callback = self._get_ema_callback(trainer)
+    def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
+            with ema_callback.save_original_optimizer_state(trainer):
+                super()._save_checkpoint(trainer, filepath)
+
             # save EMA copy of the model as well.
-            ema_callback.replace_model_weights(trainer.lightning_module)
-            filepath = self._ema_format_filepath(filepath)
-            if self.verbose:
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+            with ema_callback.save_ema_model(trainer):
+                filepath = self._ema_format_filepath(filepath)
+                if self.verbose:
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
+        else:
             super()._save_checkpoint(trainer, filepath)
-            ema_callback.restore_original_weights(trainer.lightning_module)
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
@@ -1039,3 +1043,29 @@ class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
         return super()._should_check_val_fx()
+
+
+def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):
+    """
+    Helper method that removes Pytorch Lightning .ckpt files or NeMo .nemo files from the checkpoint directory
+
+    Args:
+        exp_log_dir: str path to the root directory of the current experiment.
+        remove_ckpt: bool, whether to remove all *.ckpt files in the checkpoints directory.
+        remove_nemo: bool, whether to remove all *.nemo files in the checkpoints directory.
+    """
+    exp_log_dir = str(exp_log_dir)
+
+    if remove_ckpt:
+        logging.info("Deleting *.ckpt files ...")
+        ckpt_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.ckpt"))
+        for filepath in ckpt_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")
+
+    if remove_nemo:
+        logging.info("Deleting *.nemo files ...")
+        nemo_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.nemo"))
+        for filepath in nemo_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")
