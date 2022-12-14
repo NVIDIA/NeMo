@@ -85,6 +85,10 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
 # install pinned numba version
 # RUN conda install -c conda-forge numba==0.54.1
 
+# Pinned to numba==0.53.1 to avoid bug in training with num_workers > 0
+# The bug still exists with PTL 1.8.4, this is just a temporary workaround.
+RUN pip install numba==0.53.1
+
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
 COPY scripts /workspace/nemo/scripts
@@ -95,3 +99,8 @@ COPY tutorials /workspace/nemo/tutorials
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
+
+# Prepare AIS CLI
+ARG AIS_VERSION=v1.3.15
+ARG AIS_BIN=https://github.com/NVIDIA/aistore/releases/download/${AIS_VERSION}/ais-linux-amd64.tar.gz
+RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/.
