@@ -128,7 +128,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         micro_batch_size: int,
         data_parallel_rank: int,
         data_parallel_size: int,
-        drop_last: bool,
+        drop_last: bool = True,
         global_batch_size: Optional[int] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
     ) -> None:
