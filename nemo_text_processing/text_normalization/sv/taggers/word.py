@@ -11,22 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class WordFst(GraphFst):
     """
     Finite state transducer for classifying word.
-        e.g. ord -> tokens { name: "ord" }
+        e.g. hund -> tokens { name: "hund" }
 
     Args:
         deterministic: if True will provide a single transduction option,
