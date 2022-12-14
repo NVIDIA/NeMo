@@ -3,6 +3,7 @@ $	dollar
 £	pund
 ₩	won
 nzd	nyzeeländsk dollar
+nz$	nyzeeländsk dollar
 rs	rupie
 chf	schweizisk franc
 fr	franc
@@ -22,8 +23,50 @@ hkd	Hongkongdollar
 awg	arubansk florin
 nok	Norsk krone
 sek	krona
-R$	real
-BRL	real
-ESP	peseta
+r$	real
+brl	real
+esp	peseta
 ₧	peseta
 Ptas	peseta
+usd	amerikansk dollar
+aud	australisk dollar
+au$	australisk dollar
+bsd	bahamansk dollar
+bs$	bahamansk dollar
+bbd	barbadisk dollar
+bds$	barbadisk dollar
+bzd	belizisk dollar
+bz$	belizisk dollar
+bmd	bermudisk dollar
+bd$	bermudisk dollar
+bnd	bruneisk dollar
+b$	bruneisk dollar
+kyd	caymansk dollar
+ci$	caymansk dollar
+fjd	fijidollar
+fj$	fijidollar
+gyd	guyansk dollar
+gy$	guyansk dollar
+hkd	hongkongdollar
+hk$	hongkongdollar
+jmd	jamaicansk dollar
+ja$	jamaicansk dollar
+cad	kanadensisk dollar
+c$	kanadensisk dollar
+lrd	liberiansk dollar
+lib$	liberiansk dollar
+nad	namibisk dollar
+n$	namibisk dollar
+sbd	salomondollar
+si$	salomondollar
+sgd	singaporiansk dollar
+srd	surinamesisk dollar
+twd	taiwanesisk dollar
+nt$	taiwanesisk dollar
+ttd	trinidaddollar
+tt$	trinidaddollar
+tuv$	tuvaluansk dollar
+zwd	zimbabwisk dollar
+z$	zimbabwisk dollar
+xcd	östkaribisk dollar
+ec$	östkaribisk dollar
