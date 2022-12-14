@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.09-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.11-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -28,36 +28,28 @@ RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
     libfreetype6 \
-    python-setuptools swig \
-    python-dev ffmpeg && \
+    swig \
+    ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
-RUN git clone https://github.com/NVIDIA/apex.git && \
+
+RUN git clone https://github.com/NVIDIA/apex.git -b 22.11-devel && \
     cd apex && \
-    git checkout 2b0e8371113fe70758f1964c40bf7dbe304fd9e6 && \
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+    pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
-RUN pip uninstall -y sacrebleu torchtext
+RUN pip3 uninstall -y sacrebleu torchtext
 
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
 COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
 RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh
 
-#install TRT tools: PT quantization support and ONNX graph optimizer
-WORKDIR /tmp/trt_build
-RUN git clone https://github.com/NVIDIA/TensorRT.git && \
-    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install && \
-    cd ../pytorch-quantization && \
-    python setup.py install && \
-    rm -fr  /tmp/trt_build
-
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # install pynini
 COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
@@ -73,24 +65,29 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.13.0
+ARG NEMO_VERSION=1.14.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
 RUN /usr/bin/test -n "$NEMO_VERSION" && \
     /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
     /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
-# TODO: remove sed when PTL has updated their torchtext import check
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" && \
-    sed -i "s/_module_available(\"torchtext\")/False/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py && \
-    python -c "import nemo.collections.asr as nemo_asr" && \
-    python -c "import nemo.collections.nlp as nemo_nlp" && \
+
+# Install NeMo
+RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+
+# Check install
+RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
 # TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
 # install pinned numba version
 # RUN conda install -c conda-forge numba==0.54.1
+
+# Pinned to numba==0.53.1 to avoid bug in training with num_workers > 0
+# The bug still exists with PTL 1.8.4, this is just a temporary workaround.
+RUN pip install numba==0.53.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
@@ -102,3 +99,8 @@ COPY tutorials /workspace/nemo/tutorials
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
+
+# Prepare AIS CLI
+ARG AIS_VERSION=v1.3.15
+ARG AIS_BIN=https://github.com/NVIDIA/aistore/releases/download/${AIS_VERSION}/ais-linux-amd64.tar.gz
+RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/.

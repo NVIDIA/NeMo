@@ -308,6 +308,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
         # handle asynchronous grad reduction
+        custom_sync_context_handler = None
+        custom_grad_sync_func = None
         if self.with_distributed_adam:
             if self.megatron_amp_o2:
                 # copy grads to main grad
@@ -315,6 +317,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 # keep grad tensors around
                 custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
+            custom_grad_sync_func = self.reduce_overlap_gradients
         else:
             if (
                 self.megatron_amp_o2
@@ -337,8 +340,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 custom_sync_context_handler=custom_sync_context_handler,
+                custom_grad_sync_func=custom_grad_sync_func,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -349,6 +354,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 custom_sync_context_handler=custom_sync_context_handler,
             )
@@ -363,11 +369,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             loss_mean = torch.tensor(0.0).cuda()
 
         if self.with_distributed_adam:
-            # launch grad reductions
-            # Note: grads in first pipeline stage have already been
-            # reduced
-            if not parallel_state.is_pipeline_first_stage():
-                self.reduce_overlap_gradients()
+            # gradients are reduced internally in distributed optimizer
+            pass
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -657,6 +660,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
@@ -668,6 +672,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
@@ -700,6 +705,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
@@ -711,6 +717,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
@@ -846,6 +853,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         }
 
     def process_global_batch(self, global_batch):
+        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
+        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
+        global_batch['dec_mask'][:, 0] = 1
+
         return [
             global_batch["text_enc"],
             global_batch["text_dec"],
@@ -951,7 +962,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
             self._validation_dl = self.build_pretraining_data_loader(
-                self._validation_ds, consumed_samples, num_workers=0
+                self._validation_ds, consumed_samples, num_workers=self._cfg.data.num_workers
             )
 
     def setup_test_data(self, cfg):
@@ -1042,6 +1053,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             )
         else:
             output_tensor = forward_backward_no_pipelining(
@@ -1052,6 +1064,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             )
 
         if output_tensor:

@@ -22,8 +22,13 @@ import pytest
 
 from nemo.collections.asr.parts.utils.audio_utils import SOUND_VELOCITY as sound_velocity
 from nemo.collections.asr.parts.utils.audio_utils import (
+    db2mag,
     estimated_coherence,
     generate_approximate_noise_field,
+    get_segment_start,
+    mag2db,
+    pow2db,
+    rms,
     select_channels,
     theoretical_coherence,
 )
@@ -229,3 +234,63 @@ class TestGenerateApproximateNoiseField:
                 )
             )
             plt.close()
+
+
+class TestAudioUtilsElements:
+    @pytest.mark.unit
+    def test_rms(self):
+        """Test RMS calculation
+        """
+        # setup
+        A = np.random.rand()
+        omega = 100
+        n_points = 1000
+        rms_threshold = 1e-4
+        # prep data
+        t = np.linspace(0, 2 * np.pi, n_points)
+        x = A * np.cos(2 * np.pi * omega * t)
+        # test
+        x_rms = rms(x)
+        golden_rms = A / np.sqrt(2)
+        assert (
+            np.abs(x_rms - golden_rms) < rms_threshold
+        ), f'RMS not matching for A={A}, omega={omega}, n_point={n_points}'
+
+    @pytest.mark.unit
+    def test_db_conversion(self):
+        """Test conversions to and from dB.
+        """
+        num_examples = 10
+        abs_threshold = 1e-6
+
+        mag = np.random.rand(num_examples)
+        mag_db = mag2db(mag)
+
+        assert all(np.abs(mag - 10 ** (mag_db / 20)) < abs_threshold)
+        assert all(np.abs(db2mag(mag_db) - 10 ** (mag_db / 20)) < abs_threshold)
+        assert all(np.abs(pow2db(mag ** 2) - mag_db) < abs_threshold)
+
+    @pytest.mark.unit
+    def test_get_segment_start(self):
+        random_seed = 42
+        num_examples = 50
+        num_samples = 2000
+
+        _rng = np.random.default_rng(seed=random_seed)
+
+        for n in range(num_examples):
+            # Generate signal
+            signal = _rng.normal(size=num_samples)
+            # Random start in the first half
+            start = _rng.integers(low=0, high=num_samples // 2)
+            # Random length
+            end = _rng.integers(low=start, high=num_samples)
+            # Selected segment
+            segment = signal[start:end]
+
+            # UUT
+            estimated_start = get_segment_start(signal=signal, segment=segment)
+
+            assert (
+                estimated_start == start
+            ), f'Example {n}: estimated start ({estimated_start}) not matching the actual start ({start})'

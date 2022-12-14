@@ -15,7 +15,7 @@
 import copy
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
 import numpy as np
@@ -341,7 +341,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         encoded_lengths: torch.Tensor,
         return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
-    ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
+    ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -445,7 +445,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 # keep the original predictions, wrap with the number of repetitions per token and alignments
                 # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
-                alignments = hypotheses_list[ind].alignments
+                alignments = copy.deepcopy(hypotheses_list[ind].alignments)
                 token_repetitions = [1] * len(alignments)  # preserve number of repetitions per token
                 hypothesis = (prediction, alignments, token_repetitions)
             else:

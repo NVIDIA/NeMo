@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import re
 import subprocess
@@ -23,7 +24,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
@@ -32,8 +33,7 @@ from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
-from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
@@ -89,6 +89,21 @@ class CallbackParams:
 
 
 @dataclass
+class MLFlowParams:
+    # name of experiment, if none, defaults to the globally set experiment name
+    experiment_name: Optional[str] = None
+    # no run_name because it's set by version
+    # local or remote tracking seerver. If tracking_uri is not set, it defaults to save_dir
+    tracking_uri: Optional[str] = None
+    tags: Optional[Dict[str, Any]] = None
+    save_dir: Optional[str] = "./mlruns"
+    prefix: str = ""
+    artifact_location: Optional[str] = None
+    # provide run_id if resuming a previously started run
+    run_id: Optional[str] = None
+
+
+@dataclass
 class StepTimingParams:
     reduction: Optional[str] = "mean"
     # if True torch.cuda.synchronize() is called on start/stop
@@ -100,10 +115,10 @@ class StepTimingParams:
 @dataclass
 class EMAParams:
     enable: Optional[bool] = False
-    evaluate_ema_weights_instead: Optional[bool] = False
     decay: Optional[float] = 0.999
-    apply_ema_every_n_steps: Optional[int] = 1
-    start_step: Optional[int] = 0
+    cpu_offload: Optional[bool] = False
+    validate_original_weights: Optional[bool] = False
+    every_n_steps: int = 1
 
 
 @dataclass
@@ -122,6 +137,8 @@ class ExpManagerConfig:
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
+    create_mlflow_logger: Optional[bool] = False
+    mlflow_logger_kwargs: Optional[MLFlowParams] = MLFlowParams()
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
@@ -182,7 +199,7 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
-def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
+def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
@@ -190,7 +207,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
 
     The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
-    to False. It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning.
+     to False. It optionally creates TensorBoardLogger, WandBLogger, MLFlowLogger, ModelCheckpoint objects from pytorch lightning.
     It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
     process to log their output into.
 
@@ -231,6 +248,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - wandb_logger_kwargs (dict): A dictionary of kwargs that can be passed to lightning's WandBLogger
                 class. Note that name and project are required parameters if create_wandb_logger is True.
                 Defaults to None.
+            - create_mlflow_logger (bool): Whether to create an MLFlow logger and attach it to the pytorch lightning
+                training. Defaults to False
+            - mlflow_logger_kwargs (dict): optional parameters for the MLFlow logger
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
@@ -297,6 +317,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
     if checkpoint_name is None or checkpoint_name == '':
         checkpoint_name = cfg.name or "default"
+
+    # Set mlflow name if it's not set, before the main name is erased
+    if cfg.create_mlflow_logger and (not cfg.mlflow_logger_kwargs.get("experiment_name", None)):
+        cfg.mlflow_logger_kwargs.experiment_name = cfg.name
+        logging.warning(
+            'mlflow logger specified but no experiment name set. Using the same as Tensorboard: %s',
+            cfg.mlflow_logger_kwargs.experiment_name,
+        )
+
     cfg.name = name  # Used for configure_loggers so that the log_dir is properly set even if name is ""
     cfg.version = version
 
@@ -324,22 +353,20 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
 
     # Handle logging to file
-    # Logs local rank 0 only
-    if local_rank == 0 and cfg.log_local_rank_0_only is True and nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs only on global rank 0
-    elif global_rank == 0 and cfg.log_global_rank_0_only is True and not nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs on all ranks.
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+    if cfg.log_local_rank_0_only is True and not nemo_testing:
+        if local_rank == 0:
+            logging.add_file_handler(log_file)
+    elif cfg.log_global_rank_0_only is True and not nemo_testing:
+        if global_rank == 0:
+            logging.add_file_handler(log_file)
     else:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        # Logs on all ranks.
         logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
-    if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
+    if cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger:
         configure_loggers(
             trainer,
             exp_dir,
@@ -349,6 +376,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.summary_writer_kwargs,
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
+            cfg.create_mlflow_logger,
+            cfg.mlflow_logger_kwargs,
         )
 
     # add loggers timing callbacks
@@ -359,9 +388,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.ema.enable:
         ema_callback = EMA(
             decay=cfg.ema.decay,
-            apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps,
-            start_step=cfg.ema.start_step,
-            evaluate_ema_weights_instead=cfg.ema.evaluate_ema_weights_instead,
+            validate_original_weights=cfg.ema.validate_original_weights,
+            cpu_offload=cfg.ema.cpu_offload,
+            every_n_steps=cfg.ema.every_n_steps,
         )
         trainer.callbacks.append(ema_callback)
 
@@ -404,7 +433,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     """
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
-        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger is True
+        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger  or create_mlflow_logger is True
         - Prints error messages when 1) run on multi-node and not Slurm, and 2) run on multi-gpu without DDP
     """
     if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
@@ -412,12 +441,14 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
             "hydra.run.dir=. to your python script."
         )
-    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
+    if trainer.logger is not None and (
+        cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger
+    ):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
             f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
-            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
-            " logger."
+            f"{cfg.create_wandb_logger} or create_mlflow_logger: {cfg.create_mlflow_logger} was set to True. "
+            "These can only be used if trainer does not already have a logger."
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
@@ -520,8 +551,8 @@ def check_resume(
 
 
 def check_explicit_log_dir(
-    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], exp_dir: str, name: str, version: str
-) -> (Path, str, str, str):
+    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
+) -> Tuple[Path, str, str, str]:
     """ Checks that the passed arguments are compatible with explicit_log_dir.
 
     Returns:
@@ -558,7 +589,7 @@ def get_log_dir(
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
     resume_if_exists: bool = False,
-) -> (Path, str, str, str):
+) -> Tuple[Path, str, str, str]:
     """
     Obtains the log_dir used for exp_manager.
 
@@ -658,24 +689,6 @@ def get_git_diff():
         return "{}\n".format(err.output.decode("utf-8"))
 
 
-class LoggerList(_LoggerCollection):
-    """ A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager
-    """
-
-    def __init__(self, _logger_iterable, nemo_name=None, nemo_version=""):
-        super().__init__(_logger_iterable)
-        self._nemo_name = nemo_name
-        self._nemo_version = nemo_version
-
-    @property
-    def name(self) -> str:
-        return self._nemo_name
-
-    @property
-    def version(self) -> str:
-        return self._nemo_version
-
-
 def configure_loggers(
     trainer: 'pytorch_lightning.Trainer',
     exp_dir: [Path, str],
@@ -685,11 +698,13 @@ def configure_loggers(
     summary_writer_kwargs: dict,
     create_wandb_logger: bool,
     wandb_kwargs: dict,
+    create_mlflow_logger: bool,
+    mlflow_kwargs: dict,
 ):
-    """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
+    """ Creates TensorboardLogger and/or WandBLogger / MLFlowLogger and attach them to trainer. Raises ValueError if
     summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
-    # Potentially create tensorboard logger and/or WandBLogger
+    # Potentially create tensorboard logger and/or WandBLogger / MLFlowLogger
     logger_list = []
     if create_tensorboard_logger:
         if summary_writer_kwargs is None:
@@ -718,9 +733,12 @@ def configure_loggers(
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
 
-    logger_list = (
-        LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
-    )
+    if create_mlflow_logger:
+        mlflow_logger = MLFlowLogger(run_name=version, **mlflow_kwargs)
+
+        logger_list.append(mlflow_logger)
+        logging.info('MLFlowLogger has been set up')
+
     trainer._logger_connector.configure_logger(logger_list)
 
 
@@ -897,24 +915,27 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             except:
                 logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
-    def _get_ema_callback(self, trainer) -> Optional[EMA]:
+    def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
         ema_callback = None
         for callback in trainer.callbacks:
             if isinstance(callback, EMA):
                 ema_callback = callback
         return ema_callback
 
-    def _save_checkpoint(self, trainer, filepath: str) -> None:
-        super()._save_checkpoint(trainer, filepath)
-        ema_callback = self._get_ema_callback(trainer)
+    def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
+            with ema_callback.save_original_optimizer_state(trainer):
+                super()._save_checkpoint(trainer, filepath)
+
             # save EMA copy of the model as well.
-            ema_callback.replace_model_weights(trainer.lightning_module)
-            filepath = self._ema_format_filepath(filepath)
-            if self.verbose:
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+            with ema_callback.save_ema_model(trainer):
+                filepath = self._ema_format_filepath(filepath)
+                if self.verbose:
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
+        else:
             super()._save_checkpoint(trainer, filepath)
-            ema_callback.restore_original_weights(trainer.lightning_module)
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
@@ -1022,3 +1043,29 @@ class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
         return super()._should_check_val_fx()
+
+
+def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):
+    """
+    Helper method that removes Pytorch Lightning .ckpt files or NeMo .nemo files from the checkpoint directory
+
+    Args:
+        exp_log_dir: str path to the root directory of the current experiment.
+        remove_ckpt: bool, whether to remove all *.ckpt files in the checkpoints directory.
+        remove_nemo: bool, whether to remove all *.nemo files in the checkpoints directory.
+    """
+    exp_log_dir = str(exp_log_dir)
+
+    if remove_ckpt:
+        logging.info("Deleting *.ckpt files ...")
+        ckpt_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.ckpt"))
+        for filepath in ckpt_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")
+
+    if remove_nemo:
+        logging.info("Deleting *.nemo files ...")
+        nemo_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.nemo"))
+        for filepath in nemo_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")

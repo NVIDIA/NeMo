@@ -1,2 +1,8 @@
+attrdict
+einops
+inflect
 librosa
+matplotlib
 nltk
+pandas
+pypinyin

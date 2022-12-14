@@ -14,6 +14,9 @@
 
 """Utilities for generating text."""
 
+from collections.abc import Iterable
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -211,6 +214,19 @@ def repetition_penalty(logits, repetition_penalty, used_tokens):
     return logits
 
 
+def get_model_parallel_src_rank():
+    """Calculate the global rank corresponding to the first local rank
+    in the model parallel group."""
+    world_size = torch.distributed.get_world_size()
+    all_ranks = np.arange(world_size)
+    tp_size = parallel_state.get_tensor_model_parallel_world_size()
+    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+    # [pipeline dim, data parallel, tensor dim]
+    all_ranks = all_ranks.reshape(pp_size, -1, tp_size)
+    dp_rank = parallel_state.get_data_parallel_rank()
+    return all_ranks[:, dp_rank, :].min()
+
+
 def send_generate_info(
     context_tokens_tensor,
     context_length_tensor,
@@ -226,6 +242,8 @@ def send_generate_info(
     """
     Needs to be synced up with receive_generate_info
     """
+    model_parallel_group = parallel_state.get_model_parallel_group()
+    src = get_model_parallel_src_rank()
     # Send the sizes of the tensors
     input_info = [
         context_tokens_tensor.size(0),  # batch_size
@@ -240,19 +258,21 @@ def send_generate_info(
         min_tokens_to_generate,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
-    torch.distributed.broadcast(input_info_tensor, 0)
+    torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
 
     # Send variables to all ranks
-    torch.distributed.broadcast(context_length_tensor, 0)
-    torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(context_length_tensor, src, model_parallel_group)
+    torch.distributed.broadcast(context_tokens_tensor, src, model_parallel_group)
 
 
 def receive_generate_info():
     """
     Needs to be synced up with send_generate_info
     """
+    model_parallel_group = parallel_state.get_model_parallel_group()
+    src = get_model_parallel_src_rank()
     input_info_tensor = torch.empty(10, dtype=torch.float32, device=torch.cuda.current_device())
-    torch.distributed.broadcast(input_info_tensor, 0)
+    torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
     tokens_to_generate = int(input_info_tensor[2].item())
@@ -267,8 +287,8 @@ def receive_generate_info():
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
     # Send variables to all ranks
-    torch.distributed.broadcast(context_length_tensor, 0)
-    torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(context_length_tensor, src, model_parallel_group)
+    torch.distributed.broadcast(context_tokens_tensor, src, model_parallel_group)
 
     return (
         context_length_tensor,
@@ -406,7 +426,7 @@ def generate(
     else:
         inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
-    if torch.distributed.get_rank() == 0:
+    if torch.distributed.get_rank() == get_model_parallel_src_rank():
         if isinstance(inputs, tuple):
             context_tokens_tensor, context_length_tensor = inputs
         else:
@@ -454,6 +474,21 @@ def generate(
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
     )
+    special_tokens = set()
+    if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
+        special_tokens.add(tokenizer.pad_token)
+    if hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None:
+        special_tokens.add(tokenizer.eos_token)
+    if hasattr(tokenizer, 'bos_token') and tokenizer.bos_token is not None:
+        special_tokens.add(tokenizer.bos_token)
+    if hasattr(tokenizer, 'cls_token') and tokenizer.cls_token is not None:
+        special_tokens.add(tokenizer.cls_token)
+    if hasattr(tokenizer, 'unk_token') and tokenizer.unk_token is not None:
+        special_tokens.add(tokenizer.unk_token)
+    if hasattr(tokenizer, 'sep_token') and tokenizer.sep_token is not None:
+        special_tokens.add(tokenizer.sep_token)
+    if hasattr(tokenizer, 'mask_token') and tokenizer.mask_token is not None:
+        special_tokens.add(tokenizer.mask_token)
     if output is not None:
         decode_tokens, output_logits, full_logits = output
         resp_sentences = []
@@ -466,25 +501,31 @@ def generate(
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
-                    # Skip any soft prompt pseudo tokens
-                    if token not in tokenizer.tokenizer.decoder:
-                        continue
-                    word = tokenizer.tokenizer.decoder[token]
-                    word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
-                        'utf-8', errors='replace'
-                    )
+                    if not isinstance(token, Iterable):
+                        token = [token]
+                    word = tokenizer.ids_to_tokens(token)
+                    if isinstance(word, Iterable):
+                        word = word[0]
+                    if hasattr(tokenizer.tokenizer, 'byte_decoder'):
+                        word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
+                            'utf-8', errors='replace'
+                        )
                     words.append(word)
                 resp_sentences_seg.append(words)
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
+
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
             offsets = [0]
             for index, token in enumerate(item):
                 if index != len(item) - 1:
-                    offsets.append(len(token) + offsets[-1])
+                    if token in special_tokens:
+                        offsets.append(offsets[-1])
+                    else:
+                        offsets.append(len(token) + offsets[-1])
             all_offsets.append(offsets)
 
         output = {}
@@ -524,6 +565,16 @@ def sample_sequence_batch(
         micro_batch_size=micro_batch_size,
         data_parallel_size=1,
     )
+    assert (
+        model.cfg.get('sequence_parallel', False) == False
+    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_granularity', None) is None
+    ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_method', None) is None
+    ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+
     tokenizer = model.tokenizer
     # initialize the batch
     with torch.no_grad():
@@ -545,7 +596,6 @@ def sample_sequence_batch(
         maxlen = inference_strategy.clip_max_len(maxlen)
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
-
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length

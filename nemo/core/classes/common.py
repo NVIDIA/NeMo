@@ -23,9 +23,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import hydra
+import torch
 import wrapt
 from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
 from huggingface_hub.hf_api import ModelInfo
@@ -34,8 +35,9 @@ from omegaconf import DictConfig, OmegaConf
 import nemo
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
+from nemo.utils.data_utils import resolve_cache_dir
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck', 'PretrainedModelInfo']
@@ -657,10 +659,10 @@ class Model(Typing, Serialization, FileIO):
 
     @classmethod
     @abstractmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud.
-        Note: There is no check that requires model names and aliases to be unique. In the case of a collIsion, whatever
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collision, whatever
         model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
@@ -859,7 +861,7 @@ class Model(Typing, Serialization, FileIO):
         return instance
 
     @classmethod
-    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
+    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
         """
         Resolve the NGC model pretrained information given a model name.
         Assumes the model subclass implements the `list_available_models()` inherited method.
@@ -900,7 +902,7 @@ class Model(Typing, Serialization, FileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(model_utils.resolve_cache_dir(), f'{filename[:-5]}')
+        cache_dir = Path.joinpath(resolve_cache_dir(), f'{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
         cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
@@ -916,7 +918,7 @@ class Model(Typing, Serialization, FileIO):
         return class_, nemo_model_file_in_cache
 
     @classmethod
-    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
+    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
         """
         Resolve the HuggingFace Hub model pretrained information given a model name.
         The model name must be of general syntax ``{source_repo}/{model_name}``.

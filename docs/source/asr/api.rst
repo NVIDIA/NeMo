@@ -72,6 +72,27 @@ Modules
     :show-inheritance:
     :members:
 
+.. _rnnt-decoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTDecoder
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.StatelessTransducerDecoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-joint-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTJoint
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.SampledRNNTJoint
+    :show-inheritance:
+    :members:
+
+
 
 Parts
 -----
@@ -211,3 +232,45 @@ Hypotheses
 .. autoclass:: nemo.collections.asr.parts.utils.rnnt_utils.NBestHypotheses
     :show-inheritance:
     :no-members:
+
+Adapter Networks
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.PositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+
+Adapter Strategies
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MHAResidualAddAdapterStrategy
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+    :undoc-members: adapter_module_names
+
+-----
+
