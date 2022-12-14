@@ -11,8 +11,8 @@ model:
     type: 'perceiver' # choices 'perceiver' 'text' * 'perceiver_text' (src is text, nns is perceiver)
     latent_size: 16 # perceiver latents size to use
     encoder_path: str = None # path to retrieval-encoder
-    mask_prob: 0.05 # retriever mask prob
-    copy_prob: 0.2 # retriever copy prob
+    mask_prob: 0.10 # retriever mask prob
+    copy_prob: 0.15 # retriever copy prob
     precision: 32 # retriever precision
   
   train_ds: 

@@ -206,7 +206,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
         labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
 
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels, 'idx': idx}
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:

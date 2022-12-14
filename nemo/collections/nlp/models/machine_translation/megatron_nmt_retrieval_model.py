@@ -82,12 +82,10 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             self.retrieval_encoder.precision = cfg.retriever.precision
             self.retrieval_encoder.freeze()
             # Using perceiver tokenizer only
-            # if self.cfg.retriever.type == 'perceiver':
-            #     # Need to do this because the 
-            #     self.encoder_tokenizer = self.retrieval_encoder.tokenizer
-            #     self.decoder_tokenizer = self.retrieval_encoder.tokenizer
-        else:
-            self.retrieval_encoder = None
+            if self.cfg.retriever.type == 'perceiver':
+                # Need to do this because the 
+                self.encoder_tokenizer = self.retrieval_encoder.tokenizer
+                self.decoder_tokenizer = self.retrieval_encoder.tokenizer
 
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
@@ -103,7 +101,8 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             self._retrieval_ds,
             self._cfg.train_ds.nn_mapping,
             self._cfg.train_ds.num_neighbors,
-            self._cfg.retriever.copy_prob
+            self._cfg.retriever.copy_prob, 
+            text_append_mode=self._cfg.retriever.type =='text'
         )
 
         if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
@@ -120,6 +119,9 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                     self._retrieval_ds,
                     self._cfg.validation_ds.nn_mapping[idx],
                     self._cfg.validation_ds.num_neighbors,
+                    text_append_mode=self._cfg.retriever.type =='text', 
+                    copy_prob=0.0,
+                    mask_prob=0.0,
                 ))
         else:
             self._validation_ds = RetrievalSeq2Seq(
@@ -127,6 +129,9 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 self._retrieval_ds,
                 self._cfg.validation_ds.nn_mapping,
                 self._cfg.validation_ds.num_neighbors,
+                text_append_mode=self._cfg.retriever.type == 'text',
+                copy_prob=0.0,
+                mask_prob=0.0,
             )
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
@@ -143,6 +148,9 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                         self._retrieval_ds,
                         self._cfg.test_ds.nn_mapping[idx],
                         self._cfg.test_ds.num_neighbors,
+                        text_append_mode=self._cfg.retriever.type == 'text',
+                        copy_prob=0.0,
+                        mask_prob=0.0,
                     ))
             else:
                 self._test_ds = RetrievalSeq2Seq(
@@ -150,6 +158,9 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                     self._retrieval_ds,
                     self._cfg.test_ds.nn_mapping,
                     self._cfg.test_ds.num_neighbors,
+                    text_append_mode=self._cfg.retriever.type == 'text',
+                    copy_prob=0.0,
+                    mask_prob=0.0,
                 )
 
     def process_global_batch_for_text_translation_datasets(self, batch):
@@ -174,7 +185,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 output.append(global_batch["nn_tgt_mask_list"][idx])
             return output
 
-    
     def get_forward_output_and_loss_func(self, return_logic=False):
         """
             This function is used to create a closure that is passed to the apex fwd/bwd functions.
@@ -294,46 +304,10 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
 
             return output, loss_func
         
-        def fwd_output_and_loss_func_concat(batch, model):
-            # TODO: Figure out the logic for shiftign and fixing the padding and adding new tokens. 
-            # Probably a better idea to just add them in the get_item in the RetrievalSeq2Seq
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            (
-                encoder_input_ids,
-                decoder_input_ids, 
-                loss_mask, 
-                lm_labels, 
-                encoder_attn_mask, 
-                decoder_attn_mask
-            ) = batch[0:6]
-            # ! for retrieval embeddings figure out how to do this
-            """
-            1. Get the embeddings from the embedding matrix and add positional embeddings
-            2. Get the perceiver encodings from self.retriever. Embedding dropout? 
-            3. Concatenate the two
-            4. Pass it to the model forward using encoder inputs option
-            5. Figure out how to do batching here properly
-            """
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                lm_labels,  # labels
-            )
-
-            def loss_func(output_tensor):
-                loss = self.loss_func(loss_mask, output_tensor)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
-
-            return output, loss_func
-
         if return_logic:
             return retrieval_append_logic
         if self.cfg.retriever.get('type', False) == 'text':
-            return fwd_output_and_loss_func_concat
+            return super(MegatronNMTModel, self).get_forward_output_and_loss_func()
         elif self.cfg.retriever.get('type', False) == 'perceiver':
             return fwd_output_and_loss_func_perceiver
         else:
@@ -357,9 +331,26 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         # gotta call super of super
         reduced_loss = super(MegatronNMTModel, self).validation_step(batch, batch_idx)
 
+        if self.multilingual:
+            source_processor = self.source_processor_list[dataloader_idx]
+            target_processor = self.target_processor_list[dataloader_idx]
+        else:
+            source_processor = self.source_processor
+            target_processor = self.target_processor
+
         # Do the retrieval append here
         if self.cfg.retriever.get('type', 'perceiver') == 'text':
-            raise NotImplementedError
+            tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
+            predicted_tokens_ids, _ = self.decode(
+                tokens_enc,
+                enc_mask,
+                tokens_enc.size(1)
+                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                tokenizer=self.decoder_tokenizer,
+            )
+            encoder_inputs = self.postprocess_outputs(
+                outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
+            )
         elif self.cfg.retriever.get('type', 'perceiver') == 'perceiver' or self.cfg.retriever.get('type', 'perceiver') == 'perceiver_text':
             retrieval_append_logic = self.get_forward_output_and_loss_func(return_logic=True)
             batch = self.process_global_batch(batch)
@@ -381,15 +372,26 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
                 tokenizer=self.decoder_tokenizer,
             )
+
+            encoder_inputs_with_retrieval = [self.postprocess_outputs(
+            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
+            )]
+
+            for idx in range(self.num_neighbors):
+                nn_src_ids = batch[6 + (idx * 4) + 0]
+
+                encoder_inputs_with_retrieval.append(self.postprocess_outputs(
+                outputs=nn_src_ids, tokenizer=self.encoder_tokenizer, processor=source_processor,
+                ))
+                nn_tgt_ids = batch[6 + (idx * 4) + 1]
+                encoder_inputs_with_retrieval.append(self.postprocess_outputs(
+                outputs=nn_tgt_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
+                ))
+            encoder_inputs = []
+            for i in range(len(encoder_inputs_with_retrieval[0])):
+                encoder_inputs.append(''.join([group[i] for group in encoder_inputs_with_retrieval]))
         else:
             raise NotImplementedError
-
-        if self.multilingual:
-            source_processor = self.source_processor_list[dataloader_idx]
-            target_processor = self.target_processor_list[dataloader_idx]
-        else:
-            source_processor = self.source_processor
-            target_processor = self.target_processor
 
         # Post-process the translations and inputs to log.
         preds = self.postprocess_outputs(
@@ -398,10 +400,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         labels = self.postprocess_outputs(
             outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
         )
-        encoder_inputs = self.postprocess_outputs(
-            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
-        )
-
         return {
             'inputs': encoder_inputs,
             'translations': preds,
@@ -420,7 +418,10 @@ class RetrievalSeq2Seq(Dataset):
         retrieval_text_memmap_dataset,
         nn_mapping,
         num_neighbors = 10,
-        copy_prob = 0.0
+        copy_prob = 0.0,
+        text_append_mode = False,
+        mask_prob = 0.0,
+        max_seq_length = 512,
     ):
         """
         seq2seq_text_memmap_dataset (TextMemmapSequenceToSequenceDataset): The seq2seq dataset train/eval
@@ -431,6 +432,12 @@ class RetrievalSeq2Seq(Dataset):
         self.retrieval_text_memmap_dataset = retrieval_text_memmap_dataset
         self.num_neighbors = num_neighbors
         self.copy_prob = copy_prob
+        self.text_append_mode = text_append_mode
+        self.mask_prob = mask_prob
+        # Correct for both 'text' and 'perceiver' modes
+        self.nn_start_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('_<extra_id_0>')
+        self.nn_end_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('_<extra_id_1>')
+        self.max_seq_length = max_seq_length
 
         # Select only the number of nns specified
         # TODO: Make sure this numbering is aligned with the actual seq2seq dataset and retrieval too
@@ -444,27 +451,64 @@ class RetrievalSeq2Seq(Dataset):
     
     def __getitem__(self, idx):
         # Output format is a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
+        data_item = self.seq2seq_text_memmap_dataset[idx]
+        idx_mapped = data_item['idx']
+        if idx_mapped >= len(self.nn_mapping):
+            raise ValueError(f'idx_mapped {idx_mapped} is greater than len(self.nn_mapping) {len(self.nn_mapping)}')
+
+        # Construct the nearest neighbors list
+        nn_src_list = []
+        nn_tgt_list = []
+        num_iters = self.num_neighbors
         if np.random.uniform(0,1) < self.copy_prob:
-            # Sample from the retrieval dataset
-            # TODO: Could try sampling from Top K neighbors to append
-            nn_src_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors - 1)]
-            nn_tgt_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors - 1)]
-            nn_src_list.append(self.seq2seq_text_memmap_dataset[idx]['text_enc'])
-            nn_tgt_list.append(self.seq2seq_text_memmap_dataset[idx]['text_dec'])
-            # TODO: Maybe shuffle
-        else:
-            nn_src_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors)]
-            nn_tgt_list = [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors)]
+            # Add copy example
+            nn_src_list.append(data_item['text_enc'].tolist())
+            nn_tgt_list.append(data_item['text_dec'].tolist() + [self.retrieval_text_memmap_dataset.tgt_tokenizer.eos_id])
+            # if copying original example, then only need to add one less neighbor
+            num_iters = self.num_neighbors - 1
+        
+        for i in range(num_iters):
+            element = self.retrieval_text_memmap_dataset[self.nn_mapping[idx_mapped][i]]
+            nn_src_list.append(element['text_enc'].tolist())
+            assert self.retrieval_text_memmap_dataset.tgt_tokenizer.eos_id == element['text_enc'].tolist()[-1]
+            nn_tgt_list.append(element['text_dec'].tolist() + [self.retrieval_text_memmap_dataset.tgt_tokenizer.eos_id])
+        
+        # If text_append_mode add the original text to the end of the neighbors and remove neighbors
+        if self.text_append_mode:
+            data_item['text_enc']= data_item['text_enc'].tolist()
+            data_item['text_dec'] = data_item['text_dec'].tolist()
+            # Add neighbors only if not masking
+            if np.random.uniform(0,1) >= self.mask_prob:
+                # Need to remove <eos> from src and <bos> and <eos> from the neighbors
+                assert self.seq2seq_text_memmap_dataset.tgt_tokenizer.eos_id == data_item['text_enc'][-1]
+                # Remove eos_id
+                data_item['text_enc'] = data_item['text_enc'][:-1]
+                shuffled_idxes = list(range(self.num_neighbors))
+                random.shuffle(shuffled_idxes)
+                for idx in shuffled_idxes:
+                    data_item['text_enc'].extend([self.nn_start_tag] + nn_src_list[idx][1:-1])
+                    data_item['text_enc'].extend([self.nn_end_tag] + nn_tgt_list[idx][1:-1])
+                
+                # Make sure to reduce to max_seq_length
+                if len(data_item['text_enc']) > self.max_seq_length - 2:
+                    data_item['text_enc'] = data_item['text_enc'][: self.max_seq_length - 2]
+                # Add eos_id back
+                data_item['text_enc'] = data_item['text_enc'] + [self.seq2seq_text_memmap_dataset.tgt_tokenizer.eos_id]
+            nn_src_list = None
+            nn_tgt_list = None
+
         return {
-            'text_enc': self.seq2seq_text_memmap_dataset[idx]['text_enc'],
-            'text_dec': self.seq2seq_text_memmap_dataset[idx]['text_dec'],
-            'labels': self.seq2seq_text_memmap_dataset[idx]['labels'],
+            'text_enc': data_item['text_enc'],
+            'text_dec': data_item['text_dec'],
+            'labels': data_item['labels'],
             'nn_src_list': nn_src_list,
             'nn_tgt_list': nn_tgt_list
         }
 
     def collate_fn(self, batch):
         output = self.seq2seq_text_memmap_dataset.collate_fn(batch)
+        if self.text_append_mode:
+            return output
 
         retrieval_encoder_input_src_list = []
         retrieval_encoder_input_tgt_list = []
