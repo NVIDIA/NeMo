@@ -2,9 +2,8 @@ import itertools
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -15,8 +14,8 @@ from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextT
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.tts.models import FastPitchModel
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.utils import logging, model_utils
+from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
 
@@ -164,6 +163,13 @@ class ASRWithTTSModel(ASRModel):
         if name == "_current_fx_name" and self._full_init_guard:
             self.asr_model._current_fx_name = value
         return super().__setattr__(name, value)
+
+    def setup_optimization(
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        return self.asr_model.setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
