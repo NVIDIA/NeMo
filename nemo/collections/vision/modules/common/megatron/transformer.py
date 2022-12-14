@@ -122,7 +122,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
-        bias_dropout_fusion=True,
+        bias_dropout_add_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
@@ -165,6 +165,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -196,8 +197,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
-                key_infused_adapter=None,
-                value_infused_adapter=None,
+                checkpoint_core_attention=checkpoint_core_attention,
             )
 
             if get_key_value:
@@ -263,6 +263,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                     rotary_pos_emb=cross_attention_pos_emb,
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
+                    checkpoint_core_attention=checkpoint_core_attention,
                 )
             else:
                 attention_output, attention_bias = self.inter_attention(
@@ -271,8 +272,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
-                    key_infused_adapter=None,
-                    value_infused_adapter=None,
+                    checkpoint_core_attention=checkpoint_core_attention,
                 )
 
             # If normformer, apply norm on the output of the self attention.
@@ -297,7 +297,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             if self.transformer_block_type == 'post_ln':
                 layernorm_input = normalization_output
         # MLP.
-        mlp_output, mlp_bias = self.mlp(normalization_output, infused_adapter=None)
+        mlp_output, mlp_bias = self.mlp(normalization_output)
 
         residual = layernorm_input
 
@@ -350,6 +350,7 @@ class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
         inference_max_sequence_len=None,
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -392,7 +393,7 @@ class ParallelVisionTransformer(ParallelTransformer):
         drop_path_rate=0.0,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
-        bias_dropout_fusion=True,
+        bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         persist_layer_norm=False,
         openai_gelu=False,
@@ -450,7 +451,7 @@ class ParallelVisionTransformer(ParallelTransformer):
                 drop_path_rate=self.drop_path_rates[layer_number - 1],
                 use_cpu_initialization=use_cpu_initialization,
                 bias_activation_fusion=bias_activation_fusion,
-                bias_dropout_fusion=bias_dropout_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
