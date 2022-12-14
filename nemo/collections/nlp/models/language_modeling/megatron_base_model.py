@@ -122,6 +122,15 @@ class MegatronBaseModel(NLPModel):
             "default_on_epoch": False,
         }
 
+        # Convert the global-batch-based profile index to micro-batch index
+        if hasattr(self, '_nsys_profile_enabled'):
+            grad_accum_steps = (
+                cfg.get('global_batch_size') //
+                (cfg.get('micro_batch_size') * parallel_state.get_data_parallel_world_size())
+            )
+            self._nsys_profile_start_step *= grad_accum_steps
+            self._nsys_profile_end_step *= grad_accum_steps
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -242,7 +251,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._get_parameters()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
+        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=self.cfg.micro_batch_size)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -282,8 +291,8 @@ class MegatronBaseModel(NLPModel):
                 p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
             )
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
