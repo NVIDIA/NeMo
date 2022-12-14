@@ -225,7 +225,9 @@ class TextToTextDataset(Dataset):
         self.data: List[Dict[str, Any]] = [dict() for _ in range(num_utterances)]
 
         if tokenizer_workers == 1:
-            for i, tokenized_text in enumerate(self._asr_text_to_tokens(text) for text in asr_texts):
+            for i, tokenized_text in enumerate(
+                tqdm((self._asr_text_to_tokens(text) for text in asr_texts), total=len(asr_texts))
+            ):
                 self.data[i]["asr_text_tokens"] = tokenized_text
         else:
             # Multiprocessing hack: use global variables for every process (not really global in program context)
@@ -248,8 +250,12 @@ class TextToTextDataset(Dataset):
         del asr_texts
         gc.collect()
 
+        # fixme: normalization
         if tokenizer_workers == 1:
-            for i, tokenized_text in enumerate(self._tts_text_to_tokens(text) for text in tts_texts):
+            logging.warning("Preprocessing text with tokenizer_workers=1 may be slow")
+            for i, tokenized_text in enumerate(
+                tqdm((self._tts_text_to_tokens(text, normalize=False) for text in tts_texts), total=len(tts_texts))
+            ):
                 self.data[i]["tts_text_tokens"] = tokenized_text
         else:
 

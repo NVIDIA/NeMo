@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
@@ -75,6 +76,7 @@ class ASRWithTTSModel(ASRModel):
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self._full_init_guard = False
         model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
         super().__init__(cfg, trainer=trainer)
@@ -111,6 +113,7 @@ class ASRWithTTSModel(ASRModel):
         self.asr_model = asr_model
         self.tts_model = tts_model
         self.tts_model.freeze()
+        self._full_init_guard = True
 
         if optim_cfg:
             self.setup_optimization(optim_config=optim_cfg)
@@ -141,6 +144,22 @@ class ASRWithTTSModel(ASRModel):
         cfg.asr_model_path = asr_model_path
         cfg.asr_model_type = "rnnt_bpe"  # FixMe
         return ASRWithTTSModel(cfg, trainer=trainer)
+
+    # fix trainer, see https://github.com/Lightning-AI/lightning/issues/13146#issuecomment-1137593172
+    @property
+    def trainer(self) -> Trainer:
+        if self._trainer is None:
+            raise RuntimeError(f"The {self.__class__.__qualname__} is not attached to a Trainer.")
+        return self._trainer
+
+    @trainer.setter
+    def trainer(self, trainer: Trainer) -> None:
+        if not isinstance(trainer, Trainer):
+            raise RuntimeError(f"{self.__class__.__qualname__} should be connected to a `Trainer`, found: {trainer}.")
+        self._trainer = trainer
+        for v in vars(self).values():
+            if isinstance(v, pl.LightningModule):
+                v.trainer = trainer
 
     def change_vocabulary(
         self,
@@ -178,6 +197,9 @@ class ASRWithTTSModel(ASRModel):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
+
+    def val_dataloader(self):
+        return self.asr_model.val_dataloader()
 
     def unfreeze(self) -> None:
         super().unfreeze()
@@ -280,9 +302,9 @@ class ASRWithTTSModel(ASRModel):
             tts_text_normalizer=self.tts_model.normalizer,
             tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
             tts_parser=self.tts_model.parser,
-            tts_text_pad_id=self.vocab.pad,
+            tts_text_pad_id=self.tts_model.vocab.pad,
             min_words=text_data_config.get("min_words", 1),
-            max_words=text_data_config.get("max_words", 1_000_000),
-            tokenizer_workers=train_data_config.dl_workers.get('num_workers', 1),
+            max_words=text_data_config.get("max_words", 1_000_000),  # 45 - recommended value, ~16.7 sec
+            tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
         )
         return textonly_ds
