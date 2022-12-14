@@ -713,6 +713,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         del self.pos_enc
         self.pos_enc = new_pos_enc
         self.self_attention_model = self_attention_model
+        self.att_context_size = att_context_size
         self.set_max_audio_length(self.pos_emb_max_len)
 
         for name, m in self.named_modules():

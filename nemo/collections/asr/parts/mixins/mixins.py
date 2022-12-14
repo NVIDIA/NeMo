@@ -424,8 +424,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             return
 
         self.encoder.change_attention_model(self_attention_model, att_context_size, update_config, self.device)
-
-        return
+        if update_config:
+            self.cfg.encoder.self_attention_model = self_attention_model
+            self.cfg.encoder.att_context_size = att_context_size
 
     def conformer_stream_step(
         self,
