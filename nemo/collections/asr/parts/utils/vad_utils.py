@@ -32,9 +32,7 @@ from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
 from tqdm import tqdm
 
-from nemo.collections.asr.data.feature_to_label_dataset import get_feature_label_dataset
 from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.utils import logging
 
 try:
@@ -89,13 +87,13 @@ def prepare_manifest(config: dict) -> str:
                     p.imap(write_vad_infer_manifest_star, inputs),
                     total=len(input_list),
                     desc='splitting manifest',
-                    leave=False,
+                    leave=True,
                 )
             )
     else:
         results = [
             write_vad_infer_manifest(input_el, args_func)
-            for input_el in tqdm(input_list, desc='splitting manifest', leave=False)
+            for input_el in tqdm(input_list, desc='splitting manifest', leave=True)
         ]
 
     if os.path.exists(manifest_vad_input):
@@ -284,7 +282,7 @@ def generate_overlap_vad_seq(
                     p.imap(generate_overlap_vad_seq_per_file_star, inputs),
                     total=len(frame_filepathlist),
                     desc='generating preds',
-                    leave=False,
+                    leave=True,
                 )
             )
 
@@ -743,12 +741,12 @@ def generate_vad_segment_table(
                     p.imap(generate_vad_segment_table_per_file_star, inputs),
                     total=len(vad_pred_filepath_list),
                     desc='creating speech segments',
-                    leave=False,
+                    leave=True,
                 )
             )
 
     else:
-        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=False):
+        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
             generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return table_out_dir
@@ -1263,34 +1261,6 @@ def extract_audio_features(vad_model: EncDecClassificationModel, manifest_vad_in
             torch.save(processed_signal, outpath)
         del test_batch
     return out_dir
-
-
-def setup_feature_segment_infer_dataloader(config: dict) -> torch.utils.data.DataLoader:
-    """
-    setup dataloader for VAD inference with audio features as input
-    """
-
-    if 'augmentor' in config:
-        augmentor = process_augmentations(config['augmentor'])
-    else:
-        augmentor = None
-    if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-        logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
-        return None
-
-    logging.info("Perform segment-level VAD")
-    dataset = get_feature_label_dataset(config=config, augmentor=augmentor)
-    collate_func = dataset._collate_fn
-
-    return torch.utils.data.DataLoader(
-        dataset=dataset,
-        batch_size=1,
-        collate_fn=collate_func,
-        drop_last=config.get('drop_last', False),
-        shuffle=False,
-        num_workers=config.get('num_workers', 0),
-        pin_memory=config.get('pin_memory', False),
-    )
 
 
 def load_rttm_file(filepath: str) -> pd.DataFrame:

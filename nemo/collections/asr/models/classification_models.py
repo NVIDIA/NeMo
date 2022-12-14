@@ -25,7 +25,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
-from nemo.collections.asr.data import audio_to_label_dataset
+from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -192,14 +192,17 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
         self._validation_dl = self._setup_dataloader_from_config(config=DictConfig(val_data_config))
 
-    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
 
         # preserve config
         self._update_dataset_config(dataset_name='test', config=test_data_config)
 
-        self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
+        if use_feat:
+            self._test_dl = self._setup_feature_label_dataloader(config=DictConfig(test_data_config))
+        else:
+            self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -268,6 +271,43 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
                     collate_func = dataset.collate_fn
                 else:
                     collate_func = dataset.datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=collate_func,
+            drop_last=config.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
+        )
+
+    def _setup_feature_label_dataloader(self, config: DictConfig) -> torch.utils.data.DataLoader:
+        """
+        setup dataloader for VAD inference with audio features as input
+        """
+
+        OmegaConf.set_struct(config, False)
+        config.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(config, True)
+
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+            return None
+
+        dataset = feature_to_label_dataset.get_feature_label_dataset(config=config, augmentor=augmentor)
+        if 'vad_stream' in config and config['vad_stream']:
+            collate_func = dataset._vad_segment_collate_fn
+            batch_size = 1
+            shuffle = False
+        else:
+            collate_func = dataset._collate_fn
+            batch_size = config['batch_size']
+            shuffle = config['shuffle']
 
         return torch.utils.data.DataLoader(
             dataset=dataset,

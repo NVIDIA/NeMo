@@ -233,7 +233,7 @@ class _FeatureTextDataset(Dataset):
 
     def _collate_fn(self, batch):
         return _audio_feature_collate_fn(
-            batch, feat_mask_val=self.ZERO_LEVEL_SPEC_DB_VAL, label_pad_id=self.manifest_processor.pad_id
+            batch, feat_pad_val=self.feat_mask_val, label_pad_id=self.manifest_processor.pad_id
         )
 
     def normalize_feature(self, feat):
@@ -242,7 +242,7 @@ class _FeatureTextDataset(Dataset):
             feat: feature tensor of shape [M, T]            
         """
         feat = feat.unsqueeze(0)  # add batch dim
-        feat, _, _ = normalize_batch(feat, feat.size(-1), self.normalize_type)
+        feat, _, _ = normalize_batch(feat, torch.tensor([feat.size(-1)]), self.normalize_type)
         return feat.squeeze(0)  # delete batch dim
 
 
