@@ -4,9 +4,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
-import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
