@@ -603,7 +603,7 @@ class ChineseG2p(BaseG2p):
         if self.word_segmenter == 'jieba':
             # Cut sentences into words to improve polyphone disambiguation
             words_list = list(jieba.cut(text))
-        elif self.word_segmenter == None:
+        elif self.word_segmenter is None:
             words_list = [text]
         else:
             raise NotImplementedError
