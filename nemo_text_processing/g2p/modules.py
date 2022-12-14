@@ -515,7 +515,12 @@ class IPAG2P(BaseG2p):
 
 class ChineseG2p(BaseG2p):
     def __init__(
-        self, phoneme_dict=None, word_tokenize_func=None, apply_to_oov_word=None, mapping_file: Optional[str] = None, word_segmenter: Optional[str] = None
+        self,
+        phoneme_dict=None,
+        word_tokenize_func=None,
+        apply_to_oov_word=None,
+        mapping_file: Optional[str] = None,
+        word_segmenter: Optional[str] = None,
     ):
         """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would
            be further converted into phoneme sequences using pinyin_dict_nv_22.10.txt dict file. For Chinese and English bilingual sentences, the English words
@@ -530,7 +535,10 @@ class ChineseG2p(BaseG2p):
             word_segmenter: method that will be applied to segment utterances into words for better polyphone disambiguation.
         """
         assert phoneme_dict is not None, "Please set the phoneme_dict path."
-        assert word_segmenter in [None, 'jieba'], f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
+        assert word_segmenter in [
+            None,
+            'jieba',
+        ], f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
@@ -553,7 +561,7 @@ class ChineseG2p(BaseG2p):
         )
         self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
         self.word_segmenter = word_segmenter
-        
+
         try:
             from pypinyin import lazy_pinyin, Style
             from pypinyin_dict.pinyin_data import cc_cedict
@@ -599,7 +607,7 @@ class ChineseG2p(BaseG2p):
             words_list = [text]
         else:
             raise NotImplementedError
-            
+
         for word in words_list:
             pinyin_seq += self._lazy_pinyin(
                 word,
