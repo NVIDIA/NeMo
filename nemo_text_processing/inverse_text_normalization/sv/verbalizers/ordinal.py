@@ -17,7 +17,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOT
 from pynini.lib import pynutil
 
 
-# TODO: check how this works out
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for verbalizing ordinal, e.g.
