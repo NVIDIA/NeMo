@@ -70,7 +70,7 @@ from nemo.collections.asr.data import feature_to_text_dataset
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecClassificationModel
-from nemo.collections.asr.parts.utils.manifest_utils import clean_text, read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
     extract_audio_features,
     generate_overlap_vad_seq,
@@ -109,7 +109,6 @@ class InferenceConfig:
     use_pure_noise: bool = False  # whether input is pure noise or not.
 
     profiling: bool = False  # whether to enable pytorch profiling
-    clean_text: bool = False  # whether to clean groundtruth text
 
     # General configs
     batch_size: int = 1  # batch size for ASR. Feature extraction and VAD only support single sample per batch.
@@ -566,12 +565,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     manifest_data = read_manifest(cfg.manifest_filepath)
     groundtruth = []
     for i in range(len(manifest_data)):
-        gt_text = manifest_data[i]["text"]
-        if cfg.clean_text:
-            gt_text = clean_text(gt_text)
-            manifest_data[i]["text"] = gt_text
-        groundtruth.append(gt_text)
-
+        groundtruth.append(manifest_data[i]["text"])
         manifest_data[i]["pred_text"] = hypotheses[i]
         manifest_data[i]["feature_file"] = input_manifest_data[i]["feature_file"]
         if "rttm_file" in input_manifest_data[i]:
