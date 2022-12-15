@@ -33,8 +33,6 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath). Note also that any spaces that are present in the audio_filepath will be replaced with dashes, so as not to change the number of space-separated elements in the CTM files.
 
-* **[OPTIONAL]** `audio_sr`: The sample rate (in Hz) of your audio. (Default: 16000)
-
 * **[OPTIONAL]** `device`: The device that will be used for generating log-probs and doing Viterbi decoding. (Default: 'cpu').
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).

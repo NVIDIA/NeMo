@@ -17,13 +17,14 @@ from typing import Optional
 
 import torch
 from omegaconf import OmegaConf
-from utils.data_prep import get_log_probs_y_T_U, get_manifest_lines
+from utils.data_prep import get_audio_sr, get_log_probs_y_T_U, get_manifest_lines
 from utils.make_ctm import make_basetoken_ctm, make_word_ctm
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 
 """
@@ -66,7 +67,6 @@ Arguments:
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
-    audio_sr: int specifying the sample rate of your audio files.
     device: string specifying the device that will be used for generating log-probs and doing 
         Viterbi decoding. The string needs to be in a format recognized by torch.device()
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
@@ -86,7 +86,6 @@ class AlignmentConfig:
     # General configs
     separator: str = " "
     n_parts_for_ctm_id: int = 1
-    audio_sr: int = 16000
     device: str = "cpu"
     batch_size: int = 1
 
@@ -124,6 +123,13 @@ def main(cfg: AlignmentConfig):
             " Currently only instances of EncDecCTCModels are supported"
         )
 
+    audio_sr = get_audio_sr(cfg.manifest_filepath)
+    logging.info(
+        f"Detected audio sampling rate {audio_sr}Hz in first audio in manifest at {cfg.manifest_filepath}. "
+        "Will assume all audios in manifest have this sampling rate. Sampling rate will be used to determine "
+        "timestamps in output CTM."
+    )
+
     # define start and end line IDs of batches
     with open(cfg.manifest_filepath, 'r') as f:
         num_lines_in_manifest = sum(1 for _ in f)
@@ -148,7 +154,7 @@ def main(cfg: AlignmentConfig):
                 cfg.model_downsample_factor,
                 cfg.output_ctm_folder,
                 cfg.n_parts_for_ctm_id,
-                cfg.audio_sr,
+                audio_sr,
             )
 
         else:
@@ -159,7 +165,7 @@ def main(cfg: AlignmentConfig):
                 cfg.model_downsample_factor,
                 cfg.output_ctm_folder,
                 cfg.n_parts_for_ctm_id,
-                cfg.audio_sr,
+                audio_sr,
                 cfg.separator,
             )
 
