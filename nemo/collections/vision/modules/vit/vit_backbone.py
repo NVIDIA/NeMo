@@ -166,6 +166,8 @@ class VitBackbone(MegatronModule):
         super(VitBackbone, self).__init__(share_token_embeddings=False)
         
         self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
+        num_layers = model_cfg.num_layers
+        init_method_std = model_cfg.init_method_std
         if init_method is None:
             init_method = init_method_normal(init_method_std)
         if scaled_init_method is None:
