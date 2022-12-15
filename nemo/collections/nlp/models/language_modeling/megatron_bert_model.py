@@ -544,6 +544,79 @@ class MegatronBertModel(MegatronBaseModel):
                     grad = param.grad
                 grads.append(grad.data)
 
+    def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
+
+        # log number of parameters
+        if isinstance(self.model, list):
+            num_parameters_on_device = sum(
+                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+            )
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=True
+            ):
+                # substract the embedding weights on the last virtual stage
+                num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
+                num_parameters_on_device -= num_word_embedding_parameters
+        else:
+            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=True
+            ):
+                # substract the embedding weights on the last stage
+                num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
+
+                num_parameters_on_device -= num_word_embedding_parameters
+
+        # to be summed across data parallel group
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
+
+        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
+            f'Total number of model parameters: {total_num_parameters:.2e}.'
+        )
+
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
+
+        if stage == 'predict':
+            return
+        else:
+            # TODO: consider adding a ModelPT guard to check if model is being restored.
+            # allowing restored models to optionally setup datasets
+            self.build_train_valid_test_datasets()
+            self.setup_training_data(self.cfg.data)
+            self.setup_validation_data(self.cfg.data)
+            self.setup_test_data(self.cfg.data)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if isinstance(self.model, list):
+                for i, module in enumerate(self.model):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    module.sync_initial_word_embeddings()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            else:
+                self.model.sync_initial_word_embeddings()
+
+        if self.cfg.get('transformer_engine', False):
+            self.setup_transformer_engine_tp_groups()
+
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
             Modified from megatron-lm:
