@@ -24,6 +24,8 @@ from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.exp_manager import exp_manager
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -315,39 +317,81 @@ class TestMegatronVitClassificationModel:
             assert output_tensor.shape == torch.Size([B, vit_classification_model.cfg['num_classes']])
             assert output_tensor.dtype == dtype
 
-    # def test_vit_backbone(self, model_cfg, trainer_cfg, precision):
-    #     dtype = None
-    #     if trainer_cfg['precision'] == 32:
-    #         dtype = torch.float
-    #     elif trainer_cfg['precision'] == 16:
-    #         dtype = torch.float16
-    #     elif trainer_cfg['precision'] == 'bf16':
-    #         dtype = torch.bfloat16
-    #     else:
-    #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
-    #
-    #     from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
-    #     vit_backbone = VitBackbone(
-    #         model_cfg,
-    #         init_method=None,
-    #         scaled_init_method=None,
-    #         pre_process=True,
-    #         post_process=True,
-    #         single_token_output=True
-    #     )
-    #     vit_backbone.eval()
-    #
-    #     # shape: (B, C, H, W)
-    #     images = [validation_ds[i][0] for i in range(4)]
-    #     tokens = torch.stack(images, dim=0)
-    #
-    #     with torch.no_grad():
-    #         B, C, H, W = tokens.shape
-    #         assert H == W
-    #         with torch.autocast('cuda', dtype=dtype):
-    #             output_tensor = vit_backbone(
-    #                 tokens=tokens.cuda(),
-    #             )
-    #         # output is (B, #classes)
-    #         assert output_tensor.shape == torch.Size([1, B, model_cfg['hidden_size']])
-    #         assert output_tensor.dtype == dtype
+    @pytest.mark.unit
+    def test_vit_backbone(self, model_cfg, trainer_cfg, precision):
+        initialize_model_parallel_for_nemo(
+            world_size=1,
+            global_rank=0,
+            local_rank=0,
+            tensor_model_parallel_size=model_cfg.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=model_cfg.get('pipeline_model_parallel_size', 1),
+            virtual_pipeline_model_parallel_size=model_cfg.get('virtual_pipeline_model_parallel_size', None),
+            pipeline_model_parallel_split_rank=model_cfg.get('pipeline_model_parallel_split_rank', 0),
+            micro_batch_size=model_cfg.get('micro_batch_size'),
+            global_batch_size=model_cfg.get('global_batch_size'),
+            seed=model_cfg.get('seed', 1234),
+            apex_transformer_log_level=model_cfg.get('apex_transformer_log_level', 30),
+        )
+
+        dtype = None
+        if trainer_cfg['precision'] == 32:
+            dtype = torch.float
+        elif trainer_cfg['precision'] == 16:
+            dtype = torch.float16
+        elif trainer_cfg['precision'] == 'bf16':
+            dtype = torch.bfloat16
+        else:
+            raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
+
+        vit_backbone = VitBackbone(
+            model_cfg,
+            init_method=None,
+            scaled_init_method=None,
+            pre_process=True,
+            post_process=True,
+            single_token_output=True
+        ).cuda()
+        vit_backbone.eval()
+
+        # shape: (B, C, H, W)
+        tokens = torch.rand((6, 3, 224, 224))
+
+        with torch.no_grad():
+            B, C, H, W = tokens.shape
+            assert H == W
+            with torch.autocast('cuda', dtype=dtype):
+                output_tensor = vit_backbone(
+                    tokens.cuda(),
+                )
+            # output is (B, #classes)
+            assert output_tensor.shape == torch.Size([B, model_cfg['hidden_size']])
+            assert output_tensor.dtype == dtype
+
+    @pytest.mark.unit
+    def test_vit_head(self, model_cfg, trainer_cfg, precision):
+        dtype = None
+        if trainer_cfg['precision'] == 32:
+            dtype = torch.float
+        elif trainer_cfg['precision'] == 16:
+            dtype = torch.float16
+        elif trainer_cfg['precision'] == 'bf16':
+            dtype = torch.bfloat16
+        else:
+            raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
+
+        vit_head = VitMlpHead(
+            24, 50,
+        ).cuda()
+        vit_head.eval()
+
+        # shape: (B, C, H, W)
+        hidden = torch.rand((6, 24))
+
+        with torch.no_grad():
+            with torch.autocast('cuda', dtype=dtype):
+                output_tensor = vit_head(
+                    hidden.cuda(),
+                )
+            # output is (B, #classes)
+            assert output_tensor.shape == torch.Size([6, 50])
+            assert output_tensor.dtype == dtype
