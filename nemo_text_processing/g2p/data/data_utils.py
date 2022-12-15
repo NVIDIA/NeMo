@@ -18,9 +18,18 @@ import re
 import string
 import unicodedata
 from builtins import str as unicode
-from typing import List
+from typing import List, Tuple
 
-__all__ = ['read_wordids']
+__all__ = [
+    "read_wordids",
+    "chinese_text_preprocessing",
+    "english_text_preprocessing",
+    "german_text_preprocessing",
+    "any_locale_text_preprocessing",
+    "spanish_text_preprocessing",
+    "any_locale_word_tokenize",
+    "english_word_tokenize",
+]
 
 # +
 # Derived from LJSpeech
@@ -30,16 +39,24 @@ _synoglyphs = {
 }
 SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs}
 
-# Example of parsing by groups via _WORDS_RE.
-# Groups:
-# 1st group -- valid english words,
-# 2nd group -- any substring starts from | to | (mustn't be nested), useful when you want to leave sequence unchanged,
-# 3rd group -- punctuation marks.
+# Example of parsing by groups via _WORDS_RE_EN.
+# Regular expression pattern groups:
+#   1st group -- valid english words,
+#   2nd group -- any substring starts from | to | (mustn't be nested), useful when you want to leave sequence unchanged,
+#   3rd group -- punctuation marks or whitespaces.
 # Text (first line) and mask of groups for every char (second line).
 # config file must contain |EY1 EY1|, B, C, D, E, F, and G.
-# 111111311113111131111111322222222233133133133133133111313
-_WORDS_RE = re.compile(r"([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
-_WORDS_RE_IPA = re.compile(r"([a-zA-ZÀ-ÿ\d]+(?:[a-zA-ZÀ-ÿ\d\-']*[a-zA-ZÀ-ÿ\d]+)*)|(\|[^|]*\|)|([^a-zA-ZÀ-ÿ\d|]+)")
+
+# define char set based on https://en.wikipedia.org/wiki/List_of_Unicode_characters
+LATIN_ALPHABET_BASIC = "A-Za-z"
+ACCENTED_CHARS = "À-ÖØ-öø-ÿ"
+LATIN_CHARS_ALL = f"{LATIN_ALPHABET_BASIC}{ACCENTED_CHARS}"
+_WORDS_RE_EN = re.compile(
+    fr"([{LATIN_ALPHABET_BASIC}]+(?:[{LATIN_ALPHABET_BASIC}\-']*[{LATIN_ALPHABET_BASIC}]+)*)|(\|[^|]*\|)|([^{LATIN_ALPHABET_BASIC}|]+)"
+)
+_WORDS_RE_ANY_LOCALE = re.compile(
+    fr"([{LATIN_CHARS_ALL}]+(?:[{LATIN_CHARS_ALL}\-']*[{LATIN_CHARS_ALL}]+)*)|(\|[^|]*\|)|([^{LATIN_CHARS_ALL}|]+)"
+)
 
 # -
 
@@ -77,7 +94,7 @@ def read_wordids(wordid_map: str):
 
 def get_wordid_to_nemo(wordid_to_nemo_cmu_file: str = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu.tsv"):
     """
-    WikiHomograph and NeMo use slightly differene phoneme sets, this funtion reads WikiHomograph word_ids to NeMo
+    WikiHomograph and NeMo use slightly different phoneme sets, this function reads WikiHomograph word_ids to NeMo
     IPA heteronyms mapping
     """
     wordid_to_nemo_cmu = {}
@@ -113,41 +130,75 @@ def english_text_preprocessing(text, lower=True):
     return text
 
 
-def _word_tokenize(words):
+def _word_tokenize(words: List[Tuple[str, str, str]]) -> List[Tuple[List[str], bool]]:
     """
-    Convert text (str) to List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and
-    flag whether to leave unchanged or not.
-    Word can be one of: valid english word, any substring starts from | to | (unchangeable word) or punctuation marks.
-    This function expects that unchangeable word is carefully divided by spaces (e.g. HH AH L OW).
-    Unchangeable word will be splitted by space and represented as List[str], other cases are represented as str.
+    Process a list of words and attach indicators showing if each word is unchangeable or not. Each word representation
+    can be one of valid word, any substring starting from | to | (unchangeable word), or punctuation marks including
+    whitespaces. This function will split unchanged strings by whitespaces and return them as `List[str]`. For example,
+
+    .. code-block:: python
+        [
+            ('Hello', '', ''),  # valid word
+            ('', '', ' '),  # punctuation mark
+            ('World', '', ''),  # valid word
+            ('', '', ' '),  # punctuation mark
+            ('', '|NVIDIA unchanged|', ''),  # unchangeable word
+            ('', '', '!')  # punctuation mark
+        ]
+
+    will be converted into,
+
+    .. code-block:: python
+        [
+            (["hello"], False),
+            ([" "], False),
+            (["world"], False),
+            ([" "], False),
+            (["nvidia", "unchanged"], True),
+            (["!"], False)
+        ]
+
+    Args:
+        words (List[str]): a list of tuples like `(maybe_word, maybe_without_changes, maybe_punct)` where each element
+            corresponds to a non-overlapping match of either `_WORDS_RE_EN` or `_WORDS_RE_ANY_LOCALE`.
+
+    Returns: List[Tuple[List[str], bool]], a list of tuples like `(a list of words, is_unchanged)`.
+
     """
     result = []
     for word in words:
         maybe_word, maybe_without_changes, maybe_punct = word
 
+        without_changes = False
         if maybe_word != '':
-            without_changes = False
-            result.append((maybe_word.lower(), without_changes))
+            token = [maybe_word.lower()]
         elif maybe_punct != '':
-            without_changes = False
-            result.append((maybe_punct, without_changes))
+            token = [maybe_punct]
         elif maybe_without_changes != '':
             without_changes = True
-            result.append((maybe_without_changes[1:-1].split(" "), without_changes))
+            token = maybe_without_changes[1:-1].split(" ")
+        else:
+            raise ValueError(
+                f"This is not expected. Found empty string: <{word}>. "
+                f"Please validate your regular expression pattern '_WORDS_RE_EN' or '_WORDS_RE_ANY_LOCALE'."
+            )
+
+        result.append((token, without_changes))
+
     return result
 
 
 def english_word_tokenize(text):
-    words = _WORDS_RE.findall(text)
+    words = _WORDS_RE_EN.findall(text)
     return _word_tokenize(words)
 
 
-def ipa_word_tokenize(text):
-    words = _WORDS_RE_IPA.findall(text)
+def any_locale_word_tokenize(text):
+    words = _WORDS_RE_ANY_LOCALE.findall(text)
     return _word_tokenize(words)
 
 
-def ipa_text_preprocessing(text):
+def any_locale_text_preprocessing(text):
     return text.lower()
 
 
