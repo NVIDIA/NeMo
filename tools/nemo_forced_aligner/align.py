@@ -20,7 +20,6 @@ from utils.data_prep import get_log_probs_y_T_U, get_manifest_lines
 from utils.make_ctm import make_basetoken_ctm, make_word_ctm
 from utils.viterbi_decoding import viterbi_decoding
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
