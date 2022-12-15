@@ -384,7 +384,6 @@ class TestMegatronVitClassificationModel:
         ).cuda()
         vit_head.eval()
 
-        # shape: (B, C, H, W)
         hidden = torch.rand((6, 24))
 
         with torch.no_grad():
