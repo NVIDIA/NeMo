@@ -40,7 +40,7 @@ from .numba_core import maximum_path_c
 
 
 def maximum_path(neg_cent, mask):
-    """ Cython optimized version.
+    """ Numba version.
     neg_cent: [b, t_t, t_s]
     mask: [b, t_t, t_s]
     """
