@@ -591,4 +591,5 @@ class ConformerChangeConfig:
 
     # Change the attention context size by providing 2 integers,
     # corresponding to left and right context, or -1 for full context.
-    # If None is provided, the attention context size isn't
+    # If None is provided, the attention context size isn't changed.
+    att_context_size: Optional[List[int]] = None
