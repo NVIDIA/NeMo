@@ -110,7 +110,9 @@ class ASRWithTTSModel(ASRModel):
                 asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                 asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
                 self.asr_model_type = self.ASRModelTypes.from_asr_model(asr_model)
+                OmegaConf.set_struct(self.cfg, False)
                 self.cfg.asr_model_type = str(self.asr_model_type)
+                OmegaConf.set_struct(self.cfg, True)
                 # get optimizer config from ASR model
                 if optim_cfg is None:
                     optim_cfg = asr_model.cfg.get("optim", None)
