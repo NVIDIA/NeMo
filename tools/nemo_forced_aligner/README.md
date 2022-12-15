@@ -53,3 +53,9 @@ For each utterance specified in a line of `manifest_filepath`, one CTM file will
 Each CTM file will contain lines of the format:
 `<utt_id> 1 <start time in samples> <duration in samples> <word or token>`.
 Note the second item in the line (the 'channel ID', which is required by the CTM file format) is always 1, as NFA operates on single channel audio.
+
+
+# How do I evaluate the alignment accuracy?
+Ideally you would have some 'true' CTM files to compare with your generated CTM files. 
+
+Alternatively (or additionally), you can visualize the quality of alignments using tools such as Gecko, which can play your audio file and display the predicted alignments at the same time. The Gecko tool requires you to upload an audio file and at least one CTM file. The Gecko tool can be accessed here: https://gong-io.github.io/gecko/. More information about the Gecko tool can be found on its Github page here: https://github.com/gong-io/gecko. 
