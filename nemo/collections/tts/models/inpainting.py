@@ -444,7 +444,8 @@ class InpainterModel(ModelPT, Exportable):
             axarr[0].imshow(input_spectrogram.cpu().numpy().T)
             axarr[1].imshow(input_spectrogram_masked.cpu().numpy().T)
             axarr[2].imshow(pred_spectrogram.cpu().numpy().T)
-            self.tb_logger.add_figure(f'validation_{i+1}', f)
+            self.tb_logger.add_figure(
+                f'validation_{i+1}', f, global_step=self.global_step)
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
