@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -23,26 +24,10 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.sv.utils import get_abs_path
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
-    digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
-    teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
-    ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-    zero = None
-    digit = None
-    teen = None
-    ties = None
-    twenties = None
-    hundreds = None
-
-    PYNINI_AVAILABLE = False
+zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
+digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
+teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
+ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
 def filter_punctuation(fst: 'pynini.FstLike') -> 'pynini.FstLike':
@@ -91,21 +76,44 @@ class CardinalFst(GraphFst):
         # Any single digit
         graph_digit = digit
         digits_no_one = (NEMO_DIGIT - "1") @ graph_digit
+        inner_digit = digits_no_one | pynini.cross("1", "en")
         both_ones = (pynini.cross("1", "en") | pynini.cross("1", "ett"))
         if deterministic:
             final_digit = digit
         else:
             final_digit = digits_no_one | both_ones
+            inner_digit = final_digit
 
         # Any double digit
-        graph_tens = teen
+        inner_tens = teen
+        final_tens = teen
         if deterministic:
-            graph_tens |= ties + (pynutil.delete('0') | graph_digit)
-            final_tens = graph_tens
+            inner_tens |= ties + (pynutil.delete('0') | inner_digit)
+            final_tens |= ties + (pynutil.delete('0') | final_digit)
         else:
-            graph_tens |= ties + (pynutil.delete('0') | (graph_digit | pynutil.insert(' ') + graph_digit))
+            inner_tens |= ties + (pynutil.delete('0') | (inner_digit | pynutil.insert(' ') + inner_digit))
             final_tens |= ties + (pynutil.delete('0') | (final_digit | pynutil.insert(' ') + final_digit))
 
+        self.tens = final_tens.optimize()
+
+        inner_two_digit_non_zero = pynini.union(
+            inner_digit, inner_tens, (pynutil.delete("0") + inner_digit)
+        )
+        if not deterministic:
+            inner_two_digit_non_zero |= pynini.union(
+                inner_digit, inner_tens, (pynini.cross("0", NEMO_SPACE) + inner_digit)
+            )
+        final_two_digit_non_zero = pynini.union(
+            final_digit, final_tens, (pynutil.delete("0") + final_digit)
+        )
+        if not deterministic:
+            final_two_digit_non_zero |= pynini.union(
+                final_digit, final_tens, (pynini.cross("0", NEMO_SPACE) + final_digit)
+            )
+
+        self.two_digit_non_zero = final_two_digit_non_zero.optimize()
+
+        # Three digit strings
         hundreds = digits_no_one + pynutil.insert("hundra")
         hundreds |= pynini.cross("1", "hundra")
         if not deterministic:
@@ -113,41 +121,18 @@ class CardinalFst(GraphFst):
             hundreds |= pynini.cross("1", "ett hundra")
             hundreds |= digit + pynutil.insert(NEMO_SPACE) + pynutil.insert("hundra")
 
-        self.tens = graph_tens.optimize()
-
-        graph_two_digit_non_zero = pynini.union(
-            graph_digit, graph_tens, (pynutil.delete("0") + graph_digit)
-        )
-        if not deterministic:
-            graph_two_digit_non_zero |= pynini.union(
-                graph_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + graph_digit)
-            )
-
-        self.two_digit_non_zero = graph_two_digit_non_zero.optimize()
-
-        graph_final_two_digit_non_zero = pynini.union(
-            final_digit, graph_tens, (pynutil.delete("0") + final_digit)
-        )
-        if not deterministic:
-            graph_final_two_digit_non_zero |= pynini.union(
-                final_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + final_digit)
-            )
-
-        self.final_two_digit_non_zero = graph_final_two_digit_non_zero.optimize()
-
-        # Three digit strings
         graph_hundreds = hundreds + pynini.union(
-            pynutil.delete("00"), graph_tens, (pynutil.delete("0") + final_digit)
+            pynutil.delete("00"), inner_tens, (pynutil.delete("0") + final_digit)
         )
         if not deterministic:
             graph_hundreds |= hundreds + pynini.union(
-                pynutil.delete("00"), (graph_tens | pynutil.insert(NEMO_SPACE) + graph_tens), (pynini.cross("0", NEMO_SPACE) + final_digit)
+                pynutil.delete("00"), (inner_tens | pynutil.insert(NEMO_SPACE) + inner_tens), (pynini.cross("0", NEMO_SPACE) + final_digit)
             )
 
         self.hundreds = graph_hundreds.optimize()
 
         # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
-        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
+        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + inner_tens)
 
         graph_hundreds_component_at_least_one_non_zero_digit = graph_hundreds_component | (
             pynutil.delete("00") + graph_digit
