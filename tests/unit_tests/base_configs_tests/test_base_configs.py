@@ -703,7 +703,7 @@ class TestBaseConfigs:
 
           tokenizer:
             library: 'megatron'
-            type: 'BertWordPieceCase'
+            type: 'BertWordPieceLowerCase'
             model: null
             vocab_file: ${data_dir}/vocab.txt  
             merge_file: null 
@@ -742,7 +742,7 @@ class TestBaseConfigs:
             splits_string: 900,50,50
             seq_length: 512 #${model.encoder_seq_length}
             skip_warmup: True
-            num_workers: 0
+            num_workers: 2
             dataloader_type: single # cyclic
             reset_position_ids: False # Reset position ids after end-of-document token
             reset_attention_mask: False # Reset attention mask after end-of-document token
