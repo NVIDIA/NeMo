@@ -320,7 +320,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        self.pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
@@ -370,7 +369,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             cache_len = 0
 
         
-        audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+        
 
         # Create the self-attention and padding masks
         pad_mask = self._create_masks(max_audio_length, padding_length, audio_signal.device)
@@ -381,7 +380,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
                 x=audio_signal,
-                pos_emb=pos_emb,
                 pad_mask=pad_mask,
                 cache_last_channel=cache_last_channel,
                 cache_last_time=cache_last_time,
@@ -394,7 +392,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 max_audio_length = audio_signal.size(1)
                 # Don't update the audio_signal here because then it will again scale the audio_signal
                 # and cause an increase in the WER
-                _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask,   = self._create_masks(max_audio_length, length, audio_signal.device)
 
         if self.out_proj is not None:
