@@ -84,9 +84,8 @@ from nemo.utils import logging
 try:
     from torch.cuda.amp import autocast
 except ImportError:
-    from contextlib import contextmanager
 
-    @contextmanager
+    @contextlib.contextmanager
     def autocast(enabled=None):
         yield
 
