@@ -54,6 +54,7 @@ model:
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
   # model architecture
   encoder_seq_length: 512
@@ -123,6 +124,8 @@ model:
   
   optim:
     name: distributed_fused_adam
+    overlap_grad_sync: False
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 2e-4
     weight_decay: 0.01 
     betas: 

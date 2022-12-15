@@ -345,10 +345,18 @@ def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
         gbs, tp, pp = 2048, 2, 1
     elif model_size_in_b <= 13.0:
         gbs, tp, pp = 2048, 4, 1
-    elif model_size_in_b <= 25:
+    elif model_size_in_b <= 25.5:
         gbs, tp, pp = 2048, 8, 1
+    elif model_size_in_b <= 46.5:
+        gbs, tp, pp = 2048, 8, 2
+    elif model_size_in_b <= 87.5:
+        gbs, tp, pp = 2048, 8, 4
+    elif model_size_in_b <= 165.5:
+        gbs, tp, pp = 4096, 8, 8
+    elif model_size_in_b <= 250.5:
+        gbs, tp, pp = 2048, 8, 16
     else:
-        raise ValueError("No BERT model larger than 25B parameters is supported.")
+        raise ValueError("No BERT model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
@@ -373,8 +381,16 @@ def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
         gbs, tp, pp = 2048, 8, 2
     elif model_size_in_b <= 25:
         gbs, tp, pp = 2048, 8, 4
+    elif model_size_in_b <= 46.5:
+        gbs, tp, pp = 2048, 8, 8
+    elif model_size_in_b <= 87.5:
+        gbs, tp, pp = 2048, 8, 16
+    elif model_size_in_b <= 165.5:
+        gbs, tp, pp = 2048, 8, 32
+    elif model_size_in_b <= 250.5:
+        gbs, tp, pp = 2048, 8, 64
     else:
-        raise ValueError("No BERT model larger than 25B parameters is supported.")
+        raise ValueError("No BERT model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 
