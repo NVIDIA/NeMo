@@ -79,19 +79,19 @@ class ASRWithTTSModel(ASRModel):
         self._full_init_guard = False
         model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
-        super().__init__(cfg, trainer=trainer)
 
         OmegaConf.set_struct(cfg, False)
-
-        with _preserve_nemo_file_folder():
-            tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
-            tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
-
         # avoid dataset and optim setup here
         train_ds_cfg = cfg.pop("train_ds", None)
         validation_ds_cfg = cfg.pop("validation_ds", None)
         test_ds_cfg = cfg.pop("test_ds", None)
         optim_cfg = cfg.pop("optim", None)
+
+        super().__init__(cfg, trainer=trainer)
+
+        with _preserve_nemo_file_folder():
+            tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
+            tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
 
         if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
             with _preserve_nemo_file_folder():
