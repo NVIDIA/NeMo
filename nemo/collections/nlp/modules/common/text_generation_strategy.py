@@ -16,6 +16,7 @@ import abc
 from typing import List, Tuple
 
 import torch
+import time
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,
@@ -293,6 +294,8 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         weights = args['weights']
         # start the sentence bert server
         start_sentence_bert_server(tokenizer=self.model.tokenizer, **args['sentence_bert'])
+        # sleep to make sure the sentence bert server is full started.
+        time.sleep(2)
         services = []
         for service_conf in args['services']:
             if service_conf['type'] == 'FaissRetrievalService':

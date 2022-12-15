@@ -174,11 +174,14 @@ def start_sentence_bert_server(
     It only starts the server at rank 0 worker.
     Doesn't support multiple nodes yet.
     """
-
-    if torch.distributed.get_rank() == 0:
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
+            server.run("0.0.0.0")
+        torch.distributed.barrier()
+    else:
         server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
         server.run("0.0.0.0")
-    torch.distributed.barrier()
 
 
 class FaissRetrievalResource(Resource):
@@ -301,6 +304,14 @@ class DynamicRetrievalResource(FaissRetrievalResource):
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.reset()
             return "success"
+        elif 'index_name' in data:
+            with lock:
+                # serialize the index
+                index = faiss.index_gpu_to_cpu(self.index)
+                faiss.write_index(index, data['index_name'])
+                # save the data
+                with open(data['store_name'], 'bw') as f:
+                    pickle.dump(self.ds, f)
         else:
             sentences = data['sentences']
             add_eos = data['add_eos']
@@ -348,16 +359,24 @@ class DynamicRetrievalServer(object):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32,
+        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32, faiss_index: str = None, store_file: str = None
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
         embedding_dim = request_data({}, PORT_NUM_BERT)['dim']
-        self.index = faiss.IndexFlatL2(embedding_dim)  # build the index
+
+        if faiss_index is not None:
+            self.index = faiss.read_index(faiss_index)
+        else:
+            self.index = faiss.IndexFlatL2(embedding_dim)  # build the index
         self.pad_id = tokenizer.pad_id
         self.chunk_size = chunk_size
         self.stride = stride
-        self.store = ChunkStore(chunk_size, self.pad_id)
+        if store_file is not None:
+            with open(store_file, 'rb') as f:
+                self.store = pickle.load(f)
+        else:
+            self.store = ChunkStore(chunk_size, self.pad_id)
 
         if faiss_devices is None or not torch.cuda.is_available():
             device_list = None
@@ -404,10 +423,15 @@ class FaissRetrievalService(RetrievalService):
         pad_id = self.tokenizer.pad_id
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
-        if torch.distributed.get_rank() == 0:
+        if torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
+                server.run("0.0.0.0")
+            torch.distributed.barrier()
+        else:
             server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
             server.run("0.0.0.0")
-        torch.distributed.barrier()
+            
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if isinstance(query, torch.Tensor):
@@ -435,7 +459,7 @@ class DynamicFaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int,
+        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int, faiss_index: str = None, store_file: str = None
     ):
         self.updatable = True
         self.tokenizer = tokenizer
@@ -443,11 +467,15 @@ class DynamicFaissRetrievalService(RetrievalService):
         pad_id = self.tokenizer.pad_id
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=np.int64) * pad_id
-        if torch.distributed.get_rank() == 0:
-            server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride)
+        if torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file)
+                server.run("0.0.0.0")
+            torch.distributed.barrier()
+        else:
+            server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file)
             server.run("0.0.0.0")
-        torch.distributed.barrier()
-
+           
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if isinstance(query, torch.Tensor):
             sentence_list = []
