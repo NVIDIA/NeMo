@@ -23,6 +23,7 @@ from nemo.collections.vision.models.megatron_vit_classification_models import Me
 from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils.exp_manager import exp_manager
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -33,7 +34,7 @@ if torch.cuda.is_available():
 def model_cfg():
 
     model_cfg_string = """
-      precision: ${trainer.precision}
+      precision: 16
       micro_batch_size: 2 # limited by GPU memory
       global_batch_size: 4 # will use more micro batches to reach global batch size
       tensor_model_parallel_size: 1 # intra-layer model parallelism
@@ -164,10 +165,10 @@ def trainer_cfg():
         logger: False
         enable_checkpointing: False
         replace_sampler_ddp: False
-        max_epochs: 1
-        max_steps: -1
+        max_epochs: -1
+        max_steps: 4
         log_every_n_steps: 1
-        val_check_interval: 5
+        val_check_interval: 4
         limit_val_batches: 2
         limit_test_batches: 2
         accumulate_grad_batches: 1
@@ -184,25 +185,24 @@ def trainer_cfg():
 def exp_manager_cfg():
 
     exp_manager_cfg_string = """
-        exp_manager:
-          explicit_log_dir: null
-          exp_dir: null
-          name: megatron_vit_classify
-          create_wandb_logger: False
-          wandb_logger_kwargs:
-            project: null
-            name: null
-          resume_if_exists: False
-          resume_ignore_no_checkpoint: True
-          create_checkpoint_callback: False
-          checkpoint_callback_params:
-            monitor: val_loss
-            save_top_k: 10
-            mode: min
-            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-            filename: 'megatron_vit_classify--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+        explicit_log_dir: null
+        exp_dir: null
+        name: megatron_vit_classify
+        create_wandb_logger: False
+        wandb_logger_kwargs:
+          project: null
+          name: null
+        resume_if_exists: False
+        resume_ignore_no_checkpoint: True
+        create_checkpoint_callback: False
+        checkpoint_callback_params:
+          monitor: val_loss
+          save_top_k: 10
+          mode: min
+          always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+          save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+          filename: 'megatron_vit_classify--{val_loss:.2f}-{step}-{consumed_samples}'
+          model_parallel_size: 1
     """
     exp_manager_cfg = OmegaConf.create(exp_manager_cfg_string)
 
@@ -284,7 +284,7 @@ class TestMegatronVitClassificationModel:
     )
 
     @pytest.mark.unit
-    def test_forward(self, vit_classification_trainer_and_model, test_data_dir, precision):
+    def test_forward(self, vit_classification_trainer_and_model, test_data_dir):
         trainer, vit_classification_model = vit_classification_trainer_and_model
 
         dtype = None
@@ -315,49 +315,39 @@ class TestMegatronVitClassificationModel:
             assert output_tensor.shape == torch.Size([B, vit_classification_model.cfg['num_classes']])
             assert output_tensor.dtype == dtype
 
-    # def test_trainer_training_and_validation(self, model_cfg, trainer_cfg, exp_manager_cfg, test_data_dir, precision):
-    #     model_cfg['precision'] = precision
-    #     trainer_cfg['precision'] = precision
-    #     strategy = NLPDDPStrategy()
+    # def test_vit_backbone(self, model_cfg, trainer_cfg, precision):
+    #     dtype = None
+    #     if trainer_cfg['precision'] == 32:
+    #         dtype = torch.float
+    #     elif trainer_cfg['precision'] == 16:
+    #         dtype = torch.float16
+    #     elif trainer_cfg['precision'] == 'bf16':
+    #         dtype = torch.bfloat16
+    #     else:
+    #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
     #
-    #     trainer = Trainer(strategy=strategy, **trainer_cfg)
-    #     data_path = [
-    #         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
-    #         os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
-    #     ]
-    #     cfg = DictConfig(model_cfg)
-    #     cfg.data.data_path = data_path
-    #     model = MegatronVitClassificationModel(cfg=cfg, trainer=trainer)
-    #
-    #     exp_manager(trainer, exp_manager_cfg)
-    #
-    #     data_path = [
-    #         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
-    #         os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
-    #     ]
-    #     train_ds, validation_ds = build_train_valid_datasets(
-    #         model_cfg=vit_classification_model.cfg,
-    #         data_path=data_path,
-    #         image_size=(vit_classification_model.cfg.img_h, vit_classification_model.cfg.img_w),
+    #     from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
+    #     vit_backbone = VitBackbone(
+    #         model_cfg,
+    #         init_method=None,
+    #         scaled_init_method=None,
+    #         pre_process=True,
+    #         post_process=True,
+    #         single_token_output=True
     #     )
-    #     data_loaders = []
-    #     for dataset in [train_ds, validation_ds]:
-    #         batch_sampler = MegatronVisionPretrainingRandomBatchSampler(
-    #             dataset=dataset,
-    #             total_samples=len(dataset),
-    #             consumed_samples=0,
-    #             micro_batch_size=2,
-    #             global_batch_size=4,
-    #             data_parallel_rank=0,
-    #             data_parallel_size=1,
-    #             drop_last=True,
-    #             data_sharding=True,
-    #         )
-    #         data_loaders.append(torch.utils.data.DataLoader(
-    #             dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True,
-    #         ))
+    #     vit_backbone.eval()
     #
-    #     for idx, batch in enumerate(data_loaders[0]):
-    #         model.training_step(batch, idx)
+    #     # shape: (B, C, H, W)
+    #     images = [validation_ds[i][0] for i in range(4)]
+    #     tokens = torch.stack(images, dim=0)
     #
-    #     trainer.fit(model)
+    #     with torch.no_grad():
+    #         B, C, H, W = tokens.shape
+    #         assert H == W
+    #         with torch.autocast('cuda', dtype=dtype):
+    #             output_tensor = vit_backbone(
+    #                 tokens=tokens.cuda(),
+    #             )
+    #         # output is (B, #classes)
+    #         assert output_tensor.shape == torch.Size([1, B, model_cfg['hidden_size']])
+    #         assert output_tensor.dtype == dtype
