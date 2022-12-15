@@ -275,10 +275,12 @@ class NLPDDPStrategy(DDPStrategy):
         self, checkpoint: Dict[str, Any], filepath: _PATH, storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
-        # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(filepath)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        """ PTL override to accomodate model parallel checkpoints """
+
+        # we don't need to check for data parallel rank 0 here because
+        # the distributed checkpoint library is using all ranks and will
+        # properly write to disk
+        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
