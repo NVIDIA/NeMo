@@ -10,18 +10,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 from omegaconf import OmegaConf
 
-from bignlp.core.launchers import AutoLauncher
-from bignlp.core.logger import logger
-from bignlp.utils.job_utils import JobPaths
-from bignlp.utils.file_utils import download_single_file
-from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_fine_tuning
-from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learning
+from nemo_megatron.core.launchers import AutoLauncher
+from nemo_megatron.core.logger import logger
+from nemo_megatron.utils.job_utils import JobPaths
+from nemo_megatron.utils.file_utils import download_single_file
+from nemo_megatron.utils.data_utils.prepare_squad import prepare_squad_for_fine_tuning
+from nemo_megatron.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learning
 
 
 
-class BigNLPStage:
+class NemoMegatronStage:
     """
-    Base class for BigNLP stages. All stages should build on top of this class.
+    Base class for NeMo Megatron stages. All stages should build on top of this class.
     Call `run` function to run current stage.
     """
 
@@ -49,7 +49,7 @@ class BigNLPStage:
         self.setup_folder_and_data()
         # Save stage hydra config
         job_path = self.get_job_path()
-        stage_cfg_path = BigNLPStage.save_stage_hydra_config(
+        stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(
             self.stage_cfg, job_path
         )
         # Make cluster parameters
@@ -129,7 +129,7 @@ class BigNLPStage:
             return []
 
         numa_override = [f"{k}={v}" for k, v in numa_cfg.items()]
-        numa_command = [f"python3 -u {self._bignlp_path / 'bignlp/collections/numa_mapping.py'}", *numa_override]
+        numa_command = [f"python3 -u {self._nemo_megatron_path / 'nemo_megatron/collections/numa_mapping.py'}", *numa_override]
         numa_command = " \\\n  ".join(numa_command)
         return [numa_command]
 
@@ -190,7 +190,7 @@ class BigNLPStage:
         cfg = self.cfg
         data_dir = cfg.get("data_dir")
         base_results_dir = cfg.get("base_results_dir")
-        mounts_string = f"{self._bignlp_path}:{self._bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+        mounts_string = f"{self._nemo_megatron_path}:{self._nemo_megatron_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
 
         container_mounts = cfg.get("container_mounts")
         mounts_string += add_container_mounts(container_mounts)
@@ -268,7 +268,7 @@ class BigNLPStage:
         Set up dictionary for environment variables
         The environment variables from hydra config will be set inside the job scripts.
         For Example:
-            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
+            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling nemo_megatron-scripts,
             `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
 
         :return: a dictionary of env vars while running the job.
@@ -291,8 +291,8 @@ class BigNLPStage:
         return choice_model_type, choice_name
 
     @property
-    def _bignlp_path(self) -> Path:
-        return Path(self.cfg.get("bignlp_path"))
+    def _nemo_megatron_path(self) -> Path:
+        return Path(self.cfg.get("nemo_megatron_path"))
 
     @property
     def _nemo_code_path(self) -> Path:
@@ -334,7 +334,7 @@ class BigNLPStage:
         return JobPaths(results_dir, self.job_name)
 
 
-class NeMoStage(BigNLPStage):
+class NeMoStage(NemoMegatronStage):
     """
     Stage is a nemo stage if it uses a nemo scripts
     Current nemo stage includes:
@@ -342,7 +342,7 @@ class NeMoStage(BigNLPStage):
         - fine-tuning
         - prompt-learning
         - t5/mt5 eval
-    GPT3 eval is not a NeMo stage because it uses eval-harness inside bignlp collections.
+    GPT3 eval is not a NeMo stage because it uses eval-harness inside nemo_megatron collections.
     """
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
@@ -433,7 +433,7 @@ class NeMoStage(BigNLPStage):
         Set up dictionary for environment variables
         The environment variables from hydra config will be set inside the job scripts.
         For Example:
-            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
+            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling nemo_megatron-scripts,
             `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
 
         :return: a dictionary of env vars while running the job.
@@ -480,7 +480,7 @@ class Training(NeMoStage):
             preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
             blending_alpha = self.stage_cfg.run.get("blending_alpha")
             auto_blend_command = (
-                f"python3 {self._bignlp_path / 'bignlp/collections/auto_blend.py'} "
+                f"python3 {self._nemo_megatron_path / 'nemo_megatron/collections/auto_blend.py'} "
                 f"model_type={choice_model_type} "
                 f"preprocessed_dir={preprocessed_dir} "
                 f"blending_alpha={blending_alpha}"
@@ -531,9 +531,9 @@ class FineTuning(NeMoStage):
         task_name = self.stage_cfg.run.get("task_name")
 
         # GLUE for internal use
-        download_glue_script_path = self._bignlp_path / "bignlp/utils/data_utils/download_glue.py"
+        download_glue_script_path = self._nemo_megatron_path / "nemo_megatron/utils/data_utils/download_glue.py"
         if download_glue_script_path.exists():
-            from bignlp.utils.data_utils.download_glue import download_glue, TASKS_LOWER
+            from nemo_megatron.utils.data_utils.download_glue import download_glue, TASKS_LOWER
             if task_name in TASKS_LOWER:
                 download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
@@ -579,7 +579,7 @@ class PromptLearning(NeMoStage):
         if task_name == 'squad':
             prepare_squad_for_prompt_learning(
                 os.path.join(data_dir, "prompt_data"),
-                self._bignlp_path,
+                self._nemo_megatron_path,
             )
 
 
@@ -646,7 +646,7 @@ class IA3Learning(PromptLearning):
         return model_type_to_code_path[model_type]
 
 
-class Conversion(BigNLPStage):
+class Conversion(NemoMegatronStage):
     """Stage class of converting training checkpoints to .nemo format"""
 
     def setup_stage_vars(self, cfg: OmegaConf):
@@ -675,7 +675,7 @@ class Conversion(BigNLPStage):
         }
         hparams_override = [f"{k}={v}" for k, v in override_configs.items()]
         override_command = [
-            f"python3 -u {self._bignlp_path / 'bignlp/collections/hparams_override.py'}",
+            f"python3 -u {self._nemo_megatron_path / 'nemo_megatron/collections/hparams_override.py'}",
             *hparams_override
         ]
         override_command = " \\\n  ".join(override_command)
@@ -691,7 +691,7 @@ class Conversion(BigNLPStage):
         """
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return (
-            f"python3 {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
+            f"python3 {self._nemo_megatron_path / 'nemo_megatron/collections/checkpoint_search.py'} "
             f"{' '.join(checkpoint_override)}"
         )
 
@@ -780,7 +780,7 @@ class NeMoEvaluation(NeMoStage):
         if any([choice_model_type.startswith(type) for type in ["prompt", "ia3", "adapter"]]):
             pred_file_path = self.stage_cfg.get("pred_file_path")
             ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
-            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py"
+            code_path = self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/squad_metric_calc.py"
             args = create_args_list(
                 pred=pred_file_path,
                 ground_truth=ground_truth_file_path,
@@ -794,12 +794,12 @@ class NeMoEvaluation(NeMoStage):
             output_file_path_prefix = self.stage_cfg.model.data.validation_ds.get("output_file_path_prefix")
             pred_file_path = output_file_path_prefix + "_validation_dataloader0_inputs_preds_labels.json"
             ground_truth_file_path = self.stage_cfg.model.data.validation_ds.get("ground_truth_file_path")
-            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/fine_tuning_metric_calc.py"
+            code_path = self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/fine_tuning_metric_calc.py"
             args = create_args_list(
                 replace_underscore=False,
                 pred_file=pred_file_path,
                 target_file=ground_truth_file_path,
-                squad_eval_script_path=self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py",
+                squad_eval_script_path=self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/squad_metric_calc.py",
             )
             calculation_command = [f"python3 {code_path}", *args]
             calculation_command = " \\\n  ".join(calculation_command)
@@ -834,7 +834,7 @@ class NeMoEvaluation(NeMoStage):
         return model_type_to_code_path[model_type]
 
 
-class EvalHarnessEvaluation(BigNLPStage):
+class EvalHarnessEvaluation(NemoMegatronStage):
     """Stage class of gpt-3 evaluation harness"""
 
     def __init__(self, cfg):
@@ -859,7 +859,7 @@ class EvalHarnessEvaluation(BigNLPStage):
         run_cfg = self.stage_cfg.get("run")
         tasks = run_cfg.get("tasks")
 
-        code_path = self._bignlp_path / "bignlp/collections/eval_harness/download.py"
+        code_path = self._nemo_megatron_path / "nemo_megatron/collections/eval_harness/download.py"
         args = create_args_list(
             tasks=tasks,
             cache_dir=cache_dir,
@@ -891,7 +891,7 @@ class EvalHarnessEvaluation(BigNLPStage):
         run_cfg = self.stage_cfg.get("run")
         model_cfg = self.stage_cfg.get("model")
 
-        code_path = self._bignlp_path / "bignlp/collections/eval_harness/evaluate.py"
+        code_path = self._nemo_megatron_path / "nemo_megatron/collections/eval_harness/evaluate.py"
         args = create_args_list(
             replace_underscore=False,
             name=run_cfg.get("name"),

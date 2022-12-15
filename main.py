@@ -6,12 +6,12 @@ import hydra
 import omegaconf
 import subprocess
 
-from bignlp.core.stages import BigNLPStage
-from bignlp.core.stages import Training, FineTuning, PromptLearning, AdapterLearning, IA3Learning
-from bignlp.core.stages import Conversion
-from bignlp.core.stages import EvalHarnessEvaluation, NeMoEvaluation
-from bignlp.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
-from bignlp.core.export_stages import Export
+from nemo_megatron.core.stages import NemoMegatronStage
+from nemo_megatron.core.stages import Training, FineTuning, PromptLearning, AdapterLearning, IA3Learning
+from nemo_megatron.core.stages import Conversion
+from nemo_megatron.core.stages import EvalHarnessEvaluation, NeMoEvaluation
+from nemo_megatron.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
+from nemo_megatron.core.export_stages import Export
 
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
@@ -60,7 +60,7 @@ def main(cfg):
 
         job_path = stage.get_job_path()
         command = " \\\n  ".join(sys.argv)
-        with open(job_path.folder / "bignlp_cmd.log", "w") as f:
+        with open(job_path.folder / "nemo_megatron_cmd.log", "w") as f:
             f.write(command)
 
         if job_id:

@@ -4,14 +4,14 @@ import time
 from pathlib import Path
 from .download_squad import download_squad
 
-BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
+NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t", "1")
 
-def prepare_squad_for_prompt_learning(data_dir, bignlp_path):
+def prepare_squad_for_prompt_learning(data_dir, nemo_megatron_path):
     squad_dir = data_dir
     download_squad(squad_dir, ["v1.1"])
     squad_v1_dir = os.path.join(squad_dir, "v1.1")
 
-    preprocess_script = bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
+    preprocess_script = nemo_megatron_path / "nemo_megatron/utils/data_utils/prompt_learning_squad_preprocessing.py"
     os.system(
         f"python3 {preprocess_script} "
         f"--data-dir={squad_v1_dir} "
@@ -51,7 +51,7 @@ def preprocess_squad_for_fine_tuning(fname, out_fname_prefix, dev=False):
     print(f"Preprocessing \"{fname}\" for fine-tuning...")
     if os.path.exists(f'{out_fname_prefix}_src.txt') and os.path.exists(f'{out_fname_prefix}_tgt.txt'):
         print(f"Skipped! Fine-tuning data existed at \"{out_fname_prefix}*.txt\"")
-        if BIGNLP_CI:
+        if NEMO_MEGATRON_CI:
             time.sleep(5)
         return
     with open(f'{out_fname_prefix}_src.txt', 'w') as f_src, \

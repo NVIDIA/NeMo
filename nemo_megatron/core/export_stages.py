@@ -10,10 +10,10 @@ import functools
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
-from bignlp.core.launchers import AutoLauncher
-from bignlp.core.stages import BigNLPStage
-from bignlp.core.stages import clean_command_groups, create_args_list
-from bignlp.utils.job_utils import JobPaths
+from nemo_megatron.core.launchers import AutoLauncher
+from nemo_megatron.core.stages import NemoMegatronStage
+from nemo_megatron.core.stages import clean_command_groups, create_args_list
+from nemo_megatron.utils.job_utils import JobPaths
 
 
 FT_PATH = Path("/opt/FasterTransformer")
@@ -23,7 +23,7 @@ FT_BACKEND_PATH = Path("/opt/fastertransformer_backend")
 FT_PATH_WITH_BUILD = FT_PATH
 FT_PATH = Path(os.environ.get("FT_PATH", FT_PATH))
 
-class Export(BigNLPStage):
+class Export(NemoMegatronStage):
     """
     Stage is a FasterTransformer export stage.
     It includes two steps:
@@ -39,7 +39,7 @@ class Export(BigNLPStage):
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return (
-            f"python3 {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
+            f"python3 {self._nemo_megatron_path / 'nemo_megatron/collections/checkpoint_search.py'} "
             f"{' '.join(checkpoint_override)}"
         )
 
@@ -105,7 +105,7 @@ class Export(BigNLPStage):
             job_path = self.get_job_path(sub_stage)
             job_path.folder.mkdir(parents=True, exist_ok=True)
 
-            stage_cfg_path = BigNLPStage.save_stage_hydra_config(
+            stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(
                 self.stage_cfg, job_path
             )
             if job_id:
@@ -198,9 +198,9 @@ class Export(BigNLPStage):
         checkpoint_path = ft_model_cfg.checkpoint_path
         triton_model_dir = triton_cfg.triton_model_dir
 
-        bignlp_scripts_path = Path(cfg.bignlp_path)
+        nemo_megatron_scripts_path = Path(cfg.nemo_megatron_path)
         converter_path = FT_PATH / "examples/pytorch/gpt/utils/nemo_ckpt_convert.py"
-        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/collections/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
         template_path = FT_BACKEND_PATH / "all_models/gpt/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"
@@ -249,9 +249,9 @@ class Export(BigNLPStage):
         checkpoint_path = ft_model_cfg.checkpoint_path
         triton_model_dir = triton_cfg.triton_model_dir
 
-        bignlp_scripts_path = Path(cfg.bignlp_path)
+        nemo_megatron_scripts_path = Path(cfg.nemo_megatron_path)
         converter_path = FT_PATH / "examples/pytorch/t5/utils/nemo_t5_ckpt_convert.py"
-        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/collections/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
         template_path = FT_BACKEND_PATH / "all_models/t5/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"

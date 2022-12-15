@@ -3,31 +3,31 @@ import logging
 from logging import config
 from typing import Union
 
-# provide a way to change level through BIGNLP_LOG_LEVEL environment variable:
+# provide a way to change level through NEMO_MEGATRON_LOG_LEVEL environment variable:
 # ...
-LOG_VARNAME = "BIGNLP_LOG_LEVEL"
+LOG_VARNAME = "NEMO_MEGATRON_LOG_LEVEL"
 level_str = os.environ.get(LOG_VARNAME, "INFO").upper()
 level: Union[int, str] = level_str if not level_str.isdigit() else int(level_str)
 
 CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
-    "formatters": {"bignlp_basic": {"format": "%(name)s %(levelname)s (%(asctime)s) - %(message)s"}},
+    "formatters": {"nemo_megatron_basic": {"format": "%(name)s %(levelname)s (%(asctime)s) - %(message)s"}},
     "handlers": {
-        "bignlp_out": {
+        "nemo_megatron_out": {
             "class": "logging.StreamHandler",
             "level": "DEBUG",
-            "formatter": "bignlp_basic",
+            "formatter": "nemo_megatron_basic",
             "stream": "ext://sys.stdout",
         },
-        "bignlp_err": {
+        "nemo_megatron_err": {
             "class": "logging.StreamHandler",
             "level": "WARNING",
-            "formatter": "bignlp_basic",
+            "formatter": "nemo_megatron_basic",
             "stream": "ext://sys.stderr",
         },
     },
-    "loggers": {"bignlp": {"handlers": ["bignlp_err", "bignlp_out"], "level": level}},
+    "loggers": {"nemo_megatron": {"handlers": ["nemo_megatron_err", "nemo_megatron_out"], "level": level}},
 }
 
 
@@ -36,7 +36,7 @@ if level != "NOCONFIG":
 
 
 def get_logger() -> logging.Logger:
-    return logging.getLogger("BIGNLP")
+    return logging.getLogger("NEMO_MEGATRON")
 
 
 def exception(*args: str) -> None:

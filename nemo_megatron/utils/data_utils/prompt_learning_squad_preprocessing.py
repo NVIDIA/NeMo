@@ -48,7 +48,7 @@ An example of the processed output written to file:
 
 """
 
-BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
+NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t", "1")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -130,7 +130,7 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
 
     if os.path.exists(save_path):
         print(f"Skipped! {split_type} split exists in {save_path}")
-        if BIGNLP_CI:
+        if NEMO_MEGATRON_CI:
             time.sleep(5)
         return
     print(f"Saving {split_type} split to {save_path}")

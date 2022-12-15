@@ -13,12 +13,12 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
-import bignlp.utils.job_utils as job_utils
-from bignlp.core.logger import logger
+import nemo_megatron.utils.job_utils as job_utils
+from nemo_megatron.core.logger import logger
 
-BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
-BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
-BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
+NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t", "1")
+NEMO_MEGATRON_DEBUG = os.getenv("NEMO_MEGATRON_DEBUG", "False").lower() in ("true", "t", "1")
+NEMO_MEGATRON_MEMORY_MEASURE = os.getenv("NEMO_MEGATRON_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
 
 class AutoLauncher:
     """
@@ -87,7 +87,7 @@ class Launcher:
         logger.info(f"Job {self.job_name} submission file created at '{submission_file_path}'")
 
         job_id = ""
-        if not BIGNLP_DEBUG:
+        if not NEMO_MEGATRON_DEBUG:
             job_id = self._submit_command(submission_file_path)
             if job_id:
                 logger.info(f"Job {self.job_name} submitted with Job ID {job_id}")
@@ -293,9 +293,9 @@ class BCPLauncher(Launcher):
             lines += ["", "# setup"] + setup
 
         # Add pause_and_prime_dns_connection to command groups on BCP
-        bignlp_path = Path("/opt/NeMo/nemo_megatron_launcher/launch_scripts") # Hard code path on BCP
+        nemo_megatron_path = Path("/opt/NeMo/nemo_megatron_launcher/launch_scripts") # Hard code path on BCP
         pause_and_prime_dns_connection_command = (
-            f"python3 -u {bignlp_path / 'bignlp/collections/pause_and_prime_dns_connections.py'}"
+            f"python3 -u {nemo_megatron_path / 'nemo_megatron/collections/pause_and_prime_dns_connections.py'}"
         )
         _nemo_code_path = "/opt/NeMo"
         for ind in range(len(command_groups)):
@@ -342,7 +342,7 @@ class SlurmLauncher(Launcher):
         self.parameters = {}
         self._update_parameters(job_name=job_name, **kwargs)
 
-        if shutil.which("srun") is None and not BIGNLP_DEBUG:
+        if shutil.which("srun") is None and not NEMO_MEGATRON_DEBUG:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
 
     @classmethod
@@ -463,7 +463,7 @@ def _get_default_parameters() -> Dict[str, Any]:
 def _make_sbatch_string(
     command_groups: List[List[str]],
     folder: Union[str, Path],
-    job_name: str = "bignlp",
+    job_name: str = "nemo_megatron",
     partition: Optional[str] = None,
     time: int = 5,
     nodes: int = 1,
@@ -509,7 +509,7 @@ def _make_sbatch_string(
         a list of command to run in sbatch before running srun
     additional_parameters: dict
         Forces any parameter to a given value in sbatch. This can be useful
-        to add parameters which are not currently available in bignlp.
+        to add parameters which are not currently available in nemo_megatron.
         Eg: {"mail-user": "blublu@nvidia.com", "mail-type": "BEGIN"}
     srun_args: List[str]
         Add each argument in the list to the srun call
@@ -555,7 +555,7 @@ def _make_sbatch_string(
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
 
-    if BIGNLP_CI: # Override output file for slurm
+    if NEMO_MEGATRON_CI: # Override output file for slurm
         parameters["output"] = parameters["error"] = str(paths.folder / "slurm_%j.out")
         stdout = stderr = parameters["output"]
 
@@ -577,7 +577,7 @@ def _make_sbatch_string(
     if srun_args is None:
         srun_args = []
 
-    if BIGNLP_MEMORY_MEASURE:
+    if NEMO_MEGATRON_MEMORY_MEASURE:
         srun_args += ["--overlap"]
 
         mem_stdout = stdout.replace("_%j", "_mem_%j")

@@ -9,7 +9,7 @@
 *logs*
 *__pycache__*
 *data_cache*
-bignlp/eval_scripts/eval_harness/data*
+nemo_megatron/eval_scripts/eval_harness/data*
 *results*
 !test_data_prep_pipeline.py
 *~

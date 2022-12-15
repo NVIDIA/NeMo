@@ -26,9 +26,9 @@ stages:
   - export
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
-bignlp_path: ???  # Path should end with bignlp-scripts
-data_dir: ${bignlp_path}/data  # Location to store and read the data.
-base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
+nemo_megatron_path: ???  # Path should end with nemo_megatron-scripts
+data_dir: ${nemo_megatron_path}/data  # Location to store and read the data.
+base_results_dir: ${nemo_megatron_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
 container: nvcr.io/ea-bignlp/bignlp-training:22.11-py3
