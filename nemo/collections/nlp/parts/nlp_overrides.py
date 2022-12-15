@@ -18,28 +18,28 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 from datetime import timedelta
-
-from omegaconf import OmegaConf
-
-import torch
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
-from torch.nn.parallel import DistributedDataParallel
-
-from lightning_lite.plugins import CheckpointIO, ClusterEnvironment
-from lightning_lite.plugins.io.torch_io import TorchCheckpointIO
-from lightning_lite.plugins.collectives.torch_collective import default_pg_timeout
-from lightning_lite.utilities.types import _PATH
+from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
+import torch
+from lightning_lite.plugins import CheckpointIO, ClusterEnvironment
+from lightning_lite.plugins.collectives.torch_collective import default_pg_timeout
+from lightning_lite.plugins.io.torch_io import TorchCheckpointIO
+from lightning_lite.utilities.cloud_io import _atomic_save
+from lightning_lite.utilities.cloud_io import _load as pl_load
+from lightning_lite.utilities.cloud_io import get_filesystem
+from lightning_lite.utilities.types import _PATH
+from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.plugins.precision import PrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
-from pytorch_lightning.plugins.precision import PrecisionPlugin
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -767,9 +767,3 @@ class GlobalBatchDataFetcher(DataFetcher):
             assert isinstance(dataloader, Sized)  # `_has_len` is True
             self.done = self.fetched >= len(dataloader)
         self.on_fetch_end(batch, start_output)
-
-
-from lightning_lite.utilities.cloud_io import _atomic_save
-from lightning_lite.utilities.cloud_io import get_filesystem
-from lightning_lite.utilities.cloud_io import _load as pl_load
-
