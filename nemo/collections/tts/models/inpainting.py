@@ -441,9 +441,9 @@ class InpainterModel(ModelPT, Exportable):
 
             f, axarr = plt.subplots(3)
             f.suptitle('input text TBD')
-            axarr[0].imshow(input_spectrogram.T)
-            axarr[1].imshow(input_spectrogram_masked.T)
-            axarr[2].imshow(pred_spectrogram.T)
+            axarr[0].imshow(input_spectrogram.cpu().numpy().T)
+            axarr[1].imshow(input_spectrogram_masked.cpu().numpy().T)
+            axarr[2].imshow(pred_spectrogram.cpu().numpy().T)
             self.tb_logger.add_figure(f'validation_{i+1}', f)
 
     def setup_training_data(self, cfg):
