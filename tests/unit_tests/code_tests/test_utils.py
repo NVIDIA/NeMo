@@ -100,9 +100,9 @@ class TestCalculatemodelSizeParams:
             (24.65, 250000, 512, "mt5", {"layers": 36, "hs": 5120, "att": 80, "ffn": 10880, "kv": 64, "lr": 0.0001}),
             (42.65, 250000, 512, "mt5", {"layers": 48, "hs": 6144, "att": 96, "ffn": 10880, "kv": 64, "lr": 0.0001}),
             # BERT tests
-            (0.11, 30522, 512, "bert", {"layers": 12, "hs": 768, "att": 12, "ffn": 4*768, "kv": None, "lr": 1e-4}),
+            (0.11, 30522, 512, "bert", {"layers": 12, "hs": 768, "att": 12, "ffn": 4*768, "kv": None, "lr": 2e-4}),
             (4.0, 30522, 512, "bert", {"layers": 48, "hs": 2560, "att": 32, "ffn": 4*2560, "kv": None, "lr": 1e-4}),
-            (20.0, 30522, 512, "bert", {"layers": 48, "hs": 6144, "att": 48, "ffn": 4*6144, "kv": None, "lr": 1e-4}),
+            (20.0, 30522, 512, "bert", {"layers": 44, "hs": 6144, "att": 48, "ffn": 4*6144, "kv": None, "lr": 1e-4}),
             (100.0, 30522, 512, "bert", {"layers": 96, "hs": 9216, "att": 96, "ffn": 4*9216, "kv": None, "lr": 1e-4}),
         ],
     )
