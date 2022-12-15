@@ -133,9 +133,6 @@ class ASRWithTTSModel(ASRModel):
         self.tts_model.freeze()
         self._full_init_guard = True
 
-        if trainer is not None:
-            self.set_trainer(trainer)  # set here for asr model
-
         if optim_cfg:
             self.setup_optimization(optim_config=optim_cfg)
         if train_ds_cfg:
@@ -164,11 +161,6 @@ class ASRWithTTSModel(ASRModel):
         cfg.tts_model_path = tts_model_path
         cfg.asr_model_path = asr_model_path
         return ASRWithTTSModel(cfg, trainer=trainer)
-
-    def set_trainer(self, trainer: Trainer):
-        super().set_trainer(trainer)
-        if self._full_init_guard:
-            self.asr_model.set_trainer(trainer)
 
     # fix trainer, see https://github.com/Lightning-AI/lightning/issues/13146#issuecomment-1137593172
     # @property
@@ -319,6 +311,7 @@ class ASRWithTTSModel(ASRModel):
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
+        self.asr_model._train_dl = self._train_dl  # for scheduler
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         text_data_config = train_data_config.text_data
