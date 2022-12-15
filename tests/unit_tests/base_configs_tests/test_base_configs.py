@@ -682,6 +682,7 @@ class TestBaseConfigs:
           micro_batch_size: 4
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
+          virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
           # model architecture
           encoder_seq_length: 512
@@ -723,10 +724,14 @@ class TestBaseConfigs:
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
- 
-          # not implemented in NeMo yet
-          activations_checkpoint_method: 'block' # 'uniform', 'block'
+
+          # Activations checkpointing
+          activations_checkpoint_granularity: selective
+          activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null
+          sequence_parallel: True
 
           data:
             data_prefix:
@@ -746,7 +751,9 @@ class TestBaseConfigs:
             short_seq_prob: 0.1 # Probability of producing a short sequence.
   
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
+            overlap_grad_sync: False
+            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 2e-4
             weight_decay: 0.01 
             betas: 
