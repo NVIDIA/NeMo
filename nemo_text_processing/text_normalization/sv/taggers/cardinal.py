@@ -99,6 +99,7 @@ class CardinalFst(GraphFst):
 
         # Any double digit
         graph_tens = teen
+        final_tens = graph_tens
         if deterministic:
             graph_tens |= ties + (pynutil.delete('0') | graph_digit)
             final_tens = graph_tens
@@ -156,9 +157,9 @@ class CardinalFst(GraphFst):
             pynutil.delete("00") + digits_no_one
         )
 
-        tusen = pynutil.insert(" tusen")
+        tusen = pynutil.insert("tusen")
         if not deterministic:
-            tusen |= pynutil.insert("tusen")
+            tusen |= pynutil.insert(" tusen")
             tusen |= pynutil.insert("ettusen")
             tusen |= pynutil.insert(" ettusen")
             tusen |= pynutil.insert("ett tusen")
