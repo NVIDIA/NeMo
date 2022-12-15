@@ -42,6 +42,6 @@ To normalize feature before masking, set `normalize=pre_norm`,
 and set `normalize=post_norm` for masking before normalization.
 
 To use a specific value for feature masking, set `feat_mask_val` to the desired value. 
-Default is `feat_mask_val=None`, where -16.530 (zero mel-spectralgram value) will be used for `post_norm` and 0 (same as SpectralAugmentation) will be used for `pre_norm`.
+Default is `feat_mask_val=None`, where -16.530 (zero log mel-spectrogram value) will be used for `post_norm` and 0 (same as SpecAugment) will be used for `pre_norm`.
 
 See more options in the `InferenceConfig` class.
