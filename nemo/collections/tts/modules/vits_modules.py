@@ -846,14 +846,14 @@ class SynthesizerTrn(nn.Module):
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
 
     def forward(self, text, text_len, spec, spec_len, sid=None):
-        x, mean_prior, logscale_prior, x_mask = self.enc_p(text, text_len)
+        x, mean_prior, logscale_prior, text_mask = self.enc_p(text, text_len)
         if self.n_speakers > 1:
             g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
-        z, mean_posterior, logscale_posterior, y_mask = self.enc_q(spec, spec_len, g=g)
-        z_p = self.flow(z, y_mask, g=g)
+        z, mean_posterior, logscale_posterior, spec_mask = self.enc_q(spec, spec_len, g=g)
+        z_p = self.flow(z, spec_mask, g=g)
 
         with torch.no_grad():
             # negative cross-entropy
@@ -868,17 +868,17 @@ class SynthesizerTrn(nn.Module):
             neg_cent4 = torch.sum(-0.5 * (mean_prior ** 2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
-            attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
+            attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(y_mask, -1)
             attn = maximum_path(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
 
         w = attn.sum(2)
         if self.use_sdp:
-            l_length = self.dp(x, x_mask, w, g=g)
-            l_length = l_length / torch.sum(x_mask)
+            l_length = self.dp(x, text_mask, w, g=g)
+            l_length = l_length / torch.sum(text_mask)
         else:
-            logw_ = torch.log(w + 1e-6) * x_mask
-            logw = self.dp(x, x_mask, g=g)
-            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)  # for averaging
+            logw_ = torch.log(w + 1e-6) * text_mask
+            logw = self.dp(x, text_mask, g=g)
+            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(text_mask)  # for averaging
 
         # expand prior
         mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(
@@ -895,27 +895,27 @@ class SynthesizerTrn(nn.Module):
             l_length,
             attn,
             ids_slice,
-            x_mask,
-            y_mask,
+            text_mask,
+            spec_mask,
             (z, z_p, mean_prior, logscale_prior, mean_posterior, logscale_posterior),
         )
 
-    def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
-        x, mean_prior, logscale_prior, x_mask = self.enc_p(x, x_lengths)
+    def infer(self, text, text_len, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
+        x, mean_prior, logscale_prior, text_mask = self.enc_p(text, text_len)
         if self.n_speakers > 1 and sid is not None:
             g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
         if self.use_sdp:
-            logw = self.dp(x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w)
+            logw = self.dp(x, text_mask, g=g, reverse=True, noise_scale=noise_scale_w)
         else:
-            logw = self.dp(x, x_mask, g=g)
-        w = torch.exp(logw) * x_mask * length_scale
+            logw = self.dp(x, text_mask, g=g)
+        w = torch.exp(logw) * text_mask * length_scale
         w_ceil = torch.ceil(w)
         audio_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(x_mask.dtype)
-        attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(audio_mask, -1)
+        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(text_mask.dtype)
+        attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(audio_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
         mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(

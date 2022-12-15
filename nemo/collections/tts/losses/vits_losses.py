@@ -64,8 +64,10 @@ class KlLoss(Loss):
     @typecheck()
     def forward(self, z_p, logs_q, m_p, logs_p, z_mask):
         """
-        z_p, logs_q: [b, h, t_t]
-        m_p, logs_p: [b, h, t_t]
+        z_p: Input distribution
+        logs_q: LogVariance of target distrubution
+        m_p: Mean of input distrubution
+        logs_p: LogVariance of input distrubution
         """
         z_p = z_p.float()
         logs_q = logs_q.float()
@@ -124,8 +126,7 @@ class DiscriminatorLoss(Loss):
     @property
     def output_types(self):
         return {
-            "real_loss": NeuralType(elements_type=LossType()),
-            # "gen_loss": NeuralType(elements_type=LossType()),
+            "loss": NeuralType(elements_type=LossType()),
             "real_losses": [NeuralType(elements_type=LossType())],
             "fake_losses": [NeuralType(elements_type=LossType())],
         }

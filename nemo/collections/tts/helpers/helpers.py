@@ -528,6 +528,9 @@ def split_view(tensor, split_size: int, dim: int = 0):
 
 
 def slice_segments(x, ids_str, segment_size=4):
+    """
+    Slices segments from batch
+    """
     ret = torch.zeros_like(x[:, :, :segment_size])
     for i in range(x.size(0)):
         idx_str = ids_str[i]
@@ -541,6 +544,9 @@ def slice_segments(x, ids_str, segment_size=4):
 
 
 def rand_slice_segments(x, x_lengths=None, segment_size=4):
+    """
+    Chooses random indices and lices segments from batch
+    """
     b, d, t = x.size()
     if x_lengths is None:
         x_lengths = t
@@ -570,11 +576,6 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
     total_norm = total_norm ** (1.0 / norm_type)
     return total_norm
 
-
-def intersperse(lst, item):
-    result = [item] * (len(lst) * 2 + 1)
-    result[1::2] = lst
-    return result
 
 
 def convert_pad_shape(pad_shape):
