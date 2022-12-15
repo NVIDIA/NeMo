@@ -66,7 +66,9 @@ LibriTTS
 
     $ python scripts/dataset_processing/tts/libritts/get_data.py \
         --data-root <your_local_dataset_root> \
-        --data-sets dev_clean
+        --manifests-path <your_manifest_store_path> \
+        --val-size 0.01 \
+        --test-size 0.01
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path ljspeech/ds_conf \
@@ -90,19 +92,19 @@ The texts of this dataset has been normalized already. So there is no extra need
 Thorsten Müller (German Neutral-TTS dataset)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Dataset URL: https://www.openslr.org/resources/95/
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr/get_data.py
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr_95/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash
 
-    $ python scripts/dataset_processing/tts/openslr/get_data.py \
+    $ python scripts/dataset_processing/tts/openslr_95/get_data.py \
         --data-root <your_local_dataset_root> \
         --val-size 0.1 \
         --test-size 0.2 \
         --seed-for-ds-split 100
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
-        --config-path openslr/ds_conf \
+        --config-path openslr_95/ds_conf \
         --config-name ds_for_fastpitch_align.yaml \
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>
@@ -130,6 +132,27 @@ HUI Audio Corpus German
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path hui_acg/ds_conf \
+        --config-name ds_for_fastpitch_align.yaml \
+        manifest_filepath=<your_path_to_train_manifest> \
+        sup_data_path=<your_path_to_where_to_save_supplementary_data>
+
+
+SFSpeech Chinese/English Bilingual Speech
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* Dataset URL: https://catalog.ngc.nvidia.com/orgs/nvidia/resources/sf_bilingual_speech_zh_en
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/sfbilingual/get_data.py
+* Command Line Instruction:
+
+.. code-block:: bash
+
+    $ python scripts/dataset_processing/tts/sfbilingual/get_data.py \
+        --data-root <your_local_dataset_root> \
+        --val-size 0.1 \
+        --test-size 0.2 \
+        --seed-for-ds-split 100
+
+    $ python scripts/dataset_processing/tts/extract_sup_data.py \
+        --config-path sfbilingual/ds_conf \
         --config-name ds_for_fastpitch_align.yaml \
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>
