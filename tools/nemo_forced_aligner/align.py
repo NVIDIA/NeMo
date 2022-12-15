@@ -60,7 +60,7 @@ Arguments:
     n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
         we will use (starting from the final part of the audio_filepath) to determine the 
         utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
-        will be stripped away from the utt_id, so as not to change the number of space-separated elements in the 
+        will be replaced with dashes, so as not to change the number of space-separated elements in the 
         CTM files.
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
