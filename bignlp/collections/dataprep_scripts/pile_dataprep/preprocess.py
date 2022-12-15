@@ -32,18 +32,18 @@ def main(cfg):
     # This compile doesn't seem to do anything. It compiles
     # "helpers.cpython-38-x86_64-linux-gnu.so", but since that file already
     # exists, it doesn't do anything. Force make via: touch helpers.cpp
-    megatron_dir = "/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron"
+    megatron_dir = "/opt/NeMo/nemo/collections/nlp/data/language_modeling/megatron"
     compiled_helpers_lib = os.path.join(megatron_dir, "compiled_helpers_lib")
     compilecmd = (
-        f"cd /opt/bignlp/NeMo; git rev-parse HEAD; "
+        f"cd /opt/NeMo; git rev-parse HEAD; "
         f"cd {megatron_dir}; "
         f"touch helpers.cpp; make;"
     )
 
-    code_path = "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"
+    code_path = "/opt/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"
     runcmd = (
         f"cd {megatron_dir}; "
-        f'export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; '
+        f'export PYTHONPATH="/opt/NeMo/.:$PYTHONPATH"; '
         f'export TRANSFORMERS_CACHE="/temp_root/.cache/"; '
         f"python3 {code_path} "
     )

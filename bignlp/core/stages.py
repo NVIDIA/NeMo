@@ -296,7 +296,7 @@ class BigNLPStage:
 
     @property
     def _nemo_code_path(self) -> Path:
-        return Path("/opt/bignlp/NeMo")
+        return Path("/opt/NeMo")
 
     @property
     def _data_dir(self) -> Path:

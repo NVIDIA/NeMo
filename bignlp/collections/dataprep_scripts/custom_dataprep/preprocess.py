@@ -54,7 +54,7 @@ if __name__ == "__main__":
     start_time = time.time()
     cmd = [
         "python",
-        "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py",
+        "/opt/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py",
     ]
     for split in data_files:
         if not split:  # Remove empty split
