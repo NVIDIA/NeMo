@@ -551,7 +551,16 @@ class MegatronBertModel(MegatronBaseModel):
         """
 
         grads = []
-        self._append_sequence_parallel_module_grads(self.model, grads)
+        if isinstance(self.model, list):
+            for module in self.model:
+                self._append_sequence_parallel_module_grads(module, grads)
+        else:
+            self._append_sequence_parallel_module_grads(self.model, grads)
+
+        coalesced = torch._utils._flatten_dense_tensors(grads)
+        torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
+        for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+            buf.copy_(synced)
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
         """Buld dataloader given an input dataset."""
