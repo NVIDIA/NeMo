@@ -231,6 +231,16 @@ class ASRWithTTSModel(ASRModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
 
+    def validation_epoch_end(
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        return self.asr_model.validation_epoch_end(outputs=outputs)
+
+    def test_epoch_end(
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        return self.asr_model.test_epoch_end(outputs=outputs)
+
     def val_dataloader(self):
         return self.asr_model.val_dataloader()
 
