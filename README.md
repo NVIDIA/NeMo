@@ -475,7 +475,7 @@ backend installed.
 ##### 5.1.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
-The bignlp codebase is included as part of the training container. To
+The NeMo Megatron codebase is included as part of the training container. To
 copy it to a local directory in the cluster, it needs to be extracted from the
 container. To copy the code to a directory named /path/to/local/dir the
 following command can be executed. The NeMo Megatron repository for 
