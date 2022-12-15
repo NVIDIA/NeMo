@@ -186,10 +186,8 @@ class ASRWithTTSModel(ASRModel):
         optim_config: Optional[Union[DictConfig, Dict]] = None,
         optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._optimizer, self._scheduler = self.asr_model.setup_optimization(
-            optim_config=optim_config, optim_kwargs=optim_kwargs
-        )
-        return self._optimizer, self._scheduler
+        self.tts_model.freeze()
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
@@ -311,7 +309,7 @@ class ASRWithTTSModel(ASRModel):
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
-        self.asr_model._train_dl = self._train_dl  # for scheduler
+        # self.asr_model._train_dl = self._train_dl  # for scheduler
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         text_data_config = train_data_config.text_data
