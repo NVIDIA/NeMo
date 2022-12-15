@@ -4,8 +4,10 @@ A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based model
 
 ## Usage example 
 
-```
+``` bash
 python <path_to_NeMo>/NeMo/tools/nemo_forced_aligner/align.py \
+        pretrained_name="stt_en_citrinet_1024_gamma_0_25" \
+        model_downsample_factor=8 \
         manifest_filepath=<path to manifest of utterances you want to align> \
         output_ctm_folder=<path to where your ctm files will be saved>
 ```
@@ -15,17 +17,17 @@ To use NFA, all you need to provide is a correct NeMo manifest (with `"audio_fil
 
 Call the `align.py` script, specifying the parameters as follows:
 
+* `pretrained_name`: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded from NGC and used for generating the log-probs which we will use to do alignment. Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). If `model_path` is specified, `pretrained_name` must not be specified.
+>Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
+
+* `model_path`: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the log-probs which we will use to do alignment. If `pretrained_name` is specified, `model_path` must not be specified.
+>Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
+
+* `model_downsample_factor`: the downsample factor of the ASR model. It should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet.
+
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing `'audio_filepath'` and `'text'` fields. The audio filepaths need to be absolute paths.
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
-
-* **[OPTIONAL]** `pretrained_name`: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded from NGC and used for generating the log-probs which we will use to do alignment. Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). (Default: "stt_en_citrinet_1024_gamma_0_25").
->Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
-
-* **[OPTIONAL]** `model_path`: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the log-probs which we will use to do alignment.
->Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
-
-* **[OPTIONAL]** `model_downsample_factor`: the downsample factor of the ASR model. It should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet (Default: 8, to match with the default model_name "stt_en_citrinet_1024_gamma_0_25").
 
 * **[OPTIONAL]** `separator`: the string used to separate CTM segments. If the separator is `“”` (empty string), the CTM segments will be the tokens used by the ASR model. If the separator is anything else, e.g. `“ “`, `“|”` or `“<new section>”`, the segments will be the blocks of text separated by that separator. (Default: `“ “`, so for languages such as English, the CTM segments will be words.)
 

@@ -31,9 +31,6 @@ Align the utterances in manifest_filepath.
 Results are saved in ctm files in output_ctm_folder.
 
 Arguments:
-    manifest_filepath: filepath to the manifest of the data you want to align,
-        containing 'audio_filepath' and 'text' fields.
-    output_ctm_folder: the folder where output CTM files will be saved.
     pretrained_name: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded
         from NGC and used for generating the log-probs which we will use to do alignment.
         Note: NFA can only use CTC models (not Transducer models) at the moment.
@@ -46,6 +43,9 @@ Arguments:
         If the ASR model is a QuartzNet model, its downsample factor is 2.
         If the ASR model is a Conformer CTC model, its downsample factor is 4.
         If the ASR model is a Citirnet model, its downsample factor is 8.
+    manifest_filepath: filepath to the manifest of the data you want to align,
+        containing 'audio_filepath' and 'text' fields.
+    output_ctm_folder: the folder where output CTM files will be saved.
     separator: the string used to separate CTM segments.
         If the separator is “”, the CTM segments will be the tokens used by the ASR model.
         If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
@@ -77,13 +77,13 @@ Arguments:
 @dataclass
 class AlignmentConfig:
     # Required configs
+    pretrained_name: Optional[str] = None
+    model_path: Optional[str] = None
+    model_downsample_factor: Optional[int] = None
     manifest_filepath: Optional[str] = None
     output_ctm_folder: Optional[str] = None
 
     # General configs
-    pretrained_name: Optional[str] = "stt_en_citrinet_1024_gamma_0_25"
-    model_path: Optional[str] = None
-    model_downsample_factor: int = 8
     separator: str = " "
     n_parts_for_ctm_id: int = 1
     audio_sr: int = 16000
@@ -98,14 +98,20 @@ def main(cfg: AlignmentConfig):
         cfg = OmegaConf.structured(cfg)
 
     # Validate config
-    if cfg.manifest_filepath is None:
-        raise ValueError("cfg.manifest_filepath needs to be specified")
-
-    if cfg.output_ctm_folder is None:
-        raise ValueError("cfg.output_ctm_folder needs to be specified")
-
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None")
+
+    if cfg.model_path is not None and cfg.pretrained_name is not None:
+        raise ValueError("One of cfg.model_path and cfg.pretrained_name must be None")
+
+    if cfg.model_downsample_factor is None:
+        raise ValueError("cfg.model_downsample_factor must be specified")
+
+    if cfg.manifest_filepath is None:
+        raise ValueError("cfg.manifest_filepath must be specified")
+
+    if cfg.output_ctm_folder is None:
+        raise ValueError("cfg.output_ctm_folder must be specified")
 
     # load model
     device = torch.device(cfg.device)
