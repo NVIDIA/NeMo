@@ -1,0 +1,68 @@
+100~etthundra
+18~arton
+21~tjugoett
+31~trettioett
+43~förtiotre
+44~förtiofyra
+55~femtiofem
+54~femtiofyra
+67~sextiosju
+70~sjuttio
+72~sjuttiotvå
+80~åttio
+95~nittiofem
+102~etthundratvå
+104~etthundrafyra
+120~etthundratjugo
+200~tvåhundra
+201~tvåhundraett
+111~etthundraelva
+110~etthundratio
+1000~etttusen
+540~femhundraförtio
+850~åttahundrafemtio
+1020~etttusentjugo
+1095~etttusennittiofem
+9789382535~nio miljarder sjuhundraåttionio miljoner trehundraåttiotvåtusen femhundratrettiofem
+8900000000~åtta miljarder niohundra miljoner
+147451~etthundraförtiosjutusen fyrahundrafemtioett
+1056173~en miljon femtiosextusen etthundrasjuttiotre
+11056173~elva miljoner femtiosextusen etthundrasjuttiotre
+1593072961~en miljard femhundranittiotre miljoner sjuttiotvåtusen niohundrasextioett
+100593072961~etthundra miljarder femhundranittiotre miljoner sjuttiotvåtusen niohundrasextioett
+950593072961~niohundrafemtio miljarder femhundranittiotre miljoner sjuttiotvåtusen niohundrasextioett
+100000000110~etthundra miljarder etthundratio
+1001000100~en miljard en miljon etthundra
+-25037~minus tjugofemtusentrettiosju
+-1937~minus etttusen niohundratrettiosju
+-1900~minus etttusen niohundra
+-60~minus sextio
+-1000001~minus en miljonett
+10~tio
+11~elva
+12~tolv
+13~tretton
+14~fjorton
+15~femton
+16~sexton
+17~sjutton
+18~arton
+20~tjugo
+30~trettio
+40~förtio
+50~femtio
+60~sextio
+70~sjuttio
+80~åttio
+90~nittio
+2000010~två miljonertio
+1013~etttusentretton
+1001~etttusenett
+1100~etttusen etthundra
+5500~femtusen femhundra
+1026~etttusentjugosex
+1126~etttusen etthundratjugosex
+8100~åttatusen etthundra
+101~etthundraett
+110~etthundratio
+2003000~två miljoner tretusen
