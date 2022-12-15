@@ -1,3 +1,4 @@
+import copy
 import itertools
 import tempfile
 from contextlib import contextmanager
@@ -77,6 +78,7 @@ class ASRWithTTSModel(ASRModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._full_init_guard = False
+        cfg = copy.deepcopy(cfg)
         model_type_str = cfg.get("asr_model_type")
         model_type = self.ASRModelTypes(model_type_str)  # convert to enum
 
@@ -120,7 +122,7 @@ class ASRWithTTSModel(ASRModel):
         if train_ds_cfg:
             self.setup_training_data(train_data_config=train_ds_cfg)
         if validation_ds_cfg:
-            self.setup_validation_data(val_data_config=validation_ds_cfg)
+            self.setup_multiple_validation_data(val_data_config=validation_ds_cfg)
         if test_ds_cfg:
             self.setup_test_data(test_data_config=test_ds_cfg)
 
