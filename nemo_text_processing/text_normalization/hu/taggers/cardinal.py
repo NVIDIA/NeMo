@@ -79,6 +79,13 @@ class CardinalFst(GraphFst):
             digits_inline_no_one + pynutil.insert("száz") + graph_tens
         )
 
+        # Three digit strings
+        graph_hundreds = base_hundreds + pynini.union(
+            pynutil.delete("00"), graph_tens, (pynutil.delete("0") + graph_digit)
+        )
+
+        self.hundreds = graph_hundreds.optimize()
+
         one_thousand = pynini.union(
             pynini.cross("1000", "ezer"),
             pynini.cross("10", "ezer") + graph_tens,
@@ -91,19 +98,13 @@ class CardinalFst(GraphFst):
             digits_inline_no_one + pynutil.insert("ezer") + insert_hyphen + bare_hundreds
         )
 
-        # Three digit strings
-        graph_hundreds = base_hundreds + pynini.union(
-            pynutil.delete("00"), graph_tens, (pynutil.delete("0") + graph_digit)
-        )
-
-        self.hundreds = graph_hundreds.optimize()
-
         # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
         graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
 
         graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (
             pynutil.delete("00") + graph_digit
         )
+        # Needed?
         graph_hundreds_component_at_least_one_none_zero_digit_no_one = graph_hundreds_component | (
             pynutil.delete("00") + digits_no_one
         )
