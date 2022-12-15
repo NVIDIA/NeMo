@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.losses.audio_losses import SDRLoss, calculate_sdr_batch
-from nemo.collections.asr.parts.utils.audio_utils import calculate_sdr
+from nemo.collections.asr.parts.utils.audio_utils import calculate_sdr_numpy
 
 
 class TestAudioLosses:
@@ -61,7 +61,7 @@ class TestAudioLosses:
                     golden_sdr = np.zeros((batch_size, num_channels))
                     for b in range(batch_size):
                         for m in range(num_channels):
-                            golden_sdr[b, m] = calculate_sdr(
+                            golden_sdr[b, m] = calculate_sdr_numpy(
                                 estimate=estimate[b, m, :], target=target[b, m, :], remove_mean=remove_mean, eps=eps,
                             )
 
@@ -74,9 +74,9 @@ class TestAudioLosses:
                     uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target)
 
                     # Compare torch SDR vs numpy
-                    assert np.isclose(
+                    assert np.allclose(
                         uut_sdr.cpu().detach().numpy(), golden_sdr, atol=atol
-                    ).all(), f'SDR not matching for example {n}, eps={eps}, remove_mean={remove_mean}'
+                    ), f'SDR not matching for example {n}, eps={eps}, remove_mean={remove_mean}'
 
                     # Compare SDR loss vs average of torch SDR
                     assert np.isclose(
@@ -116,7 +116,10 @@ class TestAudioLosses:
             # Reference SDR
             golden_sdr = 0
             for b in range(batch_size):
-                sdr = [calculate_sdr(estimate=estimate[b, m, :], target=target[b, m, :]) for m in range(num_channels)]
+                sdr = [
+                    calculate_sdr_numpy(estimate=estimate[b, m, :], target=target[b, m, :])
+                    for m in range(num_channels)
+                ]
                 # weighted sum
                 sdr = np.sum(np.array(sdr) * channel_weight)
                 golden_sdr += sdr
@@ -126,9 +129,9 @@ class TestAudioLosses:
             uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target)
 
             # Compare
-            assert np.isclose(
+            assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ).all(), f'SDRLoss not matching for example {n}'
+            ), f'SDRLoss not matching for example {n}'
 
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
@@ -166,7 +169,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len])
+                    calculate_sdr_numpy(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len])
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -177,9 +180,9 @@ class TestAudioLosses:
             uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
 
             # Compare
-            assert np.isclose(
+            assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ).all(), f'SDRLoss not matching for example {n}'
+            ), f'SDRLoss not matching for example {n}'
 
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
@@ -217,7 +220,9 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], scale_invariant=True)
+                    calculate_sdr_numpy(
+                        estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], scale_invariant=True
+                    )
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -228,9 +233,9 @@ class TestAudioLosses:
             uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
 
             # Compare
-            assert np.isclose(
+            assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ).all(), f'SDRLoss not matching for example {n}'
+            ), f'SDRLoss not matching for example {n}'
 
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
@@ -268,7 +273,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b in range(batch_size):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, m, mask[b, :] > 0], target=target[b, m, mask[b, :] > 0])
+                    calculate_sdr_numpy(estimate=estimate[b, m, mask[b, :] > 0], target=target[b, m, mask[b, :] > 0])
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -279,9 +284,9 @@ class TestAudioLosses:
             uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, mask=tensor_mask)
 
             # Compare
-            assert np.isclose(
+            assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ).all(), f'SDRLoss not matching for example {n}'
+            ), f'SDRLoss not matching for example {n}'
 
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1])
@@ -320,7 +325,7 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], sdr_max=sdr_max)
+                    calculate_sdr_numpy(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], sdr_max=sdr_max)
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -331,6 +336,6 @@ class TestAudioLosses:
             uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
 
             # Compare
-            assert np.isclose(
+            assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ).all(), f'SDRLoss not matching for example {n}'
+            ), f'SDRLoss not matching for example {n}'

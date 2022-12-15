@@ -21,11 +21,11 @@ from nemo.core.classes import ModelPT
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 
-__all__ = ['AudioProcessingModel']
+__all__ = ['AudioToAudioModel']
 
 
 @experimental
-class AudioProcessingModel(ModelPT, ABC):
+class AudioToAudioModel(ModelPT, ABC):
     @abstractmethod
     def process(
         self, paths2audio_files: List[str], output_dir: str, batch_size: int = 4
@@ -42,10 +42,6 @@ class AudioProcessingModel(ModelPT, ABC):
         Returns:
             Paths to processed audio signals.
         """
-        pass
-
-    @abstractmethod
-    def training_step(self, batch, batch_idx):
         pass
 
     @abstractmethod
@@ -79,18 +75,6 @@ class AudioProcessingModel(ModelPT, ABC):
         # recursively walk the subclasses to generate pretrained model info
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
-
-    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = False) -> torch.Tensor:
-        """Utility method to enable calculation of auxiliary losses for training.
-
-        Args:
-            loss: The output loss value prior to addition with auxiliary losses.
-            reset_registry: Bool, whether to reset the AccessMixin registry after adding auxiliary losses.
-
-        Returns:
-            Loss tensor used for back propagation.
-        """
-        raise NotImplementedError()
 
     def setup_optimization_flags(self):
         """

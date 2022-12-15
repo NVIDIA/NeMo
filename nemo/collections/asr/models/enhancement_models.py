@@ -14,7 +14,7 @@
 import json
 import os
 import tempfile
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import librosa
 import soundfile as sf
@@ -25,25 +25,25 @@ from tqdm import tqdm
 
 from nemo.collections.asr.data import audio_to_audio_dataset
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
-from nemo.collections.asr.models.audio_processing_model import AudioProcessingModel
+from nemo.collections.asr.models.audio_to_audio_model import AudioToAudioModel
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncMaskDecAudioProcessingModel']
+__all__ = ['EncMaskDecAudioToAudioModel']
 
 
 @experimental
-class EncMaskDecAudioProcessingModel(AudioProcessingModel):
+class EncMaskDecAudioToAudioModel(AudioToAudioModel):
     """Class for encoder-mask-decoder audio processing models.
 
     The model consists of the following blocks:
-        - encoder: transforms input multi-channel audio signal into an encoded representation, e.g., STFT
-        - mask: mask estimator
-        - processor: mask-based processor, combining encoded input and mask
-        - decoder: transforms processor output into the time domain, e.g., iSTFT
+        - encoder: transforms input multi-channel audio signal into an encoded representation (analysis transform)
+        - mask_estimator: estimates a mask used by signal processor
+        - mask_processor: mask-based signal processor, combines the encoded input and the estimated mask
+        - decoder: transforms processor output into the time domain (synthesis transform)
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -57,26 +57,20 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         self.sample_rate = self._cfg.sample_rate
 
         # Setup processing modules
-        self.encoder = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.encoder)
-        self.mask = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.mask)
-        self.processor = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.processor)
-        self.decoder = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.decoder)
+        self.encoder = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.encoder)
+        self.mask_estimator = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mask_estimator)
+        self.mask_processor = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mask_processor)
+        self.decoder = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.decoder)
+
+        # Future enhancement:
+        # If subclasses need to modify the config before calling super()
+        # Check ASRBPE* classes do with their mixin
 
         # Setup loss
-        self.loss = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.loss)
+        self.loss = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.loss)
 
         # Setup optional Optimization flags
         self.setup_optimization_flags()
-
-    def get_processing_modules(self) -> Iterable[torch.nn.Module]:
-        """Yield processing modules which should be frozen for inference.
-
-        Returns:
-            Iterable of modules.
-        """
-        for module in [self.encoder, self.mask, self.processor, self.decoder]:
-            if module is not None:
-                yield module
 
     @torch.no_grad()
     def process(
@@ -118,10 +112,8 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         try:
             # Switch model to evaluation mode
             self.eval()
-
-            # Freeze modules
-            for module in self.get_processing_modules():
-                module.freeze()
+            # Freeze weights
+            self.freeze()
 
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
@@ -189,8 +181,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             # set mode back to its original value
             self.train(mode=mode)
             if mode is True:
-                for module in self.get_processing_modules():
-                    module.unfreeze()
+                self.unfreeze()
             logging.set_verbosity(logging_level)
 
         return paths2processed_files
@@ -201,8 +192,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         if is_concat:
             raise NotImplementedError('Concat not implemented')
 
-        # TODO:
-        # Consider moving `inject` from `audio_to_text_dataset` to a utility module?
+        # TODO: Consider moving `inject` from `audio_to_text_dataset` to a utility module?
         # Automatically inject args from model config to dataloader config
         inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
 
@@ -339,22 +329,22 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             "output_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-    def match_batch_length(self, signal: torch.Tensor, batch_length: int):
+    def match_batch_length(self, input: torch.Tensor, batch_length: int):
         """Trim or pad the output to match the batch length.
 
         Args:
-            signal: tensor with shape (B, C, T)
+            input: tensor with shape (B, C, T)
             batch_length: int
 
         Returns:
             Tensor with shape (B, C, T), where T matches the
             batch length.
         """
-        signal_length = signal.size(-1)
-        pad_length = batch_length - signal_length
-        pad = (0, pad_length, 0, 0)
+        input_length = input.size(-1)
+        pad_length = batch_length - input_length
+        pad = (0, pad_length)
         # pad with zeros or crop
-        return torch.nn.functional.pad(signal, pad, 'constant', 0)
+        return torch.nn.functional.pad(input, pad, 'constant', 0)
 
     @typecheck()
     def forward(self, input_signal, input_length):
@@ -376,17 +366,17 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         encoded, encoded_length = self.encoder(input=input_signal, input_length=input_length)
 
         # Mask estimator
-        mask, _ = self.mask(input=encoded, input_length=encoded_length)
+        mask, _ = self.mask_estimator(input=encoded, input_length=encoded_length)
 
         # Mask-based processor in the encoded domain
-        enhanced, enhanced_length = self.processor(input=encoded, input_length=encoded_length, mask=mask)
+        processed, processed_length = self.mask_processor(input=encoded, input_length=encoded_length, mask=mask)
 
         # Decoder
-        enhanced, enhanced_length = self.decoder(input=enhanced, input_length=enhanced_length)
+        processed, processed_length = self.decoder(input=processed, input_length=processed_length)
 
         # Trim or pad the estimated signal to match input length
-        enhanced = self.match_batch_length(signal=enhanced, batch_length=batch_length)
-        return enhanced, enhanced_length
+        processed = self.match_batch_length(input=processed, batch_length=batch_length)
+        return processed, processed_length
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):

@@ -22,7 +22,7 @@ import pytest
 
 from nemo.collections.asr.parts.utils.audio_utils import SOUND_VELOCITY as sound_velocity
 from nemo.collections.asr.parts.utils.audio_utils import (
-    calculate_sdr,
+    calculate_sdr_numpy,
     db2mag,
     estimated_coherence,
     generate_approximate_noise_field,
@@ -297,7 +297,7 @@ class TestAudioUtilsElements:
             ), f'Example {n}: estimated start ({estimated_start}) not matching the actual start ({start})'
 
     @pytest.mark.unit
-    def test_calculate_sdr(self):
+    def test_calculate_sdr_numpy(self):
         atol = 1e-6
         random_seed = 42
         num_examples = 50
@@ -313,7 +313,7 @@ class TestAudioUtilsElements:
             estimate = target * (1 + 10 ** (-golden_sdr / 20))
 
             # UUT
-            estimated_sdr = calculate_sdr(estimate=estimate, target=target, remove_mean=False)
+            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=False)
 
             assert np.isclose(
                 estimated_sdr, golden_sdr, atol=atol
@@ -325,14 +325,14 @@ class TestAudioUtilsElements:
             estimate += _rng.uniform(low=-10, high=10)
 
             # UUT
-            estimated_sdr = calculate_sdr(estimate=estimate, target=target, remove_mean=True)
+            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=True)
 
             assert np.isclose(
                 estimated_sdr, golden_sdr, atol=atol
             ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
 
     @pytest.mark.unit
-    def test_calculate_sdr_scale_invariant(self):
+    def test_calculate_sdr_numpy_scale_invariant(self):
         atol = 1e-6
         random_seed = 42
         num_examples = 50
@@ -350,12 +350,14 @@ class TestAudioUtilsElements:
             target_scaled = target / (np.linalg.norm(target) + 1e-16)
             target_scaled = np.sum(estimate * target_scaled) * target_scaled
 
-            golden_sdr = calculate_sdr(
+            golden_sdr = calculate_sdr_numpy(
                 estimate=estimate, target=target_scaled, scale_invariant=False, remove_mean=False
             )
 
             # UUT
-            estimated_sdr = calculate_sdr(estimate=estimate, target=target, scale_invariant=True, remove_mean=False)
+            estimated_sdr = calculate_sdr_numpy(
+                estimate=estimate, target=target, scale_invariant=True, remove_mean=False
+            )
 
             print(golden_sdr, estimated_sdr)
 

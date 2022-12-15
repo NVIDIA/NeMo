@@ -45,9 +45,9 @@ class TestAudioSpectrogram:
         Create signals of arbitrary length and check output
         length is matching the actual transform length.
         """
-        hop_lengths = [fft_length // 2, fft_length // 4, fft_length // 8, fft_length - 1]
-        batch_size = 8
-        num_examples = 25
+        hop_lengths = [fft_length // 2, fft_length // 3, fft_length // 4]
+        batch_size = 4
+        num_examples = 20
         random_seed = 42
         atol = 1e-6
 
@@ -101,9 +101,9 @@ class TestAudioSpectrogram:
         Create signals of arbitrary length and check output
         length is matching the actual transform length.
         """
-        hop_lengths = [fft_length // 2, fft_length // 4, fft_length // 8, fft_length - 1]
-        batch_size = 8
-        num_examples = 25
+        hop_lengths = [fft_length // 2, fft_length // 3, fft_length // 4]
+        batch_size = 4
+        num_examples = 20
         random_seed = 42
         atol = 1e-6
 
@@ -168,7 +168,7 @@ class TestAudioSpectrogram:
     def test_audio_to_spectrogram_reconstruction(self, fft_length: int, num_channels: int):
         """Test analysis and synthesis transform result in a perfect reconstruction.
         """
-        batch_size = 8
+        batch_size = 4
         num_samples = fft_length * 50
         num_examples = 25
         random_seed = 42
@@ -190,9 +190,9 @@ class TestAudioSpectrogram:
                 )
                 x_hat, x_hat_length = spec2audio(input=x_spec, input_length=x_spec_length)
 
-                assert np.isclose(
+                assert np.allclose(
                     x_hat.cpu().detach().numpy(), x, atol=atol
-                ).all(), f'Reconstructed not matching for example {n} (hop length {hop_length})'
+                ), f'Reconstructed not matching for example {n} (hop length {hop_length})'
 
 
 class TestMultichannelFeatures:
@@ -245,7 +245,7 @@ class TestMultichannelFeatures:
             assert feat_np.shape == feat_golden.shape, f'Feature shape not matching for example {n}'
 
             # Compare values
-            assert np.isclose(feat_np, feat_golden, atol=atol).all(), f'Features not matching for example {n}'
+            assert np.allclose(feat_np, feat_golden, atol=atol), f'Features not matching for example {n}'
 
     @pytest.mark.unit
     @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
@@ -293,7 +293,7 @@ class TestMultichannelFeatures:
             assert ipd.shape == ipd_golden.shape, f'Feature shape not matching for example {n}'
 
             # Compare values
-            assert np.isclose(ipd, ipd_golden, atol=atol).all(), f'Features not matching for example {n}'
+            assert np.allclose(ipd, ipd_golden, atol=atol), f'Features not matching for example {n}'
 
 
 class TestMaskBasedProcessor:
@@ -353,4 +353,4 @@ class TestMaskBasedProcessor:
                 assert out_np.shape == out_golden.shape, f'Output shape not matching for example {n}'
 
                 # Compare values
-                assert np.isclose(out_np, out_golden, atol=atol).all(), f'Output not matching for example {n}'
+                assert np.allclose(out_np, out_golden, atol=atol), f'Output not matching for example {n}'

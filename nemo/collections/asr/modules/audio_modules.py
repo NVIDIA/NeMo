@@ -17,7 +17,7 @@ from typing import Dict, Optional, Tuple
 import torch
 
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.asr.parts.utils.audio_utils import db2mag, wraptopi
+from nemo.collections.asr.parts.utils.audio_utils import db2mag, wrap_to_pi
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AudioSignal, FloatType, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
@@ -114,7 +114,7 @@ class AudioToSpectrogram(NeuralModule):
 
         # STFT output (B, C, F, N)
         with torch.cuda.amp.autocast(enabled=False):
-            output = self.stft(input)
+            output = self.stft(input.float())
 
         # Mask padded frames
         length_mask: torch.Tensor = make_seq_mask_like(
@@ -211,7 +211,7 @@ class SpectrogramToAudio(NeuralModule):
 
         # iSTFT output (B, C, T)
         with torch.cuda.amp.autocast(enabled=False):
-            output = self.istft(input.cdouble())
+            output = self.istft(input.cfloat())
 
         # Mask padded samples
         length_mask: torch.Tensor = make_seq_mask_like(
@@ -350,7 +350,7 @@ class MultichannelFeatures(NeuralModule):
             spec_mean = torch.mean(input, axis=1, keepdim=True)
             ipd = torch.angle(input) - torch.angle(spec_mean)
             # Modulo to [-pi, pi]
-            ipd = wraptopi(ipd)
+            ipd = wrap_to_pi(ipd)
 
             if self.ipd_normalization is not None:
                 ipd = self.ipd_normalization(ipd)
@@ -390,6 +390,8 @@ class MaskEstimatorRNN(NeuralModule):
                  probability equal to `dropout`. Default: 0
         bidirectional: If `True`, use bidirectional RNN.
         rnn_type: Type of RNN, either `lstm` or `gru`. Default: `lstm`
+        mag_reduction: Channel-wise reduction for magnitude features
+        use_ipd: Use inter-channel phase difference (IPD) features
     """
 
     def __init__(

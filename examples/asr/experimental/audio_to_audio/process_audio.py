@@ -24,7 +24,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import AudioProcessingModel
+from nemo.collections.asr.models import AudioToAudioModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
@@ -33,8 +33,8 @@ from nemo.utils import logging, model_utils
 Process audio file on a single CPU/GPU. Useful for processing of moderate amounts of audio data.
 
 # Arguments
-    model_path: path to .nemo checkpoint for an AudioProcessingModel
-    pretrained_name: name of a pretrained AudioProcessingModel model (from NGC registry)
+    model_path: path to .nemo checkpoint for an AudioToAudioModel
+    pretrained_name: name of a pretrained AudioToAudioModel model (from NGC registry)
     audio_dir: path to directory with audio files
     dataset_manifest: path to dataset JSON manifest file (in NeMo format)
 
@@ -52,7 +52,7 @@ Process audio file on a single CPU/GPU. Useful for processing of moderate amount
     overwrite_output: Bool which when set allowes repeated processing runs to overwrite previous results.
 
 # Usage
-AudioProcessingModel can be specified by either `model_path` or `pretrained_name`.
+AudioToAudioModel can be specified by either `model_path` or `pretrained_name`.
 Data for processing can be defined with either `audio_dir` or `dataset_manifest`.
 Processed audio is saved in `output_dir`, and a manifest for processed files is saved
 in `output_filename`.
@@ -134,24 +134,24 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     # setup model
     if cfg.model_path is not None:
         # restore model from .nemo file path
-        model_cfg = AudioProcessingModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        model_cfg = AudioToAudioModel.restore_from(restore_path=cfg.model_path, return_config=True)
         classpath = model_cfg.target  # original class path
-        imported_class = model_utils.import_class_by_path(classpath)  # type: AudioProcessingModel
+        imported_class = model_utils.import_class_by_path(classpath)  # type: AudioToAudioModel
         logging.info(f"Restoring model : {imported_class.__name__}")
-        audio_processing_model = imported_class.restore_from(
+        audio_to_audio_model = imported_class.restore_from(
             restore_path=cfg.model_path, override_config_path=cfg.override_config_path, map_location=map_location
-        )  # type: AudioProcessingModel
+        )  # type: AudioToAudioModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
-        audio_processing_model = AudioProcessingModel.from_pretrained(
+        audio_to_audio_model = AudioToAudioModel.from_pretrained(
             model_name=cfg.pretrained_name, map_location=map_location
-        )  # type: AudioProcessingModel
+        )  # type: AudioToAudioModel
         model_name = cfg.pretrained_name
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
-    audio_processing_model.set_trainer(trainer)
-    audio_processing_model = audio_processing_model.eval()
+    audio_to_audio_model.set_trainer(trainer)
+    audio_to_audio_model = audio_to_audio_model.eval()
 
     if cfg.audio_dir is not None:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
@@ -198,7 +198,7 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
     if not cfg.overwrite_output and os.path.exists(cfg.output_dir):
-        logging.info(
+        logging.warning(
             f"Previous output found at {cfg.output_dir}, and flag `overwrite_output`"
             f"is {cfg.overwrite_output}. Returning without processing."
         )
@@ -208,7 +208,7 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     # Process audio
     with autocast():
         with torch.no_grad():
-            paths2processed_files = audio_processing_model.process(
+            paths2processed_files = audio_to_audio_model.process(
                 paths2audio_files=filepaths,
                 output_dir=cfg.output_dir,
                 batch_size=cfg.batch_size,

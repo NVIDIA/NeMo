@@ -404,7 +404,7 @@ def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
     return np.argmax(cc)
 
 
-def calculate_sdr(
+def calculate_sdr_numpy(
     estimate: np.ndarray,
     target: np.ndarray,
     scale_invariant: bool = False,
@@ -448,7 +448,7 @@ def calculate_sdr(
     return sdr
 
 
-def wraptopi(x: torch.Tensor) -> torch.Tensor:
+def wrap_to_pi(x: torch.Tensor) -> torch.Tensor:
     """Wrap angle in radians to [-pi, pi]
 
     Args:

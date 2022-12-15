@@ -844,9 +844,9 @@ class TestAudioDatasets:
 
                 uut_signal = b_signal[n][:uut_length, ...]
                 golden_signal = batch[n][signal][:uut_length, ...].cpu().detach().numpy()
-                assert np.isclose(
+                assert np.allclose(
                     uut_signal, golden_signal, atol=atol
-                ).all(), f'Example {n} signal {signal} value mismatch.'
+                ), f'Example {n} signal {signal} value mismatch.'
 
     @pytest.mark.unit
     def test_audio_to_target_dataset(self):
@@ -967,14 +967,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # - Filtering based on signal duration
@@ -1001,9 +1001,9 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 3
             # - Use channel selector
@@ -1031,9 +1031,9 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 4
             # - Use fixed duration (random segment selection)
@@ -1086,9 +1086,9 @@ class TestAudioDatasets:
                             item_signal.shape == golden_signal.shape
                         ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
                         # Test signal values
-                        assert np.isclose(
+                        assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ).all(), f'Test 4: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f'Test 4: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 5:
             # - Test collate_fn
@@ -1224,14 +1224,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # Set target as the first channel of input_filepath and all files listed in target_filepath.
@@ -1256,9 +1256,9 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
     @pytest.mark.unit
     def test_audio_to_target_dataset_for_inference(self):
@@ -1359,14 +1359,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
     @pytest.mark.unit
     def test_audio_to_target_with_reference_dataset(self):
@@ -1481,14 +1481,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # - Use fixed duration (random segment selection)
@@ -1530,9 +1530,9 @@ class TestAudioDatasets:
                     ), f'Test 2: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
 
                     # Test signal values
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 3
             # - Use fixed duration (random segment selection)
@@ -1582,9 +1582,9 @@ class TestAudioDatasets:
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
                     # Test signal values
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 4:
             # - Test collate_fn
@@ -1707,14 +1707,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2:
             # - Test collate_fn

@@ -16,7 +16,7 @@
 # Training the model
 
 Basic run (on CPU for 50 epochs):
-    python examples/asr/experimental/audio_processing/speech_enhancement.py \
+    python examples/asr/experimental/audio_to_audio/speech_enhancement.py \
         # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
@@ -29,7 +29,7 @@ PyTorch Lightning Trainer arguments and args of the model and the optimizer can 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import EncMaskDecAudioProcessingModel
+from nemo.collections.asr.models import EncMaskDecAudioToAudioModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -41,7 +41,7 @@ def main(cfg):
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = EncMaskDecAudioProcessingModel(cfg=cfg.model, trainer=trainer)
+    model = EncMaskDecAudioToAudioModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
     model.maybe_init_from_pretrained_checkpoint(cfg)
