@@ -20,7 +20,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="inpainting_tiny.yaml")
+
+@hydra_runner(config_path="conf", config_name="inpainting.yaml")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

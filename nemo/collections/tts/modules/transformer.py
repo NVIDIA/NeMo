@@ -302,8 +302,7 @@ class BiModalTransformerEncoder(FFTransformerDecoder):
         }
 
     def forward(self, text_encs, text_lens, spec_encs, spec_lens):
-        text_embedding = self.mode_embeddings(torch.tensor(0))
-        spec_embedding = self.mode_embeddings(torch.tensor(1))
+        text_embedding, spec_embedding = self.mode_embeddings.weight
 
         text_encs_with_modality = concat_embedding_to_sequence(
             text_embedding, text_encs)

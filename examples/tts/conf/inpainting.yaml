@@ -2,12 +2,10 @@
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-
 name: Inpainter
 
-train_dataset: data/LJSpeech-1.1/train_manifest_tiny.json
-validation_datasets: data/LJSpeech-1.1/val_manifest_tiny.json
-
+train_dataset: data/LJSpeech-1.1/train_manifest.json
+validation_datasets: data/LJSpeech-1.1/val_manifest.json
 sup_data_path: no idea mate
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
@@ -39,9 +37,8 @@ model:
 
   n_speakers: 1
   # max_token_duration: 75
-  # symbols_embedding_dim: 384
+  symbols_embedding_dim: 384
   max_token_duration: 75
-  symbols_embedding_dim: 24
   pitch_embedding_kernel_size: 3
 
   pitch_fmin: ${pitch_fmin}
@@ -70,18 +67,6 @@ model:
     punct_pre_process: true
     punct_post_process: true
 
-  # text_tokenizer:
-  #   _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
-  #   punct: true
-  #   stresses: true
-  #   chars: true
-  #   apostrophe: true
-  #   pad_with_space: true
-  #   g2p:
-  #     _target_: nemo_text_processing.g2p.modules.EnglishG2p
-  #     phoneme_dict: ${phoneme_dict_path}
-  #     heteronyms: ${heteronyms_path}
-  #     phoneme_probability: 0.5
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishCharsTokenizer
     punct: true
@@ -89,7 +74,6 @@ model:
     add_blank_at: null
     pad_with_space: false
     non_default_punct_list: []
-
 
   train_ds:
     dataset:
@@ -121,7 +105,7 @@ model:
       shuffle: true
       batch_size: 32
       # num_workers: 0
-      num_workers: 0
+      num_workers: 12
       pin_memory: true
 
   validation_ds:
@@ -186,8 +170,8 @@ model:
     n_head: 1
     d_model: ${model.symbols_embedding_dim}
     d_head: 64
-    # d_inner: 1536
-    d_inner: 128
+    d_inner: 1536
+    # d_inner: 128
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1
@@ -201,8 +185,8 @@ model:
     n_head: 1
     d_model: ${model.symbols_embedding_dim}
     d_head: 64
-    # d_inner: 1536
-    d_inner: 128
+    d_inner: 1536
+    # d_inner: 128
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1
