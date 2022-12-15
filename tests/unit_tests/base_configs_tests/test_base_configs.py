@@ -144,6 +144,7 @@ class TestBaseConfigs:
 
           optim:
             name: distributed_fused_adam
+            overlap_grad_sync: False
             bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 6e-4
             weight_decay: 0.1
@@ -356,6 +357,7 @@ class TestBaseConfigs:
 
           optim:
             name: distributed_fused_adam
+            overlap_grad_sync: False
             bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 0.0001
             betas:
@@ -580,6 +582,7 @@ class TestBaseConfigs:
 
           optim:
             name: distributed_fused_adam
+            overlap_grad_sync: False
             bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 0.0001
             betas:

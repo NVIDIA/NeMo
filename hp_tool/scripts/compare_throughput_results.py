@@ -42,8 +42,6 @@ def main(cfg):
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "HW TFLOPS / GPU",
-        "HW TFLOPS Aggregate",
         "Config Name",
     ]
     result = []
@@ -53,6 +51,7 @@ def main(cfg):
         candidate_cfg = OmegaConf.load(config_path)
         model_cfg = candidate_cfg.get("model")
         encoder_cfg = model_cfg.get("encoder")
+        decoder_cfg = model_cfg.get("decoder")
         data_cfg = model_cfg.get("data")
         trainer_cfg = candidate_cfg.get("trainer")
 
@@ -75,8 +74,8 @@ def main(cfg):
         else:
             hs = encoder_cfg.get("hidden_size")
             ffn_hs = encoder_cfg.get("ffn_hidden_size")
-            layers = encoder_cfg.get("num_layers")
-            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") * 2
+            layers = encoder_cfg.get("num_layers") + decoder_cfg.get("num_layers")
+            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") + decoder_cfg.get("activations_checkpoint_num_layers")
             num_mbs_act = None
             act_per_pipe = None
         tp = model_cfg.get("tensor_model_parallel_size")
@@ -101,7 +100,7 @@ def main(cfg):
                     timing_list = [x.value for x in timing_list[5:]]
                     avg_global_step_time = round(sum(timing_list) / len(timing_list), 4)
                     samples_per_s = round(gbs / avg_global_step_time, 2)
-                    m_tflops, m_tflops_gpu, hw_tflops, hw_tflops_gpu = calculate_tflops(
+                    m_tflops, m_tflops_gpu = calculate_tflops(
                         model_name=model_name,
                         gbs=gbs,
                         enc_seq_len=enc_seq_len,
@@ -109,7 +108,6 @@ def main(cfg):
                         hs=hs,
                         ffn_hs=ffn_hs,
                         layers=layers,
-                        act_ckpt_layers=act_ckpt_layers,
                         vocab=vocab,
                         nodes=nodes,
                         gpus_per_node=gpus_per_node,
@@ -136,8 +134,6 @@ def main(cfg):
                             samples_per_s,
                             m_tflops_gpu,
                             m_tflops,
-                            hw_tflops_gpu,
-                            hw_tflops,
                             config_name,
                         ]
                     )
@@ -176,7 +172,6 @@ def calculate_tflops(
     hs,
     ffn_hs,
     layers,
-    act_ckpt_layers,
     vocab,
     nodes,
     gpus_per_node,
@@ -196,12 +191,6 @@ def calculate_tflops(
         HW Flops = 72BLsh^2 * ( 1 + (s/3h) + (v/12hL))
     """
     if model_name == "gpt3":
-        act_term = (
-            4 * gbs * enc_seq_len * enc_seq_len * hs * layers
-            if act_ckpt_layers == "selective"
-            else 0
-        )
-
         # Model FLOPS calculation
         model_flops = (
             (24 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs)
@@ -209,6 +198,7 @@ def calculate_tflops(
             + (6 * gbs * enc_seq_len * hs * vocab)
         ) / time_per_step
         model_flops_per_gpu = model_flops / (nodes * gpus_per_node)
+
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
         # HW FLOPS calculation
@@ -247,55 +237,32 @@ def calculate_tflops(
         hw_tflops_per_gpu = hw_flops_per_gpu / 1e12
         
     elif model_name in ["t5", "mt5"]:
-        # Model FLOPS calculation
-        model_flops = (
-            (
-                2 * gbs * hs * hs * (5 * enc_seq_len + 4 * dec_seq_len)
-                + 6 * gbs * hs * ffn_hs * (enc_seq_len + dec_seq_len)
-                + 4
-                * gbs
-                * hs
-                * (
-                    enc_seq_len * enc_seq_len
-                    + dec_seq_len * dec_seq_len
-                    + enc_seq_len * dec_seq_len
-                )
-            )
-            * 3
-            * layers
-            + 6 * gbs * dec_seq_len * hs * vocab
-        ) / time_per_step
+        # Encoder Layer FLOPS: include self attention + MLP
+        flops_self_attn_enc = 6*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs
+        flops_mlp_enc = 6*gbs*enc_seq_len*hs*ffn_hs #geglu needs two gemms for h -> ffn_h
+        flops_enc_layer = flops_self_attn_enc + flops_mlp_enc
+
+        # Decoder Layer FLOPS: inlcude self_attn + cross_attn + MLP
+        flops_self_attn_dec = 6*gbs*dec_seq_len*hs*hs + 4*gbs*dec_seq_len*dec_seq_len*hs
+        flops_cross_attn_dec = 4*gbs*enc_seq_len*hs*hs + 2*gbs*dec_seq_len*hs*hs + 4*gbs*enc_seq_len*dec_seq_len*hs
+        flops_mlp_dec = 6*gbs*dec_seq_len*hs*ffn_hs # geglu needs two gemms for h -> ffn_h
+        flops_dec_layer = flops_self_attn_dec + flops_cross_attn_dec + flops_mlp_dec
+
+        #FLOPs of logits layer in the head
+        flops_logits = 2*gbs*dec_seq_len*hs*vocab
+
+        # FLOPs of fprop
+        flops_fprop = (flops_enc_layer + flops_dec_layer) * (layers // 2) + flops_logits
+
+        # FLOPs of each train step (FLOPs of bprop is 2*fprop)
+        model_flops = 3 * flops_fprop / time_per_step
         model_flops_per_gpu = model_flops / (nodes * gpus_per_node)
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
-        # HW FLOPS calculation
-        hw_flops = (
-            (
-                2 * gbs * hs * hs * (5 * enc_seq_len + 4 * dec_seq_len)
-                + 6 * gbs * hs * ffn_hs * (enc_seq_len + dec_seq_len)
-                + 4
-                * gbs
-                * hs
-                * (
-                    enc_seq_len * enc_seq_len
-                    + dec_seq_len * dec_seq_len
-                    + enc_seq_len * dec_seq_len
-                )
-            )
-            * (3 * layers + act_ckpt_layers)
-            + 6 * gbs * dec_seq_len * hs * vocab
-        ) / time_per_step
-        hw_flops_per_gpu = hw_flops / (nodes * gpus_per_node)
-        hw_tflops = hw_flops / 1e12
-        hw_tflops_per_gpu = hw_flops_per_gpu / 1e12
+
     else:
         raise NotImplementedError("Model type not supported.")
-    return (
-        round(model_tflops, 2),
-        round(model_tflops_per_gpu, 2),
-        round(hw_tflops, 2),
-        round(hw_tflops_per_gpu, 2),
-    )
+    return round(model_tflops, 2), round(model_tflops_per_gpu, 2)
 
 
 if __name__ == "__main__":

@@ -177,6 +177,7 @@ model:
 
   optim:
     name: distributed_fused_adam
+    overlap_grad_sync: False
     bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
