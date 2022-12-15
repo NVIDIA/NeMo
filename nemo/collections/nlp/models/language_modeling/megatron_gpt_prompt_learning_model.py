@@ -985,9 +985,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_ids, processed_inputs = batch
             self.frozen_model.model.parallel_output = False
 
-            print("processed_inputs: ", processed_inputs)
-            raise ValueError
-
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
                 self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
