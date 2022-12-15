@@ -21,7 +21,7 @@ from .data_prep import get_processed_text_and_segments, tokenize_text
 def _get_utt_id(audio_filepath, n_parts_for_ctm_id):
     fp_parts = Path(audio_filepath).parts[-n_parts_for_ctm_id:]
     utt_id = Path("_".join(fp_parts)).stem
-    utt_id = utt_id.replace(" ", "-") # replace any spaces in the filepath with dashes 
+    utt_id = utt_id.replace(" ", "-")  # replace any spaces in the filepath with dashes
     return utt_id
 
 
