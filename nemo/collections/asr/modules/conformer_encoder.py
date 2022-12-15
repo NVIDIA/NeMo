@@ -181,9 +181,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         conv_norm_type='batch_norm',
         conv_context_size=None,
         dropout=0.1,
-        dropout_pre_encoder=0.1,
-        dropout_emb=0.1,
-        dropout_att=0.0,
+
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -593,5 +591,4 @@ class ConformerChangeConfig:
 
     # Change the attention context size by providing 2 integers,
     # corresponding to left and right context, or -1 for full context.
-    # If None is provided, the attention context size isn't changed.
-    att_context_size: Optional[List[int]] = None
+    # If None is provided, the attention context size isn't
