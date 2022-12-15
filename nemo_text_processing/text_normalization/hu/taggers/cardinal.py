@@ -22,52 +22,22 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
-from nemo_text_processing.text_normalization.es.utils import get_abs_path
+from nemo_text_processing.text_normalization.hu.utils import get_abs_path
 from pynini.lib import pynutil
 
 zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
 digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
-teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
-ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
-twenties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/twenties.tsv")))
-hundreds = pynini.invert(pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")))
-
-
-def filter_punctuation(fst: 'pynini.FstLike') -> 'pynini.FstLike':
-    """
-    Helper function for parsing number strings. Converts common cardinal strings (groups of three digits delineated by 'cardinal_separator' - see graph_utils)
-    and converts to a string of digits:
-        "1 000" -> "1000"
-        "1.000.000" -> "1000000"
-    Args:
-        fst: Any pynini.FstLike object. Function composes fst onto string parser fst
-
-    Returns:
-        fst: A pynini.FstLike object
-    """
-    exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
-    up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
-
-    cardinal_string = pynini.closure(
-        NEMO_DIGIT, 1
-    )  # For string w/o punctuation (used for page numbers, thousand series)
-
-    cardinal_string |= (
-        up_to_three_digits
-        + pynutil.delete(cardinal_separator)
-        + pynini.closure(exactly_three_digits + pynutil.delete(cardinal_separator))
-        + exactly_three_digits
-    )
-
-    return cardinal_string @ fst
+digit_inline = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit_inline.tsv")))
+ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/tens.tsv")))
+ties_inline = pynini.invert(pynini.string_file(get_abs_path("data/numbers/tens_inline.tsv")))
 
 
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g.
-        "1000" ->  cardinal { integer: "mil" }
-        "2.000.000" -> cardinal { integer: "dos millones" }
+        "1000" ->  cardinal { integer: "ezer" }
+        "9999" -> cardinal { integer: "kilencezer-kilencszázkilencvenkilenc" }
+        "2000000" -> cardinal { integer: "kétmillió" }
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -79,26 +49,51 @@ class CardinalFst(GraphFst):
 
         # Any single digit
         graph_digit = digit
-        digits_no_one = (NEMO_DIGIT - "1") @ graph_digit
+        digits_inline_no_one = (NEMO_DIGIT - "1") @ digit_inline
+        if not deterministic:
+            graph_digit |= pynini.cross("2", "két")
+
+        insert_hyphen = pynutil.insert("-")
+        # in the non-deterministic case, add an optional space
+        if not deterministic:
+            insert_hyphen |= pynini.closure(pynutil.insert(" "), 0, 1)
 
         # Any double digit
-        graph_tens = teen
-        graph_tens |= ties + (pynutil.delete('0') | (pynutil.insert(" y ") + graph_digit))
-        graph_tens |= twenties
+        graph_tens = (tens_inline + digits) | tens
 
         self.tens = graph_tens.optimize()
 
         self.two_digit_non_zero = pynini.union(
-            graph_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + graph_digit)
+            graph_digit, graph_tens, (pynutil.delete("0") + digits)
         ).optimize()
 
-        # Three digit strings
-        graph_hundreds = hundreds + pynini.union(
-            pynutil.delete("00"), (insert_space + graph_tens), (pynini.cross("0", NEMO_SPACE) + graph_digit)
+        base_hundreds = pynini.union(
+            pynini.cross("1", "száz"),
+            digits_inline_no_one + pynutil.insert("száz")
         )
-        graph_hundreds |= pynini.cross("100", "cien")
-        graph_hundreds |= (
-            pynini.cross("1", "ciento") + insert_space + pynini.union(graph_tens, pynutil.delete("0") + graph_digit)
+
+        hundreds = pynini.union(
+            pynini.cross("100", "száz"),
+            pynini.cross("1", "száz") + graph_tens,
+            digits_inline_no_one + pynini.cross("00", "száz"),
+            digits_inline_no_one + pynutil.insert("száz") + graph_tens
+        )
+
+        one_thousand = pynini.union(
+            pynini.cross("1000", "ezer"),
+            pynini.cross("10", "ezer") + graph_tens,
+            pynini.cross("1", "ezer") + bare_hundreds
+        )
+
+        other_thousands = pynini.union(
+            digits_inline_no_one + pynini.cross("000", "ezer"),
+            digits_inline_no_one + pynini.cross("0", "ezer") + insert_hyphen + graph_tens,
+            digits_inline_no_one + pynutil.insert("ezer") + insert_hyphen + bare_hundreds
+        )
+
+        # Three digit strings
+        graph_hundreds = base_hundreds + pynini.union(
+            pynutil.delete("00"), graph_tens, (pynutil.delete("0") + graph_digit)
         )
 
         self.hundreds = graph_hundreds.optimize()
