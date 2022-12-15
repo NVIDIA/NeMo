@@ -134,13 +134,22 @@ class ASRWithTTSModel(ASRModel):
         self._full_init_guard = True
 
         if optim_cfg:
+            OmegaConf.set_struct(self.cfg, False)
+            self.cfg.optim = optim_cfg
             self.setup_optimization(optim_config=optim_cfg)
         if train_ds_cfg:
+            OmegaConf.set_struct(self.cfg, False)
+            self.cfg.train_ds = train_ds_cfg
             self.setup_training_data(train_data_config=train_ds_cfg)
         if validation_ds_cfg:
+            OmegaConf.set_struct(self.cfg, False)
+            self.cfg.validation_ds = validation_ds_cfg
             self.setup_multiple_validation_data(val_data_config=validation_ds_cfg)
         if test_ds_cfg:
+            OmegaConf.set_struct(self.cfg, False)
+            self.cfg.test_ds = test_ds_cfg
             self.setup_test_data(test_data_config=test_ds_cfg)
+        OmegaConf.set_struct(self.cfg, True)
 
     @classmethod
     def from_asr_config(
@@ -187,7 +196,10 @@ class ASRWithTTSModel(ASRModel):
         optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.tts_model.freeze()
-        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+        optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+        self.asr_model._optimizer = optimizer
+        self.asr_model._scheduler = scheduler
+        return optimizer, scheduler
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         return self.asr_model.setup_validation_data(val_data_config)
