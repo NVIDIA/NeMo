@@ -43,9 +43,8 @@ Example:
 """
 
 import random
+import re
 from argparse import ArgumentParser
-from collections import defaultdict
-from typing import Dict, List, Set, TextIO, Tuple
 
 
 parser = ArgumentParser(description="Preparation of final training examples")
@@ -85,6 +84,12 @@ def main() -> None:
         if len(parts) == 2:  # negative example
             text, candidate_str = parts
             text = " ".join(list(text.replace(" ", "_")))
+            if text != re.sub("[^ _'\-aiuenrbomkygwthszdcjfvplxq]", " ", text):
+                print("BAD text: ", line)
+                continue
+            if candidate_str != re.sub("[^ ';*#&\-aiuenrbomkygwthszdcjfvplxq]", " ", candidate_str):
+                print("BAD candidate_str: ", line)
+                continue
             candidates = []
             for cand in candidate_str.split(";"):
                 candidate = " ".join(list(cand[1:].replace(" ", "_")))
@@ -92,6 +97,15 @@ def main() -> None:
             output.write(text + "\t" + ";".join(candidates) + "\t0\t\n")
         elif len(parts) == 5:  # positive example
             text, candidate_str, target_str, span_str, misspell_str = parts
+            if text != re.sub("[^ '\-aiuenrbomkygwthszdcjfvplxq]", " ", text):
+                print("BAD text: ", line)
+                continue
+            if candidate_str != re.sub("[^ ';*#&\-aiuenrbomkygwthszdcjfvplxq]", " ", candidate_str):
+                print("BAD candidate_str: ", line)
+                continue
+            if misspell_str != re.sub("[^ ';\-aiuenrbomkygwthszdcjfvplxq]", " ", misspell_str):
+                print("BAD misspell_str: ", line)
+                continue
             spans = []
             for sp in span_str.split(";"):
                 begin, end = sp.split(" ")
