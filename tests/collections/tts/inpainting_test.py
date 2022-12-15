@@ -41,9 +41,9 @@ class TestInpainting:
         loss_fn = InpaintingMSELoss()
 
         output = loss_fn(
-            spect_predicted=spec_predicted.transpose(1, 2),
-            spect_tgt=spec_reference.transpose(1, 2),
-            spect_mask=spec_mask.transpose(1, 2)
+            spect_predicted=spec_predicted,
+            spect_tgt=spec_reference,
+            spect_mask=spec_mask)
         )
 
         # loss should be:
