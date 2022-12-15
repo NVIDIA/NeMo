@@ -15,7 +15,7 @@ To use NFA, all you need to provide is a correct NeMo manifest (with `"audio_fil
 
 Call the `align.py` script, specifying the parameters as follows:
 
-* `manifest_filepath`: The path to the manifest of the data you want to align, containing 'audio_filepath' and 'text' fields.
+* `manifest_filepath`: The path to the manifest of the data you want to align, containing `'audio_filepath'` and `'text'` fields. The audio filepaths need to be absolute paths.
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
 
@@ -39,9 +39,9 @@ Call the `align.py` script, specifying the parameters as follows:
 
 
 # Input manifest file format
-NFA needs to be provided with a 'manifest' file where each line specifies the "audio_filepath" and "text" of each utterance that you wish to produce alignments for, like the format below:
+NFA needs to be provided with a 'manifest' file where each line specifies the absolute "audio_filepath" and "text" of each utterance that you wish to produce alignments for, like the format below:
 ```json
-{"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance"}
+{"audio_filepath": "/absolute/path/to/audio.wav", "text": "the transcription of the utterance"}
 ```
 > Note: NFA does not require "duration" fields, and can align long audio files without running out of memory. Depending on your machine specs, you can align audios up to 5-10 minutes on Conformer CTC models, up to around 1.5 hours for QuartzNet models, and up to several hours for Citrinet models. NFA will also produce better alignments the more accurate the ground-truth "text" is.
 
