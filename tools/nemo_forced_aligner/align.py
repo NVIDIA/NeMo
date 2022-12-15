@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import torch
+from omegaconf import OmegaConf
 from utils.data_prep import get_log_probs_y_T_U, get_manifest_lines
 from utils.make_ctm import make_basetoken_ctm, make_word_ctm
 from utils.viterbi_decoding import viterbi_decoding
@@ -92,6 +93,9 @@ class AlignmentConfig:
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
+
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
 
     # Validate config
     if cfg.manifest_filepath is None:
