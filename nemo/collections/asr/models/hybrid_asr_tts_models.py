@@ -65,6 +65,14 @@ class ASRWithTTSModel(ASRModel):
         RNNT_BPE = "rnnt_bpe"
         CTC_BPE = "ctc_bpe"
 
+        @classmethod
+        def from_asr_model(cls, model: Any):
+            if isinstance(model, EncDecRNNTBPEModel):
+                return cls.RNNT_BPE
+            if isinstance(model, EncDecCTCModelBPE):
+                return cls.CTC_BPE
+            raise ValueError(f"Unsupported model type: {type(model)}")
+
         def get_asr_cls(self):
             if self.value == self.RNNT_BPE:
                 return EncDecRNNTBPEModel
@@ -77,11 +85,13 @@ class ASRWithTTSModel(ASRModel):
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """
+        config should contain
+        :param cfg:
+        :param trainer:
+        """
         self._full_init_guard = False
         cfg = copy.deepcopy(cfg)
-        model_type_str = cfg.get("asr_model_type")
-        model_type = self.ASRModelTypes(model_type_str)  # convert to enum
-
         OmegaConf.set_struct(cfg, False)
         # avoid dataset and optim setup here
         train_ds_cfg = cfg.pop("train_ds", None)
@@ -99,13 +109,17 @@ class ASRWithTTSModel(ASRModel):
             with _preserve_nemo_file_folder():
                 asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                 asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
+                self.asr_model_type = self.ASRModelTypes.from_asr_model(asr_model)
+                self.cfg.asr_model_type = str(self.asr_model_type)
                 # get optimizer config from ASR model
                 if optim_cfg is None:
                     optim_cfg = asr_model.cfg.get("optim", None)
         else:
+            model_type_str = cfg.get("asr_model_type")
+            self.asr_model_type = self.ASRModelTypes(model_type_str)  # convert to enum
             # instantiate asr model from config
             with _preserve_nemo_file_folder():
-                asr_model = model_type.get_asr_cls()(cfg)
+                asr_model = self.asr_model_type.get_asr_cls()(cfg)
                 with tempfile.TemporaryDirectory() as tmp_dir_name:
                     save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
                     asr_model.save_to(save_path)
@@ -144,7 +158,6 @@ class ASRWithTTSModel(ASRModel):
             cfg = DictConfig(dict())
         cfg.tts_model_path = tts_model_path
         cfg.asr_model_path = asr_model_path
-        cfg.asr_model_type = "rnnt_bpe"  # FixMe
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     # fix trainer, see https://github.com/Lightning-AI/lightning/issues/13146#issuecomment-1137593172
