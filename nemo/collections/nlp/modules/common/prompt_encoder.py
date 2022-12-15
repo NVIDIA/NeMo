@@ -405,6 +405,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         l2_scale: float,
         cs_scale: float,
         normalize: bool,
+        normalize_orginal_embeddings: bool,
         use_relu: bool,
         init_val: str,
         spaced_init: str,
@@ -427,21 +428,26 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         self.l2_scale = l2_scale
         self.cs_scale = cs_scale
         self.normalize = normalize
+        self.normalize_original_embeddings = normalize_orginal_embeddings
         self.use_relu = use_relu
         self.spaced_init = spaced_init
         self.mask_restrict = mask_restrict
         self.noise_std = noise_std
 
         assert self.original_embeddings.requires_grad == False
+        if self.normalize_original_embeddings:
+            self.original_embeddings = self.original_embeddings / self.original_embeddings.norm(dim=1).unsqueeze(1)
         vocab_size, _ = self.original_embeddings.size()
 
         t = torch.zeros((vocab_size, self.total_virtual_tokens))
+        if self.use_relu:
+            init_val = 'avg'
         if init_val == 'one':
             self.init_val = 1.0
         elif init_val == 'zero':
             self.init_val = 0.0
         else:
-            self.init_val == 1.0 / vocab_size
+            self.init_val = 1.0 / vocab_size
 
         t = t + self.init_val
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
@@ -460,7 +466,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
     def encoder_reg(self,):
         w = self.linear_combination
         if self.use_relu:
-            w = torch.nn.functional.relu(w)
+            w = torch.nn.functional.gelu(w)
         if self.normalize:
             w = w / w.sum(dim=0)
 
@@ -483,7 +489,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         batch_size, _, _ = taskname_embeddings.shape
         w = self.linear_combination
         if self.use_relu:
-            w = torch.nn.functional.relu(w)
+            w = torch.nn.functional.gelu(w)
 
         if self.normalize:
             w = w / w.sum(dim=0)
