@@ -16,13 +16,15 @@ class TestBERTConfig:
           max_steps_per_run: 50 # Max steps per run for the grid search.
           max_minutes_per_run: 20 # minutes per run for the grid search.
           tflops_per_gpu: 140  # Estimated tflops per GPU.
-          num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+          num_tokens_in_b: 1800  # Unit in billions, typically 300B for GPT3 models.
           vocab_size: 30522
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
           tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
           pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-          act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3] 
+          act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
         """
         expected = OmegaConf.create(s)
         assert (
@@ -41,13 +43,15 @@ class TestBERTConfig:
           limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
           output_top_n: 10  # The result will print the top N fastest training configs.
           max_steps_per_run: 50 # Max steps per run for the grid search.
-          max_minutes_per_run: 40 # minutes per run for the grid search.
+          max_minutes_per_run: 20 # minutes per run for the grid search.
           tflops_per_gpu: 140  # Estimated tflops per GPU.
-          num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+          num_tokens_in_b: 1800  # Unit in billions, typically 300B for GPT3 models.
           vocab_size: 30522
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
           tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
           pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
           act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
  
@@ -69,13 +73,15 @@ class TestBERTConfig:
           limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
           output_top_n: 10  # The result will print the top N fastest training configs.
           max_steps_per_run: 50 # Max steps per run for the grid search.
-          max_minutes_per_run: 60 # minutes per run for the grid search.
+          max_minutes_per_run: 30 # minutes per run for the grid search.
           tflops_per_gpu: 140  # Estimated tflops per GPU.
-          num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+          num_tokens_in_b: 1800  # Unit in billions, typically 300B for GPT3 models.
           vocab_size: 30522
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
           tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
           pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
           act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
         """
