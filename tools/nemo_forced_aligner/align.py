@@ -67,8 +67,10 @@ Arguments:
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
-    device: string specifying the device that will be used for generating log-probs and doing 
-        Viterbi decoding. The string needs to be in a format recognized by torch.device()
+    transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
+        The string needs to be in a format recognized by torch.device().
+    viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
+        The string needs to be in a format recognized by torch.device().
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
 
 """
@@ -86,7 +88,8 @@ class AlignmentConfig:
     # General configs
     separator: str = " "
     n_parts_for_ctm_id: int = 1
-    device: str = "cpu"
+    transcribe_device: str = "cpu"
+    viterbi_device: str = "cpu"
     batch_size: int = 1
 
 
@@ -112,10 +115,12 @@ def main(cfg: AlignmentConfig):
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder must be specified")
 
-    # load model
-    device = torch.device(cfg.device)
+    # init devices
+    transcribe_device = torch.device(cfg.transcribe_device)
+    viterbi_device = torch.device(cfg.viterbi_device)
 
-    model, _ = setup_model(cfg, device)
+    # load model
+    model, _ = setup_model(cfg, transcribe_device)
 
     if not isinstance(model, EncDecCTCModel):
         raise NotImplementedError(
@@ -144,7 +149,7 @@ def main(cfg: AlignmentConfig):
         data = get_manifest_lines(cfg.manifest_filepath, start, end)
 
         log_probs, y, T, U = get_log_probs_y_T_U(data, model, cfg.separator)
-        alignments = viterbi_decoding(log_probs, y, T, U)
+        alignments = viterbi_decoding(log_probs, y, T, U, viterbi_device)
 
         if cfg.separator == "":
             make_basetoken_ctm(

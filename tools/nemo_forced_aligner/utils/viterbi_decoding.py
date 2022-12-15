@@ -17,7 +17,7 @@ import torch
 V_NEG_NUM = -1e30
 
 
-def viterbi_decoding(log_probs, y, T, U):
+def viterbi_decoding(log_probs, y, T, U, device):
     """
     Does Viterbi decoding.
     Returns:
@@ -35,7 +35,11 @@ def viterbi_decoding(log_probs, y, T, U):
     B, T_max, _ = log_probs.shape
     U_max = y.shape[1]
 
-    device = log_probs.device
+    # transfer all tensors to device
+    log_probs = log_probs.to(device)
+    y = y.to(device)
+    T = T.to(device)
+    U = U.to(device)
 
     padding_for_log_probs = V_NEG_NUM * torch.ones((B, T_max, 1), device=device)
     log_probs_padded = torch.cat((log_probs, padding_for_log_probs), dim=2)
