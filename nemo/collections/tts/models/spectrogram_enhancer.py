@@ -276,6 +276,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         return enhanced_spectrograms
 
+    @torch.no_grad()
     def prepare_batch(self, batch):
         if not isinstance(self.spectrogram_model, FastPitchModel):
             raise NotImplementedError(
@@ -297,31 +298,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             input_lens=batch["text_lens"],
         )
 
-        mels = mels.cpu()
-        mel_lens = mel_lens.cpu()
-        mels_pred = mels_pred.cpu()
+        max_len = mel_lens.max().item()
+        target = mels[:, :, :max_len]
+        condition = mels_pred[:, :, :max_len]
 
-        batch_size, *_ = mels.shape
-
-        targets = []
-        conditions = []
-        lengths = []
-
-        for i in range(batch_size):
-            l = mel_lens[i].item()
-            lengths.append(l)
-
-            targets.append(mels[i, :, :l].T)
-            conditions.append(mels_pred[i, :, :l].T)
-
-        target = nn.utils.rnn.pad_sequence(targets, batch_first=True)
-        condition = nn.utils.rnn.pad_sequence(conditions, batch_first=True)
-        lengths = torch.LongTensor(lengths)
-
-        target = rearrange(target, "b l c -> b c l")
-        condition = rearrange(condition, "b l c -> b c l")
-
-        return self.move_to_correct_device((target, condition, lengths))
+        return target, condition, mel_lens
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         target, condition, lengths = self.prepare_batch(batch)
