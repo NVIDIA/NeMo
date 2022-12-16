@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import abc
+import time
 from typing import List, Tuple
 
 import torch
-import time
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,

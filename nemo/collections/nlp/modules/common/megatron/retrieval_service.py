@@ -307,7 +307,9 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         elif 'index_name' in data:
             with lock:
                 # serialize the index
-                index = faiss.index_gpu_to_cpu(self.index)
+                index = self.index
+                if hasattr(faiss, 'index_gpu_to_cpu'):
+                    index = faiss.index_gpu_to_cpu(index)
                 faiss.write_index(index, data['index_name'])
                 # save the data
                 with open(data['store_name'], 'bw') as f:
@@ -359,7 +361,13 @@ class DynamicRetrievalServer(object):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32, faiss_index: str = None, store_file: str = None
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int = 64,
+        stride: int = 32,
+        faiss_index: str = None,
+        store_file: str = None,
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
@@ -431,7 +439,6 @@ class FaissRetrievalService(RetrievalService):
         else:
             server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
             server.run("0.0.0.0")
-            
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if isinstance(query, torch.Tensor):
@@ -459,7 +466,13 @@ class DynamicFaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int, faiss_index: str = None, store_file: str = None
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int,
+        stride: int,
+        faiss_index: str = None,
+        store_file: str = None,
     ):
         self.updatable = True
         self.tokenizer = tokenizer
@@ -475,7 +488,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         else:
             server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file)
             server.run("0.0.0.0")
-           
+
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if isinstance(query, torch.Tensor):
             sentence_list = []
