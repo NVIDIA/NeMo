@@ -47,7 +47,6 @@ def timeit(method):
     Return:
         `timed` function for measuring the elapsed time
     """
-
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)
@@ -80,7 +79,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         (2) Embedding extraction (`_extract_online_embeddings` function call)
         (3) Online speaker counting and speaker clustering (`OnlineClusteringDiarizer` class)
         (4) Label generation (`generate_cluster_labels` function call)
-
     """
 
     def __init__(self, cfg: DictConfig):

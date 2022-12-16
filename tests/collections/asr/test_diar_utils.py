@@ -439,7 +439,7 @@ class TestDiarizationSegmentationUtils:
     @pytest.mark.unit
     @pytest.mark.parametrize("frame_start", [3.0])
     @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0]]])
-    @pytest.mark.parametrize("gt_cursor_for_old_segments", [1.0])
+    @pytest.mark.parametrize("gt_cursor_for_old_segments", [3.0])
     @pytest.mark.parametrize("gt_cursor_index", [1])
     def test_get_new_cursor_for_update_mulsegs_ex1(
         self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
@@ -447,7 +447,6 @@ class TestDiarizationSegmentationUtils:
         cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
         assert cursor_for_old_segments == gt_cursor_for_old_segments
         assert cursor_index == gt_cursor_index
-
 
 class TestSpeakerClustering:
     """
