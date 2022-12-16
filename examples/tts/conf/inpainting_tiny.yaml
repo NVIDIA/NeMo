@@ -8,7 +8,7 @@ name: Inpainter
 train_dataset: data/LJSpeech-1.1/train_manifest_tiny.json
 validation_datasets: data/LJSpeech-1.1/val_manifest_tiny.json
 
-sup_data_path: no idea mate
+sup_data_path: data/LJSpeech-1.1/data_cache
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
