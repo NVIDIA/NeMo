@@ -95,7 +95,7 @@ class RGBBlock(nn.Module):
         self.to_style = nn.Linear(latent_dim, input_channel)
 
         out_filters = channels
-        self.conv = Conv2DMod(input_channel, out_filters, 1, demod=False)
+        self.conv = Conv2DModulated(input_channel, out_filters, 1, demod=False)
 
         self.upsample = (
             nn.Sequential(nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False), Blur(),)
@@ -116,7 +116,7 @@ class RGBBlock(nn.Module):
         return x
 
 
-class Conv2DMod(nn.Module):
+class Conv2DModulated(nn.Module):
     """
     Modulated convolution.
     For details refer to [1]
@@ -171,11 +171,11 @@ class GeneratorBlock(nn.Module):
 
         self.to_style1 = nn.Linear(latent_dim, input_channels)
         self.to_noise1 = nn.Linear(1, filters)
-        self.conv1 = Conv2DMod(input_channels, filters, 3)
+        self.conv1 = Conv2DModulated(input_channels, filters, 3)
 
         self.to_style2 = nn.Linear(latent_dim, filters)
         self.to_noise2 = nn.Linear(1, filters)
-        self.conv2 = Conv2DMod(filters, filters, 3)
+        self.conv2 = Conv2DModulated(filters, filters, 3)
 
         self.activation = nn.LeakyReLU(0.2, inplace=True)
         self.to_rgb = RGBBlock(latent_dim, filters, upsample_rgb, channels)
