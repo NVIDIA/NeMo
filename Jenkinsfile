@@ -3450,7 +3450,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron GPT Prompt Tuning') {
+    stage('L2: Megatron GPT Prompt Tuning TP1 PP1') {
       when {
         anyOf {
           branch 'main'
@@ -3482,7 +3482,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron GPT Prompt Tuning') {
+    stage('L2: Megatron GPT Prompt Tuning TP2 PP1') {
       when {
         anyOf {
           branch 'main'
@@ -3523,7 +3523,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron GPT Prompt Tuning') {
+    stage('L2: Megatron GPT Prompt Tuning TP1 PP2') {
       when {
         anyOf {
           branch 'main'
@@ -3842,7 +3842,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
     
-    stage('L2: Megatron T5 Prompt Learning') {
+    stage('L2: Megatron T5 Prompt Learning TP1 PP1') {
       when {
         anyOf {
           branch 'main'
@@ -3882,7 +3882,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron T5 Prompt Learning') {
+    stage('L2: Megatron T5 Prompt Learning TP2 PP1') {
       when {
         anyOf {
           branch 'main'
@@ -3924,7 +3924,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
     
-    stage('L2: Megatron T5 Prompt Learning') {
+    stage('L2: Megatron T5 Prompt Learning TP1 PP2') {
       when {
         anyOf {
           branch 'main'
