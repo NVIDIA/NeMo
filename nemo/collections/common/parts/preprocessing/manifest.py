@@ -18,6 +18,7 @@ from os.path import expanduser
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
+from nemo.collections.common.parts.utils import get_num_lines
 from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject, datastore_path_to_local_path, is_datastore_path
 
@@ -37,7 +38,11 @@ class ManifestEN:
 
 
 def item_iter(
-    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+    manifests_files: Union[str, List[str]],
+    parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None,
+    shard_strategy: Optional[str] = None,
+    global_rank: Optional[int] = None,
+    world_size: Optional[int] = None,
 ) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
@@ -55,6 +60,10 @@ def item_iter(
         parse_func: A callable function which accepts as input a single line
             of a manifest and optionally the manifest file itself,
             and parses it, returning a dictionary mapping from str -> Any.
+        shard_strategy: If set, return only lines that correspond to the
+            selected shard strategy. For shard strategies, see _TarredAudioToTextDataset.
+        global_rank: Worker rank, used for partitioning the manifest.
+        world_size: Total number of processes, used for partitioning the manifest.
 
     Yields:
         Parsed key to value item dicts.
@@ -75,9 +84,44 @@ def item_iter(
         logging.debug('Using manifest file: %s', str(manifest_file))
         cached_manifest_file = DataStoreObject(manifest_file).get()
         logging.debug('Cached at: %s', str(cached_manifest_file))
+
+        if shard_strategy is not None and world_size > 1:
+            if shard_strategy == 'scatter':
+                # Read only necessary manifest lines
+                logging.debug('Partitioning manifest: global rank = %d, world size = %d', global_rank, world_size)
+
+                # Get number of lines in the current manifest
+                num_lines = get_num_lines(cached_manifest_file)
+                logging.debug('Found %d lines in manifest %s', num_lines, cached_manifest_file)
+
+                # Determine start and end lines in the manifest.
+                # This corresponds to splitting the manifest in audio_to_text.py::expand_audio_filepaths
+                begin_idx = (num_lines // world_size) * global_rank
+                end_idx = begin_idx + num_lines // world_size
+                logging.info(
+                    'Partitioning manifest lines: process (%d) of (%d) taking lines [%d, %d)',
+                    global_rank,
+                    world_size,
+                    begin_idx,
+                    end_idx,
+                )
+            elif shard_strategy == 'replicate':
+                logging.info('Manifest will be replicated across all nodes.')
+                begin_idx = end_idx = None
+            else:
+                raise ValueError(f'Unknown split strategy {shard_strategy}')
+        else:
+            begin_idx = end_idx = None
+
         with open(expanduser(cached_manifest_file), 'r') as f:
-            for line in f:
+            for n, line in enumerate(f):
                 k += 1
+                if begin_idx is not None and n < begin_idx:
+                    # Skip lines before begin_idx
+                    continue
+                if end_idx is not None and n >= end_idx:
+                    # Stop parsing lines from end_idx
+                    break
                 item = parse_func(line, manifest_file)
                 item['id'] = k
 

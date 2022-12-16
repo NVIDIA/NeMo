@@ -133,6 +133,9 @@ class ASRManifestProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         index_by_file_id: bool = False,
+        shard_strategy: Optional[str] = None,
+        global_rank: Optional[int] = None,
+        world_size: Optional[int] = None,
     ):
         self.parser = parser
 
@@ -143,6 +146,9 @@ class ASRManifestProcessor:
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
+            shard_strategy=shard_strategy,
+            global_rank=global_rank,
+            world_size=world_size,
         )
 
         self.eos_id = eos_id
@@ -786,6 +792,9 @@ class _TarredAudioToTextDataset(IterableDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+            shard_strategy=shard_strategy,
+            global_rank=global_rank,
+            world_size=world_size,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)

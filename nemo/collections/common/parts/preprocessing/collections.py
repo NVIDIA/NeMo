@@ -113,6 +113,8 @@ class AudioText(_Collection):
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
+        shard_strategy: Optional[str] = None,
+        world_size: Optional[int] = None,
     ):
         """Instantiates audio-text manifest with filters and preprocessing.
 
@@ -131,6 +133,8 @@ class AudioText(_Collection):
             max_number: Maximum number of samples to collect.
             do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+            shard_strategy: Used to recover the full length of data list if shard_strategy == 'scatter'
+            world_size: Total number of processes, used for partitioning the manifest.
         """
 
         output_type = self.OUTPUT_TYPE
@@ -190,6 +194,12 @@ class AudioText(_Collection):
             else:
                 data.sort(key=lambda entity: entity.duration)
 
+        if shard_strategy == 'scatter' and world_size > 1:
+            # WORKAROUND:
+            # Originally, data list had full length even when the data is scattered
+            # Here, we restore the length by repeating the same sequence, to make sure epoch length is unchanched
+            data = world_size * data
+
         logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
         logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
 
@@ -199,7 +209,15 @@ class AudioText(_Collection):
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        shard_strategy: Optional[str] = None,
+        global_rank: Optional[int] = None,
+        world_size: Optional[int] = None,
+        *args,
+        **kwargs,
+    ):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -217,7 +235,9 @@ class ASRAudioText(AudioText):
             [],
         )
         speakers, orig_srs, token_labels, langs = [], [], [], []
-        for item in manifest.item_iter(manifests_files):
+        for item in manifest.item_iter(
+            manifests_files, shard_strategy=shard_strategy, global_rank=global_rank, world_size=world_size
+        ):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
@@ -228,7 +248,19 @@ class ASRAudioText(AudioText):
             token_labels.append(item['token_labels'])
             langs.append(item['lang'])
         super().__init__(
-            ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
+            ids,
+            audio_files,
+            durations,
+            texts,
+            offsets,
+            speakers,
+            orig_srs,
+            token_labels,
+            langs,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            *args,
+            **kwargs,
         )
 
 

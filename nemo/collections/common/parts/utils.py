@@ -96,3 +96,28 @@ def flatten(list_in: List) -> List:
         A flat list of values.
     """
     return list(flatten_iterable(list_in))
+
+
+def get_num_lines(filepath: str, buffer_size: int = 2 ** 16) -> int:
+    """Get number of lines in a text file by reading buffers
+    and counting `'\n'`.
+
+    Args:
+        filepath: path to a text file
+        buffer_size: size of the buffer
+
+    Returns:
+        Number of lines in the input file.
+    """
+
+    def buffer_generator(read, buffer_size):
+        """Generate buffers using read.
+        """
+        b = read(buffer_size)
+        while b:
+            yield b
+            b = read(buffer_size)
+
+    with open(filepath, 'rb') as f:
+        num_lines = sum(b.count(b'\n') for b in buffer_generator(read=f.raw.read, buffer_size=buffer_size))
+    return num_lines

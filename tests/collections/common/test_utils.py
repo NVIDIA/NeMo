@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
+
 import pytest
 
-from nemo.collections.common.parts.utils import flatten
+from nemo.collections.common.parts.utils import flatten, get_num_lines
 
 
 class TestListUtils:
@@ -31,3 +34,22 @@ class TestListUtils:
 
         for n, test_case in enumerate(test_cases):
             assert flatten(test_case['input']) == test_case['golden'], f'Test case {n} failed!'
+
+
+class TestTextUtils:
+    @pytest.mark.unit
+    def test_get_num_lines(self):
+        """Test getting the number of lines from a text file.
+        """
+        test_cases = [0, 1, 10, 42, 97]
+
+        for num_lines in test_cases:
+
+            lines = [f'line {n}\n' for n in range(num_lines)]
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_file = os.path.join(tmp_dir, 'file.txt')
+                with open(tmp_file, 'w') as f:
+                    f.writelines(lines)
+
+                assert get_num_lines(tmp_file) == num_lines, f'Failed for num_lines {num_lines}'
