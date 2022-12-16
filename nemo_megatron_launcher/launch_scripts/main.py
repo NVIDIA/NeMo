@@ -1,18 +1,23 @@
-import sys
-
 import copy
 import math
+import subprocess
+import sys
+
 import hydra
 import omegaconf
-import subprocess
-
-from nemo_megatron.core.stages import NemoMegatronStage
-from nemo_megatron.core.stages import Training, FineTuning, PromptLearning, AdapterLearning, IA3Learning
-from nemo_megatron.core.stages import Conversion
-from nemo_megatron.core.stages import EvalHarnessEvaluation, NeMoEvaluation
-from nemo_megatron.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
+from nemo_megatron.core.data_stages import CustomDataPreparation, MC4DataPreparation, PileDataPreparation
 from nemo_megatron.core.export_stages import Export
-
+from nemo_megatron.core.stages import (
+    AdapterLearning,
+    Conversion,
+    EvalHarnessEvaluation,
+    FineTuning,
+    IA3Learning,
+    NeMoEvaluation,
+    NemoMegatronStage,
+    PromptLearning,
+    Training,
+)
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -28,13 +33,13 @@ STR2STAGECLASS = {
     "export": Export,
     "evaluation": {
         EvalHarnessEvaluation: ["gpt3", "prompt_gpt3"],
-        NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5", "adapter_t5", "adapter_gpt3", "ia3_t5", "ia3_gpt3"]
+        NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5", "adapter_t5", "adapter_gpt3", "ia3_t5", "ia3_gpt3"],
     },
     "data_preparation": {
         PileDataPreparation: ["gpt3", "t5"],
         MC4DataPreparation: ["mt5"],
         CustomDataPreparation: ["generic"],
-    }
+    },
 }
 
 
@@ -65,6 +70,7 @@ def main(cfg):
 
         if job_id:
             dependency = f"afterany:{job_id}"
+
 
 if __name__ == "__main__":
     main()

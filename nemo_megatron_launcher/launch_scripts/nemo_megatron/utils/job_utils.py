@@ -1,8 +1,7 @@
 import io
-import sys
 import select
 import subprocess
-
+import sys
 from pathlib import Path
 from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
@@ -10,9 +9,7 @@ from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Typ
 class JobPaths:
     """Creates paths related to the slurm job and its submission"""
 
-    def __init__(
-        self, folder: Union[Path, str], job_name: str,
-    ) -> None:
+    def __init__(self, folder: Union[Path, str], job_name: str,) -> None:
         self._folder = Path(folder).expanduser().absolute()
         self._job_name = job_name
 
@@ -89,12 +86,7 @@ class CommandFunction:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")
         if self.ret_stdout:
             with subprocess.Popen(
-                full_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                cwd=self.cwd,
-                env=self.env,
+                full_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False, cwd=self.cwd, env=self.env,
             ) as process:
                 stdout_buffer = io.StringIO()
                 stderr_buffer = io.StringIO()
@@ -118,19 +110,12 @@ class CommandFunction:
                     raise OSError(stderr) from subprocess_error
             return stdout
 
-        subprocess.Popen(
-            full_command,
-            shell=False,
-            cwd=self.cwd,
-            env=self.env,
-        ).wait()
+        subprocess.Popen(full_command, shell=False, cwd=self.cwd, env=self.env,).wait()
         return ""
 
 
 # pylint: disable=too-many-locals
-def copy_process_streams(
-    process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
-):
+def copy_process_streams(process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False):
     """
     Reads the given process stdout/stderr and write them to StringIO objects.
     Make sure that there is no deadlock because of pipe congestion.
@@ -157,7 +142,7 @@ def copy_process_streams(
         ready = poller.poll()
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2**16)
+            raw_buf = p_stream.read(2 ** 16)
             if not raw_buf:
                 fds.remove(fd)
                 poller.unregister(fd)

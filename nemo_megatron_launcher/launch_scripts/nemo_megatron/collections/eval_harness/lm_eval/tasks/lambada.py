@@ -1,11 +1,11 @@
 import json
-import re
 import os
+import re
 
+from best_download import download_file
 from lm_eval.base import Task, rf
 from lm_eval.metrics import mean, perplexity
 from lm_eval.utils import sh
-from best_download import download_file
 
 
 class LAMBADA(Task):
@@ -33,9 +33,7 @@ class LAMBADA(Task):
                 )
         except:
             # fallback - for some reason best_download doesnt work all the time here
-            sh(
-                "wget http://eaidata.bmk.sh/data/lambada_test.jsonl -O data/lambada/lambada_test.jsonl"
-            )
+            sh("wget http://eaidata.bmk.sh/data/lambada_test.jsonl -O data/lambada/lambada_test.jsonl")
             sh(
                 'echo "4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226  data/lambada/lambada_test.jsonl" | sha256sum --check'
             )

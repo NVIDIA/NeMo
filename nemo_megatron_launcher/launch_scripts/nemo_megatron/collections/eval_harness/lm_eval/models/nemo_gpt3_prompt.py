@@ -1,40 +1,32 @@
-import os
-import tqdm
 import logging
+import os
 from copy import deepcopy
+from functools import partial
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data.dataloader import default_collate
-from functools import partial
+import tqdm
+from apex.transformer import parallel_state, tensor_parallel
+from lm_eval import utils
+from lm_eval.base import LM
 from pytorch_lightning.trainer.trainer import Trainer
-from apex.transformer import tensor_parallel, parallel_state
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.dataloader import default_collate
 
 import nemo.collections.nlp as nemo_nlp
+from .nemo_gpt3 import hacky_DDP_initialize
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
-from nemo.collections.nlp.modules.common.megatron.megatron_init import (
-    fake_initialize_model_parallel,
-)
-from nemo.utils.app_state import AppState
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-from lm_eval.base import LM
-from lm_eval import utils
-from .nemo_gpt3 import hacky_DDP_initialize
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -51,11 +43,7 @@ class PromptRequestDataset(Dataset):
     def __getitem__(self, index):
         context, continuation, task_id = self.requests[index]
         context_enc = self.tokenizer.text_to_ids(context) if isinstance(context, str) else context
-        continuation_enc = (
-            self.tokenizer.text_to_ids(continuation)
-            if isinstance(continuation, str)
-            else continuation
-        )
+        continuation_enc = self.tokenizer.text_to_ids(continuation) if isinstance(continuation, str) else continuation
         # sanity check
         assert len(context_enc) > 0, "encoder length should large than 0"
         assert len(continuation_enc) > 0, "target length should be large than 0"
@@ -82,23 +70,17 @@ def setup_trainer_and_model(args):
     num_nodes = max(model_parallel_size // 8, 1)
     num_gpus = min(model_parallel_size, 8)
     trainer = Trainer(
-        strategy=NLPDDPStrategy(),
-        devices=num_gpus,
-        num_nodes=num_nodes,
-        precision=args.precision,
-        accelerator='gpu'
+        strategy=NLPDDPStrategy(), devices=num_gpus, num_nodes=num_nodes, precision=args.precision, accelerator='gpu'
     )
 
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = (
-            args.tensor_model_parallel_size * args.pipeline_model_parallel_size
-        )
+        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
         (
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
             app_state.model_parallel_size,
-            *_
+            *_,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -128,7 +110,12 @@ class NeMo_GPT3_PROMPTLM(LM):
         self.model.eval()
 
         self.max_length = self.model.cfg.get("max_position_embeddings")
-        assert self.tokenizer.text_to_ids("hello\n\nhello") == [31373, 198, 198, 31373], "Tokenizer text_to_ids is not working as expected."
+        assert self.tokenizer.text_to_ids("hello\n\nhello") == [
+            31373,
+            198,
+            198,
+            31373,
+        ], "Tokenizer text_to_ids is not working as expected."
 
         self.truncate = truncate
         self.batch_size = batch_size
@@ -156,12 +143,11 @@ class NeMo_GPT3_PROMPTLM(LM):
     cont_toks      4 5 6 7 8 9
     when too long to fit in context, truncate from the left
     """
+
     def _loglikelihood(self, requests):
         def pad_collate(batch, eos_id=50256):
             tokens, conti_lens, task_ids, *_ = map(list, zip(*batch))
-            lens = [
-                len(token) - 1 for token in tokens
-            ]  # fake delete last token by reducing input len
+            lens = [len(token) - 1 for token in tokens]  # fake delete last token by reducing input len
             max_len = max(lens)
 
             tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=eos_id)
@@ -188,33 +174,25 @@ class NeMo_GPT3_PROMPTLM(LM):
 
         reord = utils.Reorderer(requests, _collate)
         request_ds = PromptRequestDataset(reord.get_reordered(), self.model.tokenizer)
-        request_dl = DataLoader(
-            request_ds, collate_fn=pad_collate, batch_size=self.batch_size, shuffle=False
-        )
+        request_dl = DataLoader(request_ds, collate_fn=pad_collate, batch_size=self.batch_size, shuffle=False)
 
         def logits_to_results(batch, response):
             input_token_ids_batch, _, _, lens, conti_lens = batch
             batch_size = len(lens)
-            assert (
-                    len(response["token_ids"]) == batch_size
-            ), "Response's length not equal to batch size."
+            assert len(response["token_ids"]) == batch_size, "Response's length not equal to batch size."
 
             batch_res = []
             for index in range(batch_size):
                 inp_len = lens[index]
                 conti_len = conti_lens[index]
 
-                inp_token_ids = input_token_ids_batch[index].tolist()[
-                                : inp_len + 1
-                                ]  # recover fake deleted token
+                inp_token_ids = input_token_ids_batch[index].tolist()[: inp_len + 1]  # recover fake deleted token
 
                 log_probs = response["full_logprob"][index][:inp_len]  # torch.tensor
                 log_probs = log_probs[-conti_len:]
 
                 greedy_tokens = log_probs.argmax(dim=-1)
-                greedy_tokens = self.tokenizer.ids_to_tokens(
-                    greedy_tokens.cpu().numpy().tolist()
-                )
+                greedy_tokens = self.tokenizer.ids_to_tokens(greedy_tokens.cpu().numpy().tolist())
 
                 conti_token_ids = inp_token_ids[-conti_len:]
                 conti_tokens = self.tokenizer.ids_to_tokens(conti_token_ids)
@@ -226,7 +204,6 @@ class NeMo_GPT3_PROMPTLM(LM):
 
                 batch_res.append((float(conti_probs.sum()), bool(max_equal), greedy_tokens, conti_tokens))
             return batch_res
-
 
         res = []
         for batch in tqdm.tqdm(request_dl):

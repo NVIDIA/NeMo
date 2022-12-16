@@ -6,10 +6,12 @@ Example usage:
     blending_alpha=<blending_alpha>
 """
 
-import os
 import math
-import hydra
+import os
 from collections import defaultdict
+
+import hydra
+
 
 @hydra.main(config_path="conf", config_name="auto_blend")
 def generate_data_blend(cfg):
@@ -46,6 +48,7 @@ def generate_data_blend(cfg):
             res.extend([round(size / split_size[split] * split_ratio[split], 6), prefix])
 
     print(str(res).replace(" ", ""))
+
 
 if __name__ == "__main__":
     generate_data_blend()

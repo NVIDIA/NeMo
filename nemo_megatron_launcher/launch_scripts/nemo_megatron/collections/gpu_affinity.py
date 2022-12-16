@@ -27,15 +27,11 @@ class Device:
     # assume nvml returns list of 64 bit ints
     _nvml_bit_affinity = 64
 
-    _nvml_affinity_elements = (
-        os.cpu_count() + _nvml_bit_affinity - 1
-    ) // _nvml_bit_affinity
+    _nvml_affinity_elements = (os.cpu_count() + _nvml_bit_affinity - 1) // _nvml_bit_affinity
 
     def __init__(self, device_idx):
         if "CUDA_VISIBLE_DEVICES" in os.environ:
-            remapped_device_ids = [
-                int(id) for id in os.environ['CUDA_VISIBLE_DEVICES'].split(',')
-            ]
+            remapped_device_ids = [int(id) for id in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
             device_idx = remapped_device_ids[device_idx]
 
         try:
@@ -59,9 +55,7 @@ class Device:
             raise RuntimeError('Unknown scope')
 
         affinity_string = ''
-        for j in pynvml.nvmlDeviceGetCpuAffinityWithinScope(
-            self.handle, Device._nvml_affinity_elements, nvml_scope
-        ):
+        for j in pynvml.nvmlDeviceGetCpuAffinityWithinScope(self.handle, Device._nvml_affinity_elements, nvml_scope):
             # assume nvml returns list of 64 bit ints
             affinity_string = '{:064b}'.format(j) + affinity_string
 
@@ -102,9 +96,7 @@ def build_thread_siblings_dict(siblings_list):
 
 def group_list_by_key(the_list, key):
     sorted_list = sorted(the_list, key=key)
-    grouped = [
-        tuple(group) for key, group in itertools.groupby(sorted_list, key=key)
-    ]
+    grouped = [tuple(group) for key, group in itertools.groupby(sorted_list, key=key)]
     return grouped
 
 
@@ -112,10 +104,7 @@ def group_by_siblings(affinities):
     siblings_list = get_thread_siblings_list()
     siblings_dict = build_thread_siblings_dict(siblings_list)
     siblings_key = lambda x: siblings_dict.get(x, (x,))
-    affinities = [
-        tuple(group_list_by_key(affinity, key=siblings_key))
-        for affinity in affinities
-    ]
+    affinities = [tuple(group_list_by_key(affinity, key=siblings_key)) for affinity in affinities]
     return affinities
 
 
@@ -124,56 +113,38 @@ def group_by_node(socket_affinities, node_affinities):
     for socket, node_cores in zip(socket_affinities, node_affinities):
         socket_node_assigned_cores[socket].extend(node_cores)
 
-    socket_node_assigned_cores = {
-        key: tuple(sorted(set(value)))
-        for key, value in socket_node_assigned_cores.items()
-    }
+    socket_node_assigned_cores = {key: tuple(sorted(set(value))) for key, value in socket_node_assigned_cores.items()}
 
     node_grouping = collections.defaultdict(list)
 
     for socket_cores, assigned_cores in socket_node_assigned_cores.items():
-        unassigned_cores = sorted(
-            list(set(socket_cores) - set(assigned_cores))
-        )
+        unassigned_cores = sorted(list(set(socket_cores) - set(assigned_cores)))
 
         for assigned_core in assigned_cores:
             node_grouping[assigned_core].append(assigned_core)
 
-        for assigned, unassigned in zip(
-            itertools.cycle(assigned_cores), unassigned_cores
-        ):
+        for assigned, unassigned in zip(itertools.cycle(assigned_cores), unassigned_cores):
             node_grouping[assigned].append(unassigned)
 
     node_grouping = {key: tuple(value) for key, value in node_grouping.items()}
 
-    grouped_affinities = [
-        tuple(node_grouping[item] for item in node_affinity)
-        for node_affinity in node_affinities
-    ]
+    grouped_affinities = [tuple(node_grouping[item] for item in node_affinity) for node_affinity in node_affinities]
     return grouped_affinities
 
 
 def ungroup_by_nodes(affinities, scope):
     if scope == 'socket':
-        affinities = [
-            list(itertools.chain(*zip(*affinity))) for affinity in affinities
-        ]
+        affinities = [list(itertools.chain(*zip(*affinity))) for affinity in affinities]
     elif scope == 'node':
-        affinities = [
-            [group[0] for group in affinity] for affinity in affinities
-        ]
+        affinities = [[group[0] for group in affinity] for affinity in affinities]
     return affinities
 
 
 def ungroup_by_siblings(affinities, cores):
     if cores == 'all_logical':
-        affinities = [
-            list(itertools.chain(*affinity)) for affinity in affinities
-        ]
+        affinities = [list(itertools.chain(*affinity)) for affinity in affinities]
     elif cores == 'single_logical':
-        affinities = [
-            [group[0] for group in affinity] for affinity in affinities
-        ]
+        affinities = [[group[0] for group in affinity] for affinity in affinities]
     else:
         raise RuntimeError('Unknown cores mode')
     return affinities
@@ -194,9 +165,7 @@ def check_core_count(affinities, min_cores=1, max_cores=None):
     return affinities
 
 
-def ungroup_all_and_check_count(
-    affinities, scope, cores, min_cores=1, max_cores=None
-):
+def ungroup_all_and_check_count(affinities, scope, cores, min_cores=1, max_cores=None):
     affinities = ungroup_by_nodes(affinities, scope)
     affinities = check_core_count(affinities, min_cores, max_cores)
     affinities = ungroup_by_siblings(affinities, cores)
@@ -207,10 +176,7 @@ def check_affinities(affinities):
     # sets of cores should be either identical or disjoint
     for i, j in itertools.product(affinities, affinities):
         if not set(i) == set(j) and not set(i).isdisjoint(set(j)):
-            raise RuntimeError(
-                f'Sets of cores should be either identical or disjoint, '
-                f'but got {i} and {j}.'
-            )
+            raise RuntimeError(f'Sets of cores should be either identical or disjoint, ' f'but got {i} and {j}.')
 
 
 def get_affinities(nproc_per_node, scope, exclude_unavailable_cores=True):
@@ -219,10 +185,7 @@ def get_affinities(nproc_per_node, scope, exclude_unavailable_cores=True):
 
     if exclude_unavailable_cores:
         available_cores = os.sched_getaffinity(0)
-        affinities = [
-            sorted(list(set(affinity) & available_cores))
-            for affinity in affinities
-        ]
+        affinities = [sorted(list(set(affinity) & available_cores)) for affinity in affinities]
 
     check_affinities(affinities)
 
@@ -230,19 +193,13 @@ def get_affinities(nproc_per_node, scope, exclude_unavailable_cores=True):
 
 
 def get_grouped_affinities(nproc_per_node, exclude_unavailable_cores=True):
-    socket_affinities = get_affinities(
-        nproc_per_node, 'socket', exclude_unavailable_cores
-    )
-    node_affinities = get_affinities(
-        nproc_per_node, 'node', exclude_unavailable_cores
-    )
+    socket_affinities = get_affinities(nproc_per_node, 'socket', exclude_unavailable_cores)
+    node_affinities = get_affinities(nproc_per_node, 'node', exclude_unavailable_cores)
 
     sibling_socket_affinities = group_by_siblings(socket_affinities)
     sibling_node_affinities = group_by_siblings(node_affinities)
 
-    grouped_affinities = group_by_node(
-        sibling_socket_affinities, sibling_node_affinities
-    )
+    grouped_affinities = group_by_node(sibling_socket_affinities, sibling_node_affinities)
 
     return grouped_affinities
 
@@ -268,16 +225,7 @@ def get_all(nproc_per_node, scope, cores, min_cores, max_cores):
     all_node_affinities = functools.reduce(operator.add, node_affinities)
 
     affinities = [
-        tuple(
-            sorted(
-                affinity,
-                key=lambda x: (
-                    0 if x in all_node_affinities else 1,
-                    x,
-                ),
-            )
-        )
-        for affinity in affinities
+        tuple(sorted(affinity, key=lambda x: (0 if x in all_node_affinities else 1, x,),)) for affinity in affinities
     ]
 
     affinities = check_core_count(affinities, min_cores, max_cores)
@@ -300,9 +248,7 @@ def get_single(nproc_per_node, scope, cores, min_cores=1, max_cores=1):
         cores: 'all_logical' or 'single_logical'
     """
     grouped_affinities = get_grouped_affinities(nproc_per_node)
-    ungrouped_affinities = ungroup_all_and_check_count(
-        grouped_affinities, scope, cores, min_cores, max_cores
-    )
+    ungrouped_affinities = ungroup_all_and_check_count(grouped_affinities, scope, cores, min_cores, max_cores)
     return ungrouped_affinities
 
 
@@ -332,21 +278,13 @@ def get_single_unique(nproc_per_node, scope, cores, min_cores=1, max_cores=1):
                 assigned_groups.add(group)
                 break
 
-    ungrouped_affinities = ungroup_all_and_check_count(
-        affinities, scope, cores, min_cores, max_cores
-    )
+    ungrouped_affinities = ungroup_all_and_check_count(affinities, scope, cores, min_cores, max_cores)
 
     return ungrouped_affinities
 
 
 def get_unique(
-    nproc_per_node,
-    scope,
-    cores,
-    mode,
-    min_cores,
-    max_cores,
-    balanced=True,
+    nproc_per_node, scope, cores, mode, min_cores, max_cores, balanced=True,
 ):
     """
     The process is assigned with a unique subset of available physical CPU
@@ -373,24 +311,16 @@ def get_unique(
     # compute minimal number of physical cores per GPU across all GPUs and
     # sockets, code assigns this number of cores per GPU if balanced == True
     min_physical_cores_per_gpu = min(
-        [
-            len(cores) // len(gpus)
-            for cores, gpus in grouped_affinities_to_device_ids.items()
-        ]
+        [len(cores) // len(gpus) for cores, gpus in grouped_affinities_to_device_ids.items()]
     )
 
     grouped_unique_affinities = [None] * nproc_per_node
 
-    for (
-        grouped_affinity,
-        device_ids,
-    ) in grouped_affinities_to_device_ids.items():
+    for (grouped_affinity, device_ids,) in grouped_affinities_to_device_ids.items():
         devices_per_group = len(device_ids)
         if balanced:
             cores_per_device = min_physical_cores_per_gpu
-            grouped_affinity = grouped_affinity[
-                : devices_per_group * min_physical_cores_per_gpu
-            ]
+            grouped_affinity = grouped_affinity[: devices_per_group * min_physical_cores_per_gpu]
         else:
             cores_per_device = len(grouped_affinity) // devices_per_group
 
@@ -405,25 +335,17 @@ def get_unique(
             # mapping to multiples of 4.
 
             if mode == 'unique_interleaved':
-                unique_grouped_affinity = list(
-                    grouped_affinity[subgroup_id::devices_per_group]
-                )
+                unique_grouped_affinity = list(grouped_affinity[subgroup_id::devices_per_group])
             elif mode == 'unique_contiguous':
                 unique_grouped_affinity = list(
-                    grouped_affinity[
-                        subgroup_id
-                        * cores_per_device : (subgroup_id + 1)
-                        * cores_per_device
-                    ]
+                    grouped_affinity[subgroup_id * cores_per_device : (subgroup_id + 1) * cores_per_device]
                 )
             else:
                 raise RuntimeError('Unknown set_unique mode')
 
             grouped_unique_affinities[device_id] = unique_grouped_affinity
 
-    ungrouped_affinities = ungroup_all_and_check_count(
-        grouped_unique_affinities, scope, cores, min_cores, max_cores
-    )
+    ungrouped_affinities = ungroup_all_and_check_count(grouped_unique_affinities, scope, cores, min_cores, max_cores)
     return ungrouped_affinities
 
 
@@ -542,10 +464,7 @@ def set_affinity(
     python -m torch.distributed.launch --nproc_per_node <#GPUs> example.py
     """
     if gpu_id >= nproc_per_node:
-        msg = (
-            f'gpu_id={gpu_id} should be smaller than '
-            f'nproc_per_node={nproc_per_node}'
-        )
+        msg = f'gpu_id={gpu_id} should be smaller than ' f'nproc_per_node={nproc_per_node}'
         raise RuntimeError(msg)
 
     pynvml.nvmlInit()
@@ -557,15 +476,7 @@ def set_affinity(
     elif mode == 'single_unique':
         affinity = get_single_unique(nproc_per_node, scope, cores)
     elif mode == 'unique_interleaved' or mode == 'unique_contiguous':
-        affinity = get_unique(
-            nproc_per_node,
-            scope,
-            cores,
-            mode,
-            min_cores,
-            max_cores,
-            balanced,
-        )
+        affinity = get_unique(nproc_per_node, scope, cores, mode, min_cores, max_cores, balanced,)
     else:
         raise RuntimeError('Unknown affinity mode')
 

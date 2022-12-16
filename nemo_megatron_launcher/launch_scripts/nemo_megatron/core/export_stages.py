@@ -1,20 +1,17 @@
-import sys
-import os
-import math
 import copy
+import functools
+import math
+import os
 import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import hydra
 import omegaconf
-import functools
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
-
 from nemo_megatron.core.launchers import AutoLauncher
-from nemo_megatron.core.stages import NemoMegatronStage
-from nemo_megatron.core.stages import clean_command_groups, create_args_list
+from nemo_megatron.core.stages import NemoMegatronStage, clean_command_groups, create_args_list
 from nemo_megatron.utils.job_utils import JobPaths
-
 
 FT_PATH = Path("/opt/FasterTransformer")
 FT_BACKEND_PATH = Path("/opt/fastertransformer_backend")
@@ -22,6 +19,7 @@ FT_BACKEND_PATH = Path("/opt/fastertransformer_backend")
 # for debugging
 FT_PATH_WITH_BUILD = FT_PATH
 FT_PATH = Path(os.environ.get("FT_PATH", FT_PATH))
+
 
 class Export(NemoMegatronStage):
     """
@@ -43,9 +41,7 @@ class Export(NemoMegatronStage):
             f"{' '.join(checkpoint_override)}"
         )
 
-    def make_stage_command_groups(
-            self, stage_cfg_path, sub_stage=None,
-    ) -> List[List[str]]:
+    def make_stage_command_groups(self, stage_cfg_path, sub_stage=None,) -> List[List[str]]:
         """
         Make the command groups for current stage
         Command groups is a list of command group. A command group is defined as:
@@ -62,7 +58,7 @@ class Export(NemoMegatronStage):
         command_groups[0] += self._make_sub_stage_command(sub_stage)
         command_groups = clean_command_groups(command_groups)
         return command_groups
-    
+
     def _make_sub_stage_command(self, sub_stage):
         """
         Make the command group for current stage
@@ -84,7 +80,7 @@ class Export(NemoMegatronStage):
     def _make_sub_stages(self):
         sub_stages = ["convert"]
         return sub_stages
-    
+
     def setup_folder_and_data(self) -> None:
         """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         """Setup required folders and dataset"""
@@ -105,9 +101,7 @@ class Export(NemoMegatronStage):
             job_path = self.get_job_path(sub_stage)
             job_path.folder.mkdir(parents=True, exist_ok=True)
 
-            stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(
-                self.stage_cfg, job_path
-            )
+            stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(self.stage_cfg, job_path)
             if job_id:
                 dependency = f"aftercorr:{job_id}"
                 self.stage_cfg["run"]["dependency"] = dependency
@@ -118,18 +112,12 @@ class Export(NemoMegatronStage):
             # Make command groups
             command_groups = self.make_stage_command_groups(stage_cfg_path, sub_stage)
             # Create launcher
-            launcher = AutoLauncher(
-                folder=job_path.folder,
-                cluster=self.cluster,
-                **cluster_parameters,
-            )
+            launcher = AutoLauncher(folder=job_path.folder, cluster=self.cluster, **cluster_parameters,)
             job_id = launcher.launch(command_groups=command_groups)
 
         return job_id
-    
-    def _make_cluster_parameters(
-        self, cluster: str, sub_stage=None,
-    ) -> Dict:
+
+    def _make_cluster_parameters(self, cluster: str, sub_stage=None,) -> Dict:
         """Prepare cluster configuration"""
         cfg = self.cfg
         stage_cfg = self.stage_cfg
@@ -152,9 +140,7 @@ class Export(NemoMegatronStage):
         setup = None
         env_vars = self.get_env_vars()
         if env_vars:
-            setup = [
-                f"export {k}={v}" for k, v in env_vars.items()
-            ]
+            setup = [f"export {k}={v}" for k, v in env_vars.items()]
 
         cluster_parameters = {}
         shared_parameters = {
@@ -168,21 +154,20 @@ class Export(NemoMegatronStage):
             cluster_cfg = cfg.get("cluster")
             slurm_cfg = {**copy.deepcopy(cluster_cfg)}
             job_name_prefix = slurm_cfg.pop("job_name_prefix")
-            cluster_parameters = {
-                **slurm_cfg
-            }
-            cluster_parameters.update({
-                **shared_parameters,
-                "dependency": dependency,
-                "container_image": container_image,
-                "container_mounts": container_mounts,
-            })
+            cluster_parameters = {**slurm_cfg}
+            cluster_parameters.update(
+                {
+                    **shared_parameters,
+                    "dependency": dependency,
+                    "container_image": container_image,
+                    "container_mounts": container_mounts,
+                }
+            )
             cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
         elif cluster == "bcp":
-            cluster_parameters.update({
-                **shared_parameters,
-                "env_vars": env_vars,
-            })
+            cluster_parameters.update(
+                {**shared_parameters, "env_vars": env_vars,}
+            )
         elif cluster == "interactive":
             cluster_parameters.update(shared_parameters)
 
@@ -200,7 +185,9 @@ class Export(NemoMegatronStage):
 
         nemo_megatron_scripts_path = Path(cfg.nemo_megatron_path)
         converter_path = FT_PATH / "examples/pytorch/gpt/utils/nemo_ckpt_convert.py"
-        prepare_model_config_script_path = nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = (
+            nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
+        )
         template_path = FT_BACKEND_PATH / "all_models/gpt/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"
@@ -251,7 +238,9 @@ class Export(NemoMegatronStage):
 
         nemo_megatron_scripts_path = Path(cfg.nemo_megatron_path)
         converter_path = FT_PATH / "examples/pytorch/t5/utils/nemo_t5_ckpt_convert.py"
-        prepare_model_config_script_path = nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = (
+            nemo_megatron_scripts_path / "nemo_megatron/collections/export_scripts/prepare_triton_model_config.py"
+        )
         template_path = FT_BACKEND_PATH / "all_models/t5/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"

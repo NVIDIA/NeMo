@@ -1,10 +1,12 @@
-import os
 import json
+import os
 import time
 from pathlib import Path
+
 from .download_squad import download_squad
 
 NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t", "1")
+
 
 def prepare_squad_for_prompt_learning(data_dir, nemo_megatron_path):
     squad_dir = data_dir
@@ -12,10 +14,7 @@ def prepare_squad_for_prompt_learning(data_dir, nemo_megatron_path):
     squad_v1_dir = os.path.join(squad_dir, "v1.1")
 
     preprocess_script = nemo_megatron_path / "nemo_megatron/utils/data_utils/prompt_learning_squad_preprocessing.py"
-    os.system(
-        f"python3 {preprocess_script} "
-        f"--data-dir={squad_v1_dir} "
-    )
+    os.system(f"python3 {preprocess_script} " f"--data-dir={squad_v1_dir} ")
 
 
 def prepare_squad_for_fine_tuning(data_dir):
@@ -26,10 +25,7 @@ def prepare_squad_for_fine_tuning(data_dir):
     squad_xquad_dir = os.path.join(squad_dir, "xquad")
 
     path2dev = {
-        **{
-            f"{squad_v1_dir}/train-v1.1.json": False,
-            f"{squad_v1_dir}/dev-v1.1.json": True,
-        },
+        **{f"{squad_v1_dir}/train-v1.1.json": False, f"{squad_v1_dir}/dev-v1.1.json": True,},
         **{
             f"{squad_xquad_dir}/xquad.{lang}.json": True
             for lang in ["en", "es", "de", "el", "ru", "tr", "ar", "vi", "th", "zh", "hi"]
@@ -37,12 +33,11 @@ def prepare_squad_for_fine_tuning(data_dir):
     }
 
     for path, dev in path2dev.items():
-        if not os.path.exists(f"{os.path.splitext(path)[0]}_src.txt") or \
-                not os.path.exists(f"{os.path.splitext(path)[0]}_tgt.txt"):
+        if not os.path.exists(f"{os.path.splitext(path)[0]}_src.txt") or not os.path.exists(
+            f"{os.path.splitext(path)[0]}_tgt.txt"
+        ):
             preprocess_squad_for_fine_tuning(
-                fname=path,
-                out_fname_prefix=os.path.splitext(path)[0],
-                dev=dev,
+                fname=path, out_fname_prefix=os.path.splitext(path)[0], dev=dev,
             )
 
 
@@ -54,8 +49,7 @@ def preprocess_squad_for_fine_tuning(fname, out_fname_prefix, dev=False):
         if NEMO_MEGATRON_CI:
             time.sleep(5)
         return
-    with open(f'{out_fname_prefix}_src.txt', 'w') as f_src, \
-            open(f'{out_fname_prefix}_tgt.txt', 'w') as f_tgt:
+    with open(f'{out_fname_prefix}_src.txt', 'w') as f_src, open(f'{out_fname_prefix}_tgt.txt', 'w') as f_tgt:
         for i in x['data']:
             title = i['title'].replace('\n', '\\n')
             for j in i['paragraphs']:

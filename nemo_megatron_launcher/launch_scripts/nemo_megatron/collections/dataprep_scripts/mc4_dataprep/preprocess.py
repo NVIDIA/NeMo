@@ -12,22 +12,18 @@ Example usage:
     --apply-ftfy
 """
 
+import argparse
+import glob
 import os
 import shutil
 import subprocess
 import time
-import glob
-import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess (m)C4", allow_abbrev=False)
-    parser.add_argument(
-        "--rm-downloaded", help="Whether to remove original downloaded data", action="store_true"
-    )
+    parser.add_argument("--rm-downloaded", help="Whether to remove original downloaded data", action="store_true")
     parser.add_argument("--output-path", help="Path to store output bin files", required=True)
-    parser.add_argument(
-        "--worker-mapping-file", help="Decide which worker download which languages", required=True
-    )
+    parser.add_argument("--worker-mapping-file", help="Decide which worker download which languages", required=True)
     parser.add_argument(
         "--workers-per-node",
         default=int(os.environ.get("SLURM_NTASKS_PER_NODE", 1)),
@@ -51,11 +47,7 @@ if __name__ == "__main__":
     lang_splits = []
     if task_id * workers_per_node + rank < len(mapping):
         lang_splits = mapping[task_id * workers_per_node + rank].strip().split(",")
-    print(
-        " ****** Task ID {:02d} Rank {:02d} is preparing to preprocess {:}...".format(
-            task_id, rank, lang_splits
-        )
-    )
+    print(" ****** Task ID {:02d} Rank {:02d} is preparing to preprocess {:}...".format(task_id, rank, lang_splits))
 
     os.makedirs(args.output_path, exist_ok=True)
     start_time = time.time()

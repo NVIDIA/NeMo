@@ -1,30 +1,28 @@
 import argparse
-import json
 import glob
-from omegaconf import OmegaConf
-from typing import Union
-import random
+import json
 import logging
-import sys
 import os
-import string
+import random
 import shutil
+import string
+import subprocess
+import sys
 import time
 from datetime import datetime
-import subprocess
+from importlib import reload
+from typing import Union
+
+from lm_eval import base, evaluator, models, tasks, utils
+from omegaconf import OmegaConf
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils.get_rank import is_global_rank_zero
 
-from importlib import reload
-
 reload(logging)
-from lm_eval import models, tasks, evaluator, base, utils
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -57,16 +55,10 @@ def parse_args(parser_main):
     parser.add_argument("--tasks", default="all_tasks")
     parser.add_argument("--cache_dir", default="")
     parser.add_argument(
-        "--eval_seed",
-        type=int,
-        default=1234,
-        help="Random seed used for python, numpy, [pytorch, and cuda.]",
+        "--eval_seed", type=int, default=1234, help="Random seed used for python, numpy, [pytorch, and cuda.]",
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="If specified, will limit evaluation set to this number of samples",
+        "--limit", type=int, default=None, help="If specified, will limit evaluation set to this number of samples",
     )
     # I/O
     parser.add_argument(
@@ -89,11 +81,7 @@ def parse_args(parser_main):
     parser.add_argument("--model", required=True)
 
     parser.add_argument(
-        "--nemo_model",
-        type=str,
-        default=None,
-        required=False,
-        help="Pass path to model's .nemo file",
+        "--nemo_model", type=str, default=None, required=False, help="Pass path to model's .nemo file",
     )
     parser.add_argument(
         "--checkpoint_folder",
@@ -112,16 +100,10 @@ def parse_args(parser_main):
         "megatron_gpt--val_loss=6.34-step=649-last.ckpt",
     )
     parser.add_argument(
-        "--tensor_model_parallel_size",
-        type=int,
-        default=1,
-        required=False,
+        "--tensor_model_parallel_size", type=int, default=1, required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_size",
-        type=int,
-        default=1,
-        required=False,
+        "--pipeline_model_parallel_size", type=int, default=1, required=False,
     )
     parser.add_argument(
         "--hparams_file",
@@ -135,8 +117,16 @@ def parse_args(parser_main):
     parser.add_argument("--vocab_file", default=None)
     parser.add_argument("--merge_file", default=None)
 
-    parser.add_argument("--prompt_dataset_paths", default=None, help="Jsonl-format prompt dataset for evaluation. Multiple dataset can be split with ','")
-    parser.add_argument("--disable_special_tokens", action="store_true", help="Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.")
+    parser.add_argument(
+        "--prompt_dataset_paths",
+        default=None,
+        help="Jsonl-format prompt dataset for evaluation. Multiple dataset can be split with ','",
+    )
+    parser.add_argument(
+        "--disable_special_tokens",
+        action="store_true",
+        help="Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.",
+    )
 
     # Prompt
     parser.add_argument("--provide_description", action="store_true")
@@ -148,9 +138,7 @@ def parse_args(parser_main):
         "e.g. exclude examples of the same type as the sample under evaluation.",
     )
     # HANS
-    parser.add_argument(
-        "--ratio_positive", type=float, default=None, help="Ratio of examples with a positive label"
-    )
+    parser.add_argument("--ratio_positive", type=float, default=None, help="Ratio of examples with a positive label")
     parser.add_argument(
         "--mix_mode",
         type=str,
@@ -240,9 +228,7 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
         git_hash = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=os.path.dirname(os.path.abspath(__file__))
         ).decode()
-        git_diff = subprocess.check_output(
-            ["git", "diff"], cwd=os.path.dirname(os.path.abspath(__file__))
-        ).decode()
+        git_diff = subprocess.check_output(["git", "diff"], cwd=os.path.dirname(os.path.abspath(__file__))).decode()
         with open(os.path.join(output_path, "git.txt"), "w") as fp:
             fp.write("Git hash: {}\n".format(git_hash))
             fp.write(git_diff)
@@ -265,9 +251,7 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
     return args
 
 
-def _inject_model_parallel_rank(
-    filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1
-):
+def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -318,18 +302,12 @@ def main():
             checkpoint_name = os.path.basename(latest_checkpoint)
 
         checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-        checkpoint = _inject_model_parallel_rank(
-            checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
-        )
+        checkpoint = _inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
         checkpoint_list = glob.glob(checkpoint)
         if len(checkpoint_list) > 1:
-            raise ValueError(
-                "Too many checkpoints fit the checkpoint name pattern in conversion config."
-            )
+            raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
         if len(checkpoint_list) == 0:
-            raise ValueError(
-                "No checkpoint found with the checkpoint name pattern in conversion config."
-            )
+            raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
         args.checkpoint_name = os.path.basename(checkpoint_list[0])
 
         # Create hparam override file for vocab ,merge, and etc.
@@ -399,11 +377,8 @@ def main():
             task_names = args.tasks.split(",")
         task_dict = tasks.get_task_dict(task_names, args.cache_dir)
 
-
     if args.serialize_predictions:
-        no_serialization = [
-            name for name, task in task_dict.items() if not hasattr(task, "serialize_results")
-        ]
+        no_serialization = [name for name, task in task_dict.items() if not hasattr(task, "serialize_results")]
         if len(
             no_serialization
         ):  # Only serialize for those that have implemented the method, instead of raising exception
@@ -438,9 +413,7 @@ def main():
         if "output" in results:
             # TODO(GEO): maybe add a for loop over "taskX" in results['output'][taskX] to store each task separately
             # Store predictions, prompts, labels etc per document as a (pretty) json file
-            predictions_filepath = os.path.join(
-                args.pred_dir, args.experiment_name + "_predictions.json"
-            )
+            predictions_filepath = os.path.join(args.pred_dir, args.experiment_name + "_predictions.json")
             logger.info("Stored predictions in '{}'".format(predictions_filepath))
             with open(predictions_filepath, mode="w") as fp:
                 json.dump(results, fp, indent=4)
@@ -473,9 +446,7 @@ def main():
         latex_writer.value_matrix = values
 
         if hparams_override_file is not None:
-            os.rename(
-                hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml")
-            )
+            os.rename(hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml"))
 
         logger.info(
             f"{args.model}, limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}"
@@ -483,11 +454,7 @@ def main():
         logger.info("\n" + md_writer.dumps())
 
         total_time = time.time() - total_start_time
-        logger.info(
-            "Total runtime: {} hours, {} minutes, {} seconds".format(
-                *utils.readable_time(total_time)
-            )
-        )
+        logger.info("Total runtime: {} hours, {} minutes, {} seconds".format(*utils.readable_time(total_time)))
         logger.info("Evaluation complete!")
 
 

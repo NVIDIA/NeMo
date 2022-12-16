@@ -6,10 +6,11 @@ To-do:
 import numpy as np
 import sklearn
 import transformers.data.metrics.squad_metrics as squad_metrics
-from .common import HFTask, yesno
 from lm_eval.base import rf
-from ..metrics import mean, acc_all, metric_max_over_ground_truths
+
+from ..metrics import acc_all, mean, metric_max_over_ground_truths
 from ..utils import general_detokenize
+from .common import HFTask, yesno
 
 
 class BoolQ(HFTask):
@@ -89,10 +90,7 @@ class CommitmentBank(HFTask):
         )
 
     def doc_to_text(self, doc):
-        return "{}\nQuestion: {}. True, False or Neither?\nAnswer:".format(
-            doc["premise"],
-            doc["hypothesis"],
-        )
+        return "{}\nQuestion: {}. True, False or Neither?\nAnswer:".format(doc["premise"], doc["hypothesis"],)
 
     def doc_to_target(self, doc):
         # True = entailment
@@ -118,10 +116,7 @@ class CommitmentBank(HFTask):
         return {
             "gold_choice": doc["label"],
             "model_output": results,
-            "question": doc["premise"]
-            + "\nQuestion: "
-            + doc["hypothesis"]
-            + ". True, False or Neither?\nAnswer:",
+            "question": doc["premise"] + "\nQuestion: " + doc["hypothesis"] + ". True, False or Neither?\nAnswer:",
         }
 
     def higher_is_better(self):
@@ -168,10 +163,7 @@ class Copa(HFTask):
 
     def doc_to_text(self, doc):
         # Drop the period
-        connector = {
-            "cause": "because",
-            "effect": "therefore",
-        }[doc["question"]]
+        connector = {"cause": "because", "effect": "therefore",}[doc["question"]]
         return doc["premise"].strip()[:-1] + f" {connector}"
 
     def doc_to_target(self, doc):
@@ -320,8 +312,7 @@ class ReCoRD(HFTask):
 
     def construct_requests(self, doc, ctx):
         requests = [
-            rf.loglikelihood(ctx, self.format_answer(query=doc["query"], entity=entity))
-            for entity in doc["entities"]
+            rf.loglikelihood(ctx, self.format_answer(query=doc["query"], entity=entity)) for entity in doc["entities"]
         ]
         return requests
 
@@ -377,9 +368,7 @@ class WordsInContext(HFTask):
         return (
             "Sentence 1: {}\nSentence 2: {}\nQuestion: Is the word '{}' used in the same way in the"
             " two sentences above?\nAnswer:".format(
-                doc["sentence1"],
-                doc["sentence2"],
-                doc["sentence1"][doc["start1"] : doc["end1"]],
+                doc["sentence1"], doc["sentence2"], doc["sentence1"][doc["start1"] : doc["end1"]],
             )
         )
 

@@ -4,8 +4,8 @@ This script is used to `pause_and_prime_dns_connections` in BCP platform.
 
 import os
 import re
-import time
 import socket
+import time
 
 
 def pause_and_prime_dns_connections() -> None:
@@ -14,6 +14,7 @@ def pause_and_prime_dns_connections() -> None:
         prime_dns_connections()
     elif int(os.environ.get("LOCAL_RANK")) != 0:
         time.sleep(10)
+
 
 def prime_dns_connections() -> None:
     me = "worker" + os.environ.get("GROUP_RANK") + ":" + os.environ.get("RANK")
@@ -35,6 +36,7 @@ def prime_dns_connections() -> None:
             sys.exit(110)
     print(f"SPDNS: {me} connected to {master_addr}:{master_port}")
     sock.close()
+
 
 if __name__ == "__main__":
     pause_and_prime_dns_connections()

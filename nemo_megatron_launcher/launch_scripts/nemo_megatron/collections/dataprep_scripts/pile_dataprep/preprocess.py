@@ -2,9 +2,9 @@ import os
 import subprocess
 from time import sleep
 
-import psutil
 import hydra
-import nemo_megatron.utils.file_utils as utils  #TODO: check if this in python path
+import nemo_megatron.utils.file_utils as utils  # TODO: check if this in python path
+import psutil
 
 
 @hydra.main(config_path="conf", config_name="config")
@@ -34,11 +34,7 @@ def main(cfg):
     # exists, it doesn't do anything. Force make via: touch helpers.cpp
     megatron_dir = "/opt/NeMo/nemo/collections/nlp/data/language_modeling/megatron"
     compiled_helpers_lib = os.path.join(megatron_dir, "compiled_helpers_lib")
-    compilecmd = (
-        f"cd /opt/NeMo; git rev-parse HEAD; "
-        f"cd {megatron_dir}; "
-        f"touch helpers.cpp; make;"
-    )
+    compilecmd = f"cd /opt/NeMo; git rev-parse HEAD; " f"cd {megatron_dir}; " f"touch helpers.cpp; make;"
 
     code_path = "/opt/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"
     runcmd = (
@@ -52,9 +48,7 @@ def main(cfg):
         file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
         extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
         # TODO: find better way to do this
-        output_prefix = os.path.join(
-            data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}"
-        )
+        output_prefix = os.path.join(data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}")
 
         flags = (
             f"--input {extracted_path} "
@@ -94,9 +88,7 @@ def main(cfg):
         ncpus = psutil.cpu_count(logical=False)
         for file_number in files_to_preproc:
             extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
-            output_prefix = os.path.join(
-                data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}"
-            )
+            output_prefix = os.path.join(data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}")
 
             flags = (
                 f"--input {extracted_path} "

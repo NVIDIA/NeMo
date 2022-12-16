@@ -1,11 +1,10 @@
-import os
 import glob
+import os
+
 import hydra
 
 
-def _inject_model_parallel_rank(
-    filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1
-):
+def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -22,6 +21,7 @@ def _inject_model_parallel_rank(
         return filepath
     else:
         return filepath
+
 
 @hydra.main(config_path="conf", config_name="checkpoint_search")
 def checkpoint_search(cfg):
@@ -46,20 +46,15 @@ def checkpoint_search(cfg):
         checkpoint_name = os.path.basename(latest_checkpoint)
 
     checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = _inject_model_parallel_rank(
-        checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
-    )
+    checkpoint = _inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
     checkpoint_list = glob.glob(checkpoint)
     if len(checkpoint_list) > 1:
-        raise ValueError(
-            "Too many checkpoints fit the checkpoint name pattern in conversion config."
-        )
+        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
     if len(checkpoint_list) == 0:
-        raise ValueError(
-            "No checkpoint found with the checkpoint name pattern in conversion config."
-        )
+        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
     checkpoint_name = os.path.basename(checkpoint_list[0])
     print(checkpoint_name)
+
 
 if __name__ == "__main__":
     checkpoint_search()

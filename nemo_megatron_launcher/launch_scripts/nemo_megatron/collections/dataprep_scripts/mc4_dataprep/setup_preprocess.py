@@ -10,12 +10,14 @@ Example usage:
     --worker-mapping-file=<path/to/preprocess_mapping_file>
 """
 
-import os
-import glob
-import shutil
-import math
 import argparse
+import glob
+import math
+import os
+import shutil
+
 from prepare import ALL_LANGS
+
 
 def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_en=False):
     if languages == "all":
@@ -34,19 +36,15 @@ def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_
             file_list = sorted(glob.glob(os.path.join(c4_path, f"en/c4-train.*.json.gz")))
             print(" ****** Using cleaned english data.")
         else:
-            file_list = sorted(
-                glob.glob(os.path.join(c4_path, f"multilingual/c4-{lang}.tfrecord-*.json.gz"))
-            )
+            file_list = sorted(glob.glob(os.path.join(c4_path, f"multilingual/c4-{lang}.tfrecord-*.json.gz")))
         file0 = file_list[0]
-        file_size = os.path.getsize(file0) * 1.0 / 1024**3  # convert bytes to GB
+        file_size = os.path.getsize(file0) * 1.0 / 1024 ** 3  # convert bytes to GB
         num_files = len(file_list)
         total_size = file_size * num_files
         num_splits = max(2 ** (math.ceil(math.log2(total_size / max_split_size))), 1)
         assert num_files % num_splits == 0, f"Language `{lang}` cannot be properly splitted."
         for ind in range(num_splits):
-            lang_split = os.path.join(
-                soft_link_path, "{:s}_{:03d}-{:03d}".format(lang, ind, num_splits)
-            )
+            lang_split = os.path.join(soft_link_path, "{:s}_{:03d}-{:03d}".format(lang, ind, num_splits))
             os.makedirs(lang_split, exist_ok=True)
             chunk_size = len(file_list) // num_splits  # number of files in each split
             file_chunk = file_list[ind * chunk_size : (ind + 1) * chunk_size]
@@ -63,9 +61,7 @@ def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_
     return lang_splits_info
 
 
-def distribute_lang_splits(
-    lang_splits_info, avail_nodes, workers_per_node, max_split_size, worker_mapping_file
-):
+def distribute_lang_splits(lang_splits_info, avail_nodes, workers_per_node, max_split_size, worker_mapping_file):
     avail_workers = avail_nodes * workers_per_node
     distributed_splits = [[] for _ in range(avail_workers)]
     distributed_size = [0] * avail_workers
@@ -88,9 +84,7 @@ def distribute_lang_splits(
     for i in range(avail_workers):
         print(
             "{:>4d} {:>7.2f}GB  {:s}".format(
-                i + 1,
-                distributed_size[i],
-                ",".join([os.path.basename(split) for split in distributed_splits[i]]),
+                i + 1, distributed_size[i], ",".join([os.path.basename(split) for split in distributed_splits[i]]),
             )
         )
 
@@ -106,14 +100,9 @@ if __name__ == "__main__":
         "languages have to be downloaded first",
         required=True,
     )
+    parser.add_argument("--node-array-size", help="Size of node array in download step", required=True, type=int)
     parser.add_argument(
-        "--node-array-size", help="Size of node array in download step", required=True, type=int
-    )
-    parser.add_argument(
-        "--workers-per-node",
-        default=8,
-        help="Number of workers per node in preprocessing step",
-        type=int,
+        "--workers-per-node", default=8, help="Number of workers per node in preprocessing step", type=int,
     )
     parser.add_argument(
         "--max-split-size",
@@ -123,9 +112,7 @@ if __name__ == "__main__":
         "max-split-size. (unit in GB)",
         type=int,
     )
-    parser.add_argument(
-        "--worker-mapping-file", help="Where to save worker mapping file", required=True
-    )
+    parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
     parser.add_argument(
         "--cleaned-en",
         action="store_true",
@@ -142,9 +129,5 @@ if __name__ == "__main__":
         args.c4_path, args.languages, args.max_split_size, args.soft_link_path, args.cleaned_en
     )
     distribute_lang_splits(
-        lang_splits_info,
-        args.node_array_size,
-        args.workers_per_node,
-        args.max_split_size,
-        args.worker_mapping_file,
+        lang_splits_info, args.node_array_size, args.workers_per_node, args.max_split_size, args.worker_mapping_file,
     )

@@ -1,19 +1,17 @@
-import sys
-import os
 import copy
+import functools
+import os
 import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import hydra
 import omegaconf
-import functools
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
-
 from nemo_megatron.core.launchers import AutoLauncher
-from nemo_megatron.core.stages import NemoMegatronStage
-from nemo_megatron.core.stages import clean_command_groups, create_args_list
-from nemo_megatron.utils.job_utils import JobPaths
+from nemo_megatron.core.stages import NemoMegatronStage, clean_command_groups, create_args_list
 from nemo_megatron.utils.file_utils import download_single_file
+from nemo_megatron.utils.job_utils import JobPaths
 
 
 class DataStage(NemoMegatronStage):
@@ -48,9 +46,7 @@ class DataStage(NemoMegatronStage):
             job_path = self.get_job_path(sub_stage)
             job_path.folder.mkdir(parents=True, exist_ok=True)
 
-            stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(
-                self.stage_cfg, job_path
-            )
+            stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(self.stage_cfg, job_path)
             if job_id:
                 dependency = f"aftercorr:{job_id}"
                 self.stage_cfg["run"]["dependency"] = dependency
@@ -61,18 +57,12 @@ class DataStage(NemoMegatronStage):
             # Make command groups
             command_groups = self.make_stage_command_groups(stage_cfg_path, sub_stage)
             # Create launcher
-            launcher = AutoLauncher(
-                folder=job_path.folder,
-                cluster=self.cluster,
-                **cluster_parameters,
-            )
+            launcher = AutoLauncher(folder=job_path.folder, cluster=self.cluster, **cluster_parameters,)
             job_id = launcher.launch(command_groups=command_groups)
 
         return job_id
 
-    def make_stage_command_groups(
-            self, stage_cfg_path: Path, sub_stage: Optional = None,
-    ) -> List[List[str]]:
+    def make_stage_command_groups(self, stage_cfg_path: Path, sub_stage: Optional = None,) -> List[List[str]]:
         """
         Make the command groups for current stage
         Command groups is a list of command group. A command group is defined as:
@@ -95,9 +85,7 @@ class DataStage(NemoMegatronStage):
     def _make_private_cluster_parameters(self, cluster, sub_stage):
         raise NotImplementedError
 
-    def _make_cluster_parameters(
-            self, cluster: str, sub_stage:Optional = None,
-    ) -> Dict:
+    def _make_cluster_parameters(self, cluster: str, sub_stage: Optional = None,) -> Dict:
         """
         Make a cluster-specific parameters for jobs on different clusters.
         Current clusters include bcm(slurm), bcp and interactive.
@@ -118,11 +106,9 @@ class DataStage(NemoMegatronStage):
         dependency = run_cfg.get("dependency")
 
         env_vars = self.get_env_vars()
-        env_vars["PYTHONPATH"] = f"{self._nemo_megatron_path}:${{PYTHONPATH}}" # Required by pile download
-        env_vars["NGC_ARRAY_TYPE"] = "MPIJob" # Required by BCP
-        setup = [
-            f"export {k}={v}" for k, v in env_vars.items()
-        ]
+        env_vars["PYTHONPATH"] = f"{self._nemo_megatron_path}:${{PYTHONPATH}}"  # Required by pile download
+        env_vars["NGC_ARRAY_TYPE"] = "MPIJob"  # Required by BCP
+        setup = [f"export {k}={v}" for k, v in env_vars.items()]
 
         cluster_parameters = {}
         shared_parameters = {
@@ -130,9 +116,7 @@ class DataStage(NemoMegatronStage):
             "time": time_limit,
             "setup": setup,
         }
-        private_parameters = self._make_private_cluster_parameters(
-            cluster, sub_stage,
-        )
+        private_parameters = self._make_private_cluster_parameters(cluster, sub_stage,)
         if cluster == "bcm":
             cluster_cfg = cfg.get("cluster")
             slurm_cfg = {**copy.deepcopy(cluster_cfg)}
@@ -141,16 +125,14 @@ class DataStage(NemoMegatronStage):
                 **slurm_cfg,
                 "dependency": dependency,
             }
-            cluster_parameters.update({
-                **shared_parameters,
-                **private_parameters,
-            })
+            cluster_parameters.update(
+                {**shared_parameters, **private_parameters,}
+            )
             cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
         elif cluster == "bcp":
-            cluster_parameters.update({
-                **shared_parameters,
-                **private_parameters,
-            })
+            cluster_parameters.update(
+                {**shared_parameters, **private_parameters,}
+            )
         elif cluster == "interactive":
             raise ValueError("Data preparation is not supported in interactive mode.")
 
@@ -197,9 +179,7 @@ class PileDataPreparation(DataStage):
         if download_merges_url is not None:
             assert merges_save_dir is not None, "merges_save_dir must be a valid path."
             download_single_file(
-                url=download_merges_url,
-                save_dir=merges_save_dir,
-                file_name="merges.txt",
+                url=download_merges_url, save_dir=merges_save_dir, file_name="merges.txt",
             )
 
     def _make_private_cluster_parameters(self, cluster: str, sub_stage: str) -> Dict:
@@ -224,8 +204,7 @@ class PileDataPreparation(DataStage):
 
         node_array_size = run_cfg.get("node_array_size")
         array = run_cfg.get("array")
-        bcp_preproc_npernode = run_cfg.get("bcp_preproc_npernode")  \
-            if sub_stage == "preprocess" else 1
+        bcp_preproc_npernode = run_cfg.get("bcp_preproc_npernode") if sub_stage == "preprocess" else 1
         if cluster == "bcm":
             return {
                 "nodes": 1,
@@ -304,16 +283,12 @@ class MC4DataPreparation(DataStage):
         if download_vocab_url is not None:
             assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
             download_single_file(
-                url=download_vocab_url,
-                save_dir=vocab_save_dir,
-                file_name="vocab.txt",
+                url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.txt",
             )
         if download_tokenizer_url is not None:
             assert tokenizer_save_dir is not None, "vocab_save_dir must be a valid path."
             download_single_file(
-                url=download_tokenizer_url,
-                save_dir=tokenizer_save_dir,
-                file_name="mt5_tokenizer.model",
+                url=download_tokenizer_url, save_dir=tokenizer_save_dir, file_name="mt5_tokenizer.model",
             )
 
     def _make_private_cluster_parameters(self, cluster: str, sub_stage: str) -> Dict:
@@ -333,8 +308,7 @@ class MC4DataPreparation(DataStage):
         stage_cfg = self.stage_cfg
         run_cfg = stage_cfg.get("run")
 
-        node_array_size = run_cfg.get("node_array_size") \
-            if sub_stage in ["download", "preprocess"] else 1
+        node_array_size = run_cfg.get("node_array_size") if sub_stage in ["download", "preprocess"] else 1
         array = f"0-{node_array_size-1}"
         if sub_stage == "preprocess":
             ntasks_per_node = run_cfg.get("workers_per_node")
@@ -536,12 +510,12 @@ class CustomDataPreparation(DataStage):
             bpe_save_dir.mkdir(parents=True, exist_ok=True)
             train_tokenizer_args = data_cfg.get("train_tokenizer_args")
             code_path = f"cd {bpe_save_dir} && spm_train"
-            args = create_args_list(
-                **train_tokenizer_args
-            )
+            args = create_args_list(**train_tokenizer_args)
         else:
             assert sub_stage == "preprocess", f"Unknown substage {sub_stage}"
-            code_path = self._nemo_megatron_path / "nemo_megatron/collections/dataprep_scripts/custom_dataprep/preprocess.py"
+            code_path = (
+                self._nemo_megatron_path / "nemo_megatron/collections/dataprep_scripts/custom_dataprep/preprocess.py"
+            )
             args = create_args_list(
                 output_path=data_cfg.get("preprocessed_dir"),
                 workers_per_node=run_cfg.get("workers_per_node"),

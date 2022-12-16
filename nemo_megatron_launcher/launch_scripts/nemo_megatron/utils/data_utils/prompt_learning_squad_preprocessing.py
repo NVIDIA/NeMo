@@ -19,7 +19,6 @@ import time
 
 from tqdm import tqdm
 
-
 """
 Dataset preprocessing script for the SQuAD dataset: https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json
 Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
@@ -49,6 +48,7 @@ An example of the processed output written to file:
 """
 
 NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t", "1")
+
 
 def main():
     parser = argparse.ArgumentParser()

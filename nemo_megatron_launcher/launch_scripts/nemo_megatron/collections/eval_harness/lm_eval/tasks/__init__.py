@@ -1,14 +1,6 @@
 from pprint import pprint
 
-from . import superglue
-from . import winogrande
-from . import hellaswag
-from . import lambada
-from . import race
-from . import piqa
-from . import wikitext
-from . import prompt
-
+from . import hellaswag, lambada, piqa, prompt, race, superglue, wikitext, winogrande
 from .common import HFTask
 
 ########################################
@@ -37,9 +29,7 @@ TASK_REGISTRY = {
     "winogrande": winogrande.Winogrande,
 }
 
-PROMPT_TASK_REGISTRY = {
-    "prompt": prompt.Prompt
-}
+PROMPT_TASK_REGISTRY = {"prompt": prompt.Prompt}
 
 ALL_TASKS = sorted(list(TASK_REGISTRY))
 

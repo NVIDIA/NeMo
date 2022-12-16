@@ -1,4 +1,5 @@
 import datasets
+
 from ..base import Task
 
 
@@ -12,9 +13,7 @@ class HFTask(Task):
         super().__init__()
 
     def download(self):
-        self.data = datasets.load_dataset(
-            path=self.DATASET_PATH, name=self.DATASET_NAME, cache_dir=self.cache_dir
-        )
+        self.data = datasets.load_dataset(path=self.DATASET_PATH, name=self.DATASET_NAME, cache_dir=self.cache_dir)
 
     def has_training_docs(self):
         """Whether the task has a training set"""

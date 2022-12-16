@@ -1,6 +1,6 @@
 from lm_eval.base import LM
-from . import nemo_gpt3, nemo_gpt3_prompt
-from . import dummy
+
+from . import dummy, nemo_gpt3, nemo_gpt3_prompt
 
 MODEL_REGISTRY = {
     "nemo-gpt3": nemo_gpt3.NeMo_GPT3LM_TP_PP,

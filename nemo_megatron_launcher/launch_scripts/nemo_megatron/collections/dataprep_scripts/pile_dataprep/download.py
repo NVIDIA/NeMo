@@ -1,5 +1,5 @@
-import os
 import multiprocessing
+import os
 
 import hydra
 import nemo_megatron.utils.file_utils as utils
@@ -37,9 +37,7 @@ def main(cfg):
             url = f"{pile_url_train}{file_number:02d}.jsonl.zst"
             output_file = f"{file_number:02d}.jsonl.zst"
             # TODO: Consider multiprocessing.Pool instead.
-            proc = multiprocessing.Process(
-                target=utils.download_single_file, args=(url, data_dir, output_file)
-            )
+            proc = multiprocessing.Process(target=utils.download_single_file, args=(url, data_dir, output_file))
             proc_list.append(proc)
             proc.start()
 

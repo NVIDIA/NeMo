@@ -11,20 +11,18 @@ Example usage:
     --apply-ftfy
 """
 
+import argparse
+import glob
 import os
 import shutil
 import subprocess
 import time
-import glob
-import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess custom dataset", allow_abbrev=False)
 
     parser.add_argument("--output-path", help="Path to store output bin files", required=True)
-    parser.add_argument(
-        "--worker-mapping-file", help="Decide which worker download which languages", required=True
-    )
+    parser.add_argument("--worker-mapping-file", help="Decide which worker download which languages", required=True)
     parser.add_argument(
         "--workers-per-node",
         default=int(os.environ.get("SLURM_NTASKS_PER_NODE", 1)),
@@ -64,6 +62,4 @@ if __name__ == "__main__":
         output_arg = ["--output-prefix", os.path.join(args.output_path, os.path.basename(split))]
         subprocess.check_call(cmd + input_arg + output_arg + other_args)
         print(f" ****** Task ID {task_id:02d} Rank {rank:02d} finished preprocessing {os.path.basename(split)}...")
-        print(
-            f" ****** Task ID {task_id:02d} Rank {rank:02d} time elapsed {(time.time() - start_time) / 60:.2f} min."
-        )
+        print(f" ****** Task ID {task_id:02d} Rank {rank:02d} time elapsed {(time.time() - start_time) / 60:.2f} min.")

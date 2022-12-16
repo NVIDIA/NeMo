@@ -1,9 +1,9 @@
-import os
-import sys
-import time
-import shutil
 import argparse
 import io
+import os
+import shutil
+import sys
+import time
 
 from nemo_megatron.utils.file_utils import download_single_file
 
@@ -24,6 +24,7 @@ VERSION2PATHS = {
     ],
 }
 
+
 def download_squad(data_dir, versions):
     os.makedirs(data_dir, exist_ok=True)
 
@@ -39,6 +40,7 @@ def download_squad(data_dir, versions):
         for url in VERSION2PATHS[v]:
             download_single_file(url, os.path.join(data_dir, v))
         print("\tCompleted!")
+
 
 def get_versions(requested_versions):
     requested_versions = requested_versions.split(",")
@@ -56,11 +58,10 @@ def get_versions(requested_versions):
     versions = set(versions)
     return list(versions)
 
+
 def main(arguments):
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data_dir", help="directory to save data to", type=str, default="squad_data"
-    )
+    parser.add_argument("--data_dir", help="directory to save data to", type=str, default="squad_data")
     parser.add_argument(
         "--versions",
         help="SQuAD versions (v1.1, v2.0 or xquad) to download data for as a comma separated string",
@@ -70,6 +71,7 @@ def main(arguments):
     args = parser.parse_args(arguments)
     versions = get_versions(args.versions)
     download_squad(args.data_dir, versions)
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

@@ -1,5 +1,7 @@
 import os
+
 import hydra
+
 
 def numa_mapping(local_rank, devices, numa_cfg):
     """Sets the GPU affinity for the NUMA mapping for the current GPU passed as local_rank.
@@ -20,6 +22,7 @@ def numa_mapping(local_rank, devices, numa_cfg):
 
     if enable:
         from gpu_affinity import set_affinity
+
         affinity = set_affinity(
             gpu_id=int(local_rank),
             nproc_per_node=devices,
@@ -38,13 +41,12 @@ def numa_mapping(local_rank, devices, numa_cfg):
 @hydra.main(config_path="conf", config_name="numa_mapping")
 def main(cfg):
     rank = int(os.environ.get("LOCAL_RANK"))
-    devices = int(os.environ.get("SLURM_NTASKS_PER_NODE")) # TODO: Check BCP, interactive
+    devices = int(os.environ.get("SLURM_NTASKS_PER_NODE"))  # TODO: Check BCP, interactive
 
     numa_mapping(
-        local_rank=rank,
-        devices=devices,
-        numa_cfg=cfg,
+        local_rank=rank, devices=devices, numa_cfg=cfg,
     )
+
 
 if __name__ == "__main__":
     main()

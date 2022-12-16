@@ -1,22 +1,19 @@
 import json
-import re
+import logging
 import os
-
-from best_download import download_file
+import re
 from copy import deepcopy
 
-from tqdm.auto import tqdm
-from nemo.collections.nlp.modules.common import VirtualPromptSource
-from nemo.core import Dataset
-
+from best_download import download_file
 from lm_eval.base import Task, rf
 from lm_eval.metrics import mean, perplexity
 from lm_eval.utils import sh
+from tqdm.auto import tqdm
 
-import logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
-)
+from nemo.collections.nlp.modules.common import VirtualPromptSource
+from nemo.core import Dataset
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -288,7 +285,6 @@ class GPTPromptLearningDataset(Dataset):
         return task_id_nums, (input_ids, input_lengths)
 
 
-
 class Prompt(Task):
     VERSION = 0
 
@@ -339,9 +335,7 @@ class Prompt(Task):
     def test_docs(self):
         pass
 
-    def fewshot_context(
-        self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs
-    ):
+    def fewshot_context(self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs):
         """Construct and format full prompt string for a given sample, optionally including description and shot examples
         :param doc: document object corresponding to the sample under examination
         :param num_fewshot: number of examples to be included in the prompt
@@ -353,9 +347,7 @@ class Prompt(Task):
         """
 
         raw_description = self.fewshot_description()
-        description = (
-            (raw_description + "\n===\n\n") if provide_description and raw_description else ""
-        )
+        description = (raw_description + "\n===\n\n") if provide_description and raw_description else ""
 
         if num_fewshot == 0:
             labeled_examples = ""

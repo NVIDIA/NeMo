@@ -1,7 +1,9 @@
 import collections
+
 import datasets
 import numpy as np
 from lm_eval.base import rf
+
 from ..metrics import mean
 from .common import HFTask
 
@@ -48,13 +50,7 @@ class RACE(HFTask):
                 lambda x: {
                     "article": x[0]["article"],
                     "problems": x
-                    >> each(
-                        lambda y: {
-                            "question": y["question"],
-                            "answer": y["answer"],
-                            "options": y["options"],
-                        }
-                    ),
+                    >> each(lambda y: {"question": y["question"], "answer": y["answer"], "options": y["options"],}),
                 }
             )
         )

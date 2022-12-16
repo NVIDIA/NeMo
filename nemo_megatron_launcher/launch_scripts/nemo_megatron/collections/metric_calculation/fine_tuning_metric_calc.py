@@ -11,16 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import argparse
-import tempfile
+import json
 import os
+import tempfile
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--pred_file", type=str, required=True, help="json file with preds, inputs and targets.")
-    parser.add_argument("--target_file", type=str, required=True, help="jsonl file that contains the squad dev set with multiple correct answers.")
-    parser.add_argument("--squad_eval_script_path", type=str, required=True, help="path to the squad evaluation script.")
+    parser.add_argument(
+        "--target_file",
+        type=str,
+        required=True,
+        help="jsonl file that contains the squad dev set with multiple correct answers.",
+    )
+    parser.add_argument(
+        "--squad_eval_script_path", type=str, required=True, help="path to the squad evaluation script."
+    )
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as tmp:

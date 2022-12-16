@@ -49,9 +49,7 @@ def _get_model_parameters(config_ini):
         return model_name
 
     params_from_model_config = {
-        section_name: {
-            "model_type": config_ini.get(section_name, "model_type", fallback="GPT"),
-        }
+        section_name: {"model_type": config_ini.get(section_name, "model_type", fallback="GPT"),}
         for section_name in sections_names_with_model_parameters
     }
 
@@ -113,7 +111,9 @@ def main():
     parser.add_argument(
         "--data-type", choices=["fp32", "fp16", "bf16"], help="Data type of weights in runtime", required=True
     )
-    parser.add_argument("--int8-mode", action="store_true", help="Enable int8 mode in FasterTransformer Triton backend")
+    parser.add_argument(
+        "--int8-mode", action="store_true", help="Enable int8 mode in FasterTransformer Triton backend"
+    )
     parser.add_argument(
         "--enable-custom-all-reduce",
         action="store_true",

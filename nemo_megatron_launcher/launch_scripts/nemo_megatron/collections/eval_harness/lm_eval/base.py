@@ -1,13 +1,16 @@
 import abc
 import enum
+import hashlib
+import json
+import os
 import random
 import re
 from functools import partial
 
-import spacy
 import numpy as np
-
-from lm_eval.metrics import mean, perplexity, weighted_perplexity, weighted_mean
+import spacy
+from lm_eval.metrics import mean, perplexity, weighted_mean, weighted_perplexity
+from sqlitedict import SqliteDict
 
 
 def _SPACY_NLP(*args, **kwargs):
@@ -342,9 +345,7 @@ class Task(abc.ABC):
             )
         )
 
-    def fewshot_context(
-        self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs
-    ):
+    def fewshot_context(self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs):
         """Construct and format full prompt string for a given sample, optionally including description and shot examples
         :param doc: document object corresponding to the sample under examination
         :param num_fewshot: number of examples to be included in the prompt
@@ -356,9 +357,7 @@ class Task(abc.ABC):
         """
 
         raw_description = self.fewshot_description()
-        description = (
-            (raw_description + "\n===\n\n") if provide_description and raw_description else ""
-        )
+        description = (raw_description + "\n===\n\n") if provide_description and raw_description else ""
 
         if num_fewshot == 0:
             labeled_examples = ""
@@ -368,10 +367,7 @@ class Task(abc.ABC):
             if self.has_training_docs():
                 if filter_shot_examples:
                     fewshotex = self.fewshot_examples(
-                        k=num_fewshot,
-                        rnd=rnd,
-                        filter_func=partial(self.filter_shots, doc=doc),
-                        **kwargs,
+                        k=num_fewshot, rnd=rnd, filter_func=partial(self.filter_shots, doc=doc), **kwargs,
                     )
                 else:
                     fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd, **kwargs)
@@ -380,9 +376,7 @@ class Task(abc.ABC):
                     self._fewshot_docs = list(
                         self.validation_docs() if self.has_validation_docs() else self.test_docs()
                     )
-                    self._fewshot_docs = list(
-                        zip(range(len(self._fewshot_docs)), self._fewshot_docs)
-                    )
+                    self._fewshot_docs = list(zip(range(len(self._fewshot_docs)), self._fewshot_docs))
                 if filter_shot_examples:
                     fewshotex = self.filter_shots(self._fewshot_docs, doc)
                 else:
@@ -396,8 +390,7 @@ class Task(abc.ABC):
 
             shot_ids, shot_docs = zip(*fewshotex)
             labeled_examples = (
-                "\n\n".join([self.doc_to_text(doc) + self.doc_to_target(doc) for doc in shot_docs])
-                + "\n\n"
+                "\n\n".join([self.doc_to_text(doc) + self.doc_to_target(doc) for doc in shot_docs]) + "\n\n"
             )
 
         example = self.doc_to_text(doc)  # the document of interest, main part of the prompt
@@ -410,12 +403,8 @@ class MultipleChoiceTask(Task):
         return " " + doc["choices"][doc["gold"]]
 
     def construct_requests(self, doc, ctx):
-        lls = [
-            rf.loglikelihood(ctx, " {}".format(choice))[0]
-            for choice in doc["choices"]  # get likelihoods
-        ] + [
-            rf.loglikelihood(ctx, " {}".format(choice))[2]
-            for choice in doc["choices"]  # get tokens
+        lls = [rf.loglikelihood(ctx, " {}".format(choice))[0] for choice in doc["choices"]] + [  # get likelihoods
+            rf.loglikelihood(ctx, " {}".format(choice))[2] for choice in doc["choices"]  # get tokens
         ]
         return lls
 
@@ -514,7 +503,7 @@ class PerplexityTask(Task, abc.ABC):
         return req
 
     def process_results(self, doc, results):
-        loglikelihood, = results
+        (loglikelihood,) = results
         words = self.count_words(doc)
         bytes = self.count_bytes(doc)
         return {
@@ -543,11 +532,6 @@ req_ret_lens = {
     "greedy_until": None,
     "loglikelihood_rolling": None,
 }
-
-import os
-import json
-import hashlib
-from sqlitedict import SqliteDict
 
 
 def hash_args(attr, args):

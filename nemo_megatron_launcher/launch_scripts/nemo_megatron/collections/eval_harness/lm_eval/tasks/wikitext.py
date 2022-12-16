@@ -1,10 +1,10 @@
 import os
 import re
-from lm_eval.base import rf, PerplexityTask
-from lm_eval.utils import sh
-import torch
 
+import torch
 from best_download import download_file
+from lm_eval.base import PerplexityTask, rf
+from lm_eval.utils import sh
 
 
 def wikitext_detokenizer(string):

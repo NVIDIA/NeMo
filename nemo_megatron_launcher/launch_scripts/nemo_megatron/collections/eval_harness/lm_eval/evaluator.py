@@ -1,13 +1,12 @@
 import collections
 import itertools
-import random
-import lm_eval.metrics
 import logging
+import random
 import time
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
-)
+import lm_eval.metrics
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -27,9 +26,7 @@ def evaluate(
     #  (task, task_docs, reqs, requests, request_origin). Converting everything to HF dataset objects may be a good alternative
 
     task_dict_items = [
-        (name, task)
-        for name, task in task_dict.items()
-        if (task.has_validation_docs() or task.has_test_docs())
+        (name, task) for name, task in task_dict.items() if (task.has_validation_docs() or task.has_test_docs())
     ]
 
     results = collections.defaultdict(dict)
@@ -89,9 +86,7 @@ def evaluate(
                 doc["doc_id"] = doc_id
                 doc["shot_ids"] = shot_ids
             docs[(task_name, doc_id)] = doc
-            reqs = task.construct_requests(
-                doc, ctx
-            )  # GEO: this is a tuple, like (ll_true, ll_false)
+            reqs = task.construct_requests(doc, ctx)  # GEO: this is a tuple, like (ll_true, ll_false)
             if not isinstance(reqs, (list, tuple)):
                 reqs = [reqs]
             for i, req in enumerate(reqs):
@@ -101,9 +96,7 @@ def evaluate(
                 # i: index in requests for a single task instance. Each doc has as many requests as multiple choice questions.
                 # doc_id: unique id that we can get back to a doc using `docs`. Just an index corresponding to the order of app. in `task_docs`
                 # GEO: TODO: does it really need the `doc`? is this list necessary?
-                requests_origin[req.type].append(
-                    (i, task_name, doc, doc_id)
-                )  # key(s) are 'loglikelihood', etc.
+                requests_origin[req.type].append((i, task_name, doc, doc_id))  # key(s) are 'loglikelihood', etc.
 
     # all responses for each (task, doc)
     process_res_queue = collections.defaultdict(list)  # GEO: not a Queue though...
@@ -159,9 +152,7 @@ def evaluate(
             task = task_dict[task_name]
             results[task_name][metric] = task.aggregation()[metric](items)
 
-            stderr = lm_eval.metrics.stderr_for_metric(
-                task.aggregation()[metric], bootstrap_iters=bootstrap_iters
-            )
+            stderr = lm_eval.metrics.stderr_for_metric(task.aggregation()[metric], bootstrap_iters=bootstrap_iters)
             if stderr is not None:
                 results[task_name][metric + "_stderr"] = stderr(items)
 

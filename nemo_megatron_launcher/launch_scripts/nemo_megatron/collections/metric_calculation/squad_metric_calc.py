@@ -14,10 +14,11 @@
 
 import argparse
 import json
-import re
 import os
+import re
 import string
 from collections import Counter
+
 try:
     from nemo.utils.get_rank import is_global_rank_zero
 except ModuleNotFoundError:
@@ -142,11 +143,9 @@ def main():
     metric = {'exact_match': exact_match, 'f1': f1, 'total': total}
     if is_global_rank_zero:
         print(metric)
-        with open(
-            os.path.join(os.path.dirname(pred_file), 'squad_metric.json'),
-            'w',
-        ) as outfile:
+        with open(os.path.join(os.path.dirname(pred_file), 'squad_metric.json'), 'w',) as outfile:
             json.dump(metric, outfile)
+
 
 if __name__ == "__main__":
     main()

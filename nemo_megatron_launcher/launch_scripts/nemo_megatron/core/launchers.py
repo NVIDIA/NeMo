@@ -1,6 +1,8 @@
+import datetime
 import functools
 import inspect
 import os
+import random
 import re
 import shlex
 import shutil
@@ -8,10 +10,8 @@ import subprocess
 import sys
 import uuid
 import warnings
-import datetime
-import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import nemo_megatron.utils.job_utils as job_utils
 from nemo_megatron.core.logger import logger
@@ -20,13 +20,13 @@ NEMO_MEGATRON_CI = os.getenv("NEMO_MEGATRON_CI", "False").lower() in ("true", "t
 NEMO_MEGATRON_DEBUG = os.getenv("NEMO_MEGATRON_DEBUG", "False").lower() in ("true", "t", "1")
 NEMO_MEGATRON_MEMORY_MEASURE = os.getenv("NEMO_MEGATRON_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
 
+
 class AutoLauncher:
     """
     Automatic launcher class. It will create a launcher based on input cluster name.
     """
-    def __init__(
-            self, folder: Union[str, Path], job_name: str, cluster: Optional[str] = None, **kwargs: Any
-    ) -> None:
+
+    def __init__(self, folder: Union[str, Path], job_name: str, cluster: Optional[str] = None, **kwargs: Any) -> None:
         self.cluster = cluster or self.which()
         self.cluster = self.cluster.lower()
 
@@ -36,9 +36,7 @@ class AutoLauncher:
 
         self._launcher = launchers[self.cluster](folder, job_name, **kwargs)
 
-    def launch(
-            self, command_groups: List[List[str]]
-    ) -> str:
+    def launch(self, command_groups: List[List[str]]) -> str:
         """
         Use the launcher to launch the command groups.
 
@@ -71,9 +69,7 @@ class Launcher:
         self.folder = folder
         self.job_name = job_name
 
-    def launch(
-            self, command_groups: List[List[str]]
-    ) -> str:
+    def launch(self, command_groups: List[List[str]]) -> str:
         """
         Use the launcher to launch the command groups.
 
@@ -81,9 +77,7 @@ class Launcher:
         :return: job id on slurm based system otherwise empty string
         :rtype: str
         """
-        submission_file_path = self._make_submission_file(
-            command_groups
-        )
+        submission_file_path = self._make_submission_file(command_groups)
         logger.info(f"Job {self.job_name} submission file created at '{submission_file_path}'")
 
         job_id = ""
@@ -99,15 +93,11 @@ class Launcher:
 
         return job_id
 
-    def _submit_command(
-        self, submission_file_path: Path
-    ) -> str:
+    def _submit_command(self, submission_file_path: Path) -> str:
         """Submits a set of command groups to the cluster"""
         raise NotImplementedError
 
-    def _make_submission_file(
-            self, command_groups: List[List[str]]
-    ) -> Path:
+    def _make_submission_file(self, command_groups: List[List[str]]) -> Path:
         """
         Make a submission script file, as following
             on interactive cluster, it's a bash file, trigger with bash.
@@ -139,15 +129,12 @@ class InteractiveLauncher(Launcher):
     :param str job_name: Name of the job, used as job folder name
     :param Any **kwargs: Parse other cluster parameters required for interactive running
     """
-    def __init__(
-            self, folder: Union[Path, str], job_name: str, **kwargs: Any
-    ) -> None:
+
+    def __init__(self, folder: Union[Path, str], job_name: str, **kwargs: Any) -> None:
         super().__init__(folder, job_name)
         self.parameters = kwargs
 
-    def _submit_command(
-        self, submission_file_path: Path
-    ) -> str:
+    def _submit_command(self, submission_file_path: Path) -> str:
         """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
@@ -190,9 +177,7 @@ class InteractiveLauncher(Launcher):
 
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
-            command = command.replace(
-                "python3 -u", f"torchrun --nproc_per_node={ntasks_per_node}"
-            )
+            command = command.replace("python3 -u", f"torchrun --nproc_per_node={ntasks_per_node}")
 
             lines += [
                 "",
@@ -216,9 +201,8 @@ class BCPLauncher(Launcher):
     :param Any **kwargs: Parse other cluster parameters required for BCP running,
         including `nodes`, `ntasks_pernode`, `bcp_launcher`, etc.
     """
-    def __init__(
-            self, folder: Union[Path, str], job_name: str, **kwargs: Any
-    ) -> None:
+
+    def __init__(self, folder: Union[Path, str], job_name: str, **kwargs: Any) -> None:
         super().__init__(folder, job_name)
         self.parameters = kwargs
         self.parameters = self._convert_parameters(self.parameters)
@@ -241,9 +225,7 @@ class BCPLauncher(Launcher):
             params = {eq_dict.get(k, k): v for k, v in params.items()}
         return params
 
-    def _submit_command(
-        self, submission_file_path: Path
-    ) -> str:
+    def _submit_command(self, submission_file_path: Path) -> str:
         """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
@@ -293,7 +275,7 @@ class BCPLauncher(Launcher):
             lines += ["", "# setup"] + setup
 
         # Add pause_and_prime_dns_connection to command groups on BCP
-        nemo_megatron_path = Path("/opt/NeMo/nemo_megatron_launcher/launch_scripts") # Hard code path on BCP
+        nemo_megatron_path = Path("/opt/NeMo/nemo_megatron_launcher/launch_scripts")  # Hard code path on BCP
         pause_and_prime_dns_connection_command = (
             f"python3 -u {nemo_megatron_path / 'nemo_megatron/collections/pause_and_prime_dns_connections.py'}"
         )
@@ -312,8 +294,7 @@ class BCPLauncher(Launcher):
             lines += [
                 "",
                 f"# command {group_ind + 1}",
-                f"{bcprun_cmd} "
-                f"{launcher_flags} {env_flags} --cmd \"",
+                f"{bcprun_cmd} " f"{launcher_flags} {env_flags} --cmd \"",
                 f"  {command} \" 2>&1 | tee -a {stdout}",
                 "",
             ]
@@ -335,9 +316,7 @@ class SlurmLauncher(Launcher):
                 setup: a list of command to run in sbatch before running srun
     """
 
-    def __init__(
-            self, folder: Union[Path, str], job_name: str, **kwargs: Any
-    ) -> None:
+    def __init__(self, folder: Union[Path, str], job_name: str, **kwargs: Any) -> None:
         super().__init__(folder, job_name)
         self.parameters = {}
         self._update_parameters(job_name=job_name, **kwargs)
@@ -392,17 +371,11 @@ class SlurmLauncher(Launcher):
                 f"Unrecognized sbatch parameter(s): {in_valid_parameters}. Use at your own risk.\n\nValid parameters are:\n  - {string}"
             )
 
-        self.parameters.update(
-            {k: v for k, v in kwargs.items() if k not in in_valid_parameters}
-        )
-        self.parameters.update(
-            {"additional_parameters": {k: kwargs[k] for k in in_valid_parameters}} ,
-        )
+        self.parameters.update({k: v for k, v in kwargs.items() if k not in in_valid_parameters})
+        self.parameters.update({"additional_parameters": {k: kwargs[k] for k in in_valid_parameters}},)
         self.parameters = self._convert_parameters(self.parameters)
 
-    def _submit_command(
-        self, submission_file_path: Path
-    ) -> str:
+    def _submit_command(self, submission_file_path: Path) -> str:
         """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
@@ -425,11 +398,7 @@ class SlurmLauncher(Launcher):
         :return: submission script file's text
         :rtype: str
         """
-        return _make_sbatch_string(
-            command_groups=command_groups,
-            folder=self.folder,
-            **self.parameters
-        )
+        return _make_sbatch_string(command_groups=command_groups, folder=self.folder, **self.parameters)
 
     @staticmethod
     def _make_submission_command(submission_file_path: Path) -> List[str]:
@@ -535,9 +504,7 @@ def _make_sbatch_string(
     # rename and reformat parameters
 
     if num_gpus is not None:
-        warnings.warn(
-            '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)'
-        )
+        warnings.warn('"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)')
         parameters["gpus_per_node"] = parameters.pop("num_gpus", 0)
     if "cpus_per_gpu" in parameters and "gpus_per_task" not in parameters:
         warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
@@ -555,7 +522,7 @@ def _make_sbatch_string(
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
 
-    if NEMO_MEGATRON_CI: # Override output file for slurm
+    if NEMO_MEGATRON_CI:  # Override output file for slurm
         parameters["output"] = parameters["error"] = str(paths.folder / "slurm_%j.out")
         stdout = stderr = parameters["output"]
 
@@ -582,9 +549,9 @@ def _make_sbatch_string(
 
         mem_stdout = stdout.replace("_%j", "_mem_%j")
         mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
-        mem_srun_cmd = shlex.join([
-            "srun", "--ntasks=1", "--ntasks-per-node=1", "--output", mem_stdout, *container_flags, *srun_args
-        ])
+        mem_srun_cmd = shlex.join(
+            ["srun", "--ntasks=1", "--ntasks-per-node=1", "--output", mem_stdout, *container_flags, *srun_args]
+        )
         lines += [
             "",
             "# run memory measure",

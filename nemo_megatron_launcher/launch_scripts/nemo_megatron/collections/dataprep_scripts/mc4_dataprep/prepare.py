@@ -9,10 +9,10 @@ Example usage:
     --worker-mapping-file=<path/to/download_mapping_file>
 """
 
-import os
-import sys
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 
 # fmt: off
 ALL_LANGS = [
@@ -58,10 +58,7 @@ def setup_git_lfs(git_lfs_path):
 def prepare_c4_repo(data_path):
     c4_path = os.path.join(data_path, "c4")
     print(f" ****** Preparing (m)C4 dataset repo under {c4_path} ...")
-    os.system(
-        f"cd {data_path} && "
-        f"GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/datasets/allenai/c4"
-    )
+    os.system(f"cd {data_path} && " f"GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/datasets/allenai/c4")
     os.system(f"cd {c4_path} && git lfs install")
 
 
@@ -81,9 +78,7 @@ def distribute_languages(data_path, languages, avail_nodes, worker_mapping_file,
             print(" ****** Using cleaned english data.")
         else:
             pattern = f"multilingual/c4-{lang}.tfrecord-00000-*.json.gz"
-        stdout = subprocess.check_output(
-            f"cd {c4_path} && git lfs ls-files -s -I '{pattern}'", shell=True
-        )
+        stdout = subprocess.check_output(f"cd {c4_path} && git lfs ls-files -s -I '{pattern}'", shell=True)
         stdout = stdout.decode("utf-8").split()
         file_name = stdout[2]
         file_size = int(stdout[-2].strip("("))
@@ -116,11 +111,7 @@ def distribute_languages(data_path, languages, avail_nodes, worker_mapping_file,
         file.write(output)
     print(f" ****** Workers mapping saved to {worker_mapping_file} ...")
     for i in range(avail_nodes):
-        print(
-            "{:>4d} {:>8.1f}GB  {:s}".format(
-                i + 1, distributed_size[i] / 1024, ",".join(distributed_langs[i])
-            )
-        )
+        print("{:>4d} {:>8.1f}GB  {:s}".format(i + 1, distributed_size[i] / 1024, ",".join(distributed_langs[i])))
 
 
 if __name__ == "__main__":
@@ -129,16 +120,11 @@ if __name__ == "__main__":
     parser.add_argument("--git-lfs-path", help="Path to git lfs", required=True)
     parser.add_argument(
         "--languages",
-        help="Specify the language list e.g. `en,es,zh,de,...` or "
-        "use `all` to download all languages",
+        help="Specify the language list e.g. `en,es,zh,de,...` or " "use `all` to download all languages",
         required=True,
     )
-    parser.add_argument(
-        "--node-array-size", help="Size of node array in download step", required=True, type=int
-    )
-    parser.add_argument(
-        "--worker-mapping-file", help="Where to save worker mapping file", required=True
-    )
+    parser.add_argument("--node-array-size", help="Size of node array in download step", required=True, type=int)
+    parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
     parser.add_argument(
         "--cleaned-en",
         action="store_true",
@@ -149,6 +135,4 @@ if __name__ == "__main__":
 
     setup_git_lfs(args.git_lfs_path)
     prepare_c4_repo(args.data_path)
-    distribute_languages(
-        args.data_path, args.languages, avail_nodes, args.worker_mapping_file, args.cleaned_en
-    )
+    distribute_languages(args.data_path, args.languages, avail_nodes, args.worker_mapping_file, args.cleaned_en)

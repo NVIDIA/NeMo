@@ -1,22 +1,22 @@
-import sys
-import os
 import copy
+import functools
+import os
 import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import hydra
 import omegaconf
-import functools
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
-from omegaconf import OmegaConf
-
 from nemo_megatron.core.launchers import AutoLauncher
 from nemo_megatron.core.logger import logger
-from nemo_megatron.utils.job_utils import JobPaths
+from nemo_megatron.utils.data_utils.prepare_squad import (
+    prepare_squad_for_fine_tuning,
+    prepare_squad_for_prompt_learning,
+)
 from nemo_megatron.utils.file_utils import download_single_file
-from nemo_megatron.utils.data_utils.prepare_squad import prepare_squad_for_fine_tuning
-from nemo_megatron.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learning
-
+from nemo_megatron.utils.job_utils import JobPaths
+from omegaconf import OmegaConf
 
 
 class NemoMegatronStage:
@@ -49,19 +49,13 @@ class NemoMegatronStage:
         self.setup_folder_and_data()
         # Save stage hydra config
         job_path = self.get_job_path()
-        stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(
-            self.stage_cfg, job_path
-        )
+        stage_cfg_path = NemoMegatronStage.save_stage_hydra_config(self.stage_cfg, job_path)
         # Make cluster parameters
         cluster_parameters = self._make_cluster_parameters(self.cluster)
         # Make command groups
         command_groups = self.make_stage_command_groups(stage_cfg_path)
         # Create launcher
-        launcher = AutoLauncher(
-            folder=job_path.folder,
-            cluster=self.cluster,
-            **cluster_parameters,
-        )
+        launcher = AutoLauncher(folder=job_path.folder, cluster=self.cluster, **cluster_parameters,)
         job_id = launcher.launch(command_groups=command_groups)
 
         return job_id
@@ -129,7 +123,10 @@ class NemoMegatronStage:
             return []
 
         numa_override = [f"{k}={v}" for k, v in numa_cfg.items()]
-        numa_command = [f"python3 -u {self._nemo_megatron_path / 'nemo_megatron/collections/numa_mapping.py'}", *numa_override]
+        numa_command = [
+            f"python3 -u {self._nemo_megatron_path / 'nemo_megatron/collections/numa_mapping.py'}",
+            *numa_override,
+        ]
         numa_command = " \\\n  ".join(numa_command)
         return [numa_command]
 
@@ -161,12 +158,14 @@ class NemoMegatronStage:
             slurm_node = "\${SLURM_NODEID}"
             slurm_rank = "\${SLURM_PROCID}"
             slurm_jobid = "\${SLURM_JOB_ID}"
-            nsys_prefix = f"nsys profile -s none " \
-                          f"-t {','.join(nsys_cfg.trace)} " \
-                          f"-o {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} " \
-                          f"--force-overwrite true " \
-                          f"--capture-range=cudaProfilerApi " \
-                          f"--capture-range-end=stop"
+            nsys_prefix = (
+                f"nsys profile -s none "
+                f"-t {','.join(nsys_cfg.trace)} "
+                f"-o {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} "
+                f"--force-overwrite true "
+                f"--capture-range=cudaProfilerApi "
+                f"--capture-range-end=stop"
+            )
         return nsys_prefix
 
     def _make_container_mounts_string(self) -> str:
@@ -176,6 +175,7 @@ class NemoMegatronStage:
         :return: container mounting string, e.g. "/path/to/A:/path/to/A,/path/to/B:/path/to/B,..."
         :rtype: str
         """
+
         def add_container_mounts(container_mounts):
             mounts_str = ""
             if container_mounts is not None:
@@ -227,9 +227,7 @@ class NemoMegatronStage:
         setup = None
         env_vars = self.get_env_vars()
         if env_vars:
-            setup = [
-                f"export {k}={v}" for k, v in env_vars.items()
-            ]
+            setup = [f"export {k}={v}" for k, v in env_vars.items()]
 
         cluster_parameters = {}
         shared_parameters = {
@@ -243,21 +241,20 @@ class NemoMegatronStage:
             cluster_cfg = cfg.get("cluster")
             slurm_cfg = {**copy.deepcopy(cluster_cfg)}
             job_name_prefix = slurm_cfg.pop("job_name_prefix")
-            cluster_parameters = {
-                **slurm_cfg
-            }
-            cluster_parameters.update({
-                **shared_parameters,
-                "dependency": dependency,
-                "container_image": container_image,
-                "container_mounts": container_mounts,
-            })
+            cluster_parameters = {**slurm_cfg}
+            cluster_parameters.update(
+                {
+                    **shared_parameters,
+                    "dependency": dependency,
+                    "container_image": container_image,
+                    "container_mounts": container_mounts,
+                }
+            )
             cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
         elif cluster == "bcp":
-            cluster_parameters.update({
-                **shared_parameters,
-                "env_vars": env_vars,
-            })
+            cluster_parameters.update(
+                {**shared_parameters, "env_vars": env_vars,}
+            )
         elif cluster == "interactive":
             cluster_parameters.update(shared_parameters)
 
@@ -274,10 +271,7 @@ class NemoMegatronStage:
         :return: a dictionary of env vars while running the job.
         :rtype: Dict
         """
-        env_vars = {
-            k: v for k, v in self.cfg.get("env_vars").items()
-            if v is not None
-        }
+        env_vars = {k: v for k, v in self.cfg.get("env_vars").items() if v is not None}
         return env_vars
 
     def get_stage_config_choice(self):
@@ -307,8 +301,11 @@ class NemoMegatronStage:
         ntasks_per_node = self.stage_cfg.run.get("ntasks_per_node")
         if ntasks_per_node is None:
             ntasks_per_node = self.stage_cfg.trainer.get("devices", 1)
-        return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
-            if ntasks_per_node == 8 else f"CUDA_VISIBLE_DEVICES={','.join(map(str, range(ntasks_per_node)))}"
+        return (
+            "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7"
+            if ntasks_per_node == 8
+            else f"CUDA_VISIBLE_DEVICES={','.join(map(str, range(ntasks_per_node)))}"
+        )
 
     @property
     def _cuda_device_max_connections(self) -> str:
@@ -316,8 +313,7 @@ class NemoMegatronStage:
         if not model_cfg:
             return ""
         tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size", 1)
-        return "CUDA_DEVICE_MAX_CONNECTIONS=1" \
-            if tensor_model_parallel_size > 1 else ""
+        return "CUDA_DEVICE_MAX_CONNECTIONS=1" if tensor_model_parallel_size > 1 else ""
 
     @property
     def _nvte_bias_gelu_nvfusion(self) -> str:
@@ -325,10 +321,10 @@ class NemoMegatronStage:
         return ""
 
     @functools.lru_cache()
-    def get_job_path(self, sub_stage:Optional = None) -> JobPaths:
+    def get_job_path(self, sub_stage: Optional = None) -> JobPaths:
         """Fetch a JobPaths object for current stage"""
         run_cfg = self.stage_cfg.get("run")
-        results_dir = Path(run_cfg.get("results_dir")) # TODO: rename this to job dir in config
+        results_dir = Path(run_cfg.get("results_dir"))  # TODO: rename this to job dir in config
         if sub_stage is not None:
             results_dir = results_dir / sub_stage
         return JobPaths(results_dir, self.job_name)
@@ -375,13 +371,9 @@ class NeMoStage(NemoMegatronStage):
             ]
 
         core_command += [
-            self._make_api_log_command_prefix(
-                results_dir=self.get_job_path().results_folder
-            ),
-            self._make_nsys_command_prefix(
-                results_dir=self.get_job_path().results_folder
-            ),
-            self._make_nemo_call_string(stage_cfg_path)
+            self._make_api_log_command_prefix(results_dir=self.get_job_path().results_folder),
+            self._make_nsys_command_prefix(results_dir=self.get_job_path().results_folder),
+            self._make_nemo_call_string(stage_cfg_path),
         ]
         core_command_string = " ".join([c for c in core_command if c])
         command_groups[0] += [core_command_string]
@@ -407,7 +399,7 @@ class NeMoStage(NemoMegatronStage):
             f"python3 -u {code_path} ",
             f"--config-path={stage_cfg_path.parents[0]}",
             f"--config-name={stage_cfg_path.name}",
-            *hydra_override
+            *hydra_override,
         ]
         command_string = " \\\n  ".join(command)
         return command_string
@@ -500,7 +492,7 @@ class Training(NeMoStage):
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
             "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
-            "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_pretraining.py"
+            "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_pretraining.py",
         }
         return model_type_to_code_path[model_type]
 
@@ -534,6 +526,7 @@ class FineTuning(NeMoStage):
         download_glue_script_path = self._nemo_megatron_path / "nemo_megatron/utils/data_utils/download_glue.py"
         if download_glue_script_path.exists():
             from nemo_megatron.utils.data_utils.download_glue import download_glue, TASKS_LOWER
+
             if task_name in TASKS_LOWER:
                 download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
@@ -578,10 +571,8 @@ class PromptLearning(NeMoStage):
         # Prepare squad dataset
         if task_name == 'squad':
             prepare_squad_for_prompt_learning(
-                os.path.join(data_dir, "prompt_data"),
-                self._nemo_megatron_path,
+                os.path.join(data_dir, "prompt_data"), self._nemo_megatron_path,
             )
-
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """
@@ -601,12 +592,11 @@ class PromptLearning(NeMoStage):
 
 
 class AdapterLearning(PromptLearning):
-
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "adapter_learning"
         self.stage_cfg = cfg.get("adapter_learning")
-    
+
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """
         Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
@@ -624,12 +614,11 @@ class AdapterLearning(PromptLearning):
 
 
 class IA3Learning(PromptLearning):
-
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "ia3_learning"
         self.stage_cfg = cfg.get("ia3_learning")
-    
+
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """
         Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
@@ -676,7 +665,7 @@ class Conversion(NemoMegatronStage):
         hparams_override = [f"{k}={v}" for k, v in override_configs.items()]
         override_command = [
             f"python3 -u {self._nemo_megatron_path / 'nemo_megatron/collections/hparams_override.py'}",
-            *hparams_override
+            *hparams_override,
         ]
         override_command = " \\\n  ".join(override_command)
         return [override_command]
@@ -756,7 +745,7 @@ class NeMoEvaluation(NeMoStage):
         Stage class of gpt3/t5/mt5 evaluation with NeMo scripts
         Including: fine-tuning eval, prompt-learning eval, adapter/ia3 learning eval
     """
-    
+
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "evaluation"
@@ -781,10 +770,7 @@ class NeMoEvaluation(NeMoStage):
             pred_file_path = self.stage_cfg.get("pred_file_path")
             ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
             code_path = self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/squad_metric_calc.py"
-            args = create_args_list(
-                pred=pred_file_path,
-                ground_truth=ground_truth_file_path,
-            )
+            args = create_args_list(pred=pred_file_path, ground_truth=ground_truth_file_path,)
             split_string = self.stage_cfg.get("split_string", None)
             if split_string:
                 args += create_args_list(split_string=f"'{split_string}'")
@@ -794,12 +780,15 @@ class NeMoEvaluation(NeMoStage):
             output_file_path_prefix = self.stage_cfg.model.data.validation_ds.get("output_file_path_prefix")
             pred_file_path = output_file_path_prefix + "_validation_dataloader0_inputs_preds_labels.json"
             ground_truth_file_path = self.stage_cfg.model.data.validation_ds.get("ground_truth_file_path")
-            code_path = self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/fine_tuning_metric_calc.py"
+            code_path = (
+                self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/fine_tuning_metric_calc.py"
+            )
             args = create_args_list(
                 replace_underscore=False,
                 pred_file=pred_file_path,
                 target_file=ground_truth_file_path,
-                squad_eval_script_path=self._nemo_megatron_path / "nemo_megatron/collections/metric_calculation/squad_metric_calc.py",
+                squad_eval_script_path=self._nemo_megatron_path
+                / "nemo_megatron/collections/metric_calculation/squad_metric_calc.py",
             )
             calculation_command = [f"python3 {code_path}", *args]
             calculation_command = " \\\n  ".join(calculation_command)
@@ -829,7 +818,8 @@ class NeMoEvaluation(NeMoStage):
             "ia3_t5": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py",
             "ia3_gpt3": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_gpt_ia3_eval.py",
             "adapter_t5": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py",
-            "adapter_gpt3": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py",
+            "adapter_gpt3": self._nemo_code_path
+            / "examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py",
         }
         return model_type_to_code_path[model_type]
 
@@ -840,7 +830,7 @@ class EvalHarnessEvaluation(NemoMegatronStage):
     def __init__(self, cfg):
         super().__init__(cfg)
         choice_model_type, choice_name = self.get_stage_config_choice()
-        self.prompt_evaluation = (choice_model_type == "prompt_gpt3")
+        self.prompt_evaluation = choice_model_type == "prompt_gpt3"
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -860,10 +850,7 @@ class EvalHarnessEvaluation(NemoMegatronStage):
         tasks = run_cfg.get("tasks")
 
         code_path = self._nemo_megatron_path / "nemo_megatron/collections/eval_harness/download.py"
-        args = create_args_list(
-            tasks=tasks,
-            cache_dir=cache_dir,
-        )
+        args = create_args_list(tasks=tasks, cache_dir=cache_dir,)
         download_command = [f"python3 {code_path}", *args]
         download_command_string = " \\\n  ".join(download_command)
         return download_command_string
@@ -949,6 +936,7 @@ def _hydra_interpolation(cfg: OmegaConf) -> None:
     :param OmegaConf cfg: OmegaConf object with the config to be interpolated
     :return: None
     """
+
     def interpolate(cfg: OmegaConf):
         if isinstance(cfg, omegaconf.dictconfig.DictConfig):
             for k, v in cfg.items():
@@ -957,14 +945,11 @@ def _hydra_interpolation(cfg: OmegaConf) -> None:
             for i, v in enumerate(cfg):
                 cfg[i] = interpolate(v)
         return cfg
+
     interpolate(cfg)
 
 
-def create_args_list(
-        hydra:bool = False,
-        replace_underscore:bool = True,
-        **kwargs:Any,
-    ) -> List[str]:
+def create_args_list(hydra: bool = False, replace_underscore: bool = True, **kwargs: Any,) -> List[str]:
     """
     An easy tool function to convert arguments into a list of argument strings.
     For example, `create_args_list(a=123, b=456)` will generate `['--a=123', '--b=456']`.
