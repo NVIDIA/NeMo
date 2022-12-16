@@ -149,64 +149,64 @@ def sample_input(batch_size=15, max_length=1000):
     generator.manual_seed(0)
 
     lengths = torch.randint(max_length // 4, max_length - 7, (batch_size,), generator=generator)
-    condition = torch.randn((batch_size, 80, 1000), generator=generator)
+    input_spectrograms = torch.randn((batch_size, 80, 1000), generator=generator)
 
-    condition = mask(condition, lengths)
+    input_spectrograms = mask(input_spectrograms, lengths)
 
-    return condition, lengths
+    return input_spectrograms, lengths
 
 
 @pytest.mark.unit
-def test_pad_spectrogram(enhancer, sample_input):
-    condition, lengths = sample_input
-    output = enhancer.pad_spectrogram(condition)
+def test_pad_spectrograms(enhancer: SpectrogramEnhancerModel, sample_input):
+    input_spectrograms, lengths = sample_input
+    output = enhancer.pad_spectrograms(input_spectrograms)
 
-    assert output.size(-1) >= condition.size(-1)
+    assert output.size(-1) >= input_spectrograms.size(-1)
 
 
 @pytest.mark.unit
 def test_spectrogram_norm_unnorm(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    same_condition = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(condition, lengths), lengths)
-    assert torch.allclose(condition, same_condition, atol=1e-5)
+    input_spectrograms, lengths = sample_input
+    same_input_spectrograms = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths)
+    assert torch.allclose(input_spectrograms, same_input_spectrograms, atol=1e-5)
 
 
 @pytest.mark.unit
 def test_spectrogram_unnorm_norm(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    same_condition = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(condition, lengths), lengths)
-    assert torch.allclose(condition, same_condition, atol=1e-5)
+    input_spectrograms, lengths = sample_input
+    same_input_spectrograms = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths)
+    assert torch.allclose(input_spectrograms, same_input_spectrograms, atol=1e-5)
 
 
 @pytest.mark.unit
 def test_spectrogram_norm_unnorm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    same_condition = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(condition, lengths), lengths)
+    input_spectrograms, lengths = sample_input
+    same_input_spectrograms = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths)
     for i, length in enumerate(lengths.tolist()):
-        assert torch.allclose(condition[i, :, :length], same_condition[i, :, :length], atol=1e-5)
+        assert torch.allclose(input_spectrograms[i, :, :length], same_input_spectrograms[i, :, :length], atol=1e-5)
 
 
 @pytest.mark.unit
 def test_spectrogram_unnorm_norm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    same_condition = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(condition, lengths), lengths)
+    input_spectrograms, lengths = sample_input
+    same_input_spectrograms = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths)
     for i, length in enumerate(lengths.tolist()):
-        assert torch.allclose(condition[i, :, :length], same_condition[i, :, :length], atol=1e-5)
+        assert torch.allclose(input_spectrograms[i, :, :length], same_input_spectrograms[i, :, :length], atol=1e-5)
 
 
 @pytest.mark.unit
 def test_generator_pass_keeps_size(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    output = enhancer.forward(condition=condition, lengths=lengths)
+    input_spectrograms, lengths = sample_input
+    output = enhancer.forward(input_spectrograms=input_spectrograms, lengths=lengths)
 
-    assert output.shape == condition.shape
+    assert output.shape == input_spectrograms.shape
 
 
 @pytest.mark.unit
 def test_discriminator_pass(enhancer: SpectrogramEnhancerModel, sample_input):
-    condition, lengths = sample_input
-    condition = rearrange(condition, "b c l -> b 1 c l")
-    logits = enhancer.discriminator(x=condition, condition=condition, lengths=lengths)
+    input_spectrograms, lengths = sample_input
+    input_spectrograms = rearrange(input_spectrograms, "b c l -> b 1 c l")
+    logits = enhancer.discriminator(x=input_spectrograms, condition=input_spectrograms, lengths=lengths)
 
     assert logits.shape == lengths.shape
 

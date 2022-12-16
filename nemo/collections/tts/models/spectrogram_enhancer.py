@@ -121,41 +121,49 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         noise = torch.rand(batch_size, self._cfg.n_bands, 4096, 1)
         return self.move_to_correct_device(noise)
 
-    def pad_spectrogram(self, spectrogram):
+    def pad_spectrograms(self, spectrograms):
         multiplier = 2 ** sum(1 for block in self.generator.blocks if block.upsample)
-        *_, max_length = spectrogram.shape
-        return F.pad(spectrogram, (0, multiplier - max_length % multiplier))
+        *_, max_length = spectrograms.shape
+        return F.pad(spectrograms, (0, multiplier - max_length % multiplier))
 
     @typecheck(
         input_types={
-            "condition": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "input_spectrograms": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
             "lengths": NeuralType(("B"), LengthsType()),
             "mixing": NeuralType(None, BoolType(), optional=True),
             "normalize": NeuralType(None, BoolType(), optional=True),
         }
     )
     def forward(
-        self, *, condition: torch.Tensor, lengths: torch.Tensor, mixing: bool = False, normalize: bool = True,
+        self, *, input_spectrograms: torch.Tensor, lengths: torch.Tensor, mixing: bool = False, normalize: bool = True,
     ):
         """
         Generator forward pass. Noise inputs will be generated.
 
-        condition: batch of blurred spectrograms
+        input_spectrograms: batch of spectrograms, typically synthetic
         lengths: length for every spectrogam in the batch
         mixing: style mixing, usually True during training
         normalize: normalize spectrogram range to ~[0, 1], True for normal use
+
+        returns: batch of enhanced spectrograms
 
         For explanation of style mixing refer to [1]
         [1] Karras et. al. - A Style-Based Generator Architecture for Generative Adversarial Networks, 2018 (https://arxiv.org/abs/1812.04948)
         """
 
         return self.forward_with_custom_noise(
-            condition=condition, lengths=lengths, mixing=mixing, normalize=normalize, zs=None, ws=None, noise=None
+            input_spectrograms=input_spectrograms,
+            lengths=lengths,
+            mixing=mixing,
+            normalize=normalize,
+            zs=None,
+            ws=None,
+            noise=None,
         )
 
     def forward_with_custom_noise(
         self,
-        condition: torch.Tensor,
+        input_spectrograms: torch.Tensor,
         lengths: torch.Tensor,
         zs: Optional[List[torch.Tensor]] = None,
         ws: Optional[List[torch.Tensor]] = None,
@@ -166,7 +174,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         """
         Generator forward pass. Noise inputs will be generated if None.
 
-        condition: batch of blurred spectrograms
+        input_spectrograms: batch of spectrograms, typically synthetic
         lenghts: length for every spectrogam in the batch
         zs: latent noise inputs on the unit sphere (either this or ws or neither)
         ws: latent noise inputs in the style space (either this or zs or neither)
@@ -174,12 +182,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         mixing: style mixing, usually True during training
         normalize: normalize spectrogram range to ~[0, 1], True for normal use
 
+        returns: batch of enhanced spectrograms
+
         For explanation of style mixing refer to [1]
         For definititions of z, w [2]
         [1] Karras et. al. - A Style-Based Generator Architecture for Generative Adversarial Networks, 2018 (https://arxiv.org/abs/1812.04948)
         [2] Karras et. al. - Analyzing and Improving the Image Quality of StyleGAN, 2019 (https://arxiv.org/abs/1912.04958)
         """
-        batch_size, *_, max_length = condition.shape
+        batch_size, *_, max_length = input_spectrograms.shape
 
         # generate noise
         if zs is not None and ws is not None:
@@ -194,14 +204,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if noise is None:
             noise = self.generate_noise(batch_size)
 
-        condition = rearrange(condition, "b c l -> b 1 c l")
+        input_spectrograms = rearrange(input_spectrograms, "b c l -> b 1 c l")
         # normalize if needed, mask and pad appropriately
         if normalize:
-            condition = self.normalize_spectrograms(condition, lengths)
-        condition = self.pad_spectrogram(condition)
+            input_spectrograms = self.normalize_spectrograms(input_spectrograms, lengths)
+        input_spectrograms = self.pad_spectrograms(input_spectrograms)
 
         # the main call
-        enhanced_spectrograms = self.generator(condition, lengths, ws, noise)
+        enhanced_spectrograms = self.generator(input_spectrograms, lengths, ws, noise)
 
         # denormalize if needed, mask and remove padding
         if normalize:
@@ -234,32 +244,33 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         )
 
         max_len = mel_lens.max().item()
-        target = mels[:, :, :max_len]
-        condition = mels_pred[:, :, :max_len]
+        input_spectrograms = mels_pred[:, :, :max_len]
+        target_spectrograms = mels[:, :, :max_len]
 
-        return target, condition, mel_lens
+        return input_spectrograms, target_spectrograms, mel_lens
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        target, condition, lengths = self.prepare_batch(batch)
+        input_spectrograms, target_spectrograms, lengths = self.prepare_batch(batch)
 
         with torch.no_grad():
-            target = self.normalize_spectrograms(target, lengths)
-            condition = self.normalize_spectrograms(condition, lengths)
+            input_spectrograms = self.normalize_spectrograms(input_spectrograms, lengths)
+            target_spectrograms = self.normalize_spectrograms(target_spectrograms, lengths)
 
         # train discriminator
         if optimizer_idx == 0:
-            enhanced_spectrograms = self.forward(condition=condition, lengths=lengths, mixing=True, normalize=False)
+            enhanced_spectrograms = self.forward(
+                input_spectrograms=input_spectrograms, lengths=lengths, mixing=True, normalize=False
+            )
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
-            fake_logits = self.discriminator(enhanced_spectrograms, condition, lengths)
+            fake_logits = self.discriminator(enhanced_spectrograms, input_spectrograms, lengths)
 
-            real_images = rearrange(target, "b c l -> b 1 c l")
-            real_images = real_images.requires_grad_()
-            real_logits = self.discriminator(real_images, condition, lengths)
+            target_spectrograms_ = rearrange(target_spectrograms, "b c l -> b 1 c l").requires_grad_()
+            real_logits = self.discriminator(target_spectrograms_, input_spectrograms, lengths)
             d_loss = self.discriminator_loss(real_logits, fake_logits)
             self.log("d_loss", d_loss, prog_bar=True)
 
             if batch_idx % self._cfg.gradient_penalty_loss_every_n_steps == 0:
-                gp_loss = self.gradient_penalty_loss(real_images, real_logits)
+                gp_loss = self.gradient_penalty_loss(target_spectrograms_, real_logits)
                 self.log("d_loss_gp", gp_loss, prog_bar=True)
                 return d_loss + gp_loss
 
@@ -267,19 +278,23 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         # train generator
         if optimizer_idx == 1:
-            enhanced_spectrograms = self.forward(condition=condition, lengths=lengths, mixing=True, normalize=False)
+            enhanced_spectrograms = self.forward(
+                input_spectrograms=input_spectrograms, lengths=lengths, mixing=True, normalize=False
+            )
+
+            input_spectrograms = rearrange(input_spectrograms, "b c l -> b 1 c l")
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
-            condition = rearrange(condition, "b c l -> b 1 c l")
-            fake_logits = self.discriminator(enhanced_spectrograms, condition, lengths)
+
+            fake_logits = self.discriminator(enhanced_spectrograms, input_spectrograms, lengths)
             g_loss = self.generator_loss(fake_logits)
-            c_loss = self.consistency_loss(condition, enhanced_spectrograms, lengths)
+            c_loss = self.consistency_loss(input_spectrograms, enhanced_spectrograms, lengths)
 
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("c_loss", c_loss, prog_bar=True)
 
             with torch.no_grad():
-                target = rearrange(target, "b c l -> b 1 c l")
-                self.log_illustration(target, condition, enhanced_spectrograms, lengths)
+                target_spectrograms = rearrange(target_spectrograms, "b c l -> b 1 c l")
+                self.log_illustration(target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths)
             return g_loss + c_loss
 
     def configure_optimizers(self):
@@ -317,7 +332,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         else:
             super().save_to(save_path)
 
-    def log_illustration(self, target, condition, enhanced, lengths):
+    def log_illustration(self, target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths):
         if self.global_rank != 0:
             return
 
@@ -330,7 +345,15 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         idx = 0
         length = int(lengths.flatten()[idx].item())
-        tensor = torch.stack([enhanced - condition, condition, enhanced, target], dim=0).cpu()[:, idx, :, :, :length]
+        tensor = torch.stack(
+            [
+                enhanced_spectrograms - input_spectrograms,
+                input_spectrograms,
+                enhanced_spectrograms,
+                target_spectrograms,
+            ],
+            dim=0,
+        ).cpu()[:, idx, :, :, :length]
 
         grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
