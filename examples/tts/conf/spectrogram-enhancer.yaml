@@ -1,7 +1,6 @@
 name: "spectrogram-enhancer"
 
 model:
-  lr: 2e-4
   n_bands: 80
   latent_dim: 192
   style_depth: 4
@@ -46,6 +45,16 @@ model:
       shuffle: true
       batch_size: 8
       num_workers: 8
+
+  generator_opt:
+    _target_: torch.optim.Adam
+    lr: 2e-4
+    betas: [0.5, 0.9]
+
+  discriminator_opt:
+    _target_: torch.optim.Adam
+    lr: 2e-4
+    betas: [0.5, 0.9]
 
 trainer:
   num_nodes: 1
