@@ -1,0 +1,6 @@
+git+https://github.com/MTG/freesound-python.git
+joblib
+librosa
+requests
+requests_oauthlib
+sox

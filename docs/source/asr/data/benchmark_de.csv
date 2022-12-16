@@ -1,0 +1,6 @@
+Model,Model Base Class,Model Card
+stt_de_quartznet15x5,EncDecCTCModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_quartznet15x5"
+stt_de_citrinet_1024,EncDecCTCModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_citrinet_1024"
+stt_de_contextnet_1024,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_contextnet_1024"
+stt_de_conformer_ctc_large,EncDecCTCModelBPE,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_conformer_ctc_large"
+stt_de_conformer_transducer_large,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_conformer_transducer_large"

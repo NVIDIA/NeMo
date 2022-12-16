@@ -1,0 +1,47 @@
+name: 'Changelog Build (Release)'
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  changelog:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 # Required due to the way Git works, without it this action won't be able to find any or the correct tags
+
+      - name: Get Previous tag
+        id: previous_tag
+        # git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags ==> refs/tags/vX.Y.Z in descending order of date
+        # awk 'FNR == 2 {print substr($1, 11, length($1))}') ==> Selects the 2nd tag from the list, then strips the /refs/tags/ part of the tag
+        # set-output name=tag_name:: ==> Takes the clean tag vX.Y.Z and sets it to steps.previous_tag.outputs.tag_name
+        run: |
+          echo "::set-output name=tag_name::$(git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags | awk 'FNR == 2 {print substr($1, 11, length($1))}')"
+          echo ${{ steps.previous_tag.outputs.tag_name }}
+
+      - name: Build Changelog
+        id: github_tag
+        uses: mikepenz/release-changelog-builder-action@v3.3.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Configuration file is setup with filters for domains
+          # owner:repo must point to current repo
+          # fromTag: Auto resolved from historical tag order (previous tag compared to current tag)
+          # toTag: Current tag reference
+          configuration: ".github/workflows/config/changelog-config.json"
+          owner: "NVIDIA"
+          repo: "NeMo"
+          ignorePreReleases: "false"
+          failOnError: "false"
+          fromTag: ${{ steps.previous_tag.outputs.tag_name }}
+          toTag: ${{ github.ref_name }}
+
+      - name: Print Changelog
+        run: |
+          echo "${{steps.github_tag.outputs.changelog}}"
+          echo "--- DONE ---"
