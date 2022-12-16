@@ -1,0 +1,32 @@
+run:
+  name: export_${.model_train_name}
+  time_limit: "2:00:00"
+  model_train_name: "gpt3_5b"
+  dependency: "singleton"
+  training_dir: ${base_results_dir}/${.model_train_name}
+  config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
+  results_dir: ${base_results_dir}/${.model_train_name}/export_${.config_summary}
+  model_type: "gpt3"
+
+model:
+  checkpoint_path: ${export.run.training_dir}/results/checkpoints
+  # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
+  tensor_model_parallel_size: 8
+  weight_data_type: fp16   # fp32|fp16
+  processes: 16
+  load_checkpoints_to_cpu: False
+
+triton_deployment:
+  triton_model_dir: ${export.run.results_dir}/model_repo/${export.run.model_train_name}
+  max_batch_size: 1
+  pipeline_model_parallel_size: 1
+  int8_mode: False
+  enable_custom_all_reduce: False
+  data_type: fp16  # fp32|fp16|bf16
+
+benchmark:
+  input_len: 60
+  output_len: 20
+  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  triton_wait_time_s: 300
+  vocab_size: 51200

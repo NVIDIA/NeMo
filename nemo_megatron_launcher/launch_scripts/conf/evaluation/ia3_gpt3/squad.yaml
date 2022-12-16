@@ -1,0 +1,42 @@
+run:
+  name: eval_${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  model_train_name: gpt3_5b
+  task_name: "squad"
+  ia3_learning_dir: ${base_results_dir}/${.model_train_name}/ia3_learning_squad # assume prompt learning was on squad task
+  results_dir: ${base_results_dir}/${.model_train_name}/ia3_learning_${.task_name}_eval
+
+trainer:
+  devices: ${divide_ceil:${evaluation.model_parallel_size}, ${.num_nodes}}
+  num_nodes: ${divide_ceil:${evaluation.model_parallel_size}, 8}
+  accelerator: gpu
+  precision: bf16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  log_every_n_steps: 10
+
+inference:
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
+  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 1.0 # sampling temperature
+  add_BOS: True # add the bos token at the begining of the prompt
+  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  all_probs: False  # whether return the log prob for all the tokens in vocab
+  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
+  compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
+
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # used for encoder and decoder model
+model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+gpt_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_gpt.nemo
+adapter_model_file: ${evaluation.run.ia3_learning_dir}/results/megatron_gpt_ia3.nemo
+pred_file_path: ${evaluation.run.results_dir}/results/predictions.txt # Path will model predictions will be written
+ground_truth_file_path: ${data_dir}/prompt_data/v1.1/squad_test_ground_truth.jsonl
+data_paths: 
+  - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
+split_string: "answer:"

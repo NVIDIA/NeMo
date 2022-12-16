@@ -1,0 +1,27 @@
+run:
+  name: download_mc4
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "24:00:00"
+  dependency: "singleton"
+  node_array_size: 20
+  cpus_per_node: 256
+  workers_per_node: 4 # Number of workers per node in preprocessing step.
+
+dataset: mc4
+download_mc4: True  # Whether to download the mC4 dataset from the internet.
+preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
+mc4_dir: ${data_dir}/mc4 # Path to (m)C4 dataset repo.
+git_lfs_dir: ${.mc4_dir}/lfs # Path to store git lfs files.
+download_vocab_url: https://storage.googleapis.com/t5-data/vocabs/mc4.250000.100extra/sentencepiece.vocab # URL to download the vocab from.
+download_tokenizer_url: https://storage.googleapis.com/t5-data/vocabs/mc4.250000.100extra/sentencepiece.model # URL to download tokenizer from
+vocab_save_dir: ${.mc4_dir}/bpe
+tokenizer_save_dir: ${.mc4_dir}/bpe
+tokenizer_model: ${.tokenizer_save_dir}/mt5_tokenizer.model
+languages: cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
+use_cleaned_english: True # whether to use cleaned version of english data
+softlinks_dir: ${.mc4_dir}/softlinks # Path to languages soft links for preprocessing
+preprocessed_dir: ${.mc4_dir}/preprocessed
+max_split_size: 200 # (GB) Each split will be preprocessed individually. Tune this down to accommodate short wall time on clusters
+download_worker_mapping: ${.mc4_dir}/download_mapping
+preprocess_worker_mapping: ${.mc4_dir}/preprocess_mapping
+rm_downloaded: False # Script will not remove downloaded after preprocessing

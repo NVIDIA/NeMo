@@ -1,0 +1,21 @@
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
+  nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+  ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+  eval_name: eval_prompt_squad
+  model_train_name: gpt3_5b
+  tasks: "prompt" # general prompt task
+  prompt_learning_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
+
+model:
+  model_type: nemo-gpt3-prompt
+  nemo_model: ${evaluation.run.prompt_learning_dir}/results/megatron_gpt_prompt.nemo
+  tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
+  pipeline_model_parallel_size: 1
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+  precision: bf16 # must match training precision - 32, 16 or bf16
+  eval_batch_size: 4
+  prompt_dataset_paths: ${data_dir}/prompt_data/v1.1/squad_val.jsonl
+  disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
