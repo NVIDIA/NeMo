@@ -194,13 +194,13 @@ def calculate_tflops(
 
     elif model_name in ["t5", "mt5"]:
         # Encoder Layer FLOPS: include self attention + MLP
-        flops_self_attn_enc = 6*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs
+        flops_self_attn_enc = 8*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs
         flops_mlp_enc = 6*gbs*enc_seq_len*hs*ffn_hs #geglu needs two gemms for h -> ffn_h
         flops_enc_layer = flops_self_attn_enc + flops_mlp_enc
 
         # Decoder Layer FLOPS: inlcude self_attn + cross_attn + MLP
-        flops_self_attn_dec = 6*gbs*dec_seq_len*hs*hs + 4*gbs*dec_seq_len*dec_seq_len*hs
-        flops_cross_attn_dec = 4*gbs*enc_seq_len*hs*hs + 2*gbs*dec_seq_len*hs*hs + 4*gbs*enc_seq_len*dec_seq_len*hs
+        flops_self_attn_dec = 8*gbs*dec_seq_len*hs*hs + 4*gbs*dec_seq_len*dec_seq_len*hs
+        flops_cross_attn_dec = 4*gbs*enc_seq_len*hs*hs + 4*gbs*dec_seq_len*hs*hs + 4*gbs*enc_seq_len*dec_seq_len*hs
         flops_mlp_dec = 6*gbs*dec_seq_len*hs*ffn_hs # geglu needs two gemms for h -> ffn_h
         flops_dec_layer = flops_self_attn_dec + flops_cross_attn_dec + flops_mlp_dec
 
