@@ -111,7 +111,7 @@ class BertExample(object):
             pad_token_id: input_ids feature is padded with this ID, other features
                 with ID 0.
         """
-        max_seq_length_for_subwords = max_seq_length // 3
+        max_seq_length_for_subwords = max_seq_length // 2  # this is adhoc decision
         pad_length = max_seq_length - len(self.features['input_ids'])
         pad_length_for_subwords = max_seq_length_for_subwords - len(self.features['input_ids_for_subwords'])
         self.features["spans"].extend([(-1, -1, -1)] * (max_spans_length - len(self.features["spans"])))
@@ -191,23 +191,24 @@ class BertExampleBuilder(object):
         Returns:
             BertExample, or None if the conversion from text to tags was infeasible
         """
-        span_info_parts = span_info.split(";")
-        target_parts = target.split(" ")
-        if len(span_info_parts) != len(target_parts):
-            raise ValueError(
-                "len(span_info_parts)="
-                + str(len(span_info_parts))
-                + " is different from len(target_parts)="
-                + str(len(target_parts))
-            )
 
         tags = [0 for _ in hyp.split()]
-        if target is not None and span_info is not None and len(span_info) > 0:
-            for p, t in zip(span_info_parts, target_parts):
-                c, start, end = p.split(" ")
-                start = int(start)
-                end = int(end)
-                tags[start:end] = [int(t) for i in range(end - start)]
+        if not infer:
+            span_info_parts = span_info.split(";")
+            target_parts = target.split(" ")
+            if len(span_info_parts) != len(target_parts):
+                raise ValueError(
+                    "len(span_info_parts)="
+                    + str(len(span_info_parts))
+                    + " is different from len(target_parts)="
+                    + str(len(target_parts))
+                )
+            if target is not None and span_info is not None and len(span_info) > 0:
+                for p, t in zip(span_info_parts, target_parts):
+                    c, start, end = p.split(" ")
+                    start = int(start)
+                    end = int(end)
+                    tags[start:end] = [int(t) for i in range(end - start)]
 
         # get input features for characters
         (
