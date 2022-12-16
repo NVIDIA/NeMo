@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Un
 
 import numpy as np
 import torch
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
@@ -19,7 +20,6 @@ from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo_text_processing.text_normalization.normalize import Normalizer
 
 AnyPath = Union[Path, str]
 
