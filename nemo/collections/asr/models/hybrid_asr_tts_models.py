@@ -2,10 +2,12 @@ import copy
 import itertools
 import tempfile
 from contextlib import contextmanager
+from functools import reduce
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
@@ -13,7 +15,9 @@ from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
+from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -55,6 +59,38 @@ def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, 
     mask = torch.arange(max_len, device=device)[None, :] >= spectrogram_len[:, None]
     mask = mask.unsqueeze(1).expand_as(spectrogram)
     return spectrogram.masked_fill(mask, fill_value)
+
+
+def get_module_by_name(module: nn.Module, full_layer_name: str) -> nn.Module:
+    names = full_layer_name.split(sep='.')
+    return reduce(getattr, names, module)
+
+
+def replace_bn_with_fused_bn(module: nn.Module, full_layer_name: str) -> bool:
+    bn = get_module_by_name(module, full_layer_name)
+    if not isinstance(bn, nn.BatchNorm1d):
+        logging.warning(f"Expected BatchNorm1d, found {bn}")
+        return False
+    fused_bn = FusedBatchNorm1d.from_batchnorm(bn)
+    parent_name, norm_name = full_layer_name.rsplit(".", maxsplit=1)
+    setattr(get_module_by_name(module, parent_name), norm_name, fused_bn)
+    return True
+
+
+def fuse_bn_in_encoder(model: nn.Module):
+    try:
+        pass
+    except AttributeError:
+        raise ValueError(f"No encoder found in asr model {model}")
+    replaced_in_model = False
+    for name, module in model.named_modules():
+        if "batch_norm" in name.split("."):
+            replaced = replace_bn_with_fused_bn(model, name)
+            replaced_in_model = replaced_in_model or replaced
+    if replaced_in_model:
+        logging.info("Successfully replace BatchNorm with FusedBatchNorm")
+    else:
+        logging.warning(f"No BatchNorm to replace with FusedBatchNorm in model {model}")
 
 
 class ASRWithTTSModel(ASRModel):
@@ -131,6 +167,16 @@ class ASRWithTTSModel(ASRModel):
         if cfg.get("enhancer_model_path", None) is not None:
             # ToDo: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
             raise NotImplementedError
+
+        # replace BatchNorm with FusedBatchNorm
+        if cfg.get("asr_model_fuse_bn"):
+            logging.info("Trying to replace BatchNorm with Fused BatchNorm")
+            if not hasattr(asr_model, "encoder"):
+                raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
+            if not isinstance(asr_model.encoder, ConformerEncoder):
+                raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
+            fuse_bn_in_encoder(asr_model.encoder)
+            asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
 
         self.asr_model = asr_model
         self.tts_model = tts_model

@@ -8,6 +8,7 @@ model:
   asr_model_path: ???
   tts_model_path: ???
   enhancer_model_path: null
+  asr_model_fuse_bn: false  # only ConformerEncoder supported now, replace with false for other models
 
   train_ds:
     text_data:
