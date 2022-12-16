@@ -9,7 +9,7 @@ import subprocess
 import yaml
 import omegaconf
 
-from hp_tool import utils
+from autoconfig import utils
 
 
 def calculate_model_size(

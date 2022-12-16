@@ -318,7 +318,7 @@ def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, model_name: str = 
     :returns: dictionary containing the base configuration for the model.
     :rtype: dict
     """
-    with open(f"{cfg.bignlp_hp_tool_path}/base_configs/{model_name}.yaml") as f:
+    with open(f"{cfg.autoconfig_path}/base_configs/{model_name}.yaml") as f:
         base_cfg = yaml.safe_load(f)
     return base_cfg
 

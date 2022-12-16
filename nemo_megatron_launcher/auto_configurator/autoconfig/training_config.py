@@ -9,7 +9,7 @@ from typing import Tuple, List
 
 import omegaconf
 
-from hp_tool import utils, train
+from autoconfig import utils, train
 
 
 def search_training_config(
@@ -688,7 +688,7 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
     :return: job_ids, list of job ids for all the training jobs.
     :rtype: list[int]
     """
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    autoconfig_path = cfg.get("autoconfig_path")
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
 
     search_cfg = cfg.get("search_config")
@@ -727,7 +727,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
     :rtype: str
     """
     # Read config
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    autoconfig_path = cfg.get("autoconfig_path")
     cluster_type = cfg.get("cluster_type")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
@@ -758,7 +758,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
 
     # Process container-mounts.
     mounts_str = (
-        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+        f"{autoconfig_path}:{autoconfig_path},{base_results_dir}:{base_results_dir}"
     )
     mounts_str += utils.add_container_mounts(container_mounts)
 
@@ -776,9 +776,9 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
         )
 
     if cluster_type == "bcm":
-        new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
-        code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
+        new_script_path = os.path.join(autoconfig_path, "autoconfig/scripts/compare_throughput.sh")
+        code_path = os.path.join(autoconfig_path, "autoconfig/scripts/compare_throughput_results.py")
+        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} autoconfig_path={autoconfig_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
         utils.create_slurm_file(
             new_script_path=new_script_path,
             cmds=[train_cmd],
@@ -806,8 +806,8 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
         print(f"Submitted job to select optimal throughput with job id: {dependency}")
         return dependency
     elif cluster_type == "bcp":
-        code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
+        code_path = os.path.join(autoconfig_path, "autoconfig/scripts/compare_throughput_results.py")
+        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} autoconfig_path={autoconfig_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
         job_id = subprocess.check_output([train_cmd], shell=True)
         dependency = job_id.decode("utf-8")
         print(f"Submitted job to select optimal throughput with job id: {dependency}")

@@ -6,7 +6,7 @@ import subprocess
 
 from omegaconf import OmegaConf
 
-from hp_tool import utils
+from autoconfig import utils
 
 
 def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> int:
@@ -91,8 +91,8 @@ def generate_overrides_str(
     training_model = f"{model_name}/{file_name}"
     cluster_type = cfg.get("cluster_type")
     container = cfg.get("training_container")
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    bignlp_hp_tool_path = convert_to_absolute_path(bignlp_hp_tool_path)
+    autoconfig_path = cfg.get("autoconfig_path")
+    autoconfig_path = convert_to_absolute_path(autoconfig_path)
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
     bignlp_scripts_path = convert_to_absolute_path(bignlp_scripts_path)
     data_dir = cfg.get("data_dir")
@@ -103,7 +103,7 @@ def generate_overrides_str(
     
     # Process container-mounts.
     mounts_str = (
-        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{results_dir}:{results_dir}"
+        f"{autoconfig_path}:{autoconfig_path},{results_dir}:{results_dir}"
     )
     mounts_str += utils.add_container_mounts(container_mounts)
 

@@ -3,10 +3,10 @@ from typing import Optional
 
 import omegaconf
 
-from hp_tool import utils
-from hp_tool.base_config import calculate_model_size, generate_base_config
-from hp_tool.training_config import search_training_config
-from hp_tool.inference_sweep import search_inference_config
+from autoconfig import utils
+from autoconfig.base_config import calculate_model_size, generate_base_config
+from autoconfig.training_config import search_training_config
+from autoconfig.inference_sweep import search_inference_config
 
 
 SUPPORTED_MODELS = ["gpt3", "t5", "mt5", "bert"]

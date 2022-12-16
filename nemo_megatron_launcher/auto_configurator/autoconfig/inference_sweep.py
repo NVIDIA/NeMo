@@ -6,7 +6,7 @@ import pathlib
 import random
 import subprocess
 
-from hp_tool import utils
+from autoconfig import utils
 
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
@@ -194,11 +194,11 @@ def search_inference_config(base_cfg, cfg):
     os.makedirs(inference_results_dir, exist_ok=True)
     
     # Process container-mounts.
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    autoconfig_path = cfg.get("autoconfig_path")
     base_results_dir = cfg.get("base_results_dir")
     container_mounts = cfg.get("container_mounts")
     mounts_str = (
-        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+        f"{autoconfig_path}:{autoconfig_path},{base_results_dir}:{base_results_dir}"
     )
     mounts_str += utils.add_container_mounts(container_mounts)
 
@@ -279,7 +279,7 @@ def search_inference_config(base_cfg, cfg):
     summary_job_result = os.path.join(results_dir, "final_output.csv")
     summary_name = f"{cfg.search_config.inference_settings.run.model_train_name}_summary"
     summary_job_name = f"{cfg.cluster.job_name_prefix}{summary_name}_job"
-    summary_script_path = f"{cfg.bignlp_hp_tool_path}/hp_tool/inference_summary.py"
+    summary_script_path = f"{cfg.autoconfig_path}/autoconfig/inference_summary.py"
 
     summary_command_elem = [
             f"python3 {summary_script_path}",

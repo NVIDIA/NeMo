@@ -7,8 +7,8 @@ import hydra
 import omegaconf
 from omegaconf import OmegaConf
 
-from hp_tool.utils import convert_to_cli
-from hp_tool.search_config import search_config
+from autoconfig.utils import convert_to_cli
+from autoconfig.search_config import search_config
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
