@@ -334,10 +334,7 @@ def getAffinityGraphMat(affinity_mat_raw: torch.Tensor, p_value: int) -> torch.T
     Calculate a binarized graph matrix and
     symmetrize the binarized graph matrix.
     """
-    if p_value <= 0:
-        X = affinity_mat_raw
-    else:
-        X = getKneighborsConnections(affinity_mat_raw, p_value)
+    X = affinity_mat_raw if p_value <= 0 else getKneighborsConnections(affinity_mat_raw, p_value)
     symm_affinity_mat = 0.5 * (X + X.T)
     return symm_affinity_mat
 

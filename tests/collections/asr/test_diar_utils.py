@@ -19,6 +19,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
+
 from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
     get_scale_interpolated_embs,
@@ -43,6 +44,15 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_target_sig,
     merge_float_intervals,
     merge_int_intervals,
+)
+from nemo.collections.asr.parts.utils.online_clustering import (
+    OnlineSpeakerClustering,
+    get_closest_embeddings,
+    get_merge_quantity,
+    get_minimal_indices,
+    merge_vectors,
+    run_reducer,
+    stitch_cluster_labels,
 )
 
 MAX_SEED_COUNT = 2
@@ -119,7 +129,7 @@ def generate_toy_data(
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
 
-class TestDiarizationUtilFunctions:
+class TestDiarizationSequneceUtilFunctions:
     """Tests diarization and speaker-task related utils.
     """
 
@@ -313,7 +323,7 @@ class TestDiarizationUtilFunctions:
         assert all(class_target_vol == torch.tensor([2, 0, 0, 0]))
 
 
-class TestSegmentationUtils:
+class TestDiarizationSegmentationUtils:
     """
     Test segmentation util functions
     """
@@ -358,7 +368,7 @@ class TestSegmentationUtils:
         assert check_range_values(target, merged)
 
     @pytest.mark.unit
-    def test_merge_float_intervals_edge_test(self):
+    def test_merge_float_intervals_edge_margin_test(self):
         intervals = [[0.0, 1.0], [1.0, 2.0]]
 
         target_0 = [[0.0, 2.0]]
@@ -441,19 +451,7 @@ class TestSegmentationUtils:
     @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0]]])
     @pytest.mark.parametrize("gt_cursor_for_old_segments", [1.0])
     @pytest.mark.parametrize("gt_cursor_index", [1])
-    def test_get_new_cursor_for_update_mulsegs(
-        self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
-    ):
-        cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
-        assert cursor_for_old_segments == gt_cursor_for_old_segments
-        assert cursor_index == gt_cursor_index
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize("frame_start", [4.0])
-    @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]])
-    @pytest.mark.parametrize("gt_cursor_for_old_segments", [4.0])
-    @pytest.mark.parametrize("gt_cursor_index", [3])
-    def test_get_new_cursor_for_update_mulsegs(
+    def test_get_new_cursor_for_update_mulsegs_ex1(
         self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
     ):
         cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
