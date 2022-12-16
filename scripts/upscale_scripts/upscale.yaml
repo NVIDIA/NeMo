@@ -1,0 +1,7 @@
+trainer:
+  devices: 1
+  num_nodes: 1
+  accelerator: gpu
+  logger: False # logger provided by exp_manager
+  precision: 16 # 16, 32, or bf16
+dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train.jsonl"
