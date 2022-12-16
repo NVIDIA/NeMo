@@ -45,10 +45,9 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from kornia.filters import filter2d
-from torch import Tensor, nn
 
 
-class Blur(nn.Module):
+class Blur(torch.nn.Module):
     def __init__(self):
         super().__init__()
         f = torch.Tensor([1, 2, 1])
@@ -60,12 +59,12 @@ class Blur(nn.Module):
         return filter2d(x, f, normalized=True)
 
 
-class EqualLinear(nn.Module):
+class EqualLinear(torch.nn.Module):
     def __init__(self, in_dim, out_dim, lr_mul=1, bias=True):
         super().__init__()
-        self.weight = nn.Parameter(torch.randn(out_dim, in_dim))
+        self.weight = torch.nn.Parameter(torch.randn(out_dim, in_dim))
         if bias:
-            self.bias = nn.Parameter(torch.zeros(out_dim))
+            self.bias = torch.nn.Parameter(torch.zeros(out_dim))
 
         self.lr_mul = lr_mul
 
@@ -73,32 +72,32 @@ class EqualLinear(nn.Module):
         return F.linear(input, self.weight * self.lr_mul, bias=self.bias * self.lr_mul)
 
 
-class StyleMapping(nn.Module):
+class StyleMapping(torch.nn.Module):
     def __init__(self, emb, depth, lr_mul=0.1):
         super().__init__()
 
         layers = []
         for _ in range(depth):
-            layers.extend([EqualLinear(emb, emb, lr_mul), nn.LeakyReLU(0.2, inplace=True)])
+            layers.extend([EqualLinear(emb, emb, lr_mul), torch.nn.LeakyReLU(0.2, inplace=True)])
 
-        self.net = nn.Sequential(*layers)
+        self.net = torch.nn.Sequential(*layers)
 
     def forward(self, x):
         x = F.normalize(x, dim=1)
         return self.net(x)
 
 
-class RGBBlock(nn.Module):
+class RGBBlock(torch.nn.Module):
     def __init__(self, latent_dim, input_channel, upsample, channels=3):
         super().__init__()
         self.input_channel = input_channel
-        self.to_style = nn.Linear(latent_dim, input_channel)
+        self.to_style = torch.nn.Linear(latent_dim, input_channel)
 
         out_filters = channels
         self.conv = Conv2DModulated(input_channel, out_filters, 1, demod=False)
 
         self.upsample = (
-            nn.Sequential(nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False), Blur(),)
+            torch.nn.Sequential(torch.nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False), Blur(),)
             if upsample
             else None
         )
@@ -116,7 +115,7 @@ class RGBBlock(nn.Module):
         return x
 
 
-class Conv2DModulated(nn.Module):
+class Conv2DModulated(torch.nn.Module):
     """
     Modulated convolution.
     For details refer to [1]
@@ -132,9 +131,9 @@ class Conv2DModulated(nn.Module):
         self.kernel = kernel
         self.stride = stride
         self.dilation = dilation
-        self.weight = nn.Parameter(torch.randn((out_chan, in_chan, kernel, kernel)))
+        self.weight = torch.nn.Parameter(torch.randn((out_chan, in_chan, kernel, kernel)))
         self.eps = eps
-        nn.init.kaiming_normal_(self.weight, a=0, mode="fan_in", nonlinearity="leaky_relu")
+        torch.nn.init.kaiming_normal_(self.weight, a=0, mode="fan_in", nonlinearity="leaky_relu")
 
     def _get_same_padding(self, size, kernel, dilation, stride):
         return ((size - 1) * (stride - 1) + dilation * (kernel - 1)) // 2
@@ -162,22 +161,22 @@ class Conv2DModulated(nn.Module):
         return x
 
 
-class GeneratorBlock(nn.Module):
+class GeneratorBlock(torch.nn.Module):
     def __init__(
         self, latent_dim, input_channels, filters, upsample=True, upsample_rgb=True, channels=1,
     ):
         super().__init__()
-        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False) if upsample else None
+        self.upsample = torch.nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False) if upsample else None
 
-        self.to_style1 = nn.Linear(latent_dim, input_channels)
-        self.to_noise1 = nn.Linear(1, filters)
+        self.to_style1 = torch.nn.Linear(latent_dim, input_channels)
+        self.to_noise1 = torch.nn.Linear(1, filters)
         self.conv1 = Conv2DModulated(input_channels, filters, 3)
 
-        self.to_style2 = nn.Linear(latent_dim, filters)
-        self.to_noise2 = nn.Linear(1, filters)
+        self.to_style2 = torch.nn.Linear(latent_dim, filters)
+        self.to_noise2 = torch.nn.Linear(1, filters)
         self.conv2 = Conv2DModulated(filters, filters, 3)
 
-        self.activation = nn.LeakyReLU(0.2, inplace=True)
+        self.activation = torch.nn.LeakyReLU(0.2, inplace=True)
         self.to_rgb = RGBBlock(latent_dim, filters, upsample_rgb, channels)
 
     def forward(self, x, prev_rgb, istyle, inoise):
@@ -215,20 +214,22 @@ def mask(tensor, lengths):
     return tensor * mask
 
 
-class DiscriminatorBlock(nn.Module):
+class DiscriminatorBlock(torch.nn.Module):
     def __init__(self, input_channels, filters, downsample=True):
         super().__init__()
-        self.conv_res = nn.Conv2d(input_channels, filters, 1, stride=(2 if downsample else 1))
+        self.conv_res = torch.nn.Conv2d(input_channels, filters, 1, stride=(2 if downsample else 1))
 
-        self.net = nn.Sequential(
-            nn.Conv2d(input_channels, filters, 3, padding=1),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(filters, filters, 3, padding=1),
-            nn.LeakyReLU(0.2, inplace=True),
+        self.net = torch.nn.Sequential(
+            torch.nn.Conv2d(input_channels, filters, 3, padding=1),
+            torch.nn.LeakyReLU(0.2, inplace=True),
+            torch.nn.Conv2d(filters, filters, 3, padding=1),
+            torch.nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.downsample = (
-            nn.Sequential(Blur(), nn.Conv2d(filters, filters, 3, padding=1, stride=2)) if downsample else None
+            torch.nn.Sequential(Blur(), torch.nn.Conv2d(filters, filters, 3, padding=1, stride=2))
+            if downsample
+            else None
         )
 
     def forward(self, x):
@@ -240,7 +241,7 @@ class DiscriminatorBlock(nn.Module):
         return x
 
 
-class Generator(nn.Module):
+class Generator(torch.nn.Module):
     def __init__(
         self, n_bands, latent_dim, style_depth, network_capacity=16, channels=1, fmap_max=512,
     ):
@@ -261,10 +262,12 @@ class Generator(nn.Module):
 
         in_out_pairs = zip(filters[:-1], filters[1:])
         initial_block_size = n_bands // 2 ** (self.num_layers - 1), 800
-        self.initial_block = nn.Parameter(torch.randn((1, init_channels, *initial_block_size)), requires_grad=False)
+        self.initial_block = torch.nn.Parameter(
+            torch.randn((1, init_channels, *initial_block_size)), requires_grad=False
+        )
 
-        self.initial_conv = nn.Conv2d(filters[0], filters[0], 3, padding=1)
-        self.blocks = nn.ModuleList([])
+        self.initial_conv = torch.nn.Conv2d(filters[0], filters[0], 3, padding=1)
+        self.blocks = torch.nn.ModuleList([])
 
         for ind, (in_chan, out_chan) in enumerate(in_out_pairs):
             not_first = ind != 0
@@ -284,14 +287,14 @@ class Generator(nn.Module):
             torch.nn.init.zeros_(block.to_noise2.weight)
             torch.nn.init.zeros_(block.to_noise2.bias)
 
-    def add_scaled_condition(self, target: Tensor, condition: Tensor, condition_lengths: Tensor):
+    def add_scaled_condition(self, target: torch.Tensor, condition: torch.Tensor, condition_lengths: torch.Tensor):
         *_, target_height, _ = target.shape
         *_, height, _ = condition.shape
 
         scale = height // target_height
 
         # scale appropriately
-        condition = nn.functional.interpolate(condition, size=target.shape[-2:], mode="bilinear")
+        condition = F.interpolate(condition, size=target.shape[-2:], mode="bilinear")
 
         # add and mask
         result = (target + condition) / 2
@@ -299,7 +302,7 @@ class Generator(nn.Module):
 
         return result
 
-    def forward(self, condition: Tensor, lengths: Tensor, ws: List[Tensor], noise: Tensor):
+    def forward(self, condition: torch.Tensor, lengths: torch.Tensor, ws: List[torch.Tensor], noise: torch.Tensor):
         batch_size, _, _, max_length = condition.shape
 
         x = self.initial_block.expand(batch_size, -1, -1, -1)
@@ -317,7 +320,7 @@ class Generator(nn.Module):
         return rgb
 
 
-class Discriminator(nn.Module):
+class Discriminator(torch.nn.Module):
     def __init__(
         self, n_bands, network_capacity=16, channels=1, fmap_max=512,
     ):
@@ -340,19 +343,19 @@ class Discriminator(nn.Module):
             block = DiscriminatorBlock(in_chan, out_chan, downsample=is_not_last)
             blocks.append(block)
 
-        self.blocks = nn.ModuleList(blocks)
+        self.blocks = torch.nn.ModuleList(blocks)
 
         channel_last = filters[-1]
         latent_dim = channel_last
 
-        self.final_conv = nn.Conv2d(channel_last, channel_last, 3, padding=1)
-        self.to_logit = nn.Linear(latent_dim, 1)
+        self.final_conv = torch.nn.Conv2d(channel_last, channel_last, 3, padding=1)
+        self.to_logit = torch.nn.Linear(latent_dim, 1)
 
         for m in self.modules():
             if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)):
                 torch.nn.init.kaiming_normal_(m.weight, a=0, mode="fan_in", nonlinearity="leaky_relu")
 
-    def forward(self, x, condition: Tensor, lengths: Tensor):
+    def forward(self, x, condition: torch.Tensor, lengths: torch.Tensor):
         for block in self.blocks:
             x = block(x)
             scale = condition.shape[-1] // x.shape[-1]
