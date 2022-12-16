@@ -25,25 +25,12 @@ from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
 
 
-def print_appstate():
-    # FixMe: remove
-    app_state = AppState()
-    print("=" * 50)
-    print("App State")
-    print(app_state.nemo_file_folder)
-    print(app_state.model_restore_path)
-    print(app_state._tmpdir_name)
-    print(app_state._is_model_being_restored)
-    print(app_state._all_model_restore_paths)
-    print(app_state._model_guid_map)
-    print("=" * 50)
-
-
 @contextmanager
 def _preserve_nemo_file_folder():
     """
     Preserve singleton AppState when combining 2 nemo models
     """
+    # FixMe: remove, fix save-restore
     app_state = AppState()
     nemo_file_folder = app_state.nemo_file_folder
     try:
@@ -155,7 +142,7 @@ class ASRWithTTSModel(ASRModel):
             tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
 
         if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
-            with _preserve_nemo_file_folder():
+            with _preserve_nemo_file_folder():  # FixMe: save-restore
                 asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                 asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
                 self.asr_model_type = self.ASRModelTypes.from_asr_model(asr_model)
@@ -169,7 +156,7 @@ class ASRWithTTSModel(ASRModel):
             model_type_str = cfg.get("asr_model_type")
             self.asr_model_type = self.ASRModelTypes(model_type_str)  # convert to enum
             # instantiate asr model from config
-            with _preserve_nemo_file_folder():
+            with _preserve_nemo_file_folder():  # FixMe: save-restore
                 asr_model = self.asr_model_type.get_asr_cls()(cfg)
                 with tempfile.TemporaryDirectory() as tmp_dir_name:
                     save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
@@ -231,6 +218,7 @@ class ASRWithTTSModel(ASRModel):
     def __setattr__(self, name, value):
         if name == "_current_fx_name" and self._full_init_guard:
             # needed to call *_step on asr_model
+            # FixMe: use on_* methods
             self.asr_model._current_fx_name = value
         return super().__setattr__(name, value)
 
@@ -241,6 +229,7 @@ class ASRWithTTSModel(ASRModel):
     ):
         self.tts_model.freeze()
         optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+        # set asr model optimizer/scheduler to allow training_step on asr_model
         self.asr_model._optimizer = optimizer
         self.asr_model._scheduler = scheduler
         return optimizer, scheduler
@@ -360,7 +349,7 @@ class ASRWithTTSModel(ASRModel):
         asr_dataset = self.asr_model._setup_dataset_from_config(train_data_config)
         if tts_dataset and asr_dataset:
             raise NotImplementedError
-            # dataset = ConcatDataset(tts_dataset, asr_dataset)  # fixme
+            # dataset = ConcatDataset(tts_dataset, asr_dataset)  # FixMe: implementation
         else:
             dataset = tts_dataset or asr_dataset
         if dataset is None:
@@ -375,7 +364,6 @@ class ASRWithTTSModel(ASRModel):
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
-        # self.asr_model._train_dl = self._train_dl  # for scheduler
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         text_data_config = train_data_config.text_data
@@ -400,6 +388,7 @@ class ASRWithTTSModel(ASRModel):
             return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)
         with torch.no_grad():
             spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
+        # FixMe: maybe support precomputed without DALIOutputs
         return self.asr_model.training_step(
             batch=DALIOutputs(
                 dict(
