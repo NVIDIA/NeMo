@@ -96,7 +96,14 @@ def fuse_bn_in_conformer(asr_model: ASRModel):
     if not isinstance(asr_model.encoder, ConformerEncoder):
         raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
     fuse_bn_all(asr_model.encoder)
-    asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
+    if "conv_norm_type" not in asr_model.cfg.encoder:
+        # old CTC models from NGC don't have such param
+        logging.warning("conv_norm_type not in encoder config, adding parameter")
+        OmegaConf.set_struct(asr_model.cfg, False)
+        asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
+        OmegaConf.set_struct(asr_model.cfg, True)
+    else:
+        asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
 
 
 class ASRWithTTSModel(ASRModel):
