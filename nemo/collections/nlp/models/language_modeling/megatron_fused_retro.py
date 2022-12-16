@@ -1,24 +1,19 @@
-
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-
+import logging
 import re
+from functools import partial
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
-from functools import partial
-
-from nemo.core import adapter_mixins
-import logging
-from typing import List, Optional
 from omegaconf import DictConfig, OmegaConf
-from nemo.collections.nlp.modules.common import (
-    VirtualPromptStyle,
-    VirtualPromptSource,
-    VirtualPromptPlaceholderToken,
-)
 from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.core import adapter_mixins
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -40,12 +35,11 @@ except (ImportError, ModuleNotFoundError):
 
 
 class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.AdapterModelPTMixin):
-
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         if adapter_mixins.get_registered_adapter(MegatronRetrievalModel) is None:
             adapter_mixins.register_adapter(MegatronRetrievalModel, MegatronFusedRetrievalAdapterModel)
-    
+
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
@@ -105,7 +99,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
     ):
 
         self.forward_enabled_adapters(input_ids)
-        
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
@@ -244,26 +237,26 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         return dataset, dataloader
 
     def freeze_existing_virtual_prompt_params(self):
-            """Freeze params of existing virtual prompts that should not be tuned further
+        """Freeze params of existing virtual prompts that should not be tuned further
             """
-            # Only want new prompt tags to be tunable, leave existing prompt tags alone
-            for taskname in self.prompt_table.prompt_table.keys():
-                if taskname in set(self.new_tasks):
-                    for params in self.prompt_table.prompt_table[taskname].parameters():
-                        params.requires_grad = True
-                else:
-                    for params in self.prompt_table.prompt_table[taskname].parameters():
-                        params.requires_grad = False
+        # Only want new prompt tags to be tunable, leave existing prompt tags alone
+        for taskname in self.prompt_table.prompt_table.keys():
+            if taskname in set(self.new_tasks):
+                for params in self.prompt_table.prompt_table[taskname].parameters():
+                    params.requires_grad = True
+            else:
+                for params in self.prompt_table.prompt_table[taskname].parameters():
+                    params.requires_grad = False
 
-            # Make sure word embeddings are frozen
-            for params in self.word_embeddings.parameters():
-                params.requires_grad = False
+        # Make sure word embeddings are frozen
+        for params in self.word_embeddings.parameters():
+            params.requires_grad = False
 
     def add_adapter(self, name: str, cfg: DictConfig):
         # call the same method on each `MLP` layer, collecting results
         for layer in self.layers:
             layer.add_adapter(name, cfg)
-        
+
     def get_enabled_adapters(self) -> List[str]:
         # call the same method on each `MLP` layer, collecting results
         enabled_adapters = set([])
@@ -271,19 +264,18 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
             names = layer.get_enabled_adapters()
             enabled_adapters.update(names)
         return list(enabled_adapters)
-    
+
     def set_enabled_adapters(self, name: Optional[str], enabled: bool):
         # call the same method on each `MLP` layer, collecting results
         for layer in self.layers:
             layer.set_enabled_adapters(name, enabled)
-    
+
     def is_adapter_available(self) -> bool:
         # call the same method on each `MLP` layer, collecting results
         is_available = any([layer.is_adapter_available() for layer in self.layers])
         return is_available
-        
 
-    # First we call forward on Adapter learning 
+    # First we call forward on Adapter learning
 
     # Take outputs from forward adapter learning function
 
@@ -327,7 +319,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
                 self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens
                 for taskname in self.new_tasks
             ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
-
 
 
 def get_pseudo_tokens(num_virtual_tokens):
