@@ -164,6 +164,36 @@ def test_pad_spectrogram(enhancer, sample_input):
 
 
 @pytest.mark.unit
+def test_spectrogram_norm_unnorm(enhancer: SpectrogramEnhancerModel, sample_input):
+    condition, lengths = sample_input
+    same_condition = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(condition, lengths), lengths)
+    assert torch.allclose(condition, same_condition, atol=1e-5)
+
+
+@pytest.mark.unit
+def test_spectrogram_unnorm_norm(enhancer: SpectrogramEnhancerModel, sample_input):
+    condition, lengths = sample_input
+    same_condition = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(condition, lengths), lengths)
+    assert torch.allclose(condition, same_condition, atol=1e-5)
+
+
+@pytest.mark.unit
+def test_spectrogram_norm_unnorm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
+    condition, lengths = sample_input
+    same_condition = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(condition, lengths), lengths)
+    for i, length in enumerate(lengths.tolist()):
+        assert torch.allclose(condition[i, :, :length], same_condition[i, :, :length], atol=1e-5)
+
+
+@pytest.mark.unit
+def test_spectrogram_unnorm_norm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
+    condition, lengths = sample_input
+    same_condition = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(condition, lengths), lengths)
+    for i, length in enumerate(lengths.tolist()):
+        assert torch.allclose(condition[i, :, :length], same_condition[i, :, :length], atol=1e-5)
+
+
+@pytest.mark.unit
 def test_generator_pass_keeps_size(enhancer: SpectrogramEnhancerModel, sample_input):
     condition, lengths = sample_input
     output = enhancer.forward(condition=condition, lengths=lengths)
