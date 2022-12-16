@@ -167,21 +167,27 @@ def test_pad_spectrograms(enhancer: SpectrogramEnhancerModel, sample_input):
 @pytest.mark.unit
 def test_spectrogram_norm_unnorm(enhancer: SpectrogramEnhancerModel, sample_input):
     input_spectrograms, lengths = sample_input
-    same_input_spectrograms = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths)
+    same_input_spectrograms = enhancer.unnormalize_spectrograms(
+        enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths
+    )
     assert torch.allclose(input_spectrograms, same_input_spectrograms, atol=1e-5)
 
 
 @pytest.mark.unit
 def test_spectrogram_unnorm_norm(enhancer: SpectrogramEnhancerModel, sample_input):
     input_spectrograms, lengths = sample_input
-    same_input_spectrograms = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths)
+    same_input_spectrograms = enhancer.normalize_spectrograms(
+        enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths
+    )
     assert torch.allclose(input_spectrograms, same_input_spectrograms, atol=1e-5)
 
 
 @pytest.mark.unit
 def test_spectrogram_norm_unnorm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
     input_spectrograms, lengths = sample_input
-    same_input_spectrograms = enhancer.unnormalize_spectrograms(enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths)
+    same_input_spectrograms = enhancer.unnormalize_spectrograms(
+        enhancer.normalize_spectrograms(input_spectrograms, lengths), lengths
+    )
     for i, length in enumerate(lengths.tolist()):
         assert torch.allclose(input_spectrograms[i, :, :length], same_input_spectrograms[i, :, :length], atol=1e-5)
 
@@ -189,7 +195,9 @@ def test_spectrogram_norm_unnorm_dont_look_at_padding(enhancer: SpectrogramEnhan
 @pytest.mark.unit
 def test_spectrogram_unnorm_norm_dont_look_at_padding(enhancer: SpectrogramEnhancerModel, sample_input):
     input_spectrograms, lengths = sample_input
-    same_input_spectrograms = enhancer.normalize_spectrograms(enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths)
+    same_input_spectrograms = enhancer.normalize_spectrograms(
+        enhancer.unnormalize_spectrograms(input_spectrograms, lengths), lengths
+    )
     for i, length in enumerate(lengths.tolist()):
         assert torch.allclose(input_spectrograms[i, :, :length], same_input_spectrograms[i, :, :length], atol=1e-5)
 
