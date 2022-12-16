@@ -91,7 +91,7 @@ def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
                 "network_capacity": network_capacity,
                 "style_depth": style_depth,
                 "fmap_max": fmap_max,
-            }, 
+            },
             "discriminator": {
                 "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Discriminator",
                 "n_bands": n_bands,
@@ -149,6 +149,8 @@ def sample_input(batch_size=15, max_length=1000):
 
     lengths = torch.randint(max_length // 4, max_length - 7, (batch_size,), generator=generator)
     condition = torch.randn((batch_size, 80, 1000), generator=generator)
+
+    condition = mask(condition, lengths)
 
     return condition, lengths
 
