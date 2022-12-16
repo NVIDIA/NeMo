@@ -54,7 +54,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from nemo.collections.tts.helpers.helpers import process_batch
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.spectrogram_enhancer import Discriminator, Generator, mask
+from nemo.collections.tts.modules.spectrogram_enhancer import mask
 from nemo.core import Exportable, ModelPT, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import BoolType
