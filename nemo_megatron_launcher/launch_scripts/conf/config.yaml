@@ -26,7 +26,7 @@ stages:
   - export
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
-nemo_megatron_path: ???  # Path should end with nemo_megatron-scripts
+nemo_megatron_path: ???  # Path to NeMo Megatron Launch scripts, should ends with nemo_megatron_launcher/launch_scripts
 data_dir: ${nemo_megatron_path}/data  # Location to store and read the data.
 base_results_dir: ${nemo_megatron_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
