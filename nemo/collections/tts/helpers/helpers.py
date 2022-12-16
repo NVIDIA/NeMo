@@ -478,8 +478,15 @@ def remove(conv_list):
     return new_conv_list
 
 
-def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, replicate_to_nearest_multiple=False,
-                 group_size=2, in_lens: torch.tensor=None):
+def regulate_len(
+    durations,
+    enc_out,
+    pace=1.0,
+    mel_max_len=None,
+    replicate_to_nearest_multiple=False,
+    group_size=2,
+    in_lens: torch.tensor = None,
+):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
 
@@ -503,7 +510,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, replicate_to_ne
     if replicate_to_nearest_multiple:
         to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
         to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
-        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long()-1, to_pad)
+        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
         reps = reps + to_pad_expanded
         dec_lens = reps.sum(dim=1)
 

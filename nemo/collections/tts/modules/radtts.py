@@ -608,11 +608,14 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
-        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace,
-                                                       replicate_to_nearest_multiple=True,
-                                                       group_size=self.n_group_size,
-                                                       in_lens=in_lens
-                                                       )
+        txt_enc_time_expanded, out_lens = regulate_len(
+            dur,
+            txt_enc.transpose(1, 2),
+            pace,
+            replicate_to_nearest_multiple=True,
+            group_size=self.n_group_size,
+            in_lens=in_lens,
+        )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
 
@@ -777,7 +780,7 @@ class RadTTSModule(NeuralModule, Exportable):
         inp = torch.randint(16, 32, sz, device=par.device, dtype=torch.int64)
         lens = torch.randint(max_dim // 8, max_dim // 4, (max_batch,), device=par.device, dtype=torch.int)
         zeros_src = torch.zeros_like(inp)
-        inp.scatter_(1, lens.long().unsqueeze(-1)-1, zeros_src) # set the inp[i, lens[i]-1] elt to zero
+        inp.scatter_(1, lens.long().unsqueeze(-1) - 1, zeros_src)  # set the inp[i, lens[i]-1] elt to zero
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,
