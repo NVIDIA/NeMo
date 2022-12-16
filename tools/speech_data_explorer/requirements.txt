@@ -1,0 +1,10 @@
+dash>=2.1.0
+dash_bootstrap_components>=1.0.3
+diff_match_patch
+editdistance
+jiwer
+librosa>=0.9.1
+numpy
+plotly
+SoundFile
+tqdm
