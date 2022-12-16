@@ -17,6 +17,7 @@ from typing import Any, List, Optional, Union
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -761,25 +762,31 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if stage == 'predict':
             return
         else:
-            # TODO: consider adding a ModelPT guard to check if model is being restored.
-            # allowing restored models to optionally setup datasets
-            self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            # when using pipeline model parallel the final stage need to initialize word embeddings
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if isinstance(self.model, list):
+                    for i, module in enumerate(self.model):
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                        module.sync_initial_word_embeddings()
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+                else:
+                    self.model.sync_initial_word_embeddings()
 
-        # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            if self.cfg.get('transformer_engine', False):
+                self.setup_transformer_engine_tp_groups()
+
+            if OmegaConf.is_missing(self.cfg.data, 'data_prefix'):
+                logging.warning(
+                    'Attempting to train or validate without data. ' 'Please configure model.data.data_prefix.'
+                )
+                return
             else:
-                self.model.sync_initial_word_embeddings()
-
-        if self.cfg.get('transformer_engine', False):
-            self.setup_transformer_engine_tp_groups()
+                # TODO: consider adding a ModelPT guard to check if model is being restored.
+                # allowing restored models to optionally setup datasets
+                self.build_train_valid_test_datasets()
+                self.setup_training_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
+                self.setup_test_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
