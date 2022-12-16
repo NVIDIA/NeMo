@@ -141,7 +141,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         Generator forward pass. Noise inputs will be generated.
 
         condition: batch of blurred spectrograms
-        lenghts: length for every spectrogam in the batch
+        lengths: length for every spectrogam in the batch
         mixing: style mixing, usually True during training
         normalize: normalize spectrogram range to ~[0, 1], True for normal use
 
