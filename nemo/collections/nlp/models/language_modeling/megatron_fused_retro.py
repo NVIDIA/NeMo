@@ -1,33 +1,20 @@
-
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
-
-
+import logging
 import re
+from functools import partial
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
-from torch import masked_select
-from functools import partial
-
-from nemo.core import adapter_mixins
-import logging
-from typing import List, Optional
 from omegaconf import DictConfig, OmegaConf
-from nemo.collections.nlp.modules.common import (
-    VirtualPromptStyle,
-    VirtualPromptSource,
-    VirtualPromptPlaceholderToken,
-)
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import masked_select
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core import adapter_mixins
 
@@ -230,14 +217,11 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
 
-
         # Will need to adjust dataset to add retrieval_ids here
 
         if for_train:
             if self.cfg.get("sequence_parallel", False):
-                collate_fn = partial(
-                    self.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
-                )
+                collate_fn = partial(self.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size())
             else:
                 collate_fn = partial(self.collate_fn, tp_workers=0)
         else:
@@ -301,7 +285,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         tokens = pad_sequence(input_ids, batch_first=True, padding_value=50256)
         tokens_mask = masked_select(tokens, padding_value=50256)
 
-
         # Got to return something like
         # input_tokens_id = batch['tokens']
         # input_attn_mask = batch['tokens_mask']
@@ -342,7 +325,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         batch_loss_masks = torch.stack(batch_loss_masks)
 
         return padded_input_ids, batch_loss_masks
-
 
     def build_virtual_prompt_dataset2(self, data):
         for i in data:
