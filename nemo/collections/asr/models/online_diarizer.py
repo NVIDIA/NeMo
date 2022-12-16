@@ -47,6 +47,7 @@ def timeit(method):
     Return:
         `timed` function for measuring the elapsed time
     """
+
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)

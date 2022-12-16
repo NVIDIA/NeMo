@@ -448,6 +448,7 @@ class TestDiarizationSegmentationUtils:
         assert cursor_for_old_segments == gt_cursor_for_old_segments
         assert cursor_index == gt_cursor_index
 
+
 class TestSpeakerClustering:
     """
     Test speaker clustering module
