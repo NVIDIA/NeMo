@@ -50,7 +50,7 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from nemo.collections.tts.helpers.helpers import process_batch
+from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import mask
@@ -58,25 +58,6 @@ from nemo.core import Exportable, ModelPT, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
-
-
-def to_device_recursive(e, device: torch.device):
-    """
-    Use .to(device) on all tensors within nested lists, tuples, values ofdicts
-    Returns a new structure with tensors moved to target device, leaving other data intact.
-
-    The intended use is to move collections of tensors to a device while:
-        - avoiding calling specific movers like .cpu() or .cuda()
-        - avoiding stuff like .to(torch.device("cuda:{some_variable}"))
-    """
-    if isinstance(e, (list, tuple)):
-        return [to_device_recursive(elem, device) for elem in e]
-    elif isinstance(e, dict):
-        return {key: to_device_recursive(value, device) for key, value in e.items()}
-    elif isinstance(e, torch.Tensor):
-        return e.to(device)
-    else:
-        return e
 
 
 class GradientPenaltyLoss(torch.nn.Module):

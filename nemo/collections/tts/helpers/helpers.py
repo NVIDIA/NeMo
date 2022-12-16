@@ -572,3 +572,22 @@ def process_batch(batch_data, sup_data_types_set):
                 batch_dict[name + "_lens"] = batch_data[batch_index]
                 batch_index = batch_index + 1
     return batch_dict
+
+
+def to_device_recursive(e, device: torch.device):
+    """
+    Use .to(device) on all tensors within nested lists, tuples, values ofdicts
+    Returns a new structure with tensors moved to target device, leaving other data intact.
+
+    The intended use is to move collections of tensors to a device while:
+        - avoiding calling specific movers like .cpu() or .cuda()
+        - avoiding stuff like .to(torch.device("cuda:{some_variable}"))
+    """
+    if isinstance(e, (list, tuple)):
+        return [to_device_recursive(elem, device) for elem in e]
+    elif isinstance(e, dict):
+        return {key: to_device_recursive(value, device) for key, value in e.items()}
+    elif isinstance(e, torch.Tensor):
+        return e.to(device)
+    else:
+        return e
