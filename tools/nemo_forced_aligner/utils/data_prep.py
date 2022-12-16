@@ -62,6 +62,9 @@ def get_processed_text_and_segments(text, separator):
     if separator == "":
         return text, None
 
+    # get rid of any whitespace around text
+    text = text.strip()
+
     segments = text.split(separator)
 
     # remove any spaces at start and end of segments

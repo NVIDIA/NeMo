@@ -18,7 +18,7 @@ from typing import Optional
 import torch
 from omegaconf import OmegaConf
 from utils.data_prep import get_audio_sr, get_log_probs_y_T_U, get_manifest_lines
-from utils.make_ctm import make_basetoken_ctm, make_word_ctm
+from utils.make_ctm import make_segment_ctm, make_token_ctm
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -47,8 +47,8 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_ctm_folder: the folder where output CTM files will be saved.
-    separator: the string used to separate CTM segments.
-        If the separator is “”, the CTM segments will be the tokens used by the ASR model.
+    ctm_grouping_separator: the string used to separate CTM segments.
+        If the separator is “” or None, each line of the output CTM will be the tokens used by the ASR model.
         If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
         text separated by that separator.
         Default: “ “, ie for languages such as English, the CTM segments will be words.
@@ -86,7 +86,7 @@ class AlignmentConfig:
     output_ctm_folder: Optional[str] = None
 
     # General configs
-    separator: str = " "
+    ctm_grouping_separator: Optional[str] = " "
     n_parts_for_ctm_id: int = 1
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
@@ -95,6 +95,8 @@ class AlignmentConfig:
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
+
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -114,6 +116,22 @@ def main(cfg: AlignmentConfig):
 
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder must be specified")
+
+    # Log info about selected params
+    if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
+        logging.info(
+            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => " "each line of the output CTM will be a token"
+        )
+    elif cfg.ctm_grouping_separator == " ":
+        logging.info(
+            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => "
+            "each line of the output CTM will be a space-separated word"
+        )
+    else:
+        logging.info(
+            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => "
+            f"each line of the output CTM will be the text that is inbetween {cfg.ctm_grouping_separator}"
+        )
 
     # init devices
     transcribe_device = torch.device(cfg.transcribe_device)
@@ -148,11 +166,11 @@ def main(cfg: AlignmentConfig):
     for start, end in zip(starts, ends):
         data = get_manifest_lines(cfg.manifest_filepath, start, end)
 
-        log_probs, y, T, U = get_log_probs_y_T_U(data, model, cfg.separator)
+        log_probs, y, T, U = get_log_probs_y_T_U(data, model, cfg.ctm_grouping_separator)
         alignments = viterbi_decoding(log_probs, y, T, U, viterbi_device)
 
-        if cfg.separator == "":
-            make_basetoken_ctm(
+        if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
+            make_token_ctm(
                 data,
                 alignments,
                 model,
@@ -163,7 +181,7 @@ def main(cfg: AlignmentConfig):
             )
 
         else:
-            make_word_ctm(
+            make_segment_ctm(
                 data,
                 alignments,
                 model,
@@ -171,7 +189,7 @@ def main(cfg: AlignmentConfig):
                 cfg.output_ctm_folder,
                 cfg.n_parts_for_ctm_id,
                 audio_sr,
-                cfg.separator,
+                cfg.ctm_grouping_separator,
             )
 
     return None
