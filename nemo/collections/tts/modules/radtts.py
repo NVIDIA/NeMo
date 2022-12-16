@@ -217,15 +217,6 @@ class RadTTSModule(NeuralModule, Exportable):
                     input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
                 )
 
-            if self.n_group_size > 1:
-                self.unfold_params = {
-                    'kernel_size': (n_group_size, 1),
-                    'stride': n_group_size,
-                    'padding': 0,
-                    'dilation': 1,
-                }
-                self.unfold = nn.Unfold(**self.unfold_params)
-
             self.exit_steps = []
             self.n_early_size = n_early_size
             n_mel_channels = n_mel_channels * n_group_size
@@ -327,12 +318,12 @@ class RadTTSModule(NeuralModule, Exportable):
 
     def preprocess_context(self, context, speaker_vecs, out_lens, f0, energy_avg):
         if self.n_group_size > 1:
-            context = self.unfold(context.unsqueeze(-1))
+            context = self.unfold(context)
 
             if f0 is not None:
-                f0 = self.unfold(f0[:, None, :, None])
+                f0 = self.unfold(f0[:, None, :])
             if energy_avg is not None:
-                energy_avg = self.unfold(energy_avg[:, None, :, None])
+                energy_avg = self.unfold(energy_avg[:, None, :])
         speaker_vecs = speaker_vecs[..., None].expand(-1, -1, context.shape[2])
         context_w_spkvec = torch.cat((context, speaker_vecs), 1)
 
@@ -358,17 +349,26 @@ class RadTTSModule(NeuralModule, Exportable):
         return context_w_spkvec
 
     def fold(self, mel):
-        """Inverse of the self.unfold(mel.unsqueeze(-1)) operation used for the
-         grouping or "squeeze" operation on input
-        
-         Args:
-             mel: B x C x T tensor of temporal data
-         """
+        """Inverse of the self.unfold() operation used for the
+        grouping or "squeeze" operation on input
 
-        mel = nn.functional.fold(mel, output_size=(mel.shape[2] * self.n_group_size, 1), **self.unfold_params).squeeze(
-            -1
-        )
-        return mel
+        Args:
+            mel: B x C x T tensor of temporal data
+        """
+        b, d, t = mel.shape
+        mel = mel.reshape(b, -1, self.n_group_size, t).transpose(2, 3)
+        return mel.reshape(b, -1, t * self.n_group_size)
+
+    def unfold(self, mel):
+        """operation used for the
+        grouping or "squeeze" operation on input
+
+        Args:
+            mel: B x C x T tensor of temporal data
+        """
+        b, d, t = mel.shape
+        mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2, 3)
+        return mel.reshape(b, d * self.n_group_size, -1)
 
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
@@ -608,7 +608,14 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
-        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
+        txt_enc_time_expanded, out_lens = regulate_len(
+            dur,
+            txt_enc.transpose(1, 2),
+            pace,
+            replicate_to_nearest_multiple=True,
+            group_size=self.n_group_size,
+            in_lens=in_lens,
+        )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
 
@@ -771,7 +778,9 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(16, 32, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(max_dim // 2, max_dim, (max_batch,), device=par.device, dtype=torch.int)
+        lens = torch.randint(max_dim // 4, max_dim // 2, (max_batch,), device=par.device, dtype=torch.int)
+        zeros_src = torch.zeros_like(inp)
+        inp.scatter_(1, lens.long().unsqueeze(-1) - 1, zeros_src)  # set the inp[i, lens[i]-1] elt to zero
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,

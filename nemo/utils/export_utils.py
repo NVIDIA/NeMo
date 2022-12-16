@@ -412,7 +412,7 @@ default_replacements = {
 }
 
 script_replacements = {
-    "BiLSTM": script_module,
+    # "BiLSTM": script_module,
 }
 
 
