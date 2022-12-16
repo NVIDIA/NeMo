@@ -1,8 +1,8 @@
 attrdict
 einops
 inflect
-kornia
 jieba
+kornia
 librosa
 matplotlib
 nltk
