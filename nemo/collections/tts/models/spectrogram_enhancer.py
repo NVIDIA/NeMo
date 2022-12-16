@@ -77,8 +77,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         self.init_spectrogram_model()
 
-        self.G = instantiate(cfg.generator)
-        self.D = instantiate(cfg.discriminator)
+        self.generator = instantiate(cfg.generator)
+        self.discriminator = instantiate(cfg.discriminator)
 
         self.generator_loss = GeneratorLoss()
         self.discriminator_loss = HingeLoss()
@@ -94,7 +94,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self.setup_training_data(self._cfg.train_ds)
 
     def move_to_correct_device(self, e):
-        return to_device_recursive(e, next(iter(self.G.parameters())).device)
+        return to_device_recursive(e, next(iter(self.generator.parameters())).device)
 
     def normalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
@@ -108,12 +108,12 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     def generate_zs(self, batch_size: int = 1, mixing: bool = False):
         if mixing and self._cfg.mixed_prob < random():
-            mixing_point = randrange(1, self.G.num_layers)
+            mixing_point = randrange(1, self.generator.num_layers)
             first_part = [torch.randn(batch_size, self._cfg.latent_dim)] * mixing_point
-            second_part = [torch.randn(batch_size, self._cfg.latent_dim)] * (self.G.num_layers - mixing_point)
+            second_part = [torch.randn(batch_size, self._cfg.latent_dim)] * (self.generator.num_layers - mixing_point)
             zs = [*first_part, *second_part]
         else:
-            zs = [torch.randn(batch_size, self._cfg.latent_dim)] * self.G.num_layers
+            zs = [torch.randn(batch_size, self._cfg.latent_dim)] * self.generator.num_layers
 
         return self.move_to_correct_device(zs)
 
@@ -122,7 +122,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return self.move_to_correct_device(noise)
 
     def pad_spectrogram(self, spectrogram):
-        multiplier = 2 ** sum(1 for block in self.G.blocks if block.upsample)
+        multiplier = 2 ** sum(1 for block in self.generator.blocks if block.upsample)
         *_, max_length = spectrogram.shape
         return F.pad(spectrogram, (0, multiplier - max_length % multiplier))
 
@@ -190,7 +190,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if zs is None:
             zs = self.generate_zs(batch_size, mixing)
         if ws is None:
-            ws = [self.G.style_mapping(z) for z in zs]
+            ws = [self.generator.style_mapping(z) for z in zs]
         if noise is None:
             noise = self.generate_noise(batch_size)
 
@@ -201,7 +201,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         condition = self.pad_spectrogram(condition)
 
         # the main call
-        enhanced_spectrograms = self.G(condition, lengths, ws, noise)
+        enhanced_spectrograms = self.generator(condition, lengths, ws, noise)
 
         # denormalize if needed, mask and remove padding
         if normalize:
@@ -250,11 +250,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if optimizer_idx == 0:
             enhanced_spectrograms = self.forward(condition=condition, lengths=lengths, mixing=True, normalize=False)
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
-            fake_logits = self.D(enhanced_spectrograms, condition, lengths)
+            fake_logits = self.discriminator(enhanced_spectrograms, condition, lengths)
 
             real_images = rearrange(target, "b c l -> b 1 c l")
             real_images = real_images.requires_grad_()
-            real_logits = self.D(real_images, condition, lengths)
+            real_logits = self.discriminator(real_images, condition, lengths)
             d_loss = self.discriminator_loss(real_logits, fake_logits)
             self.log("d_loss", d_loss, prog_bar=True)
 
@@ -270,7 +270,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             enhanced_spectrograms = self.forward(condition=condition, lengths=lengths, mixing=True, normalize=False)
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
             condition = rearrange(condition, "b c l -> b 1 c l")
-            fake_logits = self.D(enhanced_spectrograms, condition, lengths)
+            fake_logits = self.discriminator(enhanced_spectrograms, condition, lengths)
             g_loss = self.generator_loss(fake_logits)
             c_loss = self.consistency_loss(condition, enhanced_spectrograms, lengths)
 
@@ -283,8 +283,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             return g_loss + c_loss
 
     def configure_optimizers(self):
-        generator_opt = instantiate(self._cfg.generator_opt, params=self.G.parameters(),)
-        discriminator_opt = instantiate(self._cfg.discriminator_opt, params=self.D.parameters())
+        generator_opt = instantiate(self._cfg.generator_opt, params=self.generator.parameters(),)
+        discriminator_opt = instantiate(self._cfg.discriminator_opt, params=self.discriminator.parameters())
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):

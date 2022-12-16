@@ -206,7 +206,7 @@ def test_generator_pass_keeps_size(enhancer: SpectrogramEnhancerModel, sample_in
 def test_discriminator_pass(enhancer: SpectrogramEnhancerModel, sample_input):
     condition, lengths = sample_input
     condition = rearrange(condition, "b c l -> b 1 c l")
-    logits = enhancer.D(x=condition, condition=condition, lengths=lengths)
+    logits = enhancer.discriminator(x=condition, condition=condition, lengths=lengths)
 
     assert logits.shape == lengths.shape
 
