@@ -316,6 +316,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             l1_scale = self.cfg.p_tuning.get("l1_scale", 0.0)
             l2_scale = self.cfg.p_tuning.get("l2_scale", 0.0)
             cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
+            normalize_original_embeddings = self.cfg.p_tuning.get("normalize_original_embeddings", False)
             normalize = self.cfg.p_tuning.get("normalize", False)
             use_relu = self.cfg.p_tuning.get("use_relu", False)
             init_val = self.cfg.p_tuning.get("init_val", "group")
@@ -330,6 +331,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 cs_scale, 
                 normalize, 
                 use_relu, 
+                normalize_original_embeddings,
                 init_val, 
                 spaced_init, 
                 mask_restrict,

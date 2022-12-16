@@ -80,6 +80,19 @@ class EmbeddingProjector(ptl.LightningModule):
     def on_validation_epoch_start(self):
         self.val_step = 0
 
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+    
+    def test_epoch_end(self, losses):
+        sl1_losses = [i[0] for i in losses]
+        cs_losses = [i[1] for i in losses]
+        test_sl1_loss = sum(sl1_losses) / len(sl1_losses)
+        test_cs_loss = sum(cs_losses) / len(cs_losses)
+        test_loss = test_cs_loss + test_sl1_loss
+        self.log("test_sl1_loss", test_sl1_loss, prog_bar=True, on_epoch=True)
+        self.log("test_cs_loss", test_cs_loss, prog_bar=True, on_epoch=True)
+        self.log("test_loss", test_loss, prog_bar=True, on_epoch=True)
+
     def validation_step(self, batch, batch_idx):
 
         x, y, y_neighbors = batch
@@ -105,10 +118,14 @@ class EmbeddingProjector(ptl.LightningModule):
         if self.val_loss < self.best_val_loss:
             print(f"new best loss found:{self.val_loss}")
             self.best_val_loss = self.val_loss
+            self.save_model()
         self.log("best_val_loss", self.best_val_loss, prog_bar=True, on_epoch=True)
-
-
-        
+    
+    def save_model(self):
+        torch.save(self.state_dict(), 'model.pt')
+    
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path))
 
 class UpscaleDataset(Dataset):
     def __init__(self, x_embeddings:torch.Tensor, y_embeddings:torch.Tensor) -> None:
@@ -141,15 +158,20 @@ def main(cfg) -> None:
     word_embeddings_125m, tokenizer = get_word_embedding(cfg, '/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo')
     word_embeddings_1_3b, tokenizer = get_word_embedding(cfg, '/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo')
     
-    train = UpscaleDataset(word_embeddings_125m[1000:20000], word_embeddings_1_3b[1000:20000])
+    train = UpscaleDataset(word_embeddings_125m[1000:2000], word_embeddings_1_3b[1000:2000])
     val = UpscaleDataset(word_embeddings_125m[:500], word_embeddings_1_3b[:500])
     test = UpscaleDataset(word_embeddings_125m[500:1000], word_embeddings_1_3b[500:1000])
     train_dataloader = DataLoader(train, batch_size=12, shuffle=True)
     val_dataloader = DataLoader(val, batch_size=12, shuffle=False)
+    test_dataloader = DataLoader(test, batch_size=12, shuffle=False)
     projector = EmbeddingProjector(word_embeddings_125m.shape[1], 3000, word_embeddings_1_3b.shape[1])
     projector.cuda()
-    trainer = ptl.Trainer(max_epochs=10, val_check_interval=0.3, num_sanity_val_steps=0)
+    trainer = ptl.Trainer(max_epochs=1, val_check_interval=0.3, num_sanity_val_steps=0)
+    trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.fit(model=projector, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    projector_2 = EmbeddingProjector(word_embeddings_125m.shape[1], 3000, word_embeddings_1_3b.shape[1])
+    projector_2.load_model('model.pt')
+    trainer.test(model=projector_2, dataloaders=test_dataloader)
 
 
 

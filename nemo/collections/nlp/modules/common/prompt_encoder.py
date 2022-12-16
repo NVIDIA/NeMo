@@ -405,8 +405,8 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         l2_scale: float,
         cs_scale: float,
         normalize: bool,
-        normalize_orginal_embeddings: bool,
         use_relu: bool,
+        normalize_original_embeddings: bool,
         init_val: str,
         spaced_init: str,
         mask_restrict: bool,
@@ -428,7 +428,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         self.l2_scale = l2_scale
         self.cs_scale = cs_scale
         self.normalize = normalize
-        self.normalize_original_embeddings = normalize_orginal_embeddings
+        self.normalize_original_embeddings = normalize_original_embeddings
         self.use_relu = use_relu
         self.spaced_init = spaced_init
         self.mask_restrict = mask_restrict
@@ -456,7 +456,6 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
         for k, v in state_dict.items():
             if k == 'linear_combination':
-                #self.linear_combination = v
                 self.linear_combination = torch.nn.parameter.Parameter(data=v)
             else:
                 raise RuntimeError(f"Linear Combination cant parse key {k} in state_dict")
