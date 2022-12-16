@@ -60,13 +60,21 @@ from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
 
 
-def type_as_recursive(e, source: torch.Tensor):
+def to_device_recursive(e, device: torch.device):
+    """
+    Use .to(device) on all tensors within nested lists, tuples, values ofdicts
+    Returns a new structure with tensors moved to target device, leaving other data intact.
+
+    The intended use is to move collections of tensors to a device while:
+        - avoiding calling specific movers like .cpu() or .cuda()
+        - avoiding stuff like .to(torch.device("cuda:{some_variable}"))
+    """
     if isinstance(e, (list, tuple)):
-        return [type_as_recursive(elem, source) for elem in e]
+        return [to_device_recursive(elem, device) for elem in e]
     elif isinstance(e, dict):
-        return {key: type_as_recursive(value, source) for key, value in e.items()}
+        return {key: to_device_recursive(value, device) for key, value in e.items()}
     elif isinstance(e, torch.Tensor):
-        return e.type_as(source)
+        return e.to(device)
     else:
         return e
 
@@ -147,7 +155,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self.setup_training_data(self._cfg.train_ds)
 
     def move_to_correct_device(self, e):
-        return type_as_recursive(e, next(iter(self.G.parameters())))
+        return to_device_recursive(e, next(iter(self.G.parameters())).device)
 
     def normalize_spectrograms(self, spectrogram: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
