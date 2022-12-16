@@ -206,7 +206,7 @@ def make_segment_ctm(
 
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for segment_info in segments_info:
-                if not (segment_info["segment"] == "initial_silence" and segment_info["t_end"] is None):
+                if not segment_info["segment"] == "<initial_silence>":
                     segment = segment_info["segment"]
                     start_sample = segment_info["t_start"] * timestep_to_sample_ratio
                     end_sample = (segment_info["t_end"] + 1) * timestep_to_sample_ratio - 1
