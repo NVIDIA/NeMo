@@ -20,6 +20,7 @@ from einops import rearrange
 from omegaconf import DictConfig
 
 from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.collections.tts.modules.spectrogram_enhancer import mask
 
 
 @pytest.fixture
@@ -45,7 +46,7 @@ def enhancer_config():
                 "network_capacity": network_capacity,
                 "style_depth": style_depth,
                 "fmap_max": fmap_max,
-            }, 
+            },
             "discriminator": {
                 "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Discriminator",
                 "n_bands": n_bands,
@@ -69,7 +70,7 @@ def enhancer_config():
 @pytest.fixture
 def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
     test_data_dir = Path(test_data_dir)
-    
+
     n_bands = 80
     latent_dim = 192
     style_depth = 4
