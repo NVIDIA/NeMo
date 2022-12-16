@@ -7,7 +7,7 @@ model:
   asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if intantiating from config
   asr_model_path: ???
   tts_model_path: ???
-  enhancer_model_path: ???
+  enhancer_model_path: null
 
   train_ds:
     text_data:
