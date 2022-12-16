@@ -447,7 +447,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _setup_dataset_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
@@ -523,10 +523,21 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                     config=config, tokenizer=self.tokenizer, augmentor=augmentor
                 )
 
+        return dataset
+
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        dataset = self._setup_dataset_from_config(config)
+        if dataset is None:
+            return None
+
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         else:
             collate_fn = dataset.datasets[0].collate_fn
+
+        shuffle = config['shuffle']
+        if config.get('is_tarred', False):
+            shuffle = False
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
