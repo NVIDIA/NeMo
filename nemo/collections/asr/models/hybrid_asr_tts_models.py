@@ -128,6 +128,10 @@ class ASRWithTTSModel(ASRModel):
                     asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
                     asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
 
+        if cfg.get("enhancer_model_path", None) is not None:
+            # ToDo: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
+            raise NotImplementedError
+
         self.asr_model = asr_model
         self.tts_model = tts_model
         self.tts_model.freeze()
@@ -171,22 +175,9 @@ class ASRWithTTSModel(ASRModel):
         cfg.asr_model_path = asr_model_path
         return ASRWithTTSModel(cfg, trainer=trainer)
 
-    # fix trainer, see https://github.com/Lightning-AI/lightning/issues/13146#issuecomment-1137593172
-    # @property
-    # def trainer(self) -> Optional[Trainer]:
-    #     return self._trainer
-    #
-    # @trainer.setter
-    # def trainer(self, trainer: Optional[Trainer]) -> None:
-    #     if trainer is not None and not isinstance(trainer, Trainer):
-    #         raise RuntimeError(f"{self.__class__.__qualname__} should be connected to a `Trainer`, found: {trainer}.")
-    #     self._trainer = trainer
-    #     for v in vars(self).values():
-    #         if isinstance(v, pl.LightningModule):
-    #             v.trainer = trainer
-
     def __setattr__(self, name, value):
         if name == "_current_fx_name" and self._full_init_guard:
+            # needed to call *_step on asr_model
             self.asr_model._current_fx_name = value
         return super().__setattr__(name, value)
 
@@ -354,7 +345,8 @@ class ASRWithTTSModel(ASRModel):
         assert not self.tts_model.training
         if isinstance(batch, DALIOutputs):
             return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)
-        spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
+        with torch.no_grad():
+            spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
         return self.asr_model.training_step(
             batch=DALIOutputs(
                 dict(
