@@ -59,12 +59,12 @@ def main(cfg):
         gbs = model_cfg.get("global_batch_size")
         enc_seq_len = (
             model_cfg.get("encoder_seq_length")
-            if model_name == "gpt3"
+            if model_name in ("gpt3", "bert")
             else model_cfg.get("seq_length")
         )
         dec_seq_len = data_cfg.get("seq_length_dec")
 
-        if model_name == "gpt3":
+        if model_name in ("gpt3", "bert"):
             hs = model_cfg.get("hidden_size")
             ffn_hs = None
             layers = model_cfg.get("num_layers")
@@ -177,8 +177,18 @@ def calculate_tflops(
     gpus_per_node,
     time_per_step,
 ):
-    """
-    Calculates model and hardware TFLOPS for each model.
+    """Calculates model and hardware TFLOPS for each model.
+
+    GPT-3 Formulas:
+        Model FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵𝑠^2ℎ) x (3 x num_layers) + 6𝐵𝑠ℎ
+        HW FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵𝑠^2ℎ) x (3 x num_layers + num_checkpt_layers) + 6𝐵𝑠ℎ
+    T5/mT5 Formula:
+        Model FLOPs =
+        HW FLOPs =
+        ((2*R3*M3*M3*(5*O3+4*P3)+6*R3*M3*N3*(O3+P3)+4*R3*M3*(O3*O3+P3*P3+O3*P3))*3*L3/2+6*R3*P3*M3*Q3)/(G3*H3)/1000000000000/F3
+    Bert Formula: 
+        Model FLOPs = 72BLsh^2 * ( 1 + (s/6h) + (v/12hL))
+        HW Flops = 72BLsh^2 * ( 1 + (s/3h) + (v/12hL))
     """
     if model_name == "gpt3":
         # Model FLOPS calculation
@@ -191,7 +201,41 @@ def calculate_tflops(
 
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
+        # HW FLOPS calculation
+        if act_ckpt_layers == "selective":
+            hw_flops = (
+                (24 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs)
+                * (3 * layers)
+                + act_term
+                + (6 * gbs * enc_seq_len * hs * vocab)
+            ) / time_per_step
+        else:
+            hw_flops = (
+                (24 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs)
+                * (3 * layers + act_ckpt_layers)
+                + (6 * gbs * enc_seq_len * hs * vocab)
+            ) / time_per_step
+        hw_flops_per_gpu = hw_flops / (nodes * gpus_per_node)
+        hw_tflops = hw_flops / 1e12
+        hw_tflops_per_gpu = hw_flops_per_gpu / 1e12
 
+    elif model_name == "bert":
+        model_flops = (
+            72 * gbs * layers * enc_seq_len * hs * hs * ( 1 + (enc_seq_len/(6*hs)) + (vocab/(12 * hs * layers)))
+        ) / time_per_step
+        model_flops_per_gpu = model_flops / (nodes * gpus_per_node)
+        model_tflops = model_flops / 1e12
+        model_tflops_per_gpu = model_flops_per_gpu / 1e12        
+        if act_ckpt_layers == "selective":
+            hw_flops = (
+            72 * gbs * layers * enc_seq_len * hs * hs * ( 1 + (enc_seq_len/(3*hs)) + (vocab/(12 * hs * layers)))
+            ) / time_per_step
+        else :
+            hw_flops = model_flops
+        hw_flops_per_gpu = hw_flops / (nodes * gpus_per_node)
+        hw_tflops = hw_flops / 1e12
+        hw_tflops_per_gpu = hw_flops_per_gpu / 1e12
+        
     elif model_name in ["t5", "mt5"]:
         # Encoder Layer FLOPS: include self attention + MLP
         flops_self_attn_enc = 8*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs

@@ -68,13 +68,14 @@ def generate_grid_search_configs(
     act_layers = train_cfg.get("act_ckpt_layers")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
-    multiplier = 1 if model_name == "gpt3" else 2
+    multiplier = 1 if model_name in ["gpt3", "bert"] else 2
 
     num_layers = (
         base_cfg["model"]["num_layers"]
-        if model_name == "gpt3"
+        if model_name in ["gpt3", "bert"]
         else base_cfg["model"]["encoder"]["num_layers"]
     )
+
     act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
     act_method = base_cfg["model"].get("activations_checkpoint_method", "block")
 
@@ -97,7 +98,7 @@ def generate_grid_search_configs(
             for mbs in mbs_list:
                 num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
                 gbs = base_cfg["model"]["global_batch_size"]
-                if model_name == "gpt3":
+                if model_name in ["gpt3", "bert"]:
                     att_heads = base_cfg["model"]["num_attention_heads"]
                     num_layers = base_cfg["model"]["num_layers"]
                 else:
@@ -108,6 +109,7 @@ def generate_grid_search_configs(
                 mod_layers = (multiplier * num_layers) % pp
                 if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list and  min_model_parallel <= tp*pp <= max_model_parallel:
                     valid_tp_pp_list.append((tp, pp))
+                    
 
     # Generate grid search configs.
     results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
@@ -151,27 +153,26 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
         elif 11.3 <= model_size_in_b < 26.0:
             act_multiple = 16 // pp
         elif 26.0 <= model_size_in_b:
-            if model_name != "gpt3":
-                act_multiple = 16 // pp
-            else:
-                act_multiple = 8 // pp
+            act_multiple = 16 // pp
+        elif 60.0 <= model_size_in_b:
+            act_multiple = 32 // pp
     act_multiple = max(act_multiple, 1)
 
     virtual_pipelines = None
     # Num micro batches with partial act ckpt
-    min_micro_b = 0
+    min_micro_b = 0  # 0 will not be used, minimum will be set to 1 later in the code.
     max_micro_b = pp
     interval_micro_b = 1
     # Act ckpt layers per pipeline
     min_layers_per_pipe = 0
-    max_layers_per_pipe = 2
-    interval_layers_per_pipe = 1
-    if model_name == "gpt3" and pp > 2:  # Interleaved pipeline scheduling.
+    max_layers_per_pipe = num_layers
+    interval_layers_per_pipe = act_multiple
+    if model_name in ["gpt3", "bert"] and pp > 2:  # Interleaved pipeline scheduling.
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
         max_micro_b = pp * (virtual_pipelines-1) + (pp-1) * 2 + 1
-        interval_micro_b = virtual_pipelines * 2
-        max_layers_per_pipe = 1
+        interval_micro_b = virtual_pipelines * 8
+        max_layers_per_pipe = multiplier * num_layers // pp // virtual_pipelines + 1
 
     act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = [None], [None], [None]
     if act_method == "block":
@@ -181,9 +182,11 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
         else:
             act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple) 
 
-        if pp > 1 and model_name == "gpt3":
+        if pp > 1 and model_name in ["gpt3", "bert"]:
             # Num micro batches with partial act ckpt
-            num_micro_batches_partial_act_ckpt = range(min_micro_b, max_micro_b + 1, interval_micro_b)
+            num_micro_batches_partial_act_ckpt = list(range(min_micro_b, max_micro_b + 1, interval_micro_b))
+            if num_micro_batches_partial_act_ckpt[0] == 0:
+                num_micro_batches_partial_act_ckpt[0] = 1
 
             # Act ckpt layers per pipeline
             act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
@@ -477,6 +480,127 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         max_model_parallel = 256
     return tp, pp, mbs, min_model_parallel, max_model_parallel
 
+def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for BERT and 80GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 3, 4, 6, 8]
+    min_model_parallel = 1
+    max_model_parallel = 8
+    if model_size_in_b <= 1.0:
+        tp = [1, 2]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+        min_model_parallel = 2
+    elif 8.0 < model_size_in_b <= 13.0:
+        tp = [2, 4, 8]
+        mbs = [1, 2, 3, 4, 6]
+        min_model_parallel = 2
+    elif 13.0 < model_size_in_b <= 25.0:
+        tp = [4, 8]
+        mbs = [1, 2, 3, 4]
+        min_model_parallel = 4
+    elif 25.0 < model_size_in_b <= 46.5:
+        tp = [4, 8]
+        pp = [1, 2, 4]
+        mbs = [1, 2, 3, 4]
+        min_model_parallel = 4
+        max_model_parallel = 16
+    elif 46.5 < model_size_in_b <= 87.5:
+        tp = [4, 8]
+        pp = [2, 4, 6, 8]
+        mbs = [1, 2, 3, 4]
+        min_model_parallel = 8
+        max_model_parallel = 32
+    elif 87.5 < model_size_in_b <= 165.5:
+        tp = [4, 8]
+        pp = [4, 6, 8, 16]
+        mbs = [2, 4, 6, 8]
+        min_model_parallel = 16
+        max_model_parallel = 128
+    elif 165.5 < model_size_in_b <= 250.5:
+        tp = [8]
+        pp = [4, 8, 16, 32]
+        mbs = [1, 2, 3, 4]
+        min_model_parallel = 32
+        max_model_parallel = 256
+    else:
+        raise ValueError("No BERT model larger than 250B parameters is supported.")
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
+
+def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for BERT and 40GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 6, 8]
+    min_model_parallel = 1
+    max_model_parallel = 8
+    if model_size_in_b <= 1.0:
+        tp = [1, 2, 4]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4, 8]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+        mbs = [1, 2, 4]
+    elif 8.0 < model_size_in_b <= 13.0:
+        tp = [2, 4, 8]
+        mbs = [1, 2, 4]
+    elif 13.0 < model_size_in_b <= 25.0:
+        tp = [2, 4, 8]
+        pp = [1, 2]
+        mbs = [1, 2, 4]
+        min_model_parallel = 2
+        max_model_parallel = 16
+    elif 25.0 < model_size_in_b <= 46.5:
+        tp = [4, 8]
+        pp = [1, 2, 4, 8]
+        mbs = [1, 2, 3]
+        min_model_parallel = 8
+        max_model_parallel = 32
+    elif 46.5 < model_size_in_b <= 87.5:
+        tp = [4, 8]
+        pp = [2, 4, 6, 8]
+        mbs = [1, 2, 3]
+        min_model_parallel = 16
+        max_model_parallel = 64
+    elif 87.5 < model_size_in_b <= 165.5:
+        tp = [8]
+        pp = [4, 6, 8, 16]
+        mbs = [1, 2]
+        min_model_parallel = 32
+        max_model_parallel = 256
+    elif 165.5 < model_size_in_b <= 250.5:
+        tp = [8]
+        pp = [8, 16, 32]
+        mbs = [1, 2]
+        min_model_parallel = 64
+        max_model_parallel = 512
+    else:
+        raise ValueError("No BERT model larger than 250B parameters is supported.")
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
+
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig) -> Tuple[int, int, int]:
     """
@@ -502,7 +626,7 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
     mbs_sizes = train_cfg.get("micro_batch_sizes")
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
 
-    multiplier = 1 if model_name == "gpt3" else 2
+    multiplier = 1 if model_name in ["gpt3", "bert"] else 2
     init_pp = [] if model_name == "gpt3" else [1]
     valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
@@ -524,6 +648,15 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
             )
         elif gpu_memory_gb == 40:
             tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_t5_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
+    elif model_name == "bert":
+        if gpu_memory_gb == 80:
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_bert_80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
+        elif gpu_memory_gb == 40:
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_bert_40gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
     else:
@@ -562,7 +695,7 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
     train_cfg = search_cfg.get("train_settings")
     limit = train_cfg.get("limit_search_runs")
     results_dir = os.path.join(train_cfg.get("logs"), "training_logs")
-
+    
     job_ids = []
     for cfg_list in results_cfgs:
         for file_name in cfg_list:

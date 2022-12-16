@@ -86,6 +86,10 @@ class TestEstimateTrainingTime:
             (11.9, 20 * 8, 140, 1000, "mt5", 56.6),
             (24.65, 40 * 8, 140, 1000, "mt5", 58.6),
             (42.54, 40 * 8, 140, 1000, "mt5", 101.1),
+            # BERT tests
+            (0.11, 8 * 8, 140, 300, "bert", 0.34),
+            (4, 16 * 8, 140, 300, "bert", 6.2),
+            (20, 64 * 8, 140, 300, "bert", 7.75),
         ],
     )
     def test_estimate_training_time(
@@ -147,6 +151,12 @@ class TestCalculateGbsTpPp:
             (13.0, "mt5", (1920, 8, 1)),
             (20.0, "mt5", (1920, 8, 2)),
             (40.0, "mt5", (1920, 8, 4)),
+            # BERT tests
+            (0.11, "bert", (256, 1, 1)),
+            (3.0, "bert", (1024, 1, 1)),
+            (6.0, "bert", (2048, 2, 1)),
+            (13.0, "bert", (2048, 4, 1)),
+            (20.0, "bert", (2048, 8, 1)),
         ],
     )
     def test_calculate_gbs_tp_pp(self, model_size, model_name, expected):
@@ -182,6 +192,10 @@ class TestGenerateBaseconfig:
             (11.9, 20, 8, 80, 50, 1000, 250000, "mt5", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "mt5_11.9b", "time_limit": "50-00:00:00", "max_steps": 1017250, "max_time": "49:23:30:00", "num_layers": 24, "gbs": 1920, "hs": 4096, "att_heads": 64, "ffn": 10240, "kv": 64, "init_std": 0.015, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": None, "constant_steps": None, "warmup_ratio": 0.01}),
             (24.65, 40, 8, 80, 55, 1000, 250000, "mt5", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "mt5_24.65b", "time_limit": "55-00:00:00", "max_steps": 1017250, "max_time": "54:23:30:00", "num_layers": 36, "gbs": 1920, "hs": 5120, "att_heads": 80, "ffn": 10880, "kv": 64, "init_std": 0.015, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": None, "constant_steps": None, "warmup_ratio": 0.01}),
             (42.54, 40, 8, 80, 90.25, 1000, 250000, "mt5", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "mt5_42.54b", "time_limit": "90-06:00:00", "max_steps": 1017250, "max_time": "90:05:30:00", "num_layers": 48, "gbs": 1920, "hs": 6144, "att_heads": 96, "ffn": 10880, "kv": 64, "init_std": 0.015, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": None, "constant_steps": None, "warmup_ratio": 0.01}),
+            # BERT tests
+            (0.11, 8, 8, 80, 2, 300, 30522, "bert", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "bert_0.11b", "time_limit": "2-00:00:00", "max_steps": 2288818, "max_time": "1:23:30:00", "num_layers": 12, "gbs": 256, "hs": 768, "att_heads": 12, "ffn": 768*4, "kv": "null", "init_std": 0.023094, "lr": 2e-4, "min_lr": 2e-5, "warmup_steps": 3433, "constant_steps": 379943, "warmup_ratio": None}),
+            (4.0, 16, 8, 80, 7, 300, 30522, "bert", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "bert_4.0b", "time_limit": "7-00:00:00", "max_steps": 286102, "max_time": "6:23:30:00", "num_layers": 48, "gbs": 2048, "hs": 2560, "att_heads": 32, "ffn": 2560*4, "kv": "null", "init_std": 0.012649, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": 429, "constant_steps": 47492, "warmup_ratio": None}),
+            (20.0, 64, 8, 80, 12, 300, 30522, "bert", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "bert_20.0b", "time_limit": "12-00:00:00", "max_steps": 286102, "max_time": "11:23:30:00", "num_layers": 44, "gbs": 2048, "hs": 6144, "att_heads": 48, "ffn": 6144*4, "kv": "null", "init_std": 0.008165, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": 429, "constant_steps": 47492, "warmup_ratio": None}),
         ],
     )
     def test_generate_base_config(
@@ -230,7 +244,7 @@ class TestGenerateBaseconfig:
             assert not out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be False."
 
         # Model parameters
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "bert"]:
             assert out_cfg["model"]["num_layers"] == expected["num_layers"]
             assert out_cfg["model"]["hidden_size"] == expected["hs"]
             assert out_cfg["model"]["num_attention_heads"] == expected["att_heads"]

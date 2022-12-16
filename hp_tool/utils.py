@@ -61,6 +61,18 @@ def _calculate_model_size(
                 + vocab_size
             )
         ) / 1e9
+    elif model_name == "bert":
+        model_size = (
+            num_layers * (
+                ffn_size + hidden_size * (
+                    4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6
+                )
+            )
+            + hidden_size * (
+                    vocab_size + seq_length + hidden_size + 5
+                )
+        ) / 1e9
+
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -171,7 +183,37 @@ def calculate_model_size_params(
             hs, att_h, ffn, kv = 12288, 96, 32768, 128
         else:
             raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
-
+    elif model_name == "bert":
+        lr = 1e-4
+        if model_size_in_b < 0.25:
+            hs, att_h, lr = 768, 12, 2e-4
+        elif model_size_in_b < 0.5:
+            hs, att_h, lr = 1024, 16, 2e-4
+        elif model_size_in_b < 1:
+            hs, att_h = 1536, 16
+        elif model_size_in_b < 2:
+            hs, att_h = 2048, 16
+        elif model_size_in_b < 3:
+            hs, att_h = 2560, 32
+        elif model_size_in_b < 4.5:
+            hs, att_h = 2560, 32
+        elif model_size_in_b < 8:
+            hs, att_h = 4096, 32
+        elif model_size_in_b < 15:
+            hs, att_h = 5120, 40
+        elif model_size_in_b <= 25:
+            hs, att_h = 6144, 48
+        elif model_size_in_b <= 46.5:
+            hs, att_h = 7680, 48
+        elif model_size_in_b <= 87.5:
+            hs, att_h = 9216, 96
+        elif model_size_in_b <= 165.5:
+            hs, att_h = 9216, 96
+        elif model_size_in_b <= 250.5:
+            hs, att_h = 12288, 96
+        else:
+            raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+        ffn = 4 * hs
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -302,26 +344,26 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
     """
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "bert"]:
             new_cfg["model"]["activations_checkpoint_num_layers"] = act
         else: 
             new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
             new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
         
-    if num_mbs_act is not None and model_name == "gpt3":
+    if num_mbs_act is not None and model_name in ["gpt3", "bert"]:
         new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
-    if act_per_pipe is not None and model_name == "gpt3":
+    if act_per_pipe is not None and model_name in ["gpt3", "bert"]:
         new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
 
-    if virtual_pipelines is not None and model_name == "gpt3":
+    if virtual_pipelines is not None and model_name in ["gpt3", "bert"]:
         new_cfg["model"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
 
-    if model_name == "gpt3":
+    if model_name in ["gpt3", "bert"]:
         att_heads = new_cfg["model"]["num_attention_heads"]
         num_layers = new_cfg["model"]["num_layers"]
     else:
