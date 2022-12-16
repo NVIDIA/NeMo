@@ -202,8 +202,16 @@ class GeneratorBlock(nn.Module):
 
 def mask(tensor, lengths):
     batch_size, *_, max_lengths = tensor.shape
-    mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
-    mask = mask <= rearrange(lengths, "b -> b 1 1 1")
+
+    if len(tensor.shape) == 3:
+        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1")
+    elif len(tensor.shape) == 4:
+        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1 1")
+    else:
+        raise ValueError("Can only mask tensors of shape B x C x L and B x D x C x L")
+
     return tensor * mask
 
 
