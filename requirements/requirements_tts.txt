@@ -2,10 +2,10 @@ attrdict
 einops
 inflect
 kornia
+jieba
 librosa
 matplotlib
 nltk
 pandas
-pesq
 pypinyin
-pystoi
+pypinyin-dict
