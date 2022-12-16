@@ -327,18 +327,12 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
-        # input_tokens_id = batch['tokens']
-        # input_attn_mask = batch['tokens_mask']
-        # loss_mask = batch['loss_mask']
-        # retrieved_ids = batch['retrieved_ids']
-        # retrieved_attn_mask = batch['retrieved_emb_mask']
-        # labels = batch['labels']
-        input_tokens_id = batch[0]
-        input_attn_mask = batch[1]
-        loss_mask = batch[2]
-        retrieved_ids = batch[3]
-        retrieved_attn_mask = batch[4]
-        labels = batch[5]
+        input_tokens_id = batch['tokens']
+        input_attn_mask = batch['tokens_mask']
+        loss_mask = batch['loss_mask']
+        retrieved_ids = batch['retrieved_ids']
+        retrieved_attn_mask = batch['retrieved_emb_mask']
+        labels = batch['labels']
         loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()

@@ -3,10 +3,14 @@ from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model impo
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+
 
 import re
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_sequence
+from torch import masked_select
 from functools import partial
 
 from nemo.core import adapter_mixins
@@ -112,9 +116,9 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
             self.frozen_model.freeze()
             return
 
-        self.setup_test_data()
-        if stage == 'test':
-            return
+        # self.setup_test_data()
+        # if stage == 'test':
+        #     return
 
         self.setup_training_data()
         self.setup_validation_data()
@@ -221,16 +225,20 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
 
+
+        # Will need to adjust dataset to add retrieval_ids here
+
         if for_train:
             if self.cfg.get("sequence_parallel", False):
                 collate_fn = partial(
-                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+                    self.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
                 )
             else:
-                collate_fn = partial(dataset.collate_fn, tp_workers=0)
+                collate_fn = partial(self.collate_fn, tp_workers=0)
         else:
             collate_fn = dataset.inference_collate_fn
 
+        # Use modified collate
         dataloader = torch.utils.data.DataLoader(
             dataset,
             collate_fn=collate_fn,
@@ -242,6 +250,102 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         )
 
         return dataset, dataloader
+
+    def collate_fn(self, batch, tp_workers=0):
+        """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        taskname_ids, input_ids, answer_starts = zip(*batch)
+
+        # Pad taskname_ids to be the same length for the prompt encoder
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            max_taskname_length = max(len(ids) for ids in taskname_ids)
+            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
+            taskname_ids = torch.tensor(taskname_ids)
+
+        # Task ids are just used for a look up embeddings for prompt-table
+        elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
+            taskname_ids = torch.tensor(taskname_ids)
+
+        # Get max sequence length of batch
+        batch_max = max(len(ids) for ids in input_ids)
+
+        if tp_workers > 1:
+            # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
+            resi_padding = (tp_workers - (batch_max - 1) % tp_workers) % tp_workers
+        else:
+            resi_padding = 0
+        batch_max += resi_padding
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        # Should be a label for every token in batch, label is the next token
+        labels = input_ids[:, 1:].contiguous()
+        input_ids = input_ids[:, :-1].contiguous()
+        batch_max -= 1
+
+        # Loss mask should align with labels
+        loss_mask = loss_mask[:, 1:].contiguous()
+
+        # Using causal attention mask for whole input
+        batch_size = len(input_ids)
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max, batch_max))).view(
+            batch_size, 1, batch_max, batch_max
+        )
+
+        # Convert attention mask from float to bool
+        attention_mask = attention_mask < 0.5
+        position_ids = build_position_ids(input_ids)
+
+        tokens = pad_sequence(input_ids, batch_first=True, padding_value=50256)
+        tokens_mask = masked_select(tokens, padding_value=50256)
+
+
+        # Got to return something like
+        # input_tokens_id = batch['tokens']
+        # input_attn_mask = batch['tokens_mask']
+        # loss_mask = batch['loss_mask']
+        # retrieved_ids = batch['retrieved_ids']
+        # retrieved_attn_mask = batch['retrieved_emb_mask']
+        # labels = batch['labels']
+        retrieved_ids = torch.zeros([2, 4], dtype=torch.int32)
+        retrieved_emb_mask = torch.zeros([2, 4], dtype=torch.int32)
+        return tokens, tokens_mask, loss_mask, retrieved_ids, retrieved_emb_mask, labels
+        # return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
+
+    def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
+        """ Pad input_ids in batch to max batch length while building loss mask """
+        batch_loss_masks = []
+        padded_input_ids = []
+        for ids, answer_start_idx in zip(input_ids, answer_starts):
+            if answer_start_idx is not None:
+                # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+                loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
+            else:
+                # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
+                loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
+
+            # Pad to max length
+            input_length = len(ids)
+            padding_length = batch_max - input_length
+            pad_extend = [self.pad_token_id] * padding_length
+            ids = ids + pad_extend
+            padded_input_ids.append(ids)
+
+            # Account for padding in loss mask
+            loss_mask.extend([0.0] * padding_length)
+            batch_loss_masks.append(torch.tensor(loss_mask, dtype=torch.float))
+
+        # Make into torch tensors
+        padded_input_ids = torch.tensor(padded_input_ids, dtype=torch.long)
+        batch_loss_masks = torch.stack(batch_loss_masks)
+
+        return padded_input_ids, batch_loss_masks
+
+
+    def build_virtual_prompt_dataset2(self, data):
+        for i in data:
+            print(i)
+
+        # Trim dataset
+        # create own custom dataloader
+        # add retrieval ids somewhere along the way
 
     def freeze_existing_virtual_prompt_params(self):
             """Freeze params of existing virtual prompts that should not be tuned further
