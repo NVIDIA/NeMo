@@ -179,7 +179,7 @@ model:
     log_zero_guard_value: 1e-05
     mag_power: 1.0
 
-  input_fft: #n_embed and padding_idx are added by the model
+  text_encoder: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
     # n_layer: 6
     n_layer: 2
@@ -194,10 +194,10 @@ model:
     dropemb: 0.0
     d_embed: ${model.symbols_embedding_dim}
 
-  output_fft:
+  spectrogram_encoder: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     # n_layer: 6
-    n_layer: 2
+    n_layer: 6
     n_head: 1
     d_model: ${model.symbols_embedding_dim}
     d_head: 64
@@ -206,7 +206,20 @@ model:
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1
-    dropemb: 0.0
+
+  infuser_model: #n_embed and padding_idx are added by the model
+    _target_: nemo.collections.tts.modules.transformer.BiModalTransformerEncoder
+    # n_layer: 6
+    n_layer: 2
+    n_head: 1
+    d_model: ${model.symbols_embedding_dim}
+    d_head: 64
+    # d_inner: 1536
+    d_inner: 128
+    d_mode: 24
+    kernel_size: 3
+    dropout: 0.1
+    dropatt: 0.1
 
 
   optim:

@@ -221,41 +221,30 @@ class InpainterModel(ModelPT, Exportable):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = instantiate(cfg.preprocessor)
-        input_fft_kwargs = {
+        text_encoder_kwargs = {
             "n_embed": len(self.vocab.tokens),
             "padding_idx": self.vocab.pad,
         }
 
-        text_encoder = instantiate(cfg.input_fft, **input_fft_kwargs)
+        text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
 
-        # todo separate hparams for spectrogram encoder
-        spectrogram_encoder = FFTransformerDecoder(
-            n_layer=cfg.input_fft.n_layer,
-            n_head=cfg.input_fft.n_head,
-            d_model=cfg.input_fft.d_model,
-            d_head=cfg.input_fft.d_head,
-            d_inner=cfg.input_fft.d_inner,
-            kernel_size=cfg.input_fft.kernel_size,
-            dropout=cfg.input_fft.dropout,
-            dropatt=cfg.input_fft.dropatt,
-            dropemb=cfg.input_fft.dropemb,
-        )
+        spectrogram_encoder = instantiate(cfg.spectrogram_encoder)
 
-        # todo hparams for infuser model
-        infuser_model = BiModalTransformerEncoder(
-            n_layer=cfg.input_fft.n_layer,
-            n_head=cfg.input_fft.n_head,
-            d_model=cfg.input_fft.d_model,
-            d_head=cfg.input_fft.d_head,
-            d_inner=cfg.input_fft.d_inner,
-            kernel_size=cfg.input_fft.kernel_size,
-            dropout=cfg.input_fft.dropout,
-            dropatt=cfg.input_fft.dropatt,
-            dropemb=cfg.input_fft.dropemb,
-            d_mode=cfg.input_fft.d_model // 4
-        )
+        infuser_model = instantiate(cfg.infuser_model)
+        # # todo hparams for infuser model
+        # infuser_model = BiModalTransformerEncoder(
+        #     n_layer=cfg.input_fft.n_layer,
+        #     n_head=cfg.input_fft.n_head,
+        #     d_model=cfg.input_fft.d_model,
+        #     d_head=cfg.input_fft.d_head,
+        #     d_inner=cfg.input_fft.d_inner,
+        #     kernel_size=cfg.input_fft.kernel_size,
+        #     dropout=cfg.input_fft.dropout,
+        #     dropatt=cfg.input_fft.dropatt,
+        #     dropemb=cfg.input_fft.dropemb,
+        #     d_mode=cfg.input_fft.d_model // 4
+        # )
 
-        # output_decoder = instantiate(cfg.output_fft)
         self.module = BaselineModule(
             cfg.n_mel_channels,
             text_encoder, spectrogram_encoder,
