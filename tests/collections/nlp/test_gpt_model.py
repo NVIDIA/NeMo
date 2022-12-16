@@ -242,4 +242,7 @@ class TestGPTModel:
     def test_checkpointing(self, gpt_model, tmp_path):
         gpt_model, trainer = gpt_model
         trainer.fit(gpt_model)
+        ckpt_path = tmp_path / "test_gpt.ckpt"
+        trainer.save_checkpoint(ckpt_path)
+        gpt_model_from_checkpoint = MegatronGPTModel.load_from_checkpoint(checkpoint_path=ckpt_path)
 
