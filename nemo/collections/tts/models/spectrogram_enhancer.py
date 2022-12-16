@@ -47,7 +47,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from torch import Tensor, nn
 from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard.writer import SummaryWriter
 
@@ -61,18 +60,18 @@ from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
 
 
-def type_as_recursive(e, source: Tensor):
+def type_as_recursive(e, source: torch.Tensor):
     if isinstance(e, (list, tuple)):
         return [type_as_recursive(elem, source) for elem in e]
     elif isinstance(e, dict):
         return {key: type_as_recursive(value, source) for key, value in e.items()}
-    elif isinstance(e, Tensor):
+    elif isinstance(e, torch.Tensor):
         return e.type_as(source)
     else:
         return e
 
 
-class GradientPenaltyLoss(nn.Module):
+class GradientPenaltyLoss(torch.nn.Module):
     def __init__(self, weight: float = 10.0):
         super().__init__()
         self.weight = weight
@@ -92,17 +91,17 @@ class GradientPenaltyLoss(nn.Module):
         return self.weight * ((gradients.norm(2, dim=1) - 1) ** 2).mean()
 
 
-class GeneratorLoss(nn.Module):
+class GeneratorLoss(torch.nn.Module):
     def __call__(self, fake_logits):
         return fake_logits.mean()
 
 
-class HingeLoss(nn.Module):
+class HingeLoss(torch.nn.Module):
     def __call__(self, real_logits, fake_logits):
         return (F.relu(1 + real_logits) + F.relu(1 - fake_logits)).mean()
 
 
-class ConsistencyLoss(nn.Module):
+class ConsistencyLoss(torch.nn.Module):
     def __init__(self, weight: float = 10):
         super().__init__()
         self.weight = weight
@@ -111,8 +110,8 @@ class ConsistencyLoss(nn.Module):
         *_, w, h = condition.shape
         w, h = w // 4, h
 
-        condition = torch.nn.functional.interpolate(condition, size=(w, h), mode="bilinear", antialias=True)
-        output = torch.nn.functional.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
+        condition = F.interpolate(condition, size=(w, h), mode="bilinear", antialias=True)
+        output = F.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
 
         dist = (condition - output).abs()
         dist = mask(dist, lengths)
@@ -150,12 +149,12 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
     def move_to_correct_device(self, e):
         return type_as_recursive(e, next(iter(self.G.parameters())))
 
-    def normalize_spectrograms(self, spectrogram: Tensor) -> Tensor:
+    def normalize_spectrograms(self, spectrogram: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
         spectrogram = spectrogram / (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
         return spectrogram
 
-    def unnormalize_spectrograms(self, spectrogram: Tensor) -> Tensor:
+    def unnormalize_spectrograms(self, spectrogram: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram * (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
         spectrogram = spectrogram + self._cfg.spectrogram_min_value
         return spectrogram
@@ -171,14 +170,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         return self.move_to_correct_device(zs)
 
-    def generate_noise(self, batch_size: int = 1) -> Tensor:
+    def generate_noise(self, batch_size: int = 1) -> torch.Tensor:
         noise = torch.rand(batch_size, self._cfg.n_bands, 4096, 1)
         return self.move_to_correct_device(noise)
 
     def pad_spectrogram(self, spectrogram):
         multiplier = 2 ** sum(1 for block in self.G.blocks if block.upsample)
         *_, max_length = spectrogram.shape
-        return torch.nn.functional.pad(spectrogram, (0, multiplier - max_length % multiplier))
+        return F.pad(spectrogram, (0, multiplier - max_length % multiplier))
 
     @typecheck(
         input_types={
@@ -189,7 +188,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         }
     )
     def forward(
-        self, *, condition: Tensor, lengths: Tensor, mixing: bool = False, normalize: bool = True,
+        self, *, condition: torch.Tensor, lengths: torch.Tensor, mixing: bool = False, normalize: bool = True,
     ):
         """
         Generator forward pass. Noise inputs will be generated.
@@ -209,11 +208,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     def forward_with_custom_noise(
         self,
-        condition: Tensor,
-        lengths: Tensor,
-        zs: Optional[List[Tensor]] = None,
-        ws: Optional[List[Tensor]] = None,
-        noise: Optional[Tensor] = None,
+        condition: torch.Tensor,
+        lengths: torch.Tensor,
+        zs: Optional[List[torch.Tensor]] = None,
+        ws: Optional[List[torch.Tensor]] = None,
+        noise: Optional[torch.Tensor] = None,
         mixing: bool = False,
         normalize: bool = True,
     ):
