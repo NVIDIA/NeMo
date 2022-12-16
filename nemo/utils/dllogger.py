@@ -52,8 +52,7 @@ class DLLogger(Logger):
 
         if not backends:
             logging.warning(
-                "Neither stdout nor json_file DLLogger parameters were specified."
-                "DLLogger will not log anything."
+                "Neither stdout nor json_file DLLogger parameters were specified." "DLLogger will not log anything."
             )
         dllogger.init(backends=backends)
 
