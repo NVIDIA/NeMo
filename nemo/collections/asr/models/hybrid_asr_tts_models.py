@@ -77,20 +77,26 @@ def replace_bn_with_fused_bn(module: nn.Module, full_layer_name: str) -> bool:
     return True
 
 
-def fuse_bn_in_encoder(model: nn.Module):
-    try:
-        pass
-    except AttributeError:
-        raise ValueError(f"No encoder found in asr model {model}")
+def fuse_bn_all(model: nn.Module):
     replaced_in_model = False
     for name, module in model.named_modules():
         if "batch_norm" in name.split("."):
             replaced = replace_bn_with_fused_bn(model, name)
             replaced_in_model = replaced_in_model or replaced
     if replaced_in_model:
-        logging.info("Successfully replace BatchNorm with FusedBatchNorm")
+        logging.info("Successfully replaced BatchNorm with FusedBatchNorm")
     else:
         logging.warning(f"No BatchNorm to replace with FusedBatchNorm in model {model}")
+
+
+def fuse_bn_in_conformer(asr_model: ASRModel):
+    logging.info("Trying to replace BatchNorm with Fused BatchNorm")
+    if not hasattr(asr_model, "encoder"):
+        raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
+    if not isinstance(asr_model.encoder, ConformerEncoder):
+        raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
+    fuse_bn_all(asr_model.encoder)
+    asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
 
 
 class ASRWithTTSModel(ASRModel):
@@ -170,13 +176,7 @@ class ASRWithTTSModel(ASRModel):
 
         # replace BatchNorm with FusedBatchNorm
         if cfg.get("asr_model_fuse_bn"):
-            logging.info("Trying to replace BatchNorm with Fused BatchNorm")
-            if not hasattr(asr_model, "encoder"):
-                raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
-            if not isinstance(asr_model.encoder, ConformerEncoder):
-                raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
-            fuse_bn_in_encoder(asr_model.encoder)
-            asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
+            fuse_bn_in_conformer(asr_model)
 
         self.asr_model = asr_model
         self.tts_model = tts_model
