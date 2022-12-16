@@ -42,6 +42,7 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.dllogger import DLLogger
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -66,52 +67,6 @@ class LoggerMisconfigurationError(NeMoBaseException):
 
 class CheckpointMisconfigurationError(NeMoBaseException):
     """ Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
-
-
-try:
-    import dllogger
-    from dllogger import Verbosity
-
-    class DLLogger(Logger):
-        @property
-        def name(self):
-            return self.__class__.__name__
-
-        @property
-        def version(self):
-            return None
-
-        def __init__(self, stdout: bool, verbose: bool, json_file: str):
-            verbosity = Verbosity.VERBOSE if verbose else Verbosity.DEFAULT
-            backends = []
-            if json_file:
-                Path(json_file).parent.mkdir(parents=True, exist_ok=True)
-                backends.append(dllogger.JSONStreamBackend(verbosity, json_file))
-            if stdout:
-                backends.append(dllogger.StdOutBackend(verbosity))
-
-            if not backends:
-                logging.warning(
-                    "Neither stdout nor json_file DLLogger parameters were specified."
-                    "DLLogger will not log anything."
-                )
-            dllogger.init(backends=backends)
-
-        def log_hyperparams(self, params, *args, **kwargs):
-            dllogger.log(step="PARAMETER", data=params)
-
-        def log_metrics(self, metrics, step=None):
-            if step is None:
-                step = tuple()
-
-            dllogger.log(step=step, data=metrics)
-
-        def save(self):
-            dllogger.flush()
-
-
-except ModuleNotFoundError:
-    DLLogger = None
 
 
 @dataclass
@@ -810,16 +765,10 @@ def configure_loggers(
         logging.info("MLFlowLogger has been set up")
 
     if create_dllogger_logger:
-        if DLLogger is not None:
-            dllogger_logger = DLLogger(**dllogger_kwargs)
+        dllogger_logger = DLLogger(**dllogger_kwargs)
 
-            logger_list.append(dllogger_logger)
-            logging.info("DLLogger has been set up")
-        else:
-            logging.error(
-                "Couldn't set up DLLogger. Is is installed? "
-                "pip install git+https://github.com/NVIDIA/dllogger#egg=dllogger"
-            )
+        logger_list.append(dllogger_logger)
+        logging.info("DLLogger has been set up")
 
     trainer._logger_connector.configure_logger(logger_list)
 
