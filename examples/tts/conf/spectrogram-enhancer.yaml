@@ -27,11 +27,11 @@ model:
   gradient_penalty_loss_weight: 10.0
   gradient_penalty_loss_every_n_steps: 4
 
+  # Spectrogram values range, calculated over your dataset with matching STFT parameters.
   # Needed for treating spectrograms as images with pixel values around [0, 1].
-  # Given values are for LibriTTS, might still work for your data.
-  # In case of training not converging, calculate min and max values over your TTSDataset and update the config.
-  spectrogram_min_value: -13.18
-  spectrogram_max_value: 4.78
+  # For LibriTTS, you can try [-13.18, 4.78]
+  spectrogram_min_value: ???
+  spectrogram_max_value: ???
 
   # train_ds config is taken from the fastpitch config
   #   and is merged with this one.
