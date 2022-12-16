@@ -19,7 +19,6 @@ import pytest
 import torch
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
-
 from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
     get_scale_interpolated_embs,
@@ -44,15 +43,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_target_sig,
     merge_float_intervals,
     merge_int_intervals,
-)
-from nemo.collections.asr.parts.utils.online_clustering import (
-    OnlineSpeakerClustering,
-    get_closest_embeddings,
-    get_merge_quantity,
-    get_minimal_indices,
-    merge_vectors,
-    run_reducer,
-    stitch_cluster_labels,
 )
 
 MAX_SEED_COUNT = 2
