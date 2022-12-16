@@ -128,14 +128,9 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
 
-            additional_special_tokens_ids = []
-            # (@adithyare)patch because some tokenizers don't have this attribute
-            if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
-                additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
-
-            pred = [id for id in pred if id not in additional_special_tokens_ids]
-            label = [id for id in label if id not in additional_special_tokens_ids]
-            enc_input = [id for id in enc_input if id not in additional_special_tokens_ids]
+            pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
 
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)
