@@ -24,15 +24,34 @@ from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
 
 @pytest.fixture
 def enhancer_config():
+    n_bands = 80
+    latent_dim = 192
+    style_depth = 4
+    network_capacity = 16
+    fmap_max = 192
+
     config = {
         "model": {
-            "lr": 2e-4,
-            "n_bands": 80,
-            "latent_dim": 192,
-            "style_depth": 4,
-            "network_capacity": 16,
+            "n_bands": n_bands,
+            "latent_dim": latent_dim,
+            "style_depth": style_depth,
+            "network_capacity": network_capacity,
             "mixed_prob": 0.9,
-            "fmap_max": 192,
+            "fmap_max": fmap_max,
+            "generator": {
+                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Generator",
+                "n_bands": n_bands,
+                "latent_dim": latent_dim,
+                "network_capacity": network_capacity,
+                "style_depth": style_depth,
+                "fmap_max": fmap_max,
+            }, 
+            "discriminator": {
+                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Discriminator",
+                "n_bands": n_bands,
+                "network_capacity": network_capacity,
+                "fmap_max": fmap_max,
+            },
             "spectrogram_min_value": -13.18,
             "spectrogram_max_value": 4.78,
             "consistency_loss_weight": 10.0,
@@ -50,15 +69,35 @@ def enhancer_config():
 @pytest.fixture
 def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
     test_data_dir = Path(test_data_dir)
+    
+    n_bands = 80
+    latent_dim = 192
+    style_depth = 4
+    network_capacity = 16
+    fmap_max = 192
+
     config = {
         "model": {
-            "lr": 2e-4,
-            "n_bands": 80,
-            "latent_dim": 192,
-            "style_depth": 4,
-            "network_capacity": 16,
+            "n_bands": n_bands,
+            "latent_dim": latent_dim,
+            "style_depth": style_depth,
+            "network_capacity": network_capacity,
             "mixed_prob": 0.9,
-            "fmap_max": 192,
+            "fmap_max": fmap_max,
+            "generator": {
+                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Generator",
+                "n_bands": n_bands,
+                "latent_dim": latent_dim,
+                "network_capacity": network_capacity,
+                "style_depth": style_depth,
+                "fmap_max": fmap_max,
+            }, 
+            "discriminator": {
+                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Discriminator",
+                "n_bands": n_bands,
+                "network_capacity": network_capacity,
+                "fmap_max": fmap_max,
+            },
             "spectrogram_min_value": -13.18,
             "spectrogram_max_value": 4.78,
             "consistency_loss_weight": 10.0,
