@@ -362,6 +362,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self.log("c_loss", c_loss, prog_bar=True)
 
             with torch.no_grad():
+                target = rearrange(target, "b c l -> b 1 c l")
                 self.log_illustration(target, condition, enhanced_spectrograms, lengths)
             return g_loss + c_loss
 
