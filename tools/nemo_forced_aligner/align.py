@@ -59,6 +59,9 @@ Arguments:
         “abc |def”
         “abc| def”
         “abc | def”
+    remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from output CTMs. 
+        Note: "<blank>" tokens can only be present if your CTMs are token-level. Therefore, NFA will throw an error 
+        if you set `remove_blank_tokens_from_ctm` to `True` if the `ctm_grouping_separator` is not `""` or `None`. 
     n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
         we will use (starting from the final part of the audio_filepath) to determine the 
         utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
@@ -87,6 +90,7 @@ class AlignmentConfig:
 
     # General configs
     ctm_grouping_separator: Optional[str] = " "
+    remove_blank_tokens_from_ctm: bool = False
     n_parts_for_ctm_id: int = 1
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
@@ -116,6 +120,12 @@ def main(cfg: AlignmentConfig):
 
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder must be specified")
+
+    if (cfg.ctm_grouping_separator != "" or cfg.ctm_grouping_separator is None) and cfg.remove_blank_tokens_from_ctm:
+        raise ValueError(
+            "cfg.remove_blank_tokens_from_ctm can only be set to True if producing token-level CTMs, "
+            " (i.e. if cfg.ctm_grouping_separator is empty string or None"
+        )
 
     # Log info about selected params
     if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
@@ -178,6 +188,7 @@ def main(cfg: AlignmentConfig):
                 cfg.output_ctm_folder,
                 cfg.n_parts_for_ctm_id,
                 audio_sr,
+                cfg.remove_blank_tokens_from_ctm,
             )
 
         else:

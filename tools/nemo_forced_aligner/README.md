@@ -32,6 +32,8 @@ Call the `align.py` script, specifying the parameters as follows:
 * **[OPTIONAL]** `ctm_grouping_separator`: the string used to separate CTM segments. If the separator is `“”` (empty string) or `None`, the CTM segments will be the tokens used by the ASR model. If the separator is anything else, e.g. `“ “`, `“|”` or `“<new section>”`, the segments will be the blocks of text separated by that separator. (Default: `“ “`, so for languages such as English, the CTM segments will be words.)
 > Note: if you pass in a hydra override `ctm_grouping_separator=" "`, hydra will remove the whitespace, thus converting that `" "` to `""`. If you want to pass in a space, make sure to use `ctm_grouping_separator="\ "`, or just do not pass in this override, as the default value is `" "` anyway.
 
+* **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from output CTMs. (Default: False). Note: "<blank>" tokens can only be present if your CTMs are token-level. Therefore, NFA will throw an error if you set `remove_blank_tokens_from_ctm` to `True` if the `ctm_grouping_separator` is not `""` or `None`.
+
 * **[OPTIONAL]** `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath). Note also that any spaces that are present in the audio_filepath will be replaced with dashes, so as not to change the number of space-separated elements in the CTM files.
 
 * **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').

@@ -26,7 +26,14 @@ def _get_utt_id(audio_filepath, n_parts_for_ctm_id):
 
 
 def make_token_ctm(
-    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr,
+    data,
+    alignments,
+    model,
+    model_downsample_factor,
+    output_ctm_folder,
+    n_parts_for_ctm_id,
+    audio_sr,
+    remove_blank_tokens_from_ctm,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -92,7 +99,8 @@ def make_token_ctm(
                 start_time = start_sample / audio_sr
                 end_time = end_sample / audio_sr
 
-                f_ctm.write(f"{utt_id} 1 {start_time:.5f} {end_time - start_time:.5f} {token}\n")
+                if not (remove_blank_tokens_from_ctm and token == "<blank>"):
+                    f_ctm.write(f"{utt_id} 1 {start_time:.5f} {end_time - start_time:.5f} {token}\n")
 
         return None
 
