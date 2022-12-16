@@ -96,15 +96,15 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
     def move_to_correct_device(self, e):
         return to_device_recursive(e, next(iter(self.G.parameters())).device)
 
-    def normalize_spectrograms(self, spectrogram: torch.Tensor) -> torch.Tensor:
+    def normalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
         spectrogram = spectrogram / (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
-        return spectrogram
+        return mask(spectrogram, lengths)
 
-    def unnormalize_spectrograms(self, spectrogram: torch.Tensor) -> torch.Tensor:
+    def unnormalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram * (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
         spectrogram = spectrogram + self._cfg.spectrogram_min_value
-        return spectrogram
+        return mask(spectrogram, lengths)
 
     def generate_zs(self, batch_size: int = 1, mixing: bool = False):
         if mixing and self._cfg.mixed_prob < random():
@@ -197,17 +197,15 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         condition = rearrange(condition, "b c l -> b 1 c l")
         # normalize if needed, mask and pad appropriately
         if normalize:
-            condition = self.normalize_spectrograms(condition)
+            condition = self.normalize_spectrograms(condition, lengths)
         condition = self.pad_spectrogram(condition)
-        condition = mask(condition, lengths)
 
         # the main call
         enhanced_spectrograms = self.G(condition, lengths, ws, noise)
 
         # denormalize if needed, mask and remove padding
         if normalize:
-            enhanced_spectrograms = self.unnormalize_spectrograms(enhanced_spectrograms)
-        enhanced_spectrograms = mask(enhanced_spectrograms, lengths)
+            enhanced_spectrograms = self.unnormalize_spectrograms(enhanced_spectrograms, lengths)
         enhanced_spectrograms = enhanced_spectrograms[:, :, :, :max_length]
         enhanced_spectrograms = rearrange(enhanced_spectrograms, "b 1 c l -> b c l")
 
@@ -245,8 +243,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         target, condition, lengths = self.prepare_batch(batch)
 
         with torch.no_grad():
-            target = self.normalize_spectrograms(target)
-            condition = self.normalize_spectrograms(condition)
+            target = self.normalize_spectrograms(target, lengths)
+            condition = self.normalize_spectrograms(condition, lengths)
 
         # train discriminator
         if optimizer_idx == 0:
