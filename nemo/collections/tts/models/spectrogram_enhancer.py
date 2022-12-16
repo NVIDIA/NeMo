@@ -131,17 +131,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         self.init_spectrogram_model()
 
-        self.G = Generator(
-            n_bands=cfg.n_bands,
-            latent_dim=cfg.latent_dim,
-            network_capacity=cfg.network_capacity,
-            style_depth=cfg.style_depth,
-            channels=1,
-            fmap_max=cfg.fmap_max,
-        )
-        self.D = Discriminator(
-            n_bands=cfg.n_bands, network_capacity=cfg.network_capacity, channels=1, fmap_max=cfg.fmap_max,
-        )
+        self.G = instantiate(cfg.generator)
+        self.D = instantiate(cfg.discriminator)
 
         self.generator_loss = GeneratorLoss()
         self.discriminator_loss = HingeLoss()
