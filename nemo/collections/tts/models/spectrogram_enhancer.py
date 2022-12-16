@@ -47,10 +47,15 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
+from nemo.collections.tts.losses.spectrogram_enhancer_losses import (
+    ConsistencyLoss,
+    GeneratorLoss,
+    GradientPenaltyLoss,
+    HingeLoss,
+)
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import mask
@@ -58,53 +63,6 @@ from nemo.core import Exportable, ModelPT, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
-
-
-class GradientPenaltyLoss(torch.nn.Module):
-    def __init__(self, weight: float = 10.0):
-        super().__init__()
-        self.weight = weight
-
-    def __call__(self, images, output):
-        batch_size, *_ = images.shape
-        gradients = torch_grad(
-            outputs=output,
-            inputs=images,
-            grad_outputs=torch.ones(output.size(), device=images.device),
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True,
-        )[0]
-
-        gradients = gradients.reshape(batch_size, -1)
-        return self.weight * ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-
-
-class GeneratorLoss(torch.nn.Module):
-    def __call__(self, fake_logits):
-        return fake_logits.mean()
-
-
-class HingeLoss(torch.nn.Module):
-    def __call__(self, real_logits, fake_logits):
-        return (F.relu(1 + real_logits) + F.relu(1 - fake_logits)).mean()
-
-
-class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, weight: float = 10):
-        super().__init__()
-        self.weight = weight
-
-    def __call__(self, condition, output, lengths):
-        *_, w, h = condition.shape
-        w, h = w // 4, h
-
-        condition = F.interpolate(condition, size=(w, h), mode="bilinear", antialias=True)
-        output = F.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
-
-        dist = (condition - output).abs()
-        dist = mask(dist, lengths)
-        return (dist / rearrange(lengths, "b -> b 1 1 1")).sum(dim=-1).mean() * self.weight
 
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
