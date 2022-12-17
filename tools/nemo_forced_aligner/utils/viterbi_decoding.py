@@ -21,16 +21,8 @@ def viterbi_decoding(log_probs, y, T, U, device):
     """
     Does Viterbi decoding.
     Returns:
-        alignments: list of lists containing locations for the tokens we align to at each timestep
-            looks like: [[0, 0, 1, 2, 2, 3, 3, ... ], [0, 1, 2, 2, 2, 3, 4, ....], ...]
-        v_matrix: 
-            tensor of shape (Batch, Time, Length_of_U_including_interspersed_blanks) 
-            containing viterbi probabilities
-            This is returned in case you want to examine it in a parent function
-        log_probs_reordered: 
-            log_probs reordered to match the order of ground truth tokens
-            tensor of shape (Batch, Time, Length_of_U_including_interspersed_blanks) 
-            This is returned in case you want to examine it in a parent function
+        alignments: list of lists containing locations for the tokens we align to at each timestep.
+            Looks like: [[0, 0, 1, 2, 2, 3, 3, ... ], [0, 1, 2, 2, 2, 3, 4, ....], ...]
     """
     B, T_max, _ = log_probs.shape
     U_max = y.shape[1]
