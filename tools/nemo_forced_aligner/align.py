@@ -75,7 +75,10 @@ Arguments:
     viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
         The string needs to be in a format recognized by torch.device().
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
-
+    minimum_timestamp_duration: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any 
+        line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the 
+        middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio 
+        file. Note that this may cause timestamps to overlap.
 """
 
 
@@ -95,6 +98,7 @@ class AlignmentConfig:
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
     batch_size: int = 1
+    minimum_timestamp_duration: float = 0
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -126,6 +130,9 @@ def main(cfg: AlignmentConfig):
             "cfg.remove_blank_tokens_from_ctm can only be set to True if producing token-level CTMs, "
             " (i.e. if cfg.ctm_grouping_separator is empty string or None"
         )
+
+    if cfg.minimum_timestamp_duration < 0:
+        raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
 
     # Log info about selected params
     if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
@@ -189,6 +196,7 @@ def main(cfg: AlignmentConfig):
                 cfg.n_parts_for_ctm_id,
                 audio_sr,
                 cfg.remove_blank_tokens_from_ctm,
+                cfg.minimum_timestamp_duration,
             )
 
         else:
@@ -201,6 +209,7 @@ def main(cfg: AlignmentConfig):
                 cfg.n_parts_for_ctm_id,
                 audio_sr,
                 cfg.ctm_grouping_separator,
+                cfg.minimum_timestamp_duration,
             )
 
     return None

@@ -42,6 +42,7 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
+* **[OPTIONAL]** `minimum_timestamp_duration`: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio file. Note that this may cause timestamps to overlap. (Default: 0, i.e. no modifications to predicted duration).
 
 # Input manifest file format
 NFA needs to be provided with a 'manifest' file where each line specifies the absolute "audio_filepath" and "text" of each utterance that you wish to produce alignments for, like the format below:
@@ -62,3 +63,5 @@ Note the second item in the line (the 'channel ID', which is required by the CTM
 Ideally you would have some 'true' CTM files to compare with your generated CTM files. 
 
 Alternatively (or additionally), you can visualize the quality of alignments using tools such as Gecko, which can play your audio file and display the predicted alignments at the same time. The Gecko tool requires you to upload an audio file and at least one CTM file. The Gecko tool can be accessed here: https://gong-io.github.io/gecko/. More information about the Gecko tool can be found on its Github page here: https://github.com/gong-io/gecko. 
+
+Note that Gecko may not display some tokens/words/segments properly if their timestamps are too short. To ameliorate this, you may try setting `minimum_timestamp_duration` to some suitable number.

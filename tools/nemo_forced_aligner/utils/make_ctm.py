@@ -15,6 +15,8 @@
 import os
 from pathlib import Path
 
+import soundfile as sf
+
 from .data_prep import get_processed_text_and_segments, tokenize_text
 
 
@@ -34,6 +36,7 @@ def make_token_ctm(
     n_parts_for_ctm_id,
     audio_sr,
     remove_blank_tokens_from_ctm,
+    minimum_timestamp_duration,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -90,6 +93,11 @@ def make_token_ctm(
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm
         utt_id = _get_utt_id(manifest_line['audio_filepath'], n_parts_for_ctm_id)
 
+        # get audio file duration if we will need it later
+        if minimum_timestamp_duration > 0:
+            with sf.SoundFile(manifest_line["audio_filepath"]) as f:
+                audio_file_duration = f.frames / f.samplerate
+
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for token_info in tokens_info:
                 token = token_info["token"]
@@ -99,6 +107,11 @@ def make_token_ctm(
                 start_time = start_sample / audio_sr
                 end_time = end_sample / audio_sr
 
+                if minimum_timestamp_duration > 0 and minimum_timestamp_duration > end_time - start_time:
+                    token_mid_point = (start_time + end_time) / 2
+                    start_time = max(token_mid_point - minimum_timestamp_duration / 2, 0)
+                    end_time = min(token_mid_point + minimum_timestamp_duration / 2, audio_file_duration)
+
                 if not (remove_blank_tokens_from_ctm and token == "<blank>"):
                     f_ctm.write(f"{utt_id} 1 {start_time:.5f} {end_time - start_time:.5f} {token}\n")
 
@@ -106,7 +119,15 @@ def make_token_ctm(
 
 
 def make_segment_ctm(
-    data, alignments, model, model_downsample_factor, output_ctm_folder, n_parts_for_ctm_id, audio_sr, separator
+    data,
+    alignments,
+    model,
+    model_downsample_factor,
+    output_ctm_folder,
+    n_parts_for_ctm_id,
+    audio_sr,
+    separator,
+    minimum_timestamp_duration,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -204,6 +225,11 @@ def make_segment_ctm(
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm
         utt_id = _get_utt_id(manifest_line['audio_filepath'], n_parts_for_ctm_id)
 
+        # get audio file duration if we will need it later
+        if minimum_timestamp_duration > 0:
+            with sf.SoundFile(manifest_line["audio_filepath"]) as f:
+                audio_file_duration = f.frames / f.samplerate
+
         with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
             for segment_info in segments_info:
                 if not segment_info["segment"] == "<initial_silence>":
@@ -213,6 +239,11 @@ def make_segment_ctm(
 
                     start_time = start_sample / audio_sr
                     end_time = end_sample / audio_sr
+
+                    if minimum_timestamp_duration > 0 and minimum_timestamp_duration > end_time - start_time:
+                        token_mid_point = (start_time + end_time) / 2
+                        start_time = max(token_mid_point - minimum_timestamp_duration / 2, 0)
+                        end_time = min(token_mid_point + minimum_timestamp_duration / 2, audio_file_duration)
 
                     f_ctm.write(f"{utt_id} 1 {start_time:.5f} {end_time - start_time:.5f} {segment}\n")
 
