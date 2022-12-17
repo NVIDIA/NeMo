@@ -165,7 +165,15 @@ class GPTPromptLearningDataset(Dataset):
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
-                input_ids = self._truncate_input(truncation_field, input_ids, taskname, doc)
+                input_ids = self._truncate_input(
+                    truncation_field, 
+                    input_ids, 
+                    taskname, 
+                    doc, 
+                    prompt_template, 
+                    prompt_template_fields, 
+                    virtual_token_splits
+                )
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
@@ -264,7 +272,16 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_example
 
-    def _truncate_input(self, truncation_field, input_ids, taskname, doc):
+    def _truncate_input(
+        self, 
+        truncation_field, 
+        input_ids, 
+        taskname, 
+        doc, 
+        prompt_template, 
+        prompt_template_fields, 
+        virtual_token_splits
+    ):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
             f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
@@ -282,6 +299,7 @@ class GPTPromptLearningDataset(Dataset):
             doc[truncation_field] = truncated_field_text
             
             # Re-insert the truncated text string into the text prompt
+            input_example = prompt_template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
             
