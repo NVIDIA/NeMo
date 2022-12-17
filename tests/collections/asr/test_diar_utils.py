@@ -1,4 +1,3 @@
-# pylint: disable=no-member
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +19,6 @@ import pytest
 import torch
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
-
 from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
     get_scale_interpolated_embs,
@@ -37,15 +35,15 @@ from nemo.collections.asr.parts.utils.online_clustering import (
     stitch_cluster_labels,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
-get_subsegments,
-merge_int_intervals,
-merge_float_intervals,
-get_speech_labels_for_update,
-get_online_subsegments_from_buffer,
-get_new_cursor_for_update,
-get_target_sig,
+    check_ranges,
+    get_new_cursor_for_update,
+    get_online_subsegments_from_buffer,
+    get_speech_labels_for_update,
+    get_subsegments,
+    get_target_sig,
+    merge_float_intervals,
+    merge_int_intervals,
 )
-
 
 MAX_SEED_COUNT = 2
 
@@ -99,12 +97,12 @@ def generate_toy_data(
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
     ground_truth = []
-    random_orhtogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
+    random_orthogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
             segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
-            emb_cent = random_orhtogonal_embs[spk_idx, :]
+            emb_cent = random_orthogonal_embs[spk_idx, :]
             emb = emb_cent.tile((len(segments), 1)) + 0.1 * torch.rand(len(segments), emb_dim)
             seg_list.extend(segments)
             emb_list.append(emb)
@@ -121,50 +119,31 @@ def generate_toy_data(
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
 
-class TestDiarizationUtilFunctions:
+class TestDiarizationSequneceUtilFunctions:
     """Tests diarization and speaker-task related utils.
     """
 
     @pytest.mark.unit
-    def test_merge_int_intervals_ex1(self):
-        intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
-        target = [[1, 6], [8, 10], [15, 18]]
-        merged = merge_int_intervals(intervals)
-        assert check_range_values(target, merged)
-
-    @pytest.mark.unit
-    def test_merge_int_intervals_ex2(self):
-        intervals = [[6, 8], [1, 9], [2, 4], [4, 7]]
-        target = [[1, 9]]
-        merged = merge_int_intervals(intervals)
-        assert check_range_values(target, merged)
-
-    @pytest.mark.unit
-    def test_merge_float_overlaps(self):
-        intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
-        target = [[0.25, 5.0], [5.5, 10.0]]
-        merged = merge_float_intervals(intervals)
-        assert check_range_values(target, merged)
-
-    @pytest.mark.unit
-    def test_merge_int_intervals_edge_test(self):
-        intervals = [[1, 4], [4, 5]]
-        target = [[1, 5]]
-        merged = merge_int_intervals(intervals)
-        assert check_range_values(target, merged)
-
-    @pytest.mark.unit
-    def test_minimal_index_p1(self):
-        Y = matrix([3, 3, 3, 4, 4, 5])
+    @pytest.mark.parametrize("Y", [[3, 3, 3, 4, 4, 5], [100, 100, 100, 104, 104, 1005]])
+    @pytest.mark.parametrize("target", [[0, 0, 0, 1, 1, 2]])
+    @pytest.mark.parametrize("offset", [1, 10])
+    def test_minimal_index_ex2(self, Y, target, offset):
+        Y = torch.tensor(Y)
+        target = torch.tensor(target)
         min_Y = get_minimal_indices(Y)
-        target = matrix([0, 0, 0, 1, 1, 2])
+        assert check_labels(target, min_Y)
+        min_Y = get_minimal_indices(Y + offset)
         assert check_labels(target, min_Y)
 
-    @pytest.mark.unit
-    def test_minimal_index_p2(self):
-        Y = matrix([4, 0, 0, 5, 4, 5])
+    @pytest.mark.parametrize("Y", [[4, 0, 0, 5, 4, 5], [14, 12, 12, 19, 14, 19]])
+    @pytest.mark.parametrize("target", [[1, 0, 0, 2, 1, 2]])
+    @pytest.mark.parametrize("offset", [1, 10])
+    def test_minimal_index_ex2(self, Y, target, offset):
+        Y = torch.tensor(Y)
+        target = torch.tensor(target)
         min_Y = get_minimal_indices(Y)
-        target = matrix([1, 0, 0, 2, 1, 2])
+        assert check_labels(target, min_Y)
+        min_Y = get_minimal_indices(Y + offset)
         assert check_labels(target, min_Y)
 
     @pytest.mark.unit
@@ -252,7 +231,7 @@ class TestDiarizationUtilFunctions:
         cmat = affinity_mat[:, ndx][ndx, :]
         # Check the dimension of the selected affinity values
         assert cmat.shape[0] == cmat.shape[1] == torch.sum(pre_clus_labels == target_speaker_index).item()
-        index_2d, rest_inds = get_closest_embeddings(cmat, ndx, merge_quantity)
+        index_2d, rest_inds = get_closest_embeddings(cmat, merge_quantity)
         # Check the most closest affinity value
         assert torch.max(cmat.sum(0)) == cmat.sum(0)[index_2d[0]]
         spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
@@ -294,73 +273,6 @@ class TestDiarizationUtilFunctions:
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
 
     @pytest.mark.unit
-    def test_get_speech_labels_for_update(self):
-        frame_start = 3.0
-        buffer_end = 6.0
-        cumulative_speech_labels = torch.tensor([[0.0000, 3.7600]])
-        vad_timestamps = torch.tensor([[0.9600, 4.8400]])
-        cursor_for_old_segments = 1.0
-        speech_labels_for_update, cumulative_speech_labels = get_speech_labels_for_update(
-            frame_start, buffer_end, cumulative_speech_labels, vad_timestamps, cursor_for_old_segments,
-        )
-        assert (speech_labels_for_update - torch.tensor([[1.0000, 3.7600]])).sum() < 1e-8
-        assert (cumulative_speech_labels - torch.tensor([[0.9600, 4.8400]])).sum() < 1e-8
-
-    @pytest.mark.unit
-    def test_get_online_subsegments_from_buffer(self):
-        torch.manual_seed(0)
-        sample_rate = 16000
-        speech_labels_for_update = torch.Tensor([[0.0000, 3.7600]])
-        audio_buffer = torch.randn(5 * sample_rate)
-        segment_indexes = []
-        window = 2.0
-        shift = 1.0
-        slice_length = int(window * sample_rate)
-        range_target = [[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]
-        sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
-            buffer_start=0.0,
-            buffer_end=5.0,
-            sample_rate=sample_rate,
-            speech_labels_for_update=speech_labels_for_update,
-            audio_buffer=audio_buffer,
-            segment_indexes=segment_indexes,
-            window=window,
-            shift=shift,
-        )
-        assert check_range_values(target=range_target, source=sig_rangel_list)
-        for k, rg in enumerate(sig_rangel_list):
-            signal = get_target_sig(audio_buffer, rg[0], rg[1], slice_length, sample_rate)
-            if len(signal) < int(window * sample_rate):
-                signal = repeat_signal(signal, len(signal), slice_length)
-            assert len(signal) == int(slice_length), "Length mismatch"
-            assert (np.abs(signal - sigs_list[k])).sum() < 1e-8, "Audio stream mismatch"
-        assert (torch.tensor(sig_indexes) - torch.arange(len(range_target))).sum() < 1e-8, "Segment index mismatch"
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize("frame_start", [3.0])
-    @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0]]])
-    @pytest.mark.parametrize("gt_cursor_for_old_segments", [1.0])
-    @pytest.mark.parametrize("gt_cursor_index", [1])
-    def test_get_new_cursor_for_update_mulsegs(
-        self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
-    ):
-        cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
-        assert cursor_for_old_segments == gt_cursor_for_old_segments
-        assert cursor_index == gt_cursor_index
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize("frame_start", [4.0])
-    @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]])
-    @pytest.mark.parametrize("gt_cursor_for_old_segments", [4.0])
-    @pytest.mark.parametrize("gt_cursor_index", [3])
-    def test_get_new_cursor_for_update_mulsegs(
-        self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
-    ):
-        cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
-        assert cursor_for_old_segments == gt_cursor_for_old_segments
-        assert cursor_index == gt_cursor_index
-
-    @pytest.mark.unit
     @pytest.mark.parametrize("ntbr", [3])
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 70 + [1] * 32)])
     @pytest.mark.parametrize("mspb", [25])
@@ -399,6 +311,142 @@ class TestDiarizationUtilFunctions:
     def test_merge_scheduler_3clus_repeat(self, ntbr, pcl, mspb):
         class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
         assert all(class_target_vol == torch.tensor([2, 0, 0, 0]))
+
+
+class TestDiarizationSegmentationUtils:
+    """
+    Test segmentation util functions
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "intervals",
+        [
+            [[1, 4], [2, 6], [8, 10], [15, 18]],
+            [[1, 5], [2, 6], [8, 10], [15, 18]],
+            [[2, 6], [1, 3], [15, 18], [8, 10]],
+            [[8, 10], [15, 18], [2, 6], [1, 3]],
+            [[8, 10], [15, 18], [2, 6], [1, 3], [3, 5]],
+            [[8, 10], [8, 8], [15, 18], [2, 6], [1, 6], [2, 4]],
+        ],
+    )
+    @pytest.mark.parametrize("target", [[[1, 6], [8, 10], [15, 18]]])
+    def test_merge_int_intervals_ex1(self, intervals, target):
+        merged = merge_int_intervals(intervals)
+        assert check_range_values(target, merged)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "intervals",
+        [
+            [[6, 8], [0, 9], [2, 4], [4, 7]],
+            [[0, 9], [6, 8], [4, 7], [2, 4]],
+            [[0, 4], [0, 0], [4, 9], [2, 4]],
+            [[6, 8], [2, 8], [0, 3], [3, 4], [4, 5], [5, 9]],
+        ],
+    )
+    @pytest.mark.parametrize("target", [[[0, 9]]])
+    def test_merge_int_intervals_ex2(self, intervals, target):
+        merged = merge_int_intervals(intervals)
+        assert check_range_values(target, merged)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("intervals", [[[0, 1], [1, 9]], [[0, 0], [0, 9]], [[0, 9], [0, 9]]])
+    @pytest.mark.parametrize("target", [[[0, 9]]])
+    def test_merge_int_intervals_edge_test(self, intervals, target):
+        merged = merge_int_intervals(intervals)
+        assert check_range_values(target, merged)
+
+    @pytest.mark.unit
+    def test_merge_float_intervals_edge_margin_test(self):
+        intervals = [[0.0, 1.0], [1.0, 2.0]]
+
+        target_0 = [[0.0, 2.0]]
+        merged_0 = merge_float_intervals(intervals, margin=0)
+        assert check_range_values(target_0, merged_0)
+
+        target_1 = [[0.0, 1.0], [1.0, 2.0]]
+        merged_1 = merge_float_intervals(intervals, margin=1)
+        assert check_range_values(target_1, merged_1)
+
+        target_2 = [[0.0, 1.0], [1.0, 2.0]]
+        merged_2 = merge_float_intervals(intervals, margin=2)
+        assert check_range_values(target_2, merged_2)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "intervals",
+        [
+            [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]],
+            [[0.25, 5.0], [5.5, 10.0], [1.5, 3.5]],
+            [[5.5, 8.05], [8.0, 10.0], [0.25, 5.0]],
+            [[0.25, 3.0], [1.5, 3.0], [5.5, 10.0], [2.8, 5.0]],
+            [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]],
+        ],
+    )
+    @pytest.mark.parametrize("target", [[[0.25, 5.0], [5.5, 10.0]]])
+    def test_merge_float_overlaps(self, intervals, target):
+        merged = merge_float_intervals(intervals)
+        assert check_range_values(target, merged)
+
+    @pytest.mark.unit
+    def test_get_speech_labels_for_update(self):
+        frame_start = 3.0
+        buffer_end = 6.0
+        cumulative_speech_labels = torch.tensor([[0.0000, 3.7600]])
+        vad_timestamps = torch.tensor([[0.9600, 4.8400]])
+        cursor_for_old_segments = 1.0
+        speech_labels_for_update, cumulative_speech_labels = get_speech_labels_for_update(
+            frame_start, buffer_end, cumulative_speech_labels, vad_timestamps, cursor_for_old_segments,
+        )
+        assert (speech_labels_for_update - torch.tensor([[1.0000, 3.7600]])).sum() < 1e-8
+        assert (cumulative_speech_labels - torch.tensor([[0.9600, 4.8400]])).sum() < 1e-8
+
+        # Check if the ranges are containing faulty values
+        assert check_ranges(speech_labels_for_update)
+        assert check_ranges(cumulative_speech_labels)
+
+    @pytest.mark.unit
+    def test_get_online_subsegments_from_buffer(self):
+        torch.manual_seed(0)
+        sample_rate = 16000
+        speech_labels_for_update = torch.Tensor([[0.0000, 3.7600]])
+        audio_buffer = torch.randn(5 * sample_rate)
+        segment_indexes = []
+        window = 2.0
+        shift = 1.0
+        slice_length = int(window * sample_rate)
+        range_target = [[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]
+        sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
+            buffer_start=0.0,
+            buffer_end=5.0,
+            sample_rate=sample_rate,
+            speech_labels_for_update=speech_labels_for_update,
+            audio_buffer=audio_buffer,
+            segment_indexes=segment_indexes,
+            window=window,
+            shift=shift,
+        )
+        assert check_range_values(target=range_target, source=sig_rangel_list)
+        for k, rg in enumerate(sig_rangel_list):
+            signal = get_target_sig(audio_buffer, rg[0], rg[1], slice_length, sample_rate)
+            if len(signal) < int(window * sample_rate):
+                signal = repeat_signal(signal, len(signal), slice_length)
+            assert len(signal) == int(slice_length), "Length mismatch"
+            assert (np.abs(signal - sigs_list[k])).sum() < 1e-8, "Audio stream mismatch"
+        assert (torch.tensor(sig_indexes) - torch.arange(len(range_target))).sum() < 1e-8, "Segment index mismatch"
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("frame_start", [3.0])
+    @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0]]])
+    @pytest.mark.parametrize("gt_cursor_for_old_segments", [3.0])
+    @pytest.mark.parametrize("gt_cursor_index", [1])
+    def test_get_new_cursor_for_update_mulsegs_ex1(
+        self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
+    ):
+        cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
+        assert cursor_for_old_segments == gt_cursor_for_old_segments
+        assert cursor_index == gt_cursor_index
 
 
 class TestSpeakerClustering:
@@ -621,7 +669,6 @@ class TestSpeakerClustering:
     def test_online_speaker_clustering(self, n_spks, total_sec, buffer_size, sigma, seed):
         step_per_frame = 2
         spk_dur = total_sec / n_spks
-        # spk_dur = 2*spk_dur if n_spks == 1 else spk_dur
         em, ts, mc, _, _, gt = generate_toy_data(n_spks, spk_dur=spk_dur, perturb_sigma=sigma, torch_seed=seed)
         em_s, ts_s = split_input_data(em, ts, mc)
 
@@ -633,7 +680,6 @@ class TestSpeakerClustering:
         else:
             cuda = False
 
-        device = emb_gen.device
         history_buffer_size = buffer_size
         current_buffer_size = buffer_size
 
@@ -643,8 +689,6 @@ class TestSpeakerClustering:
             sparse_search_volume=30,
             history_buffer_size=history_buffer_size,
             current_buffer_size=current_buffer_size,
-            cuda=cuda,
-            device=device,
         )
 
         n_frames = int(emb_gen.shape[0] / step_per_frame)
@@ -670,11 +714,12 @@ class TestSpeakerClustering:
             )
 
             # Call clustering function
-            Y_concat = online_clus.forward_infer(emb=concat_emb, frame_index=frame_index, cuda=cuda, device=device)
+            Y_concat = online_clus.forward_infer(emb=concat_emb, frame_index=frame_index, cuda=cuda)
 
             # Resolve permutations
             merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
             assert len(merged_clus_labels) == (frame_index + 1) * step_per_frame
+            print(merged_clus_labels)
             # Resolve permutation issue by using stitch_cluster_labels function
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))
@@ -684,14 +729,12 @@ class TestSpeakerClustering:
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
 
-class TestClusteringUtilFunctions:
-    """Tests diarization and speaker-task related utils.
-    """
-
-    # @pytest.mark.unit
-    # def test_merge_int_intervals_ex1(self):
-        # intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
-        # target = [[1, 6], [8, 10], [15, 18]]
-        # merged = merge_int_intervals(intervals)
-        # assert check_range_values(target, merged)
-
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    @pytest.mark.parametrize("n_spks", [4])
+    @pytest.mark.parametrize("total_sec", [30])
+    @pytest.mark.parametrize("buffer_size", [30])
+    @pytest.mark.parametrize("sigma", [0.1])
+    @pytest.mark.parametrize("seed", [0])
+    def test_online_speaker_clustering_cpu(self, n_spks, total_sec, buffer_size, sigma, seed):
+        self.test_online_speaker_clustering(n_spks, total_sec, buffer_size, sigma, seed)
