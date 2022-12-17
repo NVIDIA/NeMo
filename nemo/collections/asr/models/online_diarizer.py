@@ -21,11 +21,8 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ClusteringDiarizer
+from nemo.collections.asr.parts.utils.offline_clustering import get_scale_interpolated_embs, split_input_data
 from nemo.collections.asr.parts.utils.online_clustering import OnlineSpeakerClustering
-from nemo.collections.asr.parts.utils.offline_clustering import (
-    get_scale_interpolated_embs,
-    split_input_data,
-)
 from nemo.collections.asr.parts.utils.speaker_utils import (
     OnlineSegmentor,
     audio_rttm_map,
@@ -470,9 +467,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
 
         # Perform online version of clustering with history-concatenated embedding vectors
-        Y_concat = self.online_clus.forward_infer(
-            emb=concat_emb, frame_index=self.frame_index, cuda=cuda,
-        )
+        Y_concat = self.online_clus.forward_infer(emb=concat_emb, frame_index=self.frame_index, cuda=cuda,)
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
         merged_clus_labels = self.online_clus.match_labels(Y_concat, add_new)
