@@ -297,15 +297,15 @@ class GPTPromptLearningDataset(Dataset):
             truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
             truncated_field_text = self.tokenizer.ids_to_text(truncated_text_ids)
             doc[truncation_field] = truncated_field_text
-            
+
             # Re-insert the truncated text string into the text prompt
             input_example = prompt_template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
-            
+
             # Re-tokenize the whole prompt
             input_ids = self.tokenizer.text_to_ids(input_example)
-            
+
         return input_ids
 
     def _find_answer_start(self, taskname, input_ids, answer_field, doc):
