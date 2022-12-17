@@ -92,9 +92,12 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         tokenizer=None,  # tokenizer
         normalize_attention_scores=True,
         activations_checkpoint_granularity=None,
+        megatron_lm_compatible=False,
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
-
+        if megatron_lm_compatible:
+            assert apply_query_key_layer_scaling, "megatron lm compatible model has to set apply_query_key_layer_scaling"
+            assert add_position_embedding, "megatron lm compatible model has to set add_position_embedding"
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
@@ -154,7 +157,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=post_process,
+                post_process=False if megatron_lm_compatible else post_process,  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -182,6 +185,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
+                turn_off_rop=megatron_lm_compatible,
             )
             self._encoder_key = "encoder"
 
@@ -244,6 +248,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
+                turn_off_rop=megatron_lm_compatible,
             )
 
             # it is where the chunked cross attention happens
@@ -286,6 +291,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=pre_decoder_num_layers + 1,
                 normalize_attention_scores=normalize_attention_scores,
+                turn_off_rop=megatron_lm_compatible,
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"

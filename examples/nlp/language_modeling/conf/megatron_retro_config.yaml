@@ -72,6 +72,8 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
+  megatron_lm_compatible: False # a flag to indicate whether the model is compatible with megatgron LM
+
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
