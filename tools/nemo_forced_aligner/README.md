@@ -29,18 +29,18 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
 
+* **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').
+
+* **[OPTIONAL]** `viterbi_device`: The device that will be used for doing Viterbi decoding. (Default: 'cpu').
+
+* **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
+
 * **[OPTIONAL]** `ctm_grouping_separator`: the string used to separate CTM segments. If the separator is `“”` (empty string) or `None`, the CTM segments will be the tokens used by the ASR model. If the separator is anything else, e.g. `“ “`, `“|”` or `“<new section>”`, the segments will be the blocks of text separated by that separator. (Default: `“ “`, so for languages such as English, the CTM segments will be words.)
 > Note: if you pass in a hydra override `ctm_grouping_separator=" "`, hydra will remove the whitespace, thus converting that `" "` to `""`. If you want to pass in a space, make sure to use `ctm_grouping_separator="\ "`, or just do not pass in this override, as the default value is `" "` anyway.
 
 * **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from output CTMs. (Default: False). Note: "<blank>" tokens can only be present if your CTMs are token-level. Therefore, NFA will throw an error if you set `remove_blank_tokens_from_ctm` to `True` if the `ctm_grouping_separator` is not `""` or `None`.
 
 * **[OPTIONAL]** `n_parts_for_ctm_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath). Note also that any spaces that are present in the audio_filepath will be replaced with dashes, so as not to change the number of space-separated elements in the CTM files.
-
-* **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').
-
-* **[OPTIONAL]** `viterbi_device`: The device that will be used for doing Viterbi decoding. (Default: 'cpu').
-
-* **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
 * **[OPTIONAL]** `minimum_timestamp_duration`: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio file. Note that this may cause timestamps to overlap. (Default: 0, i.e. no modifications to predicted duration).
 

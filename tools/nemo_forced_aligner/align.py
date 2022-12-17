@@ -47,6 +47,11 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_ctm_folder: the folder where output CTM files will be saved.
+    transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
+        The string needs to be in a format recognized by torch.device().
+    viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
+        The string needs to be in a format recognized by torch.device().
+    batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
     ctm_grouping_separator: the string used to separate CTM segments.
         If the separator is “” or None, each line of the output CTM will be the tokens used by the ASR model.
         If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
@@ -70,11 +75,6 @@ Arguments:
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
-    transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
-        The string needs to be in a format recognized by torch.device().
-    viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
-        The string needs to be in a format recognized by torch.device().
-    batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
     minimum_timestamp_duration: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any 
         line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the 
         middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio 
@@ -92,13 +92,13 @@ class AlignmentConfig:
     output_ctm_folder: Optional[str] = None
 
     # General configs
-    ctm_grouping_separator: Optional[str] = " "
-    remove_blank_tokens_from_ctm: bool = False
-    n_parts_for_ctm_id: int = 1
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
     batch_size: int = 1
+    ctm_grouping_separator: Optional[str] = " "
+    remove_blank_tokens_from_ctm: bool = False
     minimum_timestamp_duration: float = 0
+    n_parts_for_ctm_id: int = 1
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -193,10 +193,10 @@ def main(cfg: AlignmentConfig):
                 model,
                 cfg.model_downsample_factor,
                 cfg.output_ctm_folder,
-                cfg.n_parts_for_ctm_id,
-                audio_sr,
                 cfg.remove_blank_tokens_from_ctm,
                 cfg.minimum_timestamp_duration,
+                cfg.n_parts_for_ctm_id,
+                audio_sr,
             )
 
         else:
@@ -206,10 +206,10 @@ def main(cfg: AlignmentConfig):
                 model,
                 cfg.model_downsample_factor,
                 cfg.output_ctm_folder,
-                cfg.n_parts_for_ctm_id,
-                audio_sr,
                 cfg.ctm_grouping_separator,
+                cfg.n_parts_for_ctm_id,
                 cfg.minimum_timestamp_duration,
+                audio_sr,
             )
 
     return None

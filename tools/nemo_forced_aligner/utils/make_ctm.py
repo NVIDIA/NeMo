@@ -33,10 +33,10 @@ def make_token_ctm(
     model,
     model_downsample_factor,
     output_ctm_folder,
-    n_parts_for_ctm_id,
-    audio_sr,
     remove_blank_tokens_from_ctm,
     minimum_timestamp_duration,
+    n_parts_for_ctm_id,
+    audio_sr,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
@@ -124,10 +124,10 @@ def make_segment_ctm(
     model,
     model_downsample_factor,
     output_ctm_folder,
-    n_parts_for_ctm_id,
-    audio_sr,
     separator,
+    n_parts_for_ctm_id,
     minimum_timestamp_duration,
+    audio_sr,
 ):
     """
     Note: assume order of utts in data matches order of utts in alignments
