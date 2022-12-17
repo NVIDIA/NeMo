@@ -434,7 +434,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             if isinstance(callback, Timer):
                 # NOTE: PTL does not expose a `trainer.max_time`. By the time we are in this function, PTL has already setup a timer if the user specifies `trainer.max_time` so best we can do is replace that.
                 # Working: If only `trainer.max_time` is set - it behaves as a normal PTL timer. If only `exp_manager.max_time_per_run` is set - it behaves as a StateLessTimer. If both are set, it also behaves as a StateLessTimer.
-                logging.warning(f'Found a PTL Timer callback, replacing with a StatelessTimer callback. This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run.')
+                logging.warning(f'Found a PTL Timer callback, replacing with a StatelessTimer callback. This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run. If you want to use the PTL Timer callback, please remove exp_manager.max_time_per_run. If you want to use the StatelessTimer callback, please remove trainer.max_time.')
                 trainer.callbacks[idx] = StatelessTimer(cfg.max_time_per_run)
                 found_ptl_timer = True
                 break
