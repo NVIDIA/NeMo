@@ -915,7 +915,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_enc_dec(self.enc_dec_model)
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_enc_dec(
+            self.enc_dec_model
+        )
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '

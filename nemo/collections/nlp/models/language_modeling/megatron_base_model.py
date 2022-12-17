@@ -521,7 +521,9 @@ class MegatronBaseModel(NLPModel):
         # TODO: If/when we add interleaved model parallelism, we will need to add another if/else here.
         num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
 
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (parallel_state.is_pipeline_stage_at_split() or parallel_state.is_pipeline_last_stage()):
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.is_pipeline_stage_at_split() or parallel_state.is_pipeline_last_stage()
+        ):
             # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer), subtract those weights since it is already accounted for in the encoder first stage.
             # TODO: If we support embedding untying with PP > 1, we will need to update this.
             num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
