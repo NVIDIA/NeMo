@@ -292,9 +292,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 # Make sure that we are adding the same language ID to both tokenizers. If this assert fails it means the tokenizers were different to begin with.
                 assert encoder_tokenizer.text_to_ids(f"<{lng}>")[0] == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
                 multilingual_ids[lng] = encoder_tokenizer.text_to_ids(f"<{lng}>")[0]
-        else:
-            for lng in src_language:
-                multilingual_ids.append(None)
 
         if isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
             tgt_language = [tgt_language] * len(src_language)
