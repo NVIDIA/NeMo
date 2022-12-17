@@ -36,6 +36,8 @@ Call the `align.py` script, specifying the parameters as follows:
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
 * **[OPTIONAL]** `ctm_grouping_separator`: the string used to separate CTM segments. If the separator is `“”` (empty string) or `None`, the CTM segments will be the tokens used by the ASR model. If the separator is anything else, e.g. `“ “`, `“|”` or `“<new section>”`, the segments will be the blocks of text separated by that separator. (Default: `“ “`, so for languages such as English, the CTM segments will be words.)
+> Note: if the separator is not `“”` or `“ “`, it will be removed from the ground truth text and the CTM, ie it is treated as a marker which is not part of the ground truth. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
+
 > Note: if you pass in a hydra override `ctm_grouping_separator=" "`, hydra will remove the whitespace, thus converting that `" "` to `""`. If you want to pass in a space, make sure to use `ctm_grouping_separator="\ "`, or just do not pass in this override, as the default value is `" "` anyway.
 
 * **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from output CTMs. (Default: False). Note: "<blank>" tokens can only be present if your CTMs are token-level. Therefore, NFA will throw an error if you set `remove_blank_tokens_from_ctm` to `True` if the `ctm_grouping_separator` is not `""` or `None`.
@@ -49,7 +51,7 @@ NFA needs to be provided with a 'manifest' file where each line specifies the ab
 ```json
 {"audio_filepath": "/absolute/path/to/audio.wav", "text": "the transcription of the utterance"}
 ```
-> Note: NFA does not require "duration" fields, and can align long audio files without running out of memory. Depending on your machine specs, you can align audios up to 5-10 minutes on Conformer CTC models, up to around 1.5 hours for QuartzNet models, and up to several hours for Citrinet models. NFA will also produce better alignments the more accurate the ground-truth "text" is.
+> Note: NFA does not require `"duration"` fields in the manifest, and can align long audio files without running out of memory. Depending on your machine specs, you can align audios up to 5-10 minutes on Conformer CTC models, up to around 1.5 hours for QuartzNet models, and up to several hours for Citrinet models. NFA will also produce better alignments the more accurate the ground-truth `"text"` is.
 
 
 # Output CTM file format
