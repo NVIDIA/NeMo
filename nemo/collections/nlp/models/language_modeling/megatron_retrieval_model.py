@@ -212,6 +212,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             ),  # whether use the absolute postion encoding
             tokenizer=self.tokenizer,
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
         )
         return model
 
