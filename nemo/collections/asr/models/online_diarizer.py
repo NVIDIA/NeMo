@@ -21,8 +21,8 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.parts.utils.nmesc_clustering import (
-    OnlineSpeakerClustering,
+from nemo.collections.asr.parts.utils.online_clustering import OnlineSpeakerClustering
+from nemo.collections.asr.parts.utils.offline_clustering import (
     get_scale_interpolated_embs,
     split_input_data,
 )
@@ -131,8 +131,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             sparse_search_volume=clustering_params.sparse_search_volume,
             history_buffer_size=clustering_params.history_buffer_size,
             current_buffer_size=clustering_params.current_buffer_size,
-            cuda=self.cuda,
-            device=self.device,
         )
         self.history_n = clustering_params.history_buffer_size
         self.current_n = clustering_params.current_buffer_size
@@ -316,7 +314,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
         return maj_vote_labels
 
-    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,) -> torch.Tensor:
+    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, is_online: bool,) -> torch.Tensor:
         """
         Save the temporary input to the class memory buffer.
 
@@ -324,14 +322,14 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         - Thus, we need to remove the clustering results on the embedding memory.
         - If self.diar.history_buffer_seg_end is not None, that indicates streaming diarization system
           is starting to save embeddings to its memory. Thus, the new incoming clustering label should be separated.
-        - If `isOnline = True`, old embeddings outside the window are removed to save GPU memory.
+        - If `is_online = True`, old embeddings outside the window are removed to save GPU memory.
 
         Args:
             scale_idx (int):
                 Scale index in integer
             total_cluster_labels (Tensor):
                 The speaker labels from the beginning of the session to the current position
-            isOnline (bool)
+            is_online (bool)
                 Boolean variable that indicates whether the system is currently in online mode or not
 
         Returns:
@@ -340,7 +338,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         """
         total_cluster_labels = total_cluster_labels.tolist()
 
-        if not isOnline:
+        if not is_online:
             self.memory_segment_ranges[scale_idx] = deepcopy(self.segment_range_ts[scale_idx])
             self.memory_segment_indexes[scale_idx] = deepcopy(self.segment_indexes[scale_idx])
             if scale_idx == self.base_scale_index:
@@ -473,7 +471,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Perform online version of clustering with history-concatenated embedding vectors
         Y_concat = self.online_clus.forward_infer(
-            emb=concat_emb, frame_index=self.frame_index, cuda=cuda, device=device
+            emb=concat_emb, frame_index=self.frame_index, cuda=cuda,
         )
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
@@ -481,7 +479,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Update history data
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            cluster_label_hyp = self.save_history_data(scale_idx, merged_clus_labels, self.online_clus.isOnline)
+            cluster_label_hyp = self.save_history_data(scale_idx, merged_clus_labels, self.online_clus.is_online)
 
         return cluster_label_hyp
 
