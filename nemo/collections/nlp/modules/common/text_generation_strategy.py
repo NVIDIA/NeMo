@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import abc
+import pickle
 import time
 from typing import List, Tuple
 
 import torch
+import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,
@@ -289,9 +291,10 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
         self.frequent_query = args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
-        self.neighbors = args['neighbors']
         self.store_retrieved = args['store_retrieved']
         weights = args['weights']
+        self.store = dist.FileStore('/tmp/filestore_eval', -1)
+        self.store.set('neighbors', str(args['neighbors']))
         # start the sentence bert server
         start_sentence_bert_server(tokenizer=self.model.tokenizer, **args['sentence_bert'])
         # sleep to make sure the sentence bert server is full started.
@@ -308,14 +311,18 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
                 services.append(service)
             else:
                 raise ValueError(f'no such service {service_conf["type"]} implemented')
-        self.service = ComboRetrievalService(retrieval_services=services, weights=weights)
+        self.service = ComboRetrievalService(retrieval_services=services, weights=weights, store=self.store)
         self.retrieved = []
         self.retrieved_text = []
         self.chunk_size = self.service.chunk_size
 
     def update_neighbors(self, neighbors):
         # dynamically change the number of neighbors during the query
-        self.neighbors = neighbors
+        self.store.set('neighbors', str(neighbors))
+
+    @property
+    def neighbors(self):
+        return int(self.store.get('neighbors'))
 
     def update_weights(self, weights):
         # dynamically change the weights between different retrieval services

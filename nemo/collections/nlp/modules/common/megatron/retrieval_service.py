@@ -529,26 +529,30 @@ class ComboRetrievalService(RetrievalService):
     It uses `weights` to determine the number of neighbors for each of the retrieval service members.
     """
 
-    def __init__(self, retrieval_services, weights):
+    def __init__(self, retrieval_services, weights, store):
         self.retrieval_services = retrieval_services
         self.updatable = any([service.updatable for service in retrieval_services])
+        self.store = store
         weights = np.array(weights)
         # normalize the weights
-        self.weights = weights / weights.sum()
+        weights = weights / weights.sum()
+        store.set('weights', pickle.dumps(weights))
         self.chunk_size = self.retrieval_services[0].chunk_size
 
     def update_weights(self, weights):
         weights = np.array(weights)
         # normalize the weights
-        self.weights = weights / weights.sum()
+        weights = weights / weights.sum()
+        self.store.set('weights', pickle.dumps(weights))
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
+        weights = pickle.loads(self.store.get('weights'))
         if neighbors == 0:
             return self.retrieval_services[0].get_knn(query, 0)
         total_neighbors = 0
         results = []
         for i, service in enumerate(self.retrieval_services):
-            k = int(neighbors * self.weights[i])
+            k = int(neighbors * weights[i])
             if i == len(self.retrieval_services) - 1:
                 k = neighbors - total_neighbors
             total_neighbors += k

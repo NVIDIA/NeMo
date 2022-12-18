@@ -38,6 +38,8 @@ API_ALLOWED_KEYS = set(
         "greedy",
         "top_k",
         "top_p",
+        "neighbors",
+        "weights",
         "repetition_penalty",
         "min_tokens_to_generate",
     ]
