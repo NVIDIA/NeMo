@@ -23,7 +23,6 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.mup.layer import MuReadout
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
-    build_position_ids,
     init_method_normal,
     scaled_init_method_normal,
 )
@@ -96,7 +95,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
         if megatron_lm_compatible:
-            assert apply_query_key_layer_scaling, "megatron lm compatible model has to set apply_query_key_layer_scaling"
+            assert (
+                apply_query_key_layer_scaling
+            ), "megatron lm compatible model has to set apply_query_key_layer_scaling"
             assert add_position_embedding, "megatron lm compatible model has to set add_position_embedding"
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -157,7 +158,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=False if megatron_lm_compatible else post_process,  # megatron lm model has no final layer_norm
+                post_process=False
+                if megatron_lm_compatible
+                else post_process,  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -326,6 +329,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         neighbors=None,
+        position_ids=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -339,7 +343,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             if self.pre_process and self.add_encoder:
                 # encoder embeddings
                 if self.add_abs_position_embedding:
-                    input_position_ids = build_position_ids(input_ids)
+                    input_position_ids = position_ids
                 else:
                     input_position_ids = None
                 input_emb = self.encoder_embedding(input_ids, input_position_ids, token_type_ids=token_type_ids)

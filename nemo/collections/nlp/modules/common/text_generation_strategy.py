@@ -406,6 +406,9 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         # Move to GPU.
         tokenizer = self.model.tokenizer
         tokens = context_tokens.contiguous().cuda()
+        micro_batch_size, seq_length = tokens.size()
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=tokens.device)
+        self.position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
         self.attention_mask = tokens != tokenizer.pad_id
         for i in range(0, context_length, 64):
             if i > 0:
@@ -439,6 +442,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             # Allocate memory for the entire context.
             set_inference_key_value_memory = True
             tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, :context_length]
@@ -446,6 +450,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
@@ -477,6 +482,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             setkey_value_array,
             len_array,
             neighbors_array,
+            positions2use,
         ]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
