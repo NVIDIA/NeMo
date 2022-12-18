@@ -54,6 +54,9 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("A pre-trained model should be provided.")
     _, model = instantiate_model_and_trainer(cfg, MODEL, False)
 
+    if cfg.model.max_sequence_len != model.max_sequence_len:
+        model.max_sequence_len = cfg.model.max_sequence_len
+        model.builder._max_seq_length = cfg.model.max_sequence_len
     input_filenames = []
     output_filenames = []
 
