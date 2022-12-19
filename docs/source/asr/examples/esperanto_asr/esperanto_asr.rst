@@ -1,9 +1,9 @@
 ########################################################################
-Tutorial: Training Esperanto ASR model using Mozilla Common Voice Dataset
+Example: Training Esperanto ASR model using Mozilla Common Voice Dataset
 ########################################################################
 
 Training an ASR model for a new language can be challenging, especially for low-resource languages ( see  `example <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/examples/kinyarwanda_asr.rst>`_ for Kinyarwanda ASR model). 
-This tutorial describes all basic steps required to build  ASR model for Esperanto:
+This example describes all basic steps required to build  ASR model for Esperanto:
 
 * Data preparation
 * Tokenization
