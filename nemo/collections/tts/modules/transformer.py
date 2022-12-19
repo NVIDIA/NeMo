@@ -221,9 +221,10 @@ class FFTransformerDecoder(NeuralModule):
         sequence_positions=None
     ):
         if sequence_positions is None:
-            pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
+            sequence_positions = torch.arange(
+                inp.size(1), device=inp.device).to(inp.dtype)
 
-        pos_emb = self.pos_emb(pos_seq) * mask
+        pos_emb = self.pos_emb(sequence_positions) * mask
 
         out = self.drop(inp + pos_emb + conditioning)
 
@@ -339,8 +340,6 @@ class BiModalTransformerEncoder(FFTransformerDecoder):
                 device=spec_encs.device
             ).to(spec_encs.dtype),
         ))
-        import code  # NOQA
-        code.interact(local={**locals(), **globals()})
         post_nn, _ = self._forward(
             combined_encs, combined_mask, conditioning=0,
             sequence_positions=sequence_positions
