@@ -564,7 +564,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             )
         else:
             num_eval_datasets = (
-                len(data_cfg.src_file_name) if isinstance(data_cfg.validation_ds.src_file_name, ListConfig) else 1
+                len(data_cfg.src_file_name) if isinstance(data_cfg.src_file_name, ListConfig) else 1
             )
             multilingual_ids = [None] * num_eval_datasets
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
