@@ -920,10 +920,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
+            f'Total number of model parameters: {total_num_parameters:.2e}\n'
         )
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
 
