@@ -21,7 +21,6 @@ import torch
 from nemo.core.classes import Loss, Typing, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, LossType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['SDRLoss']
 
@@ -135,7 +134,6 @@ def calculate_sdr_batch(
     return sdr
 
 
-@experimental
 class SDRLoss(Loss, Typing):
     """
     Computes signal-to-distortion ratio (SDR) loss with weighted average across channels.

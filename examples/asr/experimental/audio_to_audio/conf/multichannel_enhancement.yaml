@@ -41,13 +41,13 @@ model:
     pin_memory: true
 
   encoder:
-    _target_: nemo.collections.asr.modules.audio_modules.AudioToSpectrogram
+    _target_: nemo.collections.asr.modules.audio_preprocessing.AudioToSpectrogram
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
     power: null
 
   decoder:
-    _target_: nemo.collections.asr.modules.audio_modules.SpectrogramToAudio
+    _target_: nemo.collections.asr.modules.audio_preprocessing.SpectrogramToAudio
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 
@@ -61,16 +61,15 @@ model:
     
   mask_processor:
     _target_: nemo.collections.asr.modules.audio_modules.MaskBasedBeamformer # Mask-based multi-channel processing
-    ref_channel: 0 # Reference channel for the outpu
+    ref_channel: 0 # Reference channel for the output
 
   loss:
     _target_: nemo.collections.asr.losses.SDRLoss
     scale_invariant: true # Use scale-invariant SDR
-    # weight: [0.8, 0.2] # Loss weight, can be used for multi-channel output
     
   optim:
     name: adamw
-    lr: 1e-4
+    lr: 1e-3
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 0
