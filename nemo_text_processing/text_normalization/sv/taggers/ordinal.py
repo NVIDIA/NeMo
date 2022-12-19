@@ -64,9 +64,9 @@ class OrdinalFst(GraphFst):
         digit_or_space = pynini.closure(NEMO_DIGIT | pynini.accep(" "))
         cardinal_format = (NEMO_DIGIT - "0") + pynini.closure(digit_or_space + NEMO_DIGIT, 0, 1)
         a_format = (
-            (pynini.closure(cardinal_format + (NEMO_DIGIT - "1"), 0, 1) + pynini.union("1", "2"))
+            ((pynini.closure(cardinal_format + (NEMO_DIGIT - "1"), 0, 1) + pynini.union("1", "2"))
             | (NEMO_DIGIT - "1") + pynini.union("1", "2")
-            | pynini.union("1", "2")
+            | pynini.union("1", "2"))
             + pynutil.delete(pynini.union(":a", ":A"))
         )
         e_format = pynini.closure(
