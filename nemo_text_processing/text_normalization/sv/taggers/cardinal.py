@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -22,27 +23,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     insert_space,
 )
 from nemo_text_processing.text_normalization.sv.utils import get_abs_path
+from pynini.lib import pynutil
 
-try:
-    import pynini
-    from pynini.lib import pynutil
 
-    zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
-    digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
-    teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
-    ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-    zero = None
-    digit = None
-    teen = None
-    ties = None
-    twenties = None
-    hundreds = None
-
-    PYNINI_AVAILABLE = False
+zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
+digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
+teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
+ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
 def filter_punctuation(fst: 'pynini.FstLike') -> 'pynini.FstLike':
@@ -100,12 +87,14 @@ class CardinalFst(GraphFst):
         # Any double digit
         graph_tens = teen
         final_tens = graph_tens
+        graph_ties = ties
         if deterministic:
-            graph_tens |= ties + (pynutil.delete('0') | graph_digit)
+            graph_tens |= graph_ties + (pynutil.delete('0') | graph_digit)
             final_tens = graph_tens
         else:
-            graph_tens |= ties + (pynutil.delete('0') | (graph_digit | pynutil.insert(' ') + graph_digit))
-            final_tens |= ties + (pynutil.delete('0') | (final_digit | pynutil.insert(' ') + final_digit))
+            graph_ties |= pynini.cross("4", "förtio")
+            graph_tens |= graph_ties + (pynutil.delete('0') | (graph_digit | pynutil.insert(' ') + graph_digit))
+            final_tens |= graph_ties + (pynutil.delete('0') | (final_digit | pynutil.insert(' ') + final_digit))
 
         hundreds = digits_no_one + pynutil.insert("hundra")
         hundreds |= pynini.cross("1", "hundra")
