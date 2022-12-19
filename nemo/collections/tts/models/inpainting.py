@@ -392,8 +392,20 @@ class InpainterModel(ModelPT, Exportable):
         return loss, (text, text_lens, mels, mels_masked, mels_pred, spec_len)
 
     def training_step(self, batch, batch_idx):
-        loss, _ = self.forward_pass(batch, batch_idx)
+        loss, specs = self.forward_pass(batch, batch_idx)
         self.log("train_loss", loss)
+
+        if self.log_train_spectrograms:
+            (texts, text_lens, mels, mels_masked, mels_pred, mels_len) = specs
+            self._log_spectrograms(
+                mels_len[:3],
+                mels[:3],
+                mels_masked[:3],
+                mels_pred[:3],
+                'train'
+            )
+            self.log_train_spectrograms = False
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -417,20 +429,41 @@ class InpainterModel(ModelPT, Exportable):
             return
 
         batch = outputs[0]
-        for i in range(3):  # log the first 3 examples in the validation setting
-            l = batch['spectrogram_lens'][i]  # noqa
+        self._log_spectrograms(
+            batch['spectrogram_lens'][:3],
+            batch['input_spectrogram'][:3],
+            batch['input_spectrogram_masked'][:3],
+            batch['pred_spectrogram'][:3],
+            'validation'
+        )
+        self.log_train_spectrograms = True
 
-            input_spectrogram = batch['input_spectrogram'][i][:l]
-            input_spectrogram_masked = batch['input_spectrogram_masked'][i][:l]
-            pred_spectrogram = batch['pred_spectrogram'][i][:l]
-
+    def _log_spectrograms(
+        self,
+        spectrogram_lens,
+        input_spectrograms,
+        input_spectrograms_masked,
+        pred_spectrograms,
+        name_prefix
+    ):
+        for i, (
+            l,
+            input_spectrogram,
+            input_spectrogram_masked,
+            pred_spectrogram,
+        ) in enumerate(zip(
+            spectrogram_lens,
+            input_spectrograms,
+            input_spectrograms_masked,
+            pred_spectrograms,
+        )):
             f, axarr = plt.subplots(3)
             f.suptitle('input text TBD')
-            axarr[0].imshow(input_spectrogram.cpu().numpy().T)
-            axarr[1].imshow(input_spectrogram_masked.cpu().numpy().T)
-            axarr[2].imshow(pred_spectrogram.cpu().numpy().T)
+            axarr[0].imshow(input_spectrogram[:l].cpu().numpy().T)
+            axarr[1].imshow(input_spectrogram_masked[:l].cpu().numpy().T)
+            axarr[2].imshow(pred_spectrogram[:l].cpu().detach().numpy().T)
             self.tb_logger.add_figure(
-                f'validation_{i+1}', f, global_step=self.global_step)
+                f'{name_prefix}_{i+1}', f, global_step=self.global_step)
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
