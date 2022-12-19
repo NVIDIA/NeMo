@@ -731,6 +731,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 src_file=cfg.src_file_name,
                 tgt_file=cfg.tgt_file_name,
                 num_samples=[self.trainer.max_steps * self._cfg.global_batch_size],
+                src_language=self.src_language,
+                tgt_language=self.tgt_language,
             )
         return dataset
 
