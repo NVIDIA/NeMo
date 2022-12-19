@@ -25,16 +25,12 @@ hk	hästkraft
 ghz	gigahertz
 khz	kilohertz
 mhz	megahertz
-lb	pund
-lbs	pund
 v	volt
 h	timme
 tim	timme
 mc	mega coulomb
 s	sekund
 nm	nanometer
-rpm	varv per minut
-varv/min	varv per minut
 min	minut
 mA	milliampere
 kwh	kilowattimme
@@ -54,7 +50,6 @@ atm	atmosfär
 ω	ohm
 db	decibel
 ps	petasekund
-oz	uns
 hl	hektoliter
 gb	gigabyte
 MB	megabyte
@@ -95,7 +90,6 @@ ml	milliliter
 gw	gigawatt
 ma	megaampere
 mol	mol
-kt	knop
 kgf	kilopond
 kp	kilopond
 ns	nanosekund
