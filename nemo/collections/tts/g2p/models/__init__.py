@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO (xueyang): deprecate this file since no other places import modules from here anymore. However,
-#  all checkpoints uploaded in ngc used this path. So it requires to update all ngc checkpoints g2p path as well.
+from nemo.collections.tts.g2p.models.ctc_g2p import CTCG2PModel
+
+__all__ = ["T5G2PModel", "CTCG2PModel"]

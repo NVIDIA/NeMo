@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.g2p.modules import EnglishG2p
+from nemo.collections.tts.g2p import EnglishG2p
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer

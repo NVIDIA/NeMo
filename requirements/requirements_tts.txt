@@ -8,3 +8,4 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+nemo_text_processing

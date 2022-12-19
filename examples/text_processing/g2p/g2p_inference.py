@@ -18,7 +18,7 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from nemo_text_processing.g2p.models.g2p_model import G2PModel
+from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from omegaconf import OmegaConf
 from utils import get_metrics
 

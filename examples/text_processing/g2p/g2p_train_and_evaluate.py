@@ -16,7 +16,7 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from nemo_text_processing.g2p.models.g2p_model import G2PModel
+from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from utils import get_model
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback

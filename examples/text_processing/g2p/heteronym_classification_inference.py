@@ -20,7 +20,7 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
+from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
 from omegaconf import OmegaConf
 
 from nemo.core.config import hydra_runner

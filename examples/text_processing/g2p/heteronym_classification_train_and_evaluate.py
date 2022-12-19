@@ -16,7 +16,7 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
+from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.core.config import hydra_runner

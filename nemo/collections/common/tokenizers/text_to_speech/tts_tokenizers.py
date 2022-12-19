@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
 
-from nemo_text_processing.g2p.data.data_utils import (
+from nemo.collections.tts.g2p.data import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
