@@ -716,9 +716,10 @@ pipeline {
                 name='test_tp1_pp2' \
                 exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
@@ -760,9 +761,10 @@ pipeline {
                 name='test_tp2_pp1' \
                 exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 model.existing_tasks=[] \
@@ -802,9 +804,10 @@ pipeline {
                 name='test_tp1_pp2' \
                 exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
@@ -846,9 +849,10 @@ pipeline {
                 name='test_tp2_pp1' \
                 exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 model.existing_tasks=[] \
@@ -888,9 +892,10 @@ pipeline {
                 name='test_tp2_pp1' \
                 exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 model.existing_tasks=[] \
@@ -929,9 +934,10 @@ pipeline {
                 name='test_tp1_pp2' \
                 exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
@@ -3465,8 +3471,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_gpt_prompt_learning_config \
                 name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
                 trainer.devices=1 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
                 model.virtual_prompt_style='prompt-tuning' \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
@@ -3474,7 +3482,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
+                model.global_batch_size=2"
             sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
             sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
           }
@@ -3497,8 +3505,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_gpt_prompt_learning_config \
                 name='/home/TestData/nlp/prompt_learning/p_tuning_test_tp' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 model.existing_tasks=[] \
@@ -3538,8 +3548,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_gpt_prompt_learning_config \
                 name='/home/TestData/nlp/prompt_learning/p_tuning_test_pp' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
                 model.existing_tasks=[] \
@@ -3857,9 +3869,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_t5_prompt_learning \
                 name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test' \
                 trainer.devices=1 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
-                model.tensor_model_parallel_size=1 \
+                model.data.num_workers=1 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['squad'] \
@@ -3897,8 +3910,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_t5_prompt_learning \
                 name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 model.existing_tasks=[] \
@@ -3939,8 +3954,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --config-name=megatron_t5_prompt_learning \
                 name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2' \
                 trainer.devices=2 \
-                trainer.max_steps=6 \
+                trainer.max_steps=1 \
+                trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.data.num_workers=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 model.existing_tasks=[] \
