@@ -316,7 +316,7 @@ class IPAG2P(BaseG2p):
         else:
             self.use_chars = use_chars
 
-        phoneme_dict_obj = self._parse_as_cmu_dict(phoneme_dict)
+        phoneme_dict_obj = self._parse_phoneme_dict(phoneme_dict)
 
         # verify if phoneme dict obj is empty
         if phoneme_dict_obj:
@@ -357,7 +357,7 @@ class IPAG2P(BaseG2p):
             self.heteronyms = [het.upper() for het in self.heteronyms]
 
     @staticmethod
-    def _parse_as_cmu_dict(phoneme_dict: Union[str, pathlib.Path]):
+    def _parse_phoneme_dict(phoneme_dict: Union[str, pathlib.Path]):
         # parse the dictionary, update it, and generate symbol set.
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             # load the dictionary file where there may exist a digit suffix after a word, which
@@ -381,7 +381,7 @@ class IPAG2P(BaseG2p):
         """
         Replace model's phoneme dictionary with a custom one
         """
-        self.phoneme_dict = self._parse_as_cmu_dict(phoneme_dict)
+        self.phoneme_dict = self._parse_phoneme_dict(phoneme_dict)
 
     @staticmethod
     def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:
