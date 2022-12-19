@@ -563,9 +563,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 != 'nmt-xlm',  # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
             )
         else:
-            num_eval_datasets = (
-                len(data_cfg.src_file_name) if isinstance(data_cfg.src_file_name, ListConfig) else 1
-            )
+            num_eval_datasets = len(data_cfg.src_file_name) if isinstance(data_cfg.src_file_name, ListConfig) else 1
             multilingual_ids = [None] * num_eval_datasets
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=data_cfg,
