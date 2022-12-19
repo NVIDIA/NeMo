@@ -68,7 +68,7 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            #TODO: double-check this for decoder-only GPT
+            # TODO: double-check this for decoder-only GPT
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -145,12 +145,12 @@ class GPTSFTDataset(Dataset):
         # TODO: verify on the dataloader how to skip Nones and keep constant batch size
         # Right now this is handled offline before the training step
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-            input_ids= input_ids[:self.max_seq_length]
-            #return None
+            input_ids = input_ids[: self.max_seq_length]
+            # return None
 
         processed_example = {
-            'input_ids' : input_ids,
-            'answer_start_idx' : answer_start_idx,
+            'input_ids': input_ids,
+            'answer_start_idx': answer_start_idx,
         }
 
         return processed_example
@@ -162,7 +162,7 @@ class GPTSFTDataset(Dataset):
 
     def _collate_item(self, item):
         item = self._maybe_cast_to_list(item)
-        #max_length = max([len(x) for x in item]) if item else 0
+        # max_length = max([len(x) for x in item]) if item else 0
         # here [0] should be tokenizer.pad_id
         item = [x + [0] * (self.max_seq_length - len(x)) for x in item]
         return item
@@ -182,7 +182,7 @@ class GPTSFTDataset(Dataset):
         Args:
             input_ids: A 1D tensor that holds the indices of tokens.
         """
-        #seq_length = len(input_ids)
+        # seq_length = len(input_ids)
         # `attention_mask` has the shape of [1, seq_length, seq_length]
         attention_mask = torch.tril(torch.ones((self.max_seq_length, self.max_seq_length))).unsqueeze(0)
         attention_mask = attention_mask < 0.5
@@ -190,7 +190,7 @@ class GPTSFTDataset(Dataset):
 
     def collate_fn(self, batch):
         """
-        """ 
+        """
 
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
@@ -205,12 +205,11 @@ class GPTSFTDataset(Dataset):
         loss_mask = torch.LongTensor(self._collate_item(loss_mask))
 
         processed_batch = {
-            'tokens' : input_ids,
-            'labels' : labels,
-            'attention_mask' : attention_mask,
+            'tokens': input_ids,
+            'labels': labels,
+            'attention_mask': attention_mask,
             'loss_mask': loss_mask,
-            'position_ids' : position_ids,
+            'position_ids': position_ids,
         }
 
         return processed_batch
-        

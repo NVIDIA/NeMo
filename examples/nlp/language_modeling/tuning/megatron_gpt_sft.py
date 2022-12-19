@@ -61,7 +61,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
         gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
 
-
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
@@ -172,7 +171,7 @@ def main(cfg) -> None:
         if cfg.model.restore_from_path:
             gpt_cfg = MegatronGPTSFTModel.restore_from(
                 restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
-                )
+            )
             model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
         else:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
@@ -185,4 +184,3 @@ def main(cfg) -> None:
 
 if __name__ == '__main__':
     main()
-    
