@@ -22,8 +22,6 @@ kw	kilowatt
 kW	kilowatt
 hp	hästkraft
 hk	hästkraft
-mg	milligram
-kg	kilogram
 ghz	gigahertz
 khz	kilohertz
 mhz	megahertz
@@ -51,7 +49,6 @@ mw	megawatt
 "	tum
 tb	terabyte
 cc	c c
-g	gram
 da	atommassenhet
 atm	atmosfär
 ω	ohm
@@ -59,8 +56,6 @@ db	decibel
 ps	petasekund
 oz	uns
 hl	hektoliter
-μg	mikrogram
-pg	petagram
 gb	gigabyte
 MB	megabyte
 GB	gigabyte
@@ -103,7 +98,6 @@ mol	mol
 kt	knop
 kgf	kilopond
 kp	kilopond
-ng	nanogram
 ns	nanosekund
 ms	megasiemens
 bar	bar
