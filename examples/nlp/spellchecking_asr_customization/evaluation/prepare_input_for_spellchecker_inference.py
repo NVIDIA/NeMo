@@ -122,6 +122,7 @@ with open(args.input_file, "r", encoding="utf-8") as f:
             candidates.append((dummy, -1, dummy.count(" ") + 1, 0.0, 0.0))
 
         random.shuffle(candidates)
+        candidates = candidates[:10]
         if len(candidates) != 10:
             print("WARNING: cannot get 10 candidates", candidates)
             continue
