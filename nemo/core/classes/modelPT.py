@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 import copy
 import inspect
@@ -225,6 +226,19 @@ class ModelPT(LightningModule, Model):
             )
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
+
+    def register_submodule_artifacts(self, submodule: ModelPT, module_config_path: str):
+        if not hasattr(submodule, 'artifacts') or getattr(submodule, 'artifacts') is None:
+            # nothing to register
+            return
+
+        if not hasattr(self, 'artifacts') or getattr(self, 'artifacts') is None:
+            self.artifacts = {}
+
+        # copy artifacts from foreign module
+        for artifact_name, artifact_info in submodule.artifacts.items():
+            artifact_name = f"{module_config_path}.{artifact_name}"
+            self.artifacts[artifact_name] = artifact_info
 
     def save_to(self, save_path: str):
         """
