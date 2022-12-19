@@ -109,7 +109,7 @@ class ASRWithTTSModel(ASRModel):
         """
         self._full_init_guard = False
         cfg = copy.deepcopy(cfg)
-        # OmegaConf.set_struct(cfg, False)
+        OmegaConf.set_struct(cfg, False)
         # avoid dataset and optim setup here
         train_ds_cfg = cfg.pop("train_ds", None)
         validation_ds_cfg = cfg.pop("validation_ds", None)
