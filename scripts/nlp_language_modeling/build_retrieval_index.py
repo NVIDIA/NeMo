@@ -275,6 +275,7 @@ if __name__ == "__main__":
         choices=[0, 1, 2],
     )
     group.add_argument('--faiss_factory', type=str, default=None, help="faiss index factory str")
+    group.add_argument('--faiss_factory_metric', type=str, default='l2', help="faiss index factory metric, l2 or IP")
     group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
     group.add_argument(
@@ -382,7 +383,11 @@ if __name__ == "__main__":
         if args.no_pq:
             index = faiss.IndexIVFFlat(quantizer, emb.shape[1], nlist)
         elif args.faiss_factory is not None:
-            index = faiss.index_factory(emb.shape[1], args.faiss_factory)
+            if args.faiss_factory_metric == 'IP':
+                metric = faiss.METRIC_INNER_PRODUCT
+            else:
+                metric = faiss.METRIC_L2
+            index = faiss.index_factory(emb.shape[1], args.faiss_factory, metric)
         else:
             index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         if has_gpu:
