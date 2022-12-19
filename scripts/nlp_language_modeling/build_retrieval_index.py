@@ -382,7 +382,7 @@ if __name__ == "__main__":
         if args.no_pq:
             index = faiss.IndexIVFFlat(quantizer, emb.shape[1], nlist)
         elif args.faiss_factory is not None:
-            index = faiss.faiss.index_factory(emb.shape[1], args.faiss_factory)
+            index = faiss.index_factory(emb.shape[1], args.faiss_factory)
         else:
             index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         if has_gpu:
