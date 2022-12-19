@@ -47,6 +47,7 @@ class DateFst(GraphFst):
 
         # day month year
         graph_dmy = day + month + pynini.closure(pynini.accep(" ") + year, 0, 1)
+        # TODO: dates written ymd?
 
         self.graph = graph_dmy
         final_graph = self.graph
