@@ -119,7 +119,7 @@ class MockModelWithChildren(MockModel):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None, 'target': classpath(MockModel), 'child_model': None, 'child_model_path': None}
+    conf = {'temp_file': None, 'target': classpath(MockModel)}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
