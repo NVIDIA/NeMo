@@ -92,7 +92,6 @@ class MockModel(ModelPT):
 class MockModelWithChildren(MockModel):
     def __init__(self, cfg, trainer=None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.cfg.target = f"{self.__class__.__module__}.{self.__class__.__name__}"
 
         # child 1
         if cfg.get('child1_model_path') is None and cfg.get('child1_model') is None:
@@ -129,7 +128,7 @@ def _mock_model_config():
 def _mock_model_with_children_config(child1_model_path: Optional[str], child2_model_path: Optional[str]) -> DictConfig:
     conf = {
         'temp_file': None,
-        'target': classpath(MockModel),
+        'target': classpath(MockModelWithChildren),
         'child1_model': None,
         'child1_model_path': child1_model_path,
         'child2_model': None,
@@ -596,6 +595,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_mock_model_nested(self):
         # Update config with tempfiles
+
         cfg_child1 = _mock_model_config()
         cfg_child2 = _mock_model_config()
 
