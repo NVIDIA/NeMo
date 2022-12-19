@@ -29,6 +29,7 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
+import nemo.core.classes as nemo_classes  # to avoid circular import do not import ModelPT directly
 
 
 class SaveRestoreConnector:
@@ -424,8 +425,19 @@ class SaveRestoreConnector:
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
+        restoration_paths = []  # model + submodules restoration paths
         model_metadata = app_state.get_model_metadata_from_guid(model.model_guid)
-        if len(tarfile_artifacts) > 0 and model_metadata.restoration_path is not None:
+        if model_metadata.restoration_path is not None:
+            restoration_paths.append(model_metadata.restoration_path)
+        # aggregate restoration paths for all submodules
+        for _, module in model.named_modules():
+            if isinstance(module, nemo_classes.ModelPT):
+                submodule_restoration_path = app_state.get_model_metadata_from_guid(module.model_guid).restoration_path
+                if submodule_restoration_path is not None:
+                    restoration_paths.append(submodule_restoration_path)
+        if tarfile_artifacts and not restoration_paths:
+            logging.warning("Model contains registered artifacts, but no restoration paths found")
+        if tarfile_artifacts and restoration_paths:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
@@ -433,7 +445,8 @@ class SaveRestoreConnector:
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
-                    self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
+                    for path in restoration_paths:
+                        self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
