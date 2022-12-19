@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 
 import nemo.collections.nlp as nemo_nlp
-from .nemo_gpt3 import hacky_DDP_initialize
+from .nemo_gpt3 import DDP_initialize
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
@@ -121,7 +121,7 @@ class NeMo_GPT3_PROMPTLM(LM):
         self.batch_size = batch_size
 
         # initialize DDP and move model to GPU
-        hacky_DDP_initialize(self.model)
+        DDP_initialize(self.model)
         self.model = self.model.cuda()
 
     @classmethod

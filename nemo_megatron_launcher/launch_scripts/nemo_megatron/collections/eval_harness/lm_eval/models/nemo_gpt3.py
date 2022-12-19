@@ -108,7 +108,7 @@ def setup_trainer_and_model(args):
     return trainer, model
 
 
-def hacky_DDP_initialize(model):
+def DDP_initialize(model):
     if parallel_state.is_unitialized():
 
         def dummy():
@@ -152,7 +152,7 @@ class NeMo_GPT3LM_TP_PP(LM):
         self.batch_size = batch_size
 
         # initialize DDP and move model to GPU
-        hacky_DDP_initialize(self.model)
+        DDP_initialize(self.model)
         self.model = self.model.cuda()
 
     @classmethod
