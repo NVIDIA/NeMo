@@ -126,7 +126,7 @@ def _mock_model_config():
     return conf
 
 
-def _mock_model_with_children_config(child1_model_path: str, child2_model_path: str) -> DictConfig:
+def _mock_model_with_children_config(child1_model_path: Optional[str], child2_model_path: Optional[str]) -> DictConfig:
     conf = {
         'temp_file': None,
         'target': classpath(MockModel),
@@ -629,7 +629,7 @@ class TestSaveRestore:
             _ = self.__test_restore_elsewhere(parent, map_location='cpu')
 
     @pytest.mark.unit
-    def test_mock_model_nested_double_with_resources(self):
+    def test_mock_model_nested_with_resources(self):
         with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile(
             'w'
         ) as file_child2, tempfile.NamedTemporaryFile('w') as file_parent:
@@ -682,6 +682,64 @@ class TestSaveRestore:
                 assert parent.child2_model.temp_data == ["-----\n"]
                 assert child1.temp_data == ["+++++\n"]
                 assert child2.temp_data == ["-----\n"]
+
+    @pytest.mark.unit
+    def test_mock_model_nested_double_with_resources(self):
+        with tempfile.NamedTemporaryFile('w') as file_child, tempfile.NamedTemporaryFile(
+            'w'
+        ) as file_child_with_child, tempfile.NamedTemporaryFile('w') as file_parent:
+            # Write some data
+            file_parent.writelines(["*****\n"])
+            file_parent.flush()
+            file_child_with_child.writelines(["+++++\n"])
+            file_child_with_child.flush()
+            file_child.writelines(["-----\n"])
+            file_child.flush()
+
+            # children configs
+            cfg_child = _mock_model_config()
+            cfg_child.model.temp_file = file_child.name
+            # Create child models
+            child = MockModel(cfg=cfg_child.model, trainer=None)
+            child = child.to('cpu')
+
+            with tempfile.TemporaryDirectory() as tmpdir_parent:
+                parent_path = os.path.join(tmpdir_parent, "parent.nemo")
+                with tempfile.TemporaryDirectory() as tmpdir_child_with_child:
+                    child_with_child_path = os.path.join(tmpdir_child_with_child, 'child_with_child.nemo')
+                    with tempfile.TemporaryDirectory() as tmpdir_child:
+                        child_path = os.path.join(tmpdir_child, 'child.nemo')
+                        child.save_to(child_path)
+
+                        cfg_child_with_child = _mock_model_with_children_config(
+                            child1_model_path=child_path, child2_model_path=None
+                        )
+                        cfg_child_with_child.model.temp_file = file_child_with_child.name
+                        child_with_child = MockModelWithChildren(cfg_child_with_child.model)
+                        child_with_child.save_to(child_with_child_path)
+
+                        # create model with children
+                        cfg_parent = _mock_model_with_children_config(
+                            child1_model_path=child_with_child_path, child2_model_path=None
+                        )
+                        cfg_parent.model.temp_file = file_parent.name
+                        parent = MockModelWithChildren(cfg_parent.model)
+                        parent.save_to(parent_path)
+
+                # restore, tmpdir_child is removed
+                parent = ModelPT.restore_from(parent_path)
+                # model is transparent, children can be saved/restored
+                child = self.__test_restore_elsewhere(parent.child1_model.child1_model, map_location='cpu')
+                child_with_child = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
+                # test parent save/restore
+                parent = self.__test_restore_elsewhere(parent, map_location='cpu')
+
+                # test resources
+                assert parent.temp_data == ["*****\n"]
+                assert parent.child1_model.temp_data == ["+++++\n"]
+                assert parent.child1_model.child1_model.temp_data == ["-----\n"]
+                assert child_with_child.temp_data == ["+++++\n"]
+                assert child.temp_data == ["-----\n"]
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
