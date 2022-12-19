@@ -175,11 +175,7 @@ class ASRWithTTSModel(ASRModel):
 
     @classmethod
     def from_pretrained_models(
-        cls,
-        asr_model_path: str,
-        tts_model_path: str,
-        cfg: DictConfig = None,
-        trainer: Optional[Trainer] = None,
+        cls, asr_model_path: str, tts_model_path: str, cfg: DictConfig = None, trainer: Optional[Trainer] = None,
     ):
         if cfg is None:
             cfg = DictConfig(dict())
@@ -195,9 +191,7 @@ class ASRWithTTSModel(ASRModel):
         return super().__setattr__(name, value)
 
     def setup_optimization(
-        self,
-        optim_config: Optional[Union[DictConfig, Dict]] = None,
-        optim_kwargs: Optional[Dict[str, Any]] = None,
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.tts_model.freeze()
         optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
@@ -280,8 +274,7 @@ class ASRWithTTSModel(ASRModel):
         elif isinstance(batch, TextOrAudioToTextBatch):
             tts_spectrogram, tts_spectrogram_len = self.get_tts_spectrogram(batch.tts_texts, batch.speakers)
             asr_spectrogram, asr_spectrogram_len = self.preprocessor(
-                input_signal=batch.audio_signal,
-                length=batch.a_sig_length,
+                input_signal=batch.audio_signal, length=batch.a_sig_length,
             )
 
             spectrogram = pad_sequence(
@@ -301,10 +294,7 @@ class ASRWithTTSModel(ASRModel):
             transcript_len = batch.transcript_length
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = batch
-            spectrogram, spectrogram_len = self.preprocessor(
-                input_signal=audio_signal,
-                length=audio_signal_len,
-            )
+            spectrogram, spectrogram_len = self.preprocessor(input_signal=audio_signal, length=audio_signal_len,)
         spectrogram = clean_spectrogram(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
