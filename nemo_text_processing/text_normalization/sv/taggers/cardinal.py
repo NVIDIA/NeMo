@@ -93,6 +93,7 @@ class CardinalFst(GraphFst):
             final_tens = graph_tens
         else:
             graph_ties |= pynini.cross("4", "förtio")
+            graph_tens |= pynini.cross("18", "aderton")
             graph_tens |= graph_ties + (pynutil.delete('0') | (graph_digit | pynutil.insert(' ') + graph_digit))
             final_tens |= graph_ties + (pynutil.delete('0') | (final_digit | pynutil.insert(' ') + final_digit))
 
