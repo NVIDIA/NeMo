@@ -1,12 +1,5 @@
-import logging
-import os
-from copy import deepcopy
-from functools import partial
-
 import torch
-import torch.nn.functional as F
 import tqdm
-from apex.transformer import parallel_state, tensor_parallel
 from lm_eval import utils
 from lm_eval.base import LM
 from pytorch_lightning.trainer.trainer import Trainer
@@ -14,7 +7,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 
-import nemo.collections.nlp as nemo_nlp
 from .nemo_gpt3 import DDP_initialize
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
@@ -24,10 +16,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate, 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import inject_model_parallel_rank
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
-logger = logging.getLogger(__name__)
+from nemo.utils import logging
 
 
 class PromptRequestDataset(Dataset):
@@ -89,7 +78,7 @@ def setup_trainer_and_model(args):
         )
 
     if args.nemo_model is not None:
-        logger.info(f"**** Loading checkpoint from {args.nemo_model}")
+        logging.info(f"**** Loading checkpoint from {args.nemo_model}")
         model = MegatronGPTPromptLearningModel.restore_from(restore_path=args.nemo_model, trainer=trainer)
     else:
         raise NotImplementedError("Prompt models can only be loaded from .nemo checkpoints.")
@@ -104,7 +93,7 @@ class NeMo_GPT3_PROMPTLM(LM):
         super().__init__()
 
         # get nemo megatron
-        logger.info(f"**** Building GPT Prompt model ...")
+        logging.info(f"**** Building GPT Prompt model ...")
         self.trainer, self.model = setup_trainer_and_model(args)
         self.tokenizer = self.model.tokenizer
         self.model.eval()

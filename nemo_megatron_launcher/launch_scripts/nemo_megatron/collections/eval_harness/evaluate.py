@@ -1,30 +1,20 @@
 import argparse
 import glob
 import json
-import logging
 import os
 import random
-import shutil
 import string
 import subprocess
 import sys
 import time
 from datetime import datetime
-from importlib import reload
 from typing import Union
 
 from lm_eval import base, evaluator, models, tasks, utils
 from omegaconf import OmegaConf
 
-import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils.get_rank import is_global_rank_zero
-
-reload(logging)
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
-logger = logging.getLogger(__name__)
-
+from nemo.utils import logging
 
 def parse_args(parser_main):
     # parser = argparse.ArgumentParser()
@@ -210,9 +200,9 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
 
     # Add file logging besides stdout
     # file_handler = logging.FileHandler(os.path.join(args.output_path, 'output.log'))
-    # logger.addHandler(file_handler)
+    # logging.addHandler(file_handler)
 
-    logger.info("Command:\n{}".format(" ".join(sys.argv)))  # command used to run program
+    logging.info("Command:\n{}".format(" ".join(sys.argv)))  # command used to run program
 
     # Save configuration as a (pretty) json file
     config = args.__dict__
@@ -232,9 +222,9 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
         with open(os.path.join(output_path, "git.txt"), "w") as fp:
             fp.write("Git hash: {}\n".format(git_hash))
             fp.write(git_diff)
-        logger.info("Git hash: {}".format(git_hash))
+        logging.info("Git hash: {}".format(git_hash))
     except Exception as x:
-        logger.error("git version not found")
+        logging.error("git version not found")
         # raise x
 
     if local_args:
@@ -246,7 +236,7 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
         with open(os.path.join(output_path, "eval_configuration.json"), "w") as fp:
             json.dump(local_config, fp, indent=4)
 
-    logger.info("Stored configuration file(s) in '{}'".format(output_path))
+    logging.info("Stored configuration file(s) in '{}'".format(output_path))
 
     return args
 
@@ -347,15 +337,15 @@ def main():
         args = setup_output_dir(args, eval_args, unknown_args)
 
         if args.limit:
-            logger.warning(
+            logging.warning(
                 "At most {} samples will be used. --limit SHOULD ONLY BE USED FOR TESTING. "
                 "REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.".format(args.limit)
             )
 
         if args.filter_shots:
-            logger.info("Few-shot example shots will be filtered")
+            logging.info("Few-shot example shots will be filtered")
         else:
-            logger.info("Few-shot example shots will NOT be filtered")
+            logging.info("Few-shot example shots will NOT be filtered")
 
     # prompt tasks, forcing prompt task
     if "prompt" in args.tasks:
@@ -382,7 +372,7 @@ def main():
         if len(
             no_serialization
         ):  # Only serialize for those that have implemented the method, instead of raising exception
-            logger.error(
+            logging.error(
                 f"Model outputs for {no_serialization} task(s) will not be dumped. Please check the implementation of {no_serialization} to "
                 f"make sure you have implemented serialize_results."
             )
@@ -406,7 +396,7 @@ def main():
 
     if write_permission:
         summary = json.dumps(results["results"], indent=2)
-        logger.info("\n" + summary)
+        logging.info("\n" + summary)
         with open(os.path.join(args.output_path, "metrics.json"), mode="w") as fp:
             fp.write(summary)
 
@@ -414,7 +404,7 @@ def main():
             # TODO(GEO): maybe add a for loop over "taskX" in results['output'][taskX] to store each task separately
             # Store predictions, prompts, labels etc per document as a (pretty) json file
             predictions_filepath = os.path.join(args.pred_dir, args.experiment_name + "_predictions.json")
-            logger.info("Stored predictions in '{}'".format(predictions_filepath))
+            logging.info("Stored predictions in '{}'".format(predictions_filepath))
             with open(predictions_filepath, mode="w") as fp:
                 json.dump(results, fp, indent=4)
 
@@ -448,14 +438,14 @@ def main():
         if hparams_override_file is not None:
             os.rename(hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml"))
 
-        logger.info(
+        logging.info(
             f"{args.model}, limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}"
         )
-        logger.info("\n" + md_writer.dumps())
+        logging.info("\n" + md_writer.dumps())
 
         total_time = time.time() - total_start_time
-        logger.info("Total runtime: {} hours, {} minutes, {} seconds".format(*utils.readable_time(total_time)))
-        logger.info("Evaluation complete!")
+        logging.info("Total runtime: {} hours, {} minutes, {} seconds".format(*utils.readable_time(total_time)))
+        logging.info("Evaluation complete!")
 
 
 if __name__ == "__main__":

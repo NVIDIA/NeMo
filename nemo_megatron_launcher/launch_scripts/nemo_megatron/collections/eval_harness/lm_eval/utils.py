@@ -1,6 +1,5 @@
 import collections
 import json
-import logging
 import os
 import random
 import re
@@ -8,10 +7,7 @@ import sys
 import traceback
 
 import numpy as np
-import torch
-
-logging.basicConfig(format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+from nemo.utils import logging
 
 
 class ExitCodeError(Exception):
@@ -185,13 +181,13 @@ def load_config(args):
     config = args.__dict__  # configuration dictionary
 
     if args.config_filepath is not None:
-        logger.info("Reading configuration ...")
+        logging.info("Reading configuration ...")
         try:  # dictionary containing the entire configuration settings in a hierarchical fashion
             with open(args.config_filepath) as cnfg:
                 json_config = json.load(cnfg)
             config.update(json_config)
         except:
-            logger.critical("Failed to load configuration file. Check JSON syntax and verify that files exist")
+            logging.critical("Failed to load configuration file. Check JSON syntax and verify that files exist")
             traceback.print_exc()
             sys.exit(1)
 

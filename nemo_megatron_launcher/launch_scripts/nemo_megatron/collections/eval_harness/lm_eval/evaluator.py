@@ -1,13 +1,10 @@
 import collections
 import itertools
-import logging
 import random
 import time
 
 import lm_eval.metrics
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
-logger = logging.getLogger(__name__)
+from nemo.utils import logging
 
 
 def evaluate(
@@ -66,8 +63,8 @@ def evaluate(
         rnd.seed(42)
         rnd.shuffle(task_docs)
 
-        logger.info("Found {} {} documents ...".format(len(task_docs), task_name))
-        logger.info("Building requests for '{}' ...".format(task_name))
+        logging.info("Found {} {} documents ...".format(len(task_docs), task_name))
+        logging.info("Building requests for '{}' ...".format(task_name))
 
         # GEO: Maybe reqs = map(lambda x: task.construct_requests(x, task.fewshot_context(x)), itertools.islice(task_docs, 0, limit))
         for doc_id, doc in itertools.islice(task_docs, 0, limit):
@@ -107,19 +104,19 @@ def evaluate(
         # only in index. We could implement some kind of caching, but that would be more of a bandaid
         # solution. we could also implement some kind of autogrouping here; they should end up next to each other.
         # reqs is a list of request objects, as many as the samples * (num. possibile answers)
-        logger.info("Running {} {} requests ...".format(len(reqs), reqtype))
+        logging.info("Running {} {} requests ...".format(len(reqs), reqtype))
         start_time = time.time()
         resps = getattr(lm, reqtype)(
             [req.args for req in reqs]
         )  # GEO: call to model for processing. (Maybe can be replaced by batching function)
-        logger.info("Done in {:.3f} s".format(time.time() - start_time))
+        logging.info("Done in {:.3f} s".format(time.time() - start_time))
         if lm.can_access_output():
             resps = [
                 x if req.index is None else x[req.index] for x, req in zip(resps, reqs)
             ]  # list of loglikelihoods (floats)
         else:
             resps = [None] * len(reqs)
-        logger.debug("Putting results in a queue for metric calculation ...")
+        logging.debug("Putting results in a queue for metric calculation ...")
         for resp, (i, task_name, doc, doc_id) in zip(resps, requests_origin[reqtype]):
             process_res_queue[(task_name, doc_id)].append(
                 (i, resp)
@@ -130,7 +127,7 @@ def evaluate(
 
     # unpack results and sort back in order and return control to Task
     if lm.can_access_output():
-        logger.debug("Calculating individual metrics ...")
+        logging.debug("Calculating individual metrics ...")
         for (task_name, doc_id), responses in process_res_queue.items():
             responses.sort(key=lambda x: x[0])  # this sorts by class of answer, i.e. 0, 1, ...
             responses = [x[1] for x in responses]  # calculated loglikelihood for each class
@@ -147,7 +144,7 @@ def evaluate(
                 serialized_output[task_name].append(output)
 
         # aggregate results
-        logger.info("Aggregating metrics ...")
+        logging.info("Aggregating metrics ...")
         for (task_name, metric), items in vals.items():
             task = task_dict[task_name]
             results[task_name][metric] = task.aggregation()[metric](items)

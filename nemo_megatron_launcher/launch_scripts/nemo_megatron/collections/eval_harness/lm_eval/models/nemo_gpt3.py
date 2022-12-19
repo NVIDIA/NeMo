@@ -1,9 +1,6 @@
-import logging
 import os
-from functools import partial
 
 import torch
-import torch.nn.functional as F
 import tqdm
 from apex.transformer import parallel_state, tensor_parallel
 from lm_eval import utils
@@ -13,7 +10,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 
-import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
@@ -22,9 +18,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s")
-logger = logging.getLogger(__name__)
+from nemo.utils import logging
 
 
 class RequestDataset(Dataset):
@@ -86,7 +80,7 @@ def setup_trainer_and_model(args):
         )
 
     if args.nemo_model is not None:
-        logger.info(f"**** Loading checkpoint from {args.nemo_model}")
+        logging.info(f"**** Loading checkpoint from {args.nemo_model}")
         connector = SaveRestoreConnector()
         if os.path.isdir(args.nemo_model):
             connector._model_extracted_dir = args.nemo_model
@@ -98,7 +92,7 @@ def setup_trainer_and_model(args):
             app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
             app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
 
-        logger.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
+        logging.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
         # inject model parallel rank
         checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
@@ -135,7 +129,7 @@ class NeMo_GPT3LM_TP_PP(LM):
         super().__init__()
 
         # get nemo megatron
-        logger.info(f"**** Building GPT model ...")
+        logging.info(f"**** Building GPT model ...")
         self.trainer, self.model = setup_trainer_and_model(args)
         self.tokenizer = self.model.tokenizer
         self.model.eval()
