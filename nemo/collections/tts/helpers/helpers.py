@@ -51,8 +51,6 @@ import numpy as np
 import torch
 from numba import jit, prange
 from numpy import ndarray
-from pesq import pesq
-from pystoi import stoi
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
@@ -480,39 +478,15 @@ def remove(conv_list):
     return new_conv_list
 
 
-def eval_tts_scores(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
-) -> Dict[str, float]:
-    """
-    calculate metric using EvalModule. y can be a batch.
-    Args:
-        y_clean: real audio
-        y_est: estimated audio
-        T_ys: length of the non-zero parts of the histograms
-        sampling_rate: The used Sampling rate.
-
-    Returns:
-        A dictionary mapping scoring systems (string) to numerical scores.
-        1st entry: 'STOI'
-        2nd entry: 'PESQ'
-    """
-
-    if y_clean.ndim == 1:
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-    if T_ys == (0,):
-        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
-
-    clean = y_clean[0, : T_ys[0]]
-    estimated = y_est[0, : T_ys[0]]
-    stoi_score = stoi(clean, estimated, sampling_rate, extended=False)
-    pesq_score = pesq(16000, np.asarray(clean), estimated, 'wb')
-    ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
-
-    return {'STOI': stoi_score, 'PESQ': pesq_score}
-
-
-def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
+def regulate_len(
+    durations,
+    enc_out,
+    pace=1.0,
+    mel_max_len=None,
+    replicate_to_nearest_multiple=False,
+    group_size=2,
+    in_lens: torch.tensor = None,
+):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
 
@@ -520,15 +494,25 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
         durations (torch.tensor): A tensor of shape (batch x enc_length) that represents how many times to repeat each
             token in enc_out.
         enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
-        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.
-        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
+        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
             max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
+        replicate_to_nearest_multiple (bool): replicate the last element specified by durations[i, in_lens[i] - 1] until the
+            full length of the sequence is the next nearest multiple of group_size
+        group_size (int): factor used by replicate_to_nearest_multiple
+        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor
     """
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
+
+    if replicate_to_nearest_multiple:
+        to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
+        to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
+        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
+        reps = reps + to_pad_expanded
+        dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
