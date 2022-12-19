@@ -8,10 +8,10 @@ from typing import Dict, Optional, TextIO, Tuple
 import numpy as np
 
 ## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
+#sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
+#print(sys.path)
+#from utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
 
 
 parser = ArgumentParser(
