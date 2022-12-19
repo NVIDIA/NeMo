@@ -77,6 +77,14 @@ kbps	kilobit per sekund
 mbps	megabit per sekund
 kl	kiloliter
 tj	terajoule
+jk	joule
+mj	megajoule
+gj	gigajoule
+tj	terajoule
+pj	petajoule
+ej	exajoule
+zj	zettajoule
+yj	yottajoule
 kv	kilovolt
 mv	megavolt
 kn	kilonewton
@@ -118,9 +126,9 @@ cm²	kvadratcentimeter
 cm2	kvadratcentimeter
 cm³	kubikcentimeter
 cm3	kubikcentimeter
-sq mi	kvadratmile
-mi²	kvadratmile
-mi2	kvadratmile
+sq mi	kvadratmil
+mi²	kvadratmil
+mi2	kvadratmil
 sq ft	kvadratfot
 kpa	kilopascal
 cd	candela
