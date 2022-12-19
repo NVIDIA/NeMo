@@ -17,8 +17,6 @@ from typing import Optional
 
 import torch
 from hydra.utils import instantiate
-from nemo.collections.tts.g2p.data import read_wordids
-from nemo.collections.tts.g2p.data import HeteronymClassificationDataset
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from tqdm import tqdm
@@ -27,6 +25,7 @@ from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
+from nemo.collections.tts.g2p.data import HeteronymClassificationDataset, read_wordids
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 

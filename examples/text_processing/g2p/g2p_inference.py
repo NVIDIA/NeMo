@@ -18,10 +18,10 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from omegaconf import OmegaConf
 from utils import get_metrics
 
+from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

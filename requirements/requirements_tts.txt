@@ -4,8 +4,8 @@ inflect
 jieba
 librosa
 matplotlib
+nemo_text_processing
 nltk
 pandas
 pypinyin
 pypinyin-dict
-nemo_text_processing

@@ -219,4 +219,3 @@ def pytest_configure(config):
 
         print("Setting numba compat :", config.option.relax_numba_compat)
         numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)
-
