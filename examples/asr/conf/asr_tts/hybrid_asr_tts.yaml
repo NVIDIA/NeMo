@@ -4,10 +4,19 @@ name: "Conformer-Transducer-BPE-With-TTS"
 
 model:
   sample_rate: 16000
-  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if intantiating from config
+
+  # inner models
   asr_model_path: ???
+  asr_model: null
+
   tts_model_path: ???
+  tts_model: null
+
   enhancer_model_path: null
+  enhancer_model: null
+
+  # options
+  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if intantiating from config, otherwise type is auto inferred
   asr_model_fuse_bn: false  # only ConformerEncoder supported now, replace with false for other models
 
   train_ds:

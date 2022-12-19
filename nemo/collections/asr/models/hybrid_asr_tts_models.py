@@ -1,9 +1,6 @@
 import copy
 import itertools
-import tempfile
-from contextlib import contextmanager
 from functools import reduce
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -21,23 +18,7 @@ from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.utils.app_state import AppState
 from nemo.utils.enum import PrettyStrEnum
-
-
-@contextmanager
-def _preserve_nemo_file_folder():
-    """
-    Preserve singleton AppState when combining 2 nemo models
-    """
-    # FixMe: remove, fix save-restore
-    app_state = AppState()
-    nemo_file_folder = app_state.nemo_file_folder
-    try:
-        yield
-    finally:
-        # if nemo_file_folder:
-        AppState().nemo_file_folder = nemo_file_folder
 
 
 def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, fill_value=0.0) -> torch.Tensor:
@@ -128,7 +109,7 @@ class ASRWithTTSModel(ASRModel):
         """
         self._full_init_guard = False
         cfg = copy.deepcopy(cfg)
-        OmegaConf.set_struct(cfg, False)
+        # OmegaConf.set_struct(cfg, False)
         # avoid dataset and optim setup here
         train_ds_cfg = cfg.pop("train_ds", None)
         validation_ds_cfg = cfg.pop("validation_ds", None)
@@ -137,44 +118,35 @@ class ASRWithTTSModel(ASRModel):
 
         super().__init__(cfg, trainer=trainer)
 
-        with _preserve_nemo_file_folder():
-            tts_model_path = self.register_artifact("tts_model_path", cfg.get("tts_model_path"))
-            tts_model = FastPitchModel.restore_from(tts_model_path, map_location=torch.device("cpu"))
-
-        if "asr_model_path" in cfg and cfg.get("asr_model_path") is not None:
-            with _preserve_nemo_file_folder():  # FixMe: save-restore
-                asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
-                asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
-                self.asr_model_type = self.ASRModelTypes.from_asr_model(asr_model)
-                OmegaConf.set_struct(self.cfg, False)
-                self.cfg.asr_model_type = str(self.asr_model_type)
-                OmegaConf.set_struct(self.cfg, True)
-                # get optimizer config from ASR model
-                if optim_cfg is None:
-                    optim_cfg = asr_model.cfg.get("optim", None)
+        # tts model
+        if cfg.tts_model_path is not None:
+            self.tts_model = FastPitchModel.restore_from(cfg.tts_model_path, map_location=torch.device("cpu"))
+            self.cfg.tts_model_path = None
+            self.cfg.tts_model = self.tts_model.cfg
         else:
-            model_type_str = cfg.get("asr_model_type")
-            self.asr_model_type = self.ASRModelTypes(model_type_str)  # convert to enum
-            # instantiate asr model from config
-            with _preserve_nemo_file_folder():  # FixMe: save-restore
-                asr_model = self.asr_model_type.get_asr_cls()(cfg)
-                with tempfile.TemporaryDirectory() as tmp_dir_name:
-                    save_path = str(Path(tmp_dir_name) / "asr_model.nemo")
-                    asr_model.save_to(save_path)
-                    asr_model_path = self.register_artifact("asr_model_path", cfg.get("asr_model_path"))
-                    asr_model = ASRModel.restore_from(asr_model_path, map_location=torch.device("cpu"))
+            assert cfg.tts_model is not None
+            self.tts_model = ASRModel.from_config_dict(cfg.tts_model)
+        self.register_submodule_artifacts(self.tts_model, "tts_model")
+        self.tts_model.freeze()  # tts model should be always frozen
 
-        if cfg.get("enhancer_model_path", None) is not None:
+        if cfg.asr_model_path is not None:
+            self.asr_model = ASRModel.restore_from(cfg.asr_model_path, map_location=torch.device("cpu"))
+            self.asr_model_type = self.ASRModelTypes.from_asr_model(self.asr_model)
+            self.cfg.asr_model_type = str(self.asr_model_type)
+        else:
+            self.asr_model_type = self.ASRModelTypes(cfg.asr_model_type)  # convert to enum
+            self.asr_model = self.asr_model_type.get_asr_cls()(cfg)  # instantiate
+            self.cfg.asr_model = self.asr_model.cfg
+        self.register_submodule_artifacts(self.asr_model, "asr_model")
+        # replace BatchNorm with FusedBatchNorm
+        if cfg.get("asr_model_fuse_bn"):
+            fuse_bn_in_conformer(self.asr_model)
+            self.cfg.asr_model = self.asr_model.cfg
+
+        if cfg.enhancer_model_path is not None:
             # ToDo: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
             raise NotImplementedError
 
-        # replace BatchNorm with FusedBatchNorm
-        if cfg.get("asr_model_fuse_bn"):
-            fuse_bn_in_conformer(asr_model)
-
-        self.asr_model = asr_model
-        self.tts_model = tts_model
-        self.tts_model.freeze()
         self._full_init_guard = True
 
         if optim_cfg:
@@ -203,7 +175,11 @@ class ASRWithTTSModel(ASRModel):
 
     @classmethod
     def from_pretrained_models(
-        cls, asr_model_path: str, tts_model_path: str, cfg: DictConfig = None, trainer: Optional[Trainer] = None,
+        cls,
+        asr_model_path: str,
+        tts_model_path: str,
+        cfg: DictConfig = None,
+        trainer: Optional[Trainer] = None,
     ):
         if cfg is None:
             cfg = DictConfig(dict())
@@ -219,7 +195,9 @@ class ASRWithTTSModel(ASRModel):
         return super().__setattr__(name, value)
 
     def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.tts_model.freeze()
         optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
@@ -302,7 +280,8 @@ class ASRWithTTSModel(ASRModel):
         elif isinstance(batch, TextOrAudioToTextBatch):
             tts_spectrogram, tts_spectrogram_len = self.get_tts_spectrogram(batch.tts_texts, batch.speakers)
             asr_spectrogram, asr_spectrogram_len = self.preprocessor(
-                input_signal=batch.audio_signal, length=batch.a_sig_length,
+                input_signal=batch.audio_signal,
+                length=batch.a_sig_length,
             )
 
             spectrogram = pad_sequence(
@@ -322,7 +301,10 @@ class ASRWithTTSModel(ASRModel):
             transcript_len = batch.transcript_length
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = batch
-            spectrogram, spectrogram_len = self.preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+            spectrogram, spectrogram_len = self.preprocessor(
+                input_signal=audio_signal,
+                length=audio_signal_len,
+            )
         spectrogram = clean_spectrogram(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
