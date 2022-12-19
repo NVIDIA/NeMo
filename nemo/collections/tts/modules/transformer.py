@@ -214,9 +214,17 @@ class FFTransformerDecoder(NeuralModule):
     def forward(self, input, seq_lens, conditioning=0):
         return self._forward(input, mask_from_lens(seq_lens).unsqueeze(2), conditioning)
 
-    def _forward(self, inp, mask, conditioning):
-        pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
-        pos_emb = self.pos_emb(pos_seq) * mask
+    def _forward(
+        self,
+        inp, mask, conditioning,
+        # optional override of positions in the batch for positional embedding
+        sequence_positions=None
+    ):
+        if sequence_positions is None:
+            sequence_positions = torch.arange(
+                inp.size(1), device=inp.device).to(inp.dtype)
+
+        pos_emb = self.pos_emb(sequence_positions) * mask
 
         out = self.drop(inp + pos_emb + conditioning)
 
@@ -318,7 +326,24 @@ class BiModalTransformerEncoder(FFTransformerDecoder):
         spec_mask = mask_from_lens(spec_lens).unsqueeze(2)
         combined_mask = torch.concat((text_mask, spec_mask), axis=1)
 
-        post_nn, _ = self._forward(combined_encs, combined_mask, conditioning=0)
+        # set the sequence positions correctly for positional encoding
+        # For example if there were 2 text encodings and 3 spec encodings:
+        # sequence_positions would be: [0, 1, 0, 1, 2]
+
+        sequence_positions = torch.concat((
+            torch.arange(
+                text_encs.shape[1],
+                device=text_encs.device
+            ).to(text_encs.dtype),
+            torch.arange(
+                spec_encs.shape[1],
+                device=spec_encs.device
+            ).to(spec_encs.dtype),
+        ))
+        post_nn, _ = self._forward(
+            combined_encs, combined_mask, conditioning=0,
+            sequence_positions=sequence_positions
+        )
         # strip the modal embeddings
         original_emb_len = text_encs.shape[2]
         modal_embs_trimmed = post_nn[:, :, :original_emb_len]

@@ -57,6 +57,15 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 
 
+class BidirectionalLinear(Linear):
+
+    def __init__(self, input_dim, output_dim):
+        super().__init__(input_dim, output_dim, bias=False)
+
+    def reverse(self, input):
+        return torch.matmul(input, self.weight)
+
+
 class BaselineModule(NeuralModule):
     def __init__(
         self,
@@ -70,8 +79,7 @@ class BaselineModule(NeuralModule):
 
         # todo experiment using the same params for spectrogram projection
         internal_dim = spectrogram_encoder.d_model
-        self.spectrogram_in_projection = Linear(num_mels, internal_dim)
-        self.spectrogram_out_projection = Linear(internal_dim, num_mels)
+        self.spectrogram_projection = BidirectionalLinear(num_mels, internal_dim)
 
         self.spectrogram_encoder = spectrogram_encoder
         self.infuser_model = infuser_model
@@ -83,7 +91,7 @@ class BaselineModule(NeuralModule):
         # TODO check masking is done correctly here
         text_encodings, _ = self.text_encoder(transcripts)
 
-        spectrogram_projections = self.spectrogram_in_projection(input_mels)
+        spectrogram_projections = self.spectrogram_projection(input_mels)
         spectrogram_encodings, _ = self.spectrogram_encoder(
             input=spectrogram_projections, seq_lens=input_mels_len)
 
@@ -94,7 +102,7 @@ class BaselineModule(NeuralModule):
             spec_lens=input_mels_len,
         )
 
-        spectrogram_preds = self.spectrogram_out_projection(spec_encs)
+        spectrogram_preds = self.spectrogram_projection.reverse(spec_encs)
         return spectrogram_preds
 
 
@@ -231,19 +239,6 @@ class InpainterModel(ModelPT, Exportable):
         spectrogram_encoder = instantiate(cfg.spectrogram_encoder)
 
         infuser_model = instantiate(cfg.infuser_model)
-        # # todo hparams for infuser model
-        # infuser_model = BiModalTransformerEncoder(
-        #     n_layer=cfg.input_fft.n_layer,
-        #     n_head=cfg.input_fft.n_head,
-        #     d_model=cfg.input_fft.d_model,
-        #     d_head=cfg.input_fft.d_head,
-        #     d_inner=cfg.input_fft.d_inner,
-        #     kernel_size=cfg.input_fft.kernel_size,
-        #     dropout=cfg.input_fft.dropout,
-        #     dropatt=cfg.input_fft.dropatt,
-        #     dropemb=cfg.input_fft.dropemb,
-        #     d_mode=cfg.input_fft.d_model // 4
-        # )
 
         self.module = BaselineModule(
             cfg.n_mel_channels,
@@ -392,7 +387,8 @@ class InpainterModel(ModelPT, Exportable):
             spect_mask=mel_masks
         )
         mse_loss = self.mse_loss(mels_pred, mels)
-        loss = gap_loss + mse_loss
+        # TODO make this a parameter
+        loss = (10 * gap_loss) + mse_loss
         return loss, (text, text_lens, mels, mels_masked, mels_pred, spec_len)
 
     def training_step(self, batch, batch_idx):
