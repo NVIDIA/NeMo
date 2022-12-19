@@ -115,7 +115,7 @@ model:
     validation_ds: [data/rte_val.jsonl,]
     add_eos: True
     shuffle: True
-    num_workers: 8
+    num_workers: 0
     pin_memory: True
     train_cache_data_path: null  # the path to the train cache data 
     validation_cache_data_path: null  # the path to the validation cache data 
