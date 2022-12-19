@@ -15,10 +15,10 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_init
 from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.utils import logging
 
 
 class RequestDataset(Dataset):

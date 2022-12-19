@@ -14,9 +14,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils import logging
 
 
 class PromptRequestDataset(Dataset):
