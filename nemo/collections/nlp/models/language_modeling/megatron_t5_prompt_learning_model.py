@@ -38,7 +38,8 @@ try:
     from apex.transformer.enums import ModelType
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
+        forward_backward_pipelining_without_interleaving
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
     )
 
     HAVE_APEX = True
@@ -73,6 +74,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
+        self.current_micro_batch_size = None
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -151,9 +153,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else:
                 t5_cfg.masked_softmax_fusion = False
             t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
-            t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
-            t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
+            t5_cfg.micro_batch_size = cfg.data.train_ds.get('micro_batch_size', cfg.get('micro_batch_size', 8))
+            t5_cfg.global_batch_size = cfg.data.train_ds.get('global_batch_size', cfg.get('global_batch_size' 8))
             t5_cfg.precision = trainer.precision
 
         self.frozen_model = MegatronT5Model.restore_from(
@@ -190,7 +193,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Get seq length of batch
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length, self.current_micro_batch_size, self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -402,9 +405,69 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def test_epoch_end(self, outputs):
         self.validation_epoch_end(outputs)
+        
+    def on_validation_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.validaiton_global_batch_size,
+            micro_batch_size=self.validation_micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        self.current_micro_batch_size = self.validation_micro_batch_size
+        return super().on_validation_epoch_start()
+
+    def on_test_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.test_global_batch_size,
+            micro_batch_size=self.test_micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        self.current_micro_batch_size = self.test_micro_batch_size
+        return super().on_test_epoch_start()
+        
+    def on_test_epoch_end(self):
+        self.on_inference_epoch_end(self.test_global_batch_size, self.test_micro_batch_size)
+        return super().on_test_epoch_end()
+
+    def on_validation_epoch_end(self):
+        self.on_inference_epoch_end(self.validaiton_global_batch_size, self.validation_micro_batch_size)
+        return super().on_validation_epoch_end()
+
+    def on_inference_epoch_end(self, global_batch_size, micro_batch_size):
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.train_global_batch_size,
+                micro_batch_size=self.train_micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+            self.current_micro_batch_size = self.train_micro_batch_size
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+            self.current_micro_batch_size = micro_batch_size
+
+    def on_train_epoch_start(self) -> None:
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        self.on_validation_epoch_end()
+        return super().on_train_epoch_start()
 
     def build_virtual_prompt_dataset(
-        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+        self, dataset_paths, global_batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
         dataset = T5PromptLearningDataset(
             datasets=dataset_paths,
@@ -425,7 +488,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         )
 
         rank = parallel_state.get_data_parallel_rank()
-        world_size = parallel_state.get_data_parallel_world_size()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
@@ -434,7 +497,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             dataset,
             collate_fn=dataset.collate_fn,
             sampler=sampler,
-            batch_size=batch_size // world_size,
+            batch_size=global_batch_size // data_parallel_size,
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,

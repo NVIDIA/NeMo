@@ -41,8 +41,6 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 8 
-  micro_batch_size: 8 # micro batch size should equal global batch size when pipeline parallel = 1
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
@@ -69,17 +67,28 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["data/squad_train.jsonl"]
-    validation_ds: ["data/squad_val.jsonl"]
     add_eos: true
     add_bos: false
     decoder_starts_with_pad: False
     add_eos_to_decoder_output: True
     add_sentinel_to_input: True
     ul2_prompt_token: null # <extra_id_s>, <extra_id_r>, <extra_id_x>
-    shuffle: true
-    num_workers: 4
-    pin_memory: true
+
+    train_ds: 
+      path: ["data/squad_train.jsonl"]
+      global_batch_size: 8
+      micro_batch_size: 8 # micro batch size should equal global batch size when pipeline parallel = 1
+      shuffle: true
+      num_workers: 4
+      pin_memory: true
+
+    validation_ds: 
+      path: ["data/squad_val.jsonl"]
+      global_batch_size: 8
+      micro_batch_size: 8 # micro batch size should equal global batch size when pipeline parallel = 1
+      shuffle: true
+      num_workers: 4
+      pin_memory: true
 
   optim:
     name: fused_adam
