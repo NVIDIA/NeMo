@@ -2005,7 +2005,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
             for hyp in hypotheses:
                 hyp.alignments = [[]]
         else:
-            alignments = None
+            hyp.alignments = None
 
         # If confidence scores need to be preserved, register a danling list to hold the values
         if self.preserve_frame_confidence:
