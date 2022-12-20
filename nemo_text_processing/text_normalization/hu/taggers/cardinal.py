@@ -25,11 +25,11 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 from nemo_text_processing.text_normalization.hu.utils import get_abs_path
 from pynini.lib import pynutil
 
-zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
-digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
-digit_inline = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit_inline.tsv")))
-ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/tens.tsv")))
-ties_inline = pynini.invert(pynini.string_file(get_abs_path("data/numbers/tens_inline.tsv")))
+zero = pynini.invert(pynini.string_file(get_abs_path("data/number/zero.tsv")))
+digit = pynini.invert(pynini.string_file(get_abs_path("data/number/digit.tsv")))
+digit_inline = pynini.invert(pynini.string_file(get_abs_path("data/number/digit_inline.tsv")))
+tens = pynini.invert(pynini.string_file(get_abs_path("data/number/tens.tsv")))
+tens_inline = pynini.invert(pynini.string_file(get_abs_path("data/number/tens_inline.tsv")))
 
 
 class CardinalFst(GraphFst):
@@ -50,8 +50,10 @@ class CardinalFst(GraphFst):
         # Any single digit
         graph_digit = digit
         digits_inline_no_one = (NEMO_DIGIT - "1") @ digit_inline
+        digits_no_one = (NEMO_DIGIT - "1") @ digit
         if not deterministic:
             graph_digit |= pynini.cross("2", "két")
+            digits_inline_no_one |= pynini.cross("2", "kettő")
 
         insert_hyphen = pynutil.insert("-")
         # in the non-deterministic case, add an optional space
@@ -64,7 +66,7 @@ class CardinalFst(GraphFst):
         self.tens = graph_tens.optimize()
 
         self.two_digit_non_zero = pynini.union(
-            graph_digit, graph_tens, (pynutil.delete("0") + digits)
+            graph_digit, graph_tens, (pynutil.delete("0") + digit)
         ).optimize()
 
         base_hundreds = pynini.union(
@@ -86,6 +88,17 @@ class CardinalFst(GraphFst):
 
         self.hundreds = graph_hundreds.optimize()
 
+        # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
+        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
+
+        graph_hundreds_component_at_least_one_non_zero_digit = graph_hundreds_component | (
+            pynutil.delete("00") + graph_digit
+        )
+        # Needed?
+        graph_hundreds_component_at_least_one_non_zero_digit_no_one = graph_hundreds_component | (
+            pynutil.delete("00") + digits_no_one
+        )
+
         one_thousand = pynini.union(
             pynini.cross("1000", "ezer"),
             pynini.cross("10", "ezer") + graph_tens,
@@ -98,33 +111,22 @@ class CardinalFst(GraphFst):
             digits_inline_no_one + pynutil.insert("ezer") + insert_hyphen + bare_hundreds
         )
 
-        # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
-        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
-
-        graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (
-            pynutil.delete("00") + graph_digit
-        )
-        # Needed?
-        graph_hundreds_component_at_least_one_none_zero_digit_no_one = graph_hundreds_component | (
-            pynutil.delete("00") + digits_no_one
-        )
-
-        graph_thousands_component_at_least_one_none_zero_digit = pynini.union(
-            pynutil.delete("000") + graph_hundreds_component_at_least_one_none_zero_digit,
-            graph_hundreds_component_at_least_one_none_zero_digit_no_one
+        graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
+            
             + pynutil.insert(" mil")
-            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", "mil")
-            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
         graph_thousands_component_at_least_one_none_zero_digit_no_one = pynini.union(
-            pynutil.delete("000") + graph_hundreds_component_at_least_one_none_zero_digit_no_one,
-            graph_hundreds_component_at_least_one_none_zero_digit_no_one
+            pynutil.delete("000"),
+            
             + pynutil.insert(" mil")
-            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", "mil")
-            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
         graph_million = pynutil.add_weight(pynini.cross("000001", "un millón"), -0.001)
@@ -146,7 +148,7 @@ class CardinalFst(GraphFst):
             graph_trillion
             + graph_billion
             + graph_million
-            + (graph_thousands_component_at_least_one_none_zero_digit | pynutil.delete("000000"))
+            + (pynutil.delete("000000"))
         )
 
         self.graph = (
