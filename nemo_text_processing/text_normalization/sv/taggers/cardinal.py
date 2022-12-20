@@ -32,11 +32,12 @@ teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
-def make_million(number: str, non_zero_no_one: 'pynini.FstLike') -> 'pynini.FstLike':
+def make_million(number: str, deterministic: bool=True, non_zero_no_one: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Helper function for millions/milliards and higher
     Args:
         number: the string of the number
+        deterministic: if True, generate a deterministic fst
         non_zero_no_one: An fst of digits excluding 0 and 1, to prefix to the number
 
     Returns:
@@ -200,12 +201,12 @@ class CardinalFst(GraphFst):
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
-        graph_million = make_million("miljon", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_milliard = make_million("miljard", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_billion = make_million("biljon", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_billiard = make_million("biljard", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_trillion = make_million("triljon", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_trilliard = make_million("triljard", graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_million = make_million("miljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_milliard = make_million("miljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_billion = make_million("biljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_billiard = make_million("biljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_trillion = make_million("triljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        graph_trilliard = make_million("triljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
 
         graph = (
             graph_trilliard
