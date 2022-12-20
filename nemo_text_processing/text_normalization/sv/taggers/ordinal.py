@@ -150,7 +150,7 @@ class OrdinalFst(GraphFst):
 
         graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
-            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
@@ -159,7 +159,7 @@ class OrdinalFst(GraphFst):
 
         graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
-            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
@@ -207,7 +207,10 @@ class OrdinalFst(GraphFst):
             ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
             @ NEMO_DIGIT ** 24
-            @ cleaned_graph
+            @ graph
+            @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+            @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+            @ pynini.cdrewrite(ordinal_endings, "", "[EOS]", NEMO_SIGMA)
             @ pynini.cdrewrite(
                 pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
             )
