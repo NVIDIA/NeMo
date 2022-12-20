@@ -148,7 +148,7 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
     bash_commands = [
         f"export NCCL_LAUNCH_MODE=GROUP",
         "echo ${SLURM_PROCID}.${SLURM_LOCALID}@$(hostname)",
-        f"/opt/bignlp/FasterTransformer/build/bin/multi_gpu_gpt_example {ini} {csv}",
+        f"/opt/FasterTransformer/build/bin/multi_gpu_gpt_example {ini} {csv}",
     ]
     bash_command = [" && ".join(bash_commands)]
 

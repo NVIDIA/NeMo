@@ -43,9 +43,9 @@ def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaCo
     # Generate string of hydra overrides for nemo_megatron_launcher.
     overrides_str = generate_overrides_str(file_name, model_name, results_dir, cfg)
 
-    bignlp_ci = f"BIGNLP_CI=1" if bool(os.getenv("BIGNLP_CI")) else ""
+    nemo_megatron_ci = f"NEMO_MEGATRON_CI=1" if bool(os.getenv("NEMO_MEGATRON_CI")) else ""
     main_path = os.path.join(nemo_megatron_path, "main.py")
-    cmd = f"HYDRA_FULL_ERROR=1 {bignlp_ci} python3 {main_path} {overrides_str} "
+    cmd = f"HYDRA_FULL_ERROR=1 {nemo_megatron_ci} python3 {main_path} {overrides_str} "
 
     # Launch job with command cmd.
     try:
