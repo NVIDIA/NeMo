@@ -3488,7 +3488,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=2"
+                model.global_batch_size=4"
             sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
             sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
           }
