@@ -32,7 +32,7 @@ teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
-def make_million(number: str, deterministic: bool=True, non_zero_no_one: 'pynini.FstLike') -> 'pynini.FstLike':
+def make_million(number: str, non_zero_no_one: 'pynini.FstLike', deterministic: bool=True) -> 'pynini.FstLike':
     """
     Helper function for millions/milliards and higher
     Args:
@@ -201,12 +201,13 @@ class CardinalFst(GraphFst):
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
-        graph_million = make_million("miljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_milliard = make_million("miljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_billion = make_million("biljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_billiard = make_million("biljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_trillion = make_million("triljon", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
-        graph_trilliard = make_million("triljard", deterministic, graph_hundreds_component_at_least_one_non_zero_digit_no_one)
+        non_zero_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
+        graph_million = make_million("miljon", non_zero_no_one, deterministic)
+        graph_milliard = make_million("miljard", non_zero_no_one, deterministic)
+        graph_billion = make_million("biljon", non_zero_no_one, deterministic)
+        graph_billiard = make_million("biljard", non_zero_no_one, deterministic)
+        graph_trillion = make_million("triljon", non_zero_no_one, deterministic)
+        graph_trilliard = make_million("triljard", non_zero_no_one, deterministic)
 
         graph = (
             graph_trilliard
