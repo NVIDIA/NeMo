@@ -42,6 +42,7 @@ with open(args.output_file, "w", encoding="utf-8") as out:
                 out.write(test_data[i]["text"] + "\n")
                 out.write("\tbefore: " + test_data[i]["before_spell_pred"] + "\n")
                 out.write("\tafter: " + test_data[i]["pred_text"] + "\n")
+                out.write("\tpath: " + test_data[i]["audio_filepath"] + "\n")
             else:
                 unknown += 1
 
