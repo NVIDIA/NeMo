@@ -191,11 +191,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, num_extra_outputs: int = 0):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
-        self.num_extra_outputs = num_extra_outputs
+        self.num_extra_outputs = joint.num_extra_outputs
         self.big_blank_durations = self.cfg.get("big_blank_durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
@@ -1053,7 +1053,6 @@ class RNNTDecoding(AbstractRNNTDecoding):
             decoder=decoder,
             joint=joint,
             blank_id=blank_id,
-            num_extra_outputs=joint.num_extra_outputs,
         )
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
