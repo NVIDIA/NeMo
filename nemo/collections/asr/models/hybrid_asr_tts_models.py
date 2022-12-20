@@ -1,6 +1,7 @@
 import copy
 import itertools
 from functools import reduce
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -16,6 +17,7 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel
+from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
@@ -125,7 +127,7 @@ class ASRWithTTSModel(ASRModel):
             self.cfg.tts_model = self.tts_model.cfg
         else:
             assert cfg.tts_model is not None
-            self.tts_model = ASRModel.from_config_dict(cfg.tts_model)
+            self.tts_model = ModelPT.from_config_dict(cfg.tts_model)
         self.register_submodule_artifacts(self.tts_model, "tts_model")
         self.tts_model.freeze()  # tts model should be always frozen
 
@@ -138,10 +140,12 @@ class ASRWithTTSModel(ASRModel):
             self.asr_model = self.asr_model_type.get_asr_cls()(cfg)  # instantiate
             self.cfg.asr_model = self.asr_model.cfg
         self.register_submodule_artifacts(self.asr_model, "asr_model")
+
         # replace BatchNorm with FusedBatchNorm
         if cfg.get("asr_model_fuse_bn"):
             fuse_bn_in_conformer(self.asr_model)
             self.cfg.asr_model = self.asr_model.cfg
+            cfg.asr_model_fuse_bn = False  # no need to fuse anymore
 
         if cfg.enhancer_model_path is not None:
             # ToDo: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
@@ -169,18 +173,77 @@ class ASRWithTTSModel(ASRModel):
 
     @classmethod
     def from_asr_config(
-        cls, cfg: DictConfig, model_type: Union[str, ASRModelTypes], tts_model: FastPitchModel, trainer: Trainer = None
+        cls,
+        asr_cfg: DictConfig,
+        asr_model_type: Union[str, ASRModelTypes],
+        tts_model_path: Union[str, Path],
+        trainer: Trainer = None,
     ):
-        raise NotImplementedError()
+        """
+        Method to construct model from ASR config for training from scratch
+        :param asr_cfg:
+        :param asr_model_type:
+        :param tts_model_path:
+        :param trainer:
+        :return:
+        """
+        model_type = cls.ASRModelTypes(asr_model_type)
+        cfg = DictConfig(
+            dict(
+                sample_rate=asr_cfg.sample_rate,
+                asr_model_path=None,
+                asr_model=None,
+                tts_model_path=f"{tts_model_path}",
+                tts_model=None,
+                enhancer_model_path=None,
+                enhancer_model=None,
+                asr_model_type=f"{model_type}",
+                asr_model_fuse_bn=False,  # for training from scratch always should be False
+                train_ds=None,
+                validation_ds=None,
+                test_ds=None,
+                optim=None,
+            )
+        )
+
+        asr_cfg = copy.deepcopy(asr_cfg)  # copy not to avoid original config
+        OmegaConf.set_struct(asr_cfg, False)
+        for subconfig_path in ["optim", "train_ds", "validation_ds", "test_ds"]:
+            if subconfig_path in asr_cfg:
+                cfg[subconfig_path] = asr_cfg.pop(subconfig_path)
+        cfg.asr_model = asr_cfg
+        return cls(cfg=cfg, trainer=trainer)
 
     @classmethod
     def from_pretrained_models(
-        cls, asr_model_path: str, tts_model_path: str, cfg: DictConfig = None, trainer: Optional[Trainer] = None,
+        cls,
+        asr_model_path: Union[str, Path],
+        tts_model_path: Union[str, Path],
+        asr_model_fuse_bn: bool = False,
+        cfg: Optional[DictConfig] = None,
+        trainer: Optional[Trainer] = None,
     ):
         if cfg is None:
-            cfg = DictConfig(dict())
-        cfg.tts_model_path = tts_model_path
-        cfg.asr_model_path = asr_model_path
+            cfg = DictConfig(
+                dict(
+                    sample_rate=None,
+                    asr_model_path=f"{asr_model_path}",
+                    asr_model=None,
+                    tts_model_path=f"{tts_model_path}",
+                    tts_model=None,
+                    enhancer_model_path=None,
+                    enhancer_model=None,
+                    asr_model_type=None,
+                    asr_model_fuse_bn=asr_model_fuse_bn,
+                    train_ds=None,
+                    validation_ds=None,
+                    test_ds=None,
+                    optim=None,
+                )
+            )
+        else:
+            cfg.tts_model_path = f"{tts_model_path}"
+            cfg.asr_model_path = f"{asr_model_path}"
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     def __setattr__(self, name, value):

@@ -13,22 +13,18 @@
 # limitations under the License.
 
 """
-# Finetuning the model
+# Training the model from scratch
 ```sh
-python speech_to_text_bpe_with_text_finetune.py \
+python speech_to_text_bpe_with_text.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
-    model.asr_model_path={asr_model_path} \
-    model.tts_model_path={tts_model_path} \
-    model.asr_model_fuse_bn=<true recommended if ConformerEncoder with BatchNorm, false otherwise> \
+    ++model.tts_model_path={tts_model_path} \
+    ++model.asr_model_type=<rnnt_bpe or ctc_bpe> \
     model.train_ds.manifest_filepath=<path to manifest with audio-text pairs or null> \
-    model.train_ds.text_data.manifest_filepath=<path to manifest with train text> \
-    model.train_ds.text_data.speakers_filepath=<path to speakers list> \
+    ++model.train_ds.text_data.manifest_filepath=<path to manifest with train text> \
+    ++model.train_ds.text_data.speakers_filepath=<path to speakers list> \
+    ++model.train_ds.text_data.min_words=1 \
+    ++model.train_ds.text_data.max_words=45 \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
-    trainer.devices=-1 \
-    trainer.accelerator="gpu" \
-    trainer.strategy="ddp" \
-    trainer.max_epochs=10 \
-    model.optim.lr=0.0001 \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Name of project>"
@@ -59,7 +55,9 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    asr_model = ASRWithTTSModel(cfg.model, trainer=trainer)
+    asr_model = ASRWithTTSModel.from_asr_config(
+        asr_cfg=cfg.model, asr_model_type=cfg.asr_model_type, tts_model_path=cfg.tts_model_path, trainer=trainer
+    )
 
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
