@@ -198,14 +198,14 @@ class RetroQAFineTuneDataset(Dataset):
  
         # Using causal attention mask for whole input
 
-        return (
-            input_ids,
-            labels,
-            hidden_mask,
-            loss_mask,
-            context_mask,
-            chunks,
-        )
+        return {
+            'tokens': input_ids,
+            'labels': labels,
+            'tokens_mask': hidden_mask,
+            'loss_mask': loss_mask,
+            'retrieved_emb_mask': context_mask,
+            'retrieved_ids': chunks,
+        }
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
