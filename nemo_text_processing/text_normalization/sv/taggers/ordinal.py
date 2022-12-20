@@ -196,13 +196,6 @@ class OrdinalFst(GraphFst):
             ("tusen", "tusende")
         ])
 
-        cleaned_graph = (
-            graph
-            @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
-            @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
-            @ pynini.cdrewrite(ordinal_endings, "", "[EOS]", NEMO_SIGMA)
-        )
-
         self.graph = (
             ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
@@ -215,6 +208,8 @@ class OrdinalFst(GraphFst):
                 pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
             )
         )
+
+        cleaned_graph = self.graph
         self.graph |= zero
 
         self.graph = filter_punctuation(self.graph).optimize()
@@ -223,7 +218,7 @@ class OrdinalFst(GraphFst):
 
         tok_graph = (
             pynutil.insert("integer: \"")
-            + (cleaned_graph | suffixed_ordinal)
+            + (cleaned_graph | self.suffixed_to_words)
             + pynutil.insert("\"")
         )
 
