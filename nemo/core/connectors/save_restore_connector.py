@@ -425,13 +425,14 @@ class SaveRestoreConnector:
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
+        # artifacts can be native (from the model itself) and from submodules
         restoration_paths = []  # model + submodules restoration paths
         model_metadata = app_state.get_model_metadata_from_guid(model.model_guid)
         if model_metadata.restoration_path is not None:
             restoration_paths.append(model_metadata.restoration_path)
-        # aggregate restoration paths for all submodules
+        # aggregate restoration paths for all submodules recursively
         for _, module in model.named_modules():
-            if isinstance(module, nemo_classes.ModelPT):
+            if isinstance(module, nemo_classes.ModelPT):  # if NeMo model
                 submodule_restoration_path = app_state.get_model_metadata_from_guid(module.model_guid).restoration_path
                 if submodule_restoration_path is not None:
                     restoration_paths.append(submodule_restoration_path)
@@ -445,6 +446,8 @@ class SaveRestoreConnector:
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
+                    # unpack all restorations paths (nemo checkpoints)
+                    # in nemo checkpoints all resources contain hash in name, so there should be no collisions
                     for path in restoration_paths:
                         self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
                     os.chdir(archive_dir)

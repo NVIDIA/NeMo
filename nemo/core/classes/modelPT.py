@@ -242,16 +242,18 @@ class ModelPT(LightningModule, Model):
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
     def register_submodule_artifacts(self, submodule: ModelPT, module_config_path: str):
+        # check submodule contains artifacts
         if not hasattr(submodule, 'artifacts') or getattr(submodule, 'artifacts') is None:
-            # nothing to register
-            return
+            return  # nothing to register
 
+        # initialize `artifacts` property if not initialized
         if not hasattr(self, 'artifacts') or getattr(self, 'artifacts') is None:
             self.artifacts = {}
 
-        # copy artifacts from foreign module
-        for artifact_name, artifact_info in submodule.artifacts.items():
-            artifact_name = f"{module_config_path}.{artifact_name}"
+        # copy artifacts from submodule
+        for submodule_artifact_name, artifact_info in submodule.artifacts.items():
+            # artifact name should be a valid path in config
+            artifact_name = f"{module_config_path}.{submodule_artifact_name}"
             self.artifacts[artifact_name] = artifact_info
 
     def save_to(self, save_path: str):

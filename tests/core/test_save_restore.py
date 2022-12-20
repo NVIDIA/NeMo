@@ -85,11 +85,16 @@ class MockModel(ModelPT):
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         self._test_dl = None
 
+    @classmethod
     def list_available_models(cls):
         return []
 
 
 class MockModelWithChildren(MockModel):
+    """
+    Mock Model, can contain 2 children (other NeMo models)
+    """
+
     def __init__(self, cfg, trainer=None):
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -97,24 +102,34 @@ class MockModelWithChildren(MockModel):
         if cfg.get('child1_model_path') is None and cfg.get('child1_model') is None:
             self.child1_model = None
         else:
+            # if `child1_model_path` is set, model should be restored from nemo checkpoint
+            # otherwise model is constructed from config in `child1_model`
             if cfg.get('child1_model_path') is not None:
                 self.child1_model = ModelPT.restore_from(cfg.child1_model_path)
-                self.cfg.child1_model_path = None  # set to None, model is stored in config
-                self.cfg.child1_model = self.child1_model.cfg  # assign model config
+                # path in config should be set to `None` to restore model from config after saving
+                self.cfg.child1_model_path = None
+                # config for child model should be stored in base model config
+                self.cfg.child1_model = self.child1_model.cfg
             else:
                 self.child1_model = ModelPT.from_config_dict(self.cfg.child1_model)
+            # submodule artifacts should be registered explicitly
             self.register_submodule_artifacts(self.child1_model, 'child1_model')
 
         # child 2
         if cfg.get('child2_model_path') is None and cfg.get('child2_model') is None:
             self.child2_model = None
         else:
+            # if `child2_model_path` is set, model should be restored from nemo checkpoint
+            # otherwise model is constructed from config in `child2_model`
             if cfg.get('child2_model_path') is not None:
                 self.child2_model = ModelPT.restore_from(cfg.child2_model_path)
-                self.cfg.child2_model_path = None  # set to None, model is stored in config
+                # path in config should be set to `None` to restore model from config after saving
+                self.cfg.child2_model_path = None
+                # config for child model should be stored in base model config
                 self.cfg.child2_model = self.child2_model.cfg  # assign model config
             else:
                 self.child2_model = ModelPT.from_config_dict(self.cfg.child2_model)
+            # submodule artifacts should be registered explicitly
             self.register_submodule_artifacts(self.child2_model, 'child2_model')
 
 
@@ -594,8 +609,11 @@ class TestSaveRestore:
 
     @pytest.mark.unit
     def test_mock_model_nested(self):
-        # Update config with tempfiles
-
+        """
+        test model with 2 children: model and each child can be saved/restored separately
+        model is constructed from presaved models
+        """
+        # children - simple mock models
         cfg_child1 = _mock_model_config()
         cfg_child2 = _mock_model_config()
 
@@ -607,99 +625,118 @@ class TestSaveRestore:
         with tempfile.TemporaryDirectory() as tmpdir_parent:
             parent_path = os.path.join(tmpdir_parent, "parent.nemo")
             with tempfile.TemporaryDirectory() as tmpdir_child:
+                # save children
                 child1_path = os.path.join(tmpdir_child, 'child1.nemo')
                 child1.save_to(child1_path)
                 child2_path = os.path.join(tmpdir_child, 'child2.nemo')
                 child2.save_to(child2_path)
 
-                # create model with children from base model
+                # create model with children using saved "nemo" checkpoints
                 cfg_parent = _mock_model_with_children_config(
                     child1_model_path=child1_path, child2_model_path=child2_path
                 )
 
                 parent = MockModelWithChildren(cfg_parent.model)
                 parent.save_to(parent_path)
-            # restore, tmpdir_child is removed
+            # restore, separate children checkpoints are not available here (tmpdir_child destroyed)
             parent = ModelPT.restore_from(parent_path)
-            # check model is transparent, child_model can be saved/restored
+            # check model is transparent, child models can be accessed and can be saved/restored separately
             _ = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
             _ = self.__test_restore_elsewhere(parent.child2_model, map_location='cpu')
 
-            # check model itself can be restored
+            # check model itself can be saved/restored
             _ = self.__test_restore_elsewhere(parent, map_location='cpu')
 
     @pytest.mark.unit
     def test_mock_model_nested_with_resources(self):
+        """
+        test nested model with 2 children: model and each child can be saved/restored separately
+        child models and parent model itself contain resources
+        model is constructed from presaved models
+        """
         with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile(
             'w'
         ) as file_child2, tempfile.NamedTemporaryFile('w') as file_parent:
-            # Write some data
-            file_parent.writelines(["*****\n"])
+            # write text data, use these files as resources
+            parent_data = ["*****\n"]
+            child1_data = ["+++++\n"]
+            child2_data = ["-----\n"]
+            file_parent.writelines(parent_data)
             file_parent.flush()
-            file_child1.writelines(["+++++\n"])
+            file_child1.writelines(child1_data)
             file_child1.flush()
-            file_child2.writelines(["-----\n"])
+            file_child2.writelines(child2_data)
             file_child2.flush()
 
-            # children configs
+            # construct child models with resources
+            # create configs
             cfg_child1 = _mock_model_config()
             cfg_child1.model.temp_file = file_child1.name
             cfg_child2 = _mock_model_config()
             cfg_child2.model.temp_file = file_child2.name
-
-            # Create child models
+            # create child models
             child1 = MockModel(cfg=cfg_child1.model, trainer=None)
             child1 = child1.to('cpu')
             child2 = MockModel(cfg=cfg_child2.model, trainer=None)
             child2 = child2.to('cpu')
+
             with tempfile.TemporaryDirectory() as tmpdir_parent:
                 parent_path = os.path.join(tmpdir_parent, "parent.nemo")
                 with tempfile.TemporaryDirectory() as tmpdir_child:
+                    # save children
                     child1_path = os.path.join(tmpdir_child, 'child1.nemo')
                     child1.save_to(child1_path)
                     child2_path = os.path.join(tmpdir_child, 'child2.nemo')
                     child2.save_to(child2_path)
 
-                    # create model with children
+                    # create model with children using saved "nemo" checkpoints
                     cfg_parent = _mock_model_with_children_config(
                         child1_model_path=child1_path, child2_model_path=child2_path
                     )
-                    cfg_parent.model.temp_file = file_parent.name
+                    cfg_parent.model.temp_file = file_parent.name  # add resource
                     parent = MockModelWithChildren(cfg_parent.model)
                     parent.save_to(parent_path)
 
-                # restore, tmpdir_child is removed
+                # restore, separate children checkpoints are not available here (tmpdir_child destroyed)
                 parent = ModelPT.restore_from(parent_path)
-                # model is transparent, children can be saved/restored
+                # check model is transparent, child models can be accessed and can be saved/restored separately
                 child1 = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
                 child2 = self.__test_restore_elsewhere(parent.child2_model, map_location='cpu')
                 # test parent save/restore
                 parent = self.__test_restore_elsewhere(parent, map_location='cpu')
 
                 # test resources
-                assert parent.temp_data == ["*****\n"]
-                assert parent.child1_model.temp_data == ["+++++\n"]
-                assert parent.child2_model.temp_data == ["-----\n"]
-                assert child1.temp_data == ["+++++\n"]
-                assert child2.temp_data == ["-----\n"]
+                # check separately restored child models
+                assert child1.temp_data == child1_data
+                assert child2.temp_data == child2_data
+                # test parent model + child models
+                assert parent.temp_data == parent_data
+                assert parent.child1_model.temp_data == child1_data
+                assert parent.child2_model.temp_data == child2_data
 
     @pytest.mark.unit
     def test_mock_model_nested_double_with_resources(self):
+        """
+        test nested model: parent -> child_with_child -> child; model and each child can be saved/restored separately
+        all models can contain resources
+        """
         with tempfile.NamedTemporaryFile('w') as file_child, tempfile.NamedTemporaryFile(
             'w'
         ) as file_child_with_child, tempfile.NamedTemporaryFile('w') as file_parent:
-            # Write some data
-            file_parent.writelines(["*****\n"])
+            # write text data, use these files as resources
+            parent_data = ["*****\n"]
+            child_with_child_data = ["+++++\n"]
+            child_data = ["-----\n"]
+            file_parent.writelines(parent_data)
             file_parent.flush()
-            file_child_with_child.writelines(["+++++\n"])
+            file_child_with_child.writelines(child_with_child_data)
             file_child_with_child.flush()
-            file_child.writelines(["-----\n"])
+            file_child.writelines(child_data)
             file_child.flush()
 
-            # children configs
+            # construct child model (leaf) with resource
             cfg_child = _mock_model_config()
             cfg_child.model.temp_file = file_child.name
-            # Create child models
             child = MockModel(cfg=cfg_child.model, trainer=None)
             child = child.to('cpu')
 
@@ -708,38 +745,43 @@ class TestSaveRestore:
                 with tempfile.TemporaryDirectory() as tmpdir_child_with_child:
                     child_with_child_path = os.path.join(tmpdir_child_with_child, 'child_with_child.nemo')
                     with tempfile.TemporaryDirectory() as tmpdir_child:
+                        # save child
                         child_path = os.path.join(tmpdir_child, 'child.nemo')
                         child.save_to(child_path)
 
+                        # create child model with child
                         cfg_child_with_child = _mock_model_with_children_config(
                             child1_model_path=child_path, child2_model_path=None
                         )
                         cfg_child_with_child.model.temp_file = file_child_with_child.name
                         child_with_child = MockModelWithChildren(cfg_child_with_child.model)
                         child_with_child.save_to(child_with_child_path)
+                    # create parent model with child-with-child, leaf checkpoint is not available here
+                    cfg_parent = _mock_model_with_children_config(
+                        child1_model_path=child_with_child_path, child2_model_path=None
+                    )
+                    cfg_parent.model.temp_file = file_parent.name
+                    parent = MockModelWithChildren(cfg_parent.model)
+                    parent.save_to(parent_path)
 
-                        # create model with children
-                        cfg_parent = _mock_model_with_children_config(
-                            child1_model_path=child_with_child_path, child2_model_path=None
-                        )
-                        cfg_parent.model.temp_file = file_parent.name
-                        parent = MockModelWithChildren(cfg_parent.model)
-                        parent.save_to(parent_path)
-
-                # restore, tmpdir_child is removed
+                # restore, separate children checkpoints are not available here
+                # tmpdir_child, tmpdir_child_with_child are destroyed
                 parent = ModelPT.restore_from(parent_path)
-                # model is transparent, children can be saved/restored
+                # model is transparent, children and model itself can be saved/restored
                 child = self.__test_restore_elsewhere(parent.child1_model.child1_model, map_location='cpu')
                 child_with_child = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
-                # test parent save/restore
                 parent = self.__test_restore_elsewhere(parent, map_location='cpu')
 
-                # test resources
-                assert parent.temp_data == ["*****\n"]
-                assert parent.child1_model.temp_data == ["+++++\n"]
-                assert parent.child1_model.child1_model.temp_data == ["-----\n"]
-                assert child_with_child.temp_data == ["+++++\n"]
-                assert child.temp_data == ["-----\n"]
+                # test resources for all restored models
+                # leaf model
+                assert child.temp_data == child_data
+                # child with child
+                assert child_with_child.temp_data == child_with_child_data
+                assert child_with_child.child1_model.temp_data == child_data
+                # parent
+                assert parent.temp_data == parent_data
+                assert parent.child1_model.temp_data == child_with_child_data
+                assert parent.child1_model.child1_model.temp_data == child_data
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
