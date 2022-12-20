@@ -32,11 +32,12 @@ teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
-def make_million(number, non_zero_no_one):
+def make_million(number: str, non_zero_no_one: 'pynini.FstLike') -> 'pynini.FstLike':
     old_orth = number.replace("lj", "lli")
     graph = pynutil.add_weight(pynini.cross("001", number), -0.001)
     if not deterministic:
         graph |= pynutil.add_weight(pynini.cross("001", old_orth), -0.001)
+        # 'ett' is usually wrong for these numbers, but it occurs
         for one in ["en", "ett"]:
             graph |= pynutil.add_weight(pynini.cross("001", f"{one} {number}"), -0.001)
             graph |= pynutil.add_weight(pynini.cross("001", f"{one} {old_orth}"), -0.001)
