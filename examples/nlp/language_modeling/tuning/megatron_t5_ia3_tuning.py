@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import torch.multiprocessing as mp
 from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -29,7 +30,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
 
 """
