@@ -212,7 +212,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "mlp").lower())
         self.prompt_encoder = None
         if encoder_type == PromptEncoderType.TPMLP:
             self.prompt_encoder = PromptEncoderMLP(
@@ -223,7 +223,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
             self.prompt_encoder = PromptEncoder(
-                encoder_type=PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "mlp").lower()),
+                encoder_type=PromptEncoderType(encoder_type),
                 total_virtual_tokens=total_virtual_tokens,
                 token_dim=self.hidden_size,
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
