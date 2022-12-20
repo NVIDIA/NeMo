@@ -180,13 +180,18 @@ class OrdinalFst(GraphFst):
 
         ordinal_endings = pynini.string_map([
             ("ljon", "ljonte"),
+            ("ljoner", "ljonte"),
             ("llion", "llionte"),
+            ("llioner", "llionte"),
             ("ljard", "ljarte"),
+            ("ljarder", "ljarte"),
             ("lliard", "lliarte"),
+            ("lliarder", "lliarte"),
             ("tusen", "tusende")
         ])
 
-        cleaned_graph = (graph
+        cleaned_graph = (
+            graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
             @ pynini.cdrewrite(ordinal_endings, "", "[EOS]", NEMO_SIGMA)
@@ -209,7 +214,7 @@ class OrdinalFst(GraphFst):
 
         tok_graph = (
             pynutil.insert("integer: \"")
-            + (cleaned_graph | suffixed_ordinal)
+            + (cleaned_graph)# | suffixed_ordinal)
             + pynutil.insert("\"")
         )
 
