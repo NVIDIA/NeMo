@@ -130,7 +130,13 @@ class OrdinalFst(GraphFst):
         #     graph_digit,
         # )
 
-        graph_hundred_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
+        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
+        graph_hundreds_component_at_least_one_non_zero_digit = graph_hundreds_component | (
+            pynutil.delete("00") + graph_digit
+        )
+        graph_hundreds_component_at_least_one_non_zero_digit_no_one = graph_hundreds_component | (
+            pynutil.delete("00") + digits_no_one
+        )
 
         self.hundreds = graph_hundreds.optimize()
 
@@ -143,21 +149,21 @@ class OrdinalFst(GraphFst):
             tusen |= pynutil.insert(" ett tusen")
 
         graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
-            pynutil.delete("000") + cardinal.graph_hundreds_component_at_least_one_non_zero_digit,
-            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
+            graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
-            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
-            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
         graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
-            pynutil.delete("000") + cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one,
-            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
+            graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
-            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
-            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
         non_zero_no_one = cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
@@ -214,7 +220,7 @@ class OrdinalFst(GraphFst):
 
         tok_graph = (
             pynutil.insert("integer: \"")
-            + (cleaned_graph)# | suffixed_ordinal)
+            + (cleaned_graph | suffixed_ordinal)
             + pynutil.insert("\"")
         )
 
