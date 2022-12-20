@@ -632,13 +632,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # Initialize Hidden state matrix (shared by entire batch)
             hidden = None
 
-            # If alignments need to be preserved, register a danling list to hold the values
+            # If alignments need to be preserved, register a dangling list to hold the values
             if self.preserve_alignments:
                 # alignments is a 3-dimensional dangling list representing B x T x U
                 for hyp in hypotheses:
                     hyp.alignments = [[]]
 
-            # If confidence scores need to be preserved, register a danling list to hold the values
+            # If confidence scores need to be preserved, register a dangling list to hold the values
             if self.preserve_frame_confidence:
                 # frame_confidence is a 3-dimensional dangling list representing B x T x U
                 for hyp in hypotheses:
@@ -787,6 +787,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
+                            elif self.preserve_alignments:  # creating new alignment list for samples that had blank
+                                hypotheses[kidx].alignments.append([])
 
                         symbols_added += 1
 
@@ -834,7 +836,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Initialize Hidden state matrix (shared by entire batch)
         hidden = None
 
-        # If alignments need to be preserved, register a danling list to hold the values
+        # If alignments need to be preserved, register a dangling list to hold the values
         if self.preserve_alignments:
             # alignments is a 3-dimensional dangling list representing B x T x U
             for hyp in hypotheses:
@@ -842,7 +844,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         else:
             alignments = None
 
-        # If confidence scores need to be preserved, register a danling list to hold the values
+        # If confidence scores need to be preserved, register a dangling list to hold the values
         if self.preserve_frame_confidence:
             # frame_confidence is a 3-dimensional dangling list representing B x T x U
             for hyp in hypotheses:
@@ -995,7 +997,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
-
                     symbols_added += 1
 
         # Remove trailing empty list of alignments at T_{am-len} x Uj
