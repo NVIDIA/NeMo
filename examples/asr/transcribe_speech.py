@@ -24,6 +24,7 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -45,7 +46,16 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   audio_dir: path to directory with audio files
   dataset_manifest: path to dataset JSON manifest file (in NeMo format)
 
+  compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
+  
+  (Optionally: You can limit the type of timestamp computations using below overrides)
+  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
+  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
+
+  (Optionally: You can limit the type of timestamp computations using below overrides)
+  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
+  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
@@ -54,7 +64,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
-  overwrite_transcripts: Bool which when set allowes repeated transcriptions to overwrite previous results.
+  overwrite_transcripts: Bool which when set allows repeated transcriptions to overwrite previous results.
 
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
 
@@ -72,12 +82,20 @@ python transcribe_speech.py \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
     batch_size=32 \
+    compute_timestamps=False \
     compute_langs=False \
     cuda=0 \
     amp=True \
     append_pred=False \
     pred_name_postfix="<remove or use another model name for output filename>"
 """
+
+
+@dataclass
+class ModelChangeConfig:
+
+    # Sub-config for changes specific to the Conformer Encoder
+    conformer: ConformerChangeConfig = ConformerChangeConfig()
 
 
 @dataclass
@@ -96,6 +114,9 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+
+    # Set to True to output greedy timestamp information (only supported models)
+    compute_timestamps: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -118,6 +139,9 @@ class TranscriptionConfig:
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
     decoder_type: Optional[str] = None
+
+    # Use this for model-specific changes before transcription
+    model_change: ModelChangeConfig = ModelChangeConfig()
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -156,20 +180,40 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     return_hypotheses = True
 
     # we will adjust this flag is the model does not support it
+    compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         if cfg.decoder_type is not None:
-            asr_model.change_decoding_strategy(
-                cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding, decoder_type=cfg.decoder_type
-            )
+            # TODO: Support compute_langs in CTC eventually
+            if cfg.compute_langs and cfg.decoder_type == 'ctc':
+                raise ValueError("CTC models do not support `compute_langs` at the moment")
+
+            decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+            decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
+            if 'preserve_alignments' in decoding_cfg:
+                decoding_cfg.preserve_alignments = cfg.compute_timestamps
+            if 'compute_langs' in decoding_cfg:
+                decoding_cfg.compute_langs = cfg.compute_langs
+
+            asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+
         # Check if ctc or rnnt model
         elif hasattr(asr_model, 'joint'):  # RNNT model
             cfg.rnnt_decoding.fused_batch_size = -1
+            cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
+
+            if 'preserve_alignments' in cfg.rnnt_decoding:
+                cfg.rnnt_decoding.preserve_alignments = cfg.compute_timestamps
+
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
+            if cfg.compute_langs:
+                raise ValueError("CTC models do not support `compute_langs` at the moment.")
+            cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
+
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # prepare audio filepaths and decide wether it's partical audio
@@ -237,7 +281,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
 
     # write audio transcriptions
-    output_filename = write_transcription(transcriptions, cfg, model_name, filepaths, compute_langs)
+    output_filename = write_transcription(
+        transcriptions,
+        cfg,
+        model_name,
+        filepaths=filepaths,
+        compute_langs=compute_langs,
+        compute_timestamps=compute_timestamps,
+    )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
     return cfg

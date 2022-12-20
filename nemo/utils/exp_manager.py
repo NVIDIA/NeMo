@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import re
 import subprocess
@@ -41,6 +42,7 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.dllogger import DLLogger
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -103,6 +105,13 @@ class MLFlowParams:
 
 
 @dataclass
+class DLLoggerParams:
+    verbose: Optional[bool] = False
+    stdout: Optional[bool] = False
+    json_file: Optional[str] = "./dllogger.json"
+
+
+@dataclass
 class StepTimingParams:
     reduction: Optional[str] = "mean"
     # if True torch.cuda.synchronize() is called on start/stop
@@ -114,10 +123,10 @@ class StepTimingParams:
 @dataclass
 class EMAParams:
     enable: Optional[bool] = False
-    evaluate_ema_weights_instead: Optional[bool] = False
     decay: Optional[float] = 0.999
-    apply_ema_every_n_steps: Optional[int] = 1
-    start_step: Optional[int] = 0
+    cpu_offload: Optional[bool] = False
+    validate_original_weights: Optional[bool] = False
+    every_n_steps: int = 1
 
 
 @dataclass
@@ -138,6 +147,8 @@ class ExpManagerConfig:
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     create_mlflow_logger: Optional[bool] = False
     mlflow_logger_kwargs: Optional[MLFlowParams] = MLFlowParams()
+    create_dllogger_logger: Optional[bool] = False
+    dllogger_logger_kwargs: Optional[DLLoggerParams] = DLLoggerParams()
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
@@ -152,6 +163,8 @@ class ExpManagerConfig:
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
     ema: Optional[EMAParams] = EMAParams()
+    # Wall clock time limit
+    max_time_per_run: Optional[str] = None
 
 
 class TimingCallback(Callback):
@@ -206,7 +219,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
 
     The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
-     to False. It optionally creates TensorBoardLogger, WandBLogger, MLFlowLogger, ModelCheckpoint objects from pytorch lightning.
+     to False. It optionally creates TensorBoardLogger, WandBLogger, DLLogger, MLFlowLogger, ModelCheckpoint objects from pytorch lightning.
     It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
     process to log their output into.
 
@@ -250,6 +263,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - create_mlflow_logger (bool): Whether to create an MLFlow logger and attach it to the pytorch lightning
                 training. Defaults to False
             - mlflow_logger_kwargs (dict): optional parameters for the MLFlow logger
+            - create_dllogger_logger (bool): Whether to create an DLLogger logger and attach it to the pytorch lightning
+                training. Defaults to False
+            - dllogger_logger_kwargs (dict): optional parameters for the DLLogger logger
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
@@ -260,6 +276,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+                a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -352,22 +370,25 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
 
     # Handle logging to file
-    # Logs local rank 0 only
-    if local_rank == 0 and cfg.log_local_rank_0_only is True and nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs only on global rank 0
-    elif global_rank == 0 and cfg.log_global_rank_0_only is True and not nemo_testing is False:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs on all ranks.
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+    if cfg.log_local_rank_0_only is True and not nemo_testing:
+        if local_rank == 0:
+            logging.add_file_handler(log_file)
+    elif cfg.log_global_rank_0_only is True and not nemo_testing:
+        if global_rank == 0:
+            logging.add_file_handler(log_file)
     else:
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        # Logs on all ranks.
         logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
-    if cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger:
+    if (
+        cfg.create_tensorboard_logger
+        or cfg.create_wandb_logger
+        or cfg.create_mlflow_logger
+        or cfg.create_dllogger_logger
+    ):
         configure_loggers(
             trainer,
             exp_dir,
@@ -379,6 +400,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.wandb_logger_kwargs,
             cfg.create_mlflow_logger,
             cfg.mlflow_logger_kwargs,
+            cfg.create_dllogger_logger,
+            cfg.dllogger_logger_kwargs,
         )
 
     # add loggers timing callbacks
@@ -389,9 +412,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.ema.enable:
         ema_callback = EMA(
             decay=cfg.ema.decay,
-            apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps,
-            start_step=cfg.ema.start_step,
-            evaluate_ema_weights_instead=cfg.ema.evaluate_ema_weights_instead,
+            validate_original_weights=cfg.ema.validate_original_weights,
+            cpu_offload=cfg.ema.cpu_offload,
+            every_n_steps=cfg.ema.every_n_steps,
         )
         trainer.callbacks.append(ema_callback)
 
@@ -403,6 +426,24 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.disable_validation_on_resume:
         # extend training loop to skip initial validation when resuming from checkpoint
         configure_no_restart_validation_training_loop(trainer)
+
+    # Setup a stateless timer for use on clusters.
+    if cfg.max_time_per_run is not None:
+        found_ptl_timer = False
+        for idx, callback in enumerate(trainer.callbacks):
+            if isinstance(callback, Timer):
+                # NOTE: PTL does not expose a `trainer.max_time`. By the time we are in this function, PTL has already setup a timer if the user specifies `trainer.max_time` so best we can do is replace that.
+                # Working: If only `trainer.max_time` is set - it behaves as a normal PTL timer. If only `exp_manager.max_time_per_run` is set - it behaves as a StateLessTimer. If both are set, it also behaves as a StateLessTimer.
+                logging.warning(
+                    f'Found a PTL Timer callback, replacing with a StatelessTimer callback. This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run.'
+                )
+                trainer.callbacks[idx] = StatelessTimer(cfg.max_time_per_run)
+                found_ptl_timer = True
+                break
+
+        if not found_ptl_timer:
+            trainer.max_time = cfg.max_time_per_run
+            trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
@@ -434,7 +475,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     """
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
-        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger  or create_mlflow_logger is True
+        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_wandB_logger
+            or create_mlflow_logger or create_dllogger_logger is True
         - Prints error messages when 1) run on multi-node and not Slurm, and 2) run on multi-gpu without DDP
     """
     if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
@@ -448,7 +490,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
             f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
-            f"{cfg.create_wandb_logger} or create_mlflow_logger: {cfg.create_mlflow_logger} was set to True. "
+            f"{cfg.create_wandb_logger} or create_mlflow_logger: {cfg.create_mlflow_logger}"
+            f"or create_dllogger_logger: {cfg.create_mlflow_logger} was set to True. "
             "These can only be used if trainer does not already have a logger."
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
@@ -701,11 +744,14 @@ def configure_loggers(
     wandb_kwargs: dict,
     create_mlflow_logger: bool,
     mlflow_kwargs: dict,
+    create_dllogger_logger: bool,
+    dllogger_kwargs: dict,
 ):
-    """ Creates TensorboardLogger and/or WandBLogger / MLFlowLogger and attach them to trainer. Raises ValueError if
-    summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
-    # Potentially create tensorboard logger and/or WandBLogger / MLFlowLogger
+    Creates TensorboardLogger and/or WandBLogger / MLFlowLogger / DLlogger and attach them to trainer.
+    Raises ValueError if summary_writer_kwargs or wandb_kwargs are misconfigured.
+    """
+    # Potentially create tensorboard logger and/or WandBLogger / MLFlowLogger / DLLogger
     logger_list = []
     if create_tensorboard_logger:
         if summary_writer_kwargs is None:
@@ -738,7 +784,13 @@ def configure_loggers(
         mlflow_logger = MLFlowLogger(run_name=version, **mlflow_kwargs)
 
         logger_list.append(mlflow_logger)
-        logging.info('MLFlowLogger has been set up')
+        logging.info("MLFlowLogger has been set up")
+
+    if create_dllogger_logger:
+        dllogger_logger = DLLogger(**dllogger_kwargs)
+
+        logger_list.append(dllogger_logger)
+        logging.info("DLLogger has been set up")
 
     trainer._logger_connector.configure_logger(logger_list)
 
@@ -916,24 +968,27 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             except:
                 logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
-    def _get_ema_callback(self, trainer) -> Optional[EMA]:
+    def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
         ema_callback = None
         for callback in trainer.callbacks:
             if isinstance(callback, EMA):
                 ema_callback = callback
         return ema_callback
 
-    def _save_checkpoint(self, trainer, filepath: str) -> None:
-        super()._save_checkpoint(trainer, filepath)
-        ema_callback = self._get_ema_callback(trainer)
+    def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
+            with ema_callback.save_original_optimizer_state(trainer):
+                super()._save_checkpoint(trainer, filepath)
+
             # save EMA copy of the model as well.
-            ema_callback.replace_model_weights(trainer.lightning_module)
-            filepath = self._ema_format_filepath(filepath)
-            if self.verbose:
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+            with ema_callback.save_ema_model(trainer):
+                filepath = self._ema_format_filepath(filepath)
+                if self.verbose:
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
+        else:
             super()._save_checkpoint(trainer, filepath)
-            ema_callback.restore_original_weights(trainer.lightning_module)
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
@@ -1041,3 +1096,29 @@ class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
         return super()._should_check_val_fx()
+
+
+def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):
+    """
+    Helper method that removes Pytorch Lightning .ckpt files or NeMo .nemo files from the checkpoint directory
+
+    Args:
+        exp_log_dir: str path to the root directory of the current experiment.
+        remove_ckpt: bool, whether to remove all *.ckpt files in the checkpoints directory.
+        remove_nemo: bool, whether to remove all *.nemo files in the checkpoints directory.
+    """
+    exp_log_dir = str(exp_log_dir)
+
+    if remove_ckpt:
+        logging.info("Deleting *.ckpt files ...")
+        ckpt_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.ckpt"))
+        for filepath in ckpt_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")
+
+    if remove_nemo:
+        logging.info("Deleting *.nemo files ...")
+        nemo_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.nemo"))
+        for filepath in nemo_files:
+            os.remove(filepath)
+            logging.info(f"Deleted file : {filepath}")
