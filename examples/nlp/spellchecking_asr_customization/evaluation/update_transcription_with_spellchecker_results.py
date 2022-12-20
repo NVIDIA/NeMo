@@ -1,13 +1,16 @@
 import argparse
 import json
 import os
-import re
+import pdb
 from collections import defaultdict
 
 from tqdm.auto import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--asr_hypotheses_folder", required=True, type=str, help="Input folder with asr hypotheses")
+parser.add_argument(
+    "--spellchecker_inputs_folder", required=True, type=str, help="Input folder with spellchecker inputs, here .info.txt files are needed"
+)
 parser.add_argument(
     "--spellchecker_results_folder", required=True, type=str, help="Input folder with spellchecker output"
 )
@@ -215,18 +218,6 @@ def check_banned_replacements(src, dst):
     if src != dst and (src.startswith(dst) or dst.startswith(src) or src.endswith(dst) or dst.endswith(src)):
         return True
 
-    dummy_candidates = [
-        "a g k t t r k n a p r t f",
-        "v w w x y x u r t g p w q",
-        "n t r y t q q r u p t l n t",
-        "p b r t u r e t f v w x u p z",
-        "p p o j j k l n b f q t",
-        "j k y u i t d s e w s r e j h i p p",
-        "q w r e s f c t d r q g g y",
-    ]
-    if dst in dummy_candidates:
-        return True
-
     return False
 
 
@@ -248,6 +239,28 @@ for name in os.listdir(args.spellchecker_results_folder):
     except:
         continue
 
+    short2info = defaultdict(dict)
+    input_lines = []
+    info_lines = []
+    with open(args.spellchecker_inputs_folder + "/" + doc_id + ".txt", "r", encoding="utf-8") as f:
+        for line in f:
+            input_lines.append(line.strip())
+    with open(args.spellchecker_inputs_folder + "/" + doc_id + ".info.txt", "r", encoding="utf-8") as f:
+        for line in f:
+            info_lines.append(line.strip())
+    if len(input_lines) != len(info_lines):
+        raise(IndexError, "len(input_lines) != len(info_lines): " + str(len(input_lines)) + " vs " + str(len(info_lines)))
+    for inpline, infoline in zip(input_lines, info_lines):
+        short_sent = inpline.split("\t")[0]
+        info_parts = infoline.split(";")
+        for part in info_parts:
+            phrase, begin, length, cov, real_cov = part.split("|")
+            begin = int(begin)
+            length = int(length)
+            cov = float(cov)
+            real_cov = float(real_cov)
+            short2info[short_sent][phrase] = (begin, length, cov, real_cov)
+    
     with open(args.spellchecker_results_folder + "/" + doc_id + ".txt", "r", encoding="utf-8") as f:
         for line in f:
             s = line.strip()
@@ -261,6 +274,11 @@ for name in os.listdir(args.spellchecker_results_folder):
                 print("!!!", src, " => ", dst)
                 banned_count += 1
                 continue
+            begin, length, cov, real_cov = short2info[short_sent][dst]
+            if begin == -1:  # dummy candidate
+                banned_count += 1
+                continue
+
             for full_sent in short2full_sent[short_sent]:  # mostly there will be one-to-one correspondence
                 if full_sent not in full_sent2corrections:
                     full_sent2corrections[full_sent] = {}
