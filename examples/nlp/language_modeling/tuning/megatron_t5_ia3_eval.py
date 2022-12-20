@@ -14,6 +14,7 @@
 
 
 import torch
+import torch.multiprocessing as mp
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
@@ -25,7 +26,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 
-import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
 
 """

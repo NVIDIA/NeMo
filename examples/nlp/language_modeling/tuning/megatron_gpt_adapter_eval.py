@@ -14,6 +14,7 @@
 
 
 import torch
+import torch.multiprocessing as mp
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
@@ -23,7 +24,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model im
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
-import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
 
 """
@@ -104,7 +104,7 @@ def main(cfg) -> None:
         tokens_to_generate=cfg.inference.tokens_to_generate,
         drop_last=False,
         shuffle=False,
-        num_workers=cfg.get("num_workers", 1)
+        num_workers=cfg.get("num_workers", 1),
     )
 
     config = OmegaConf.to_container(cfg.inference)
