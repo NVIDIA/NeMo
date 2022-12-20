@@ -733,6 +733,7 @@ pipeline {
                 adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
+                data.num_workers=1 \
                 tensor_model_parallel_size=1 \
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
@@ -780,6 +781,7 @@ pipeline {
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
+                data.num_workers=1 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 pred_file_path='examples/adapter_tuning/test_tp2_pp1/preds.txt'"
             sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
@@ -821,6 +823,7 @@ pipeline {
                 adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
+                data.num_workers=1 \
                 tensor_model_parallel_size=1 \
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
@@ -865,6 +868,7 @@ pipeline {
                 adapter_model_file='examples/ia3_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
+                data.num_workers=1 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
@@ -908,6 +912,7 @@ pipeline {
                 adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 inference.greedy=True \
+                num_workers=1 \
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
@@ -953,6 +958,7 @@ pipeline {
                 inference.greedy=True \
                 inference.add_BOS=False \
                 trainer.devices=2 \
+                num_workers=1 \
                 tensor_model_parallel_size=2 \
                 data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
             sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
