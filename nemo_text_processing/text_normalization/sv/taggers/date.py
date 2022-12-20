@@ -45,9 +45,11 @@ class DateFst(GraphFst):
         # 01, 31, 1
         digit_day = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 32)]) @ ordinal.graph
         day = (pynutil.insert("day: \"") + digit_day + optional_dot + pynutil.insert("\"")).optimize()
+        self.digit_day = digit_day
 
         digit_month = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 13)])
         number_to_month = digit_month @ number_to_month
+        self.number_to_month = number_to_month
 
         month_name = (pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")).optimize()
         month_number = (pynutil.insert("month: \"") + number_to_month + pynutil.insert("\"")).optimize()
@@ -86,7 +88,7 @@ class DateFst(GraphFst):
         for sep in separators:
             graph_ymd |= NEMO_DIGIT ** 4 @ year_only + pynini.cross(sep, NEMO_SPACE) + month_number + day_optional
 
-        final_graph = graph_ymd | graph_dmy + pynutil.insert(" preserve_order: true")
+        final_graph = graph_ymd | (graph_dmy + pynutil.insert(" preserve_order: true"))
 
         self.final_graph = final_graph.optimize()
         self.fst = self.add_tokens(self.final_graph).optimize()
