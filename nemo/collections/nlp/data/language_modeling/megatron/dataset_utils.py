@@ -235,7 +235,9 @@ def create_masked_lm_predictions(
     if masked_lm_prob == 0:
         return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary)
 
-    num_to_predict = max(1, min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob)))))
+    num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+    if masking_style != "bert":
+        num_to_predict = max(1, num_to_predict)
     if num_to_predict < 1:
         logging.warning(
             F'Number of tokens is : {len(tokens)} and mask_probability is {masked_lm_prob}. None of the tokens will be masked'
@@ -280,7 +282,8 @@ def create_masked_lm_predictions(
         if not geometric_dist:
             # Not all ngrams are available because of skip_masking_id that prevents a certain ID from being masked.
             available_ngrams = list(cand_index_set.keys())
-            pvals_current = np.array([pvals[n] for n in available_ngrams])
+            # n - 1 because pvals is 0-indexed and available ngrams are 1-indexed.
+            pvals_current = np.array([pvals[n - 1] for n in available_ngrams])
             n = np_rng.choice(available_ngrams, p=pvals_current / pvals_current.sum(keepdims=True),)
         else:
             # Sampling "n" from the geometric distribution and clipping it to
