@@ -1,37 +1,50 @@
-"""Module to launch training jobs using bignlp-scripts."""
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Module to launch training jobs using nemo_megatron_launcher."""
 
 import os
 import shutil
 import subprocess
 
-from omegaconf import OmegaConf
-
 from autoconfig import utils
+from omegaconf import OmegaConf
 
 
 def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> int:
     """
-    Launch a training job for the given model name and config file, using bignlp-scripts.
+    Launch a training job for the given model name and config file, using nemo_megatron_launcher.
 
-    :param str file_name: name of the file configuration to be selected for training with bignlp-scripts.
+    :param str file_name: name of the file configuration to be selected for training with nemo_megatron_launcher.
     :param str model_name: model type to be run, usually gpt3, t5 or mt5.
     :param str results_dir: path to the directory where the results will be stored.
     :param OmegaConf cfg: OmegaConf object with full configuration for the HP tool.
     :return: SLURM job_id of the training job that was launched.
     :rtype: str
     """
-    # Copy cluster config to bignlp-scripts.
-    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
+    # Copy cluster config to nemo_megatron_launcher.
+    nemo_megatron_path = cfg.get("nemo_megatron_path")
     cluster_cfg = cfg.get("cluster")
-    dst = os.path.join(bignlp_scripts_path, "conf/cluster/bcm.yaml")
+    dst = os.path.join(nemo_megatron_path, "conf/cluster/bcm.yaml")
     copy_config_to_file(cluster_cfg, dst)
     print(f"Copied cluster config to {dst}")
 
-    # Generate string of hydra overrides for bignlp-scripts.
+    # Generate string of hydra overrides for nemo_megatron_launcher.
     overrides_str = generate_overrides_str(file_name, model_name, results_dir, cfg)
 
     bignlp_ci = f"BIGNLP_CI=1" if bool(os.getenv("BIGNLP_CI")) else ""
-    main_path = os.path.join(bignlp_scripts_path, "main.py")
+    main_path = os.path.join(nemo_megatron_path, "main.py")
     cmd = f"HYDRA_FULL_ERROR=1 {bignlp_ci} python3 {main_path} {overrides_str} "
 
     # Launch job with command cmd.
@@ -74,13 +87,12 @@ def convert_to_absolute_path(path: str) -> str:
             result.append(elem)
     return "/".join(result)
 
-def generate_overrides_str(
-    file_name: str, model_name: str, results_dir: str, cfg: OmegaConf
-) -> str:
-    """
-    Generates string with hydra-like parameter overrides for bignlp-scripts.
 
-    :param str file_name: name of the file configuration to be selected for training with bignlp-scripts.
+def generate_overrides_str(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> str:
+    """
+    Generates string with hydra-like parameter overrides for nemo_megatron_launcher.
+
+    :param str file_name: name of the file configuration to be selected for training with nemo_megatron_launcher.
     :param str model_name: model type to be run, usually gpt3, t5 or mt5.
     :param str results_dir: path to the directory where the results will be stored.
     :param OmegaConf cfg: OmegaConf object with full configuration for the HP tool.
@@ -93,18 +105,16 @@ def generate_overrides_str(
     container = cfg.get("training_container")
     autoconfig_path = cfg.get("autoconfig_path")
     autoconfig_path = convert_to_absolute_path(autoconfig_path)
-    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
-    bignlp_scripts_path = convert_to_absolute_path(bignlp_scripts_path)
+    nemo_megatron_path = cfg.get("nemo_megatron_path")
+    nemo_megatron_path = convert_to_absolute_path(nemo_megatron_path)
     data_dir = cfg.get("data_dir")
     container_mounts = cfg.get("container_mounts", "null")
     api_key_file = cfg.get("wandb").get("api_key_file")
     if api_key_file is None:
         api_key_file = "null"
-    
+
     # Process container-mounts.
-    mounts_str = (
-        f"{autoconfig_path}:{autoconfig_path},{results_dir}:{results_dir}"
-    )
+    mounts_str = f"{autoconfig_path}:{autoconfig_path},{results_dir}:{results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
     overrides_str = (
@@ -113,7 +123,7 @@ def generate_overrides_str(
         f"cluster_type={cluster_type} "
         f"base_results_dir={results_dir} "
         f"\"container='{container}'\" "
-        f"bignlp_path={bignlp_scripts_path} "
+        f"nemo_megatron_path={nemo_megatron_path} "
         f"data_dir={data_dir} "
         f"training.exp_manager.create_checkpoint_callback=False "
         f"container_mounts=\[{mounts_str}\] "

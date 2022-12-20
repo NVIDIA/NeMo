@@ -1,13 +1,25 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from typing import Optional
 
 import omegaconf
-
 from autoconfig import utils
 from autoconfig.base_config import calculate_model_size, generate_base_config
-from autoconfig.training_config import search_training_config
 from autoconfig.inference_sweep import search_inference_config
-
+from autoconfig.training_config import search_training_config
 
 SUPPORTED_MODELS = ["gpt3", "t5", "mt5", "bert"]
 
@@ -24,9 +36,7 @@ def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str
     """
     model_type = cfg.get("search_config_value")
     model_name, model_size = model_type.split("/")
-    assert (
-        model_name in SUPPORTED_MODELS
-    ), f"search_config must be set to one of {SUPPORTED_MODELS}/<model_size>"
+    assert model_name in SUPPORTED_MODELS, f"search_config must be set to one of {SUPPORTED_MODELS}/<model_size>"
 
     # Read config
     hp_cfg = cfg.get("search_config")
@@ -42,9 +52,7 @@ def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str
     num_tokens_in_b = train_cfg.get("num_tokens_in_b")
 
     gpu_count = nodes * gpus_per_node
-    assert (
-        isinstance(gpu_count, int) and gpu_count > 0
-    ), "nodes * gpus_per_node must be an int larger than zero."
+    assert isinstance(gpu_count, int) and gpu_count > 0, "nodes * gpus_per_node must be an int larger than zero."
     assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (
         40,
         80,

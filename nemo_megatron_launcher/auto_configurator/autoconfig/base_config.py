@@ -1,24 +1,37 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Generate base YAML configuration for any model type and size."""
 
-import os
-import time
 import math
+import os
+import subprocess
+import time
 from typing import Tuple
 
-import subprocess
-import yaml
 import omegaconf
-
+import yaml
 from autoconfig import utils
 
 
 def calculate_model_size(
-        gpu_count: int,
-        max_training_days: float,
-        model_size_in_b: float = None,
-        tflops_per_gpu: int = 140,
-        num_tokens_in_b: int = 300,
-        model_name: str = "gpt3",
+    gpu_count: int,
+    max_training_days: float,
+    model_size_in_b: float = None,
+    tflops_per_gpu: int = 140,
+    num_tokens_in_b: int = 300,
+    model_name: str = "gpt3",
 ) -> float:
     """
     Estimates a model size to be trained given the constraints. If the
@@ -64,14 +77,10 @@ def calculate_model_size(
 
 
 def _estimate_model_size(
-        max_training_days: float,
-        gpu_count: int,
-        tflops_per_gpu: int,
-        num_tokens_in_b: int,
-        model_name: str
+    max_training_days: float, gpu_count: int, tflops_per_gpu: int, num_tokens_in_b: int, model_name: str
 ) -> float:
     """
-    Estimates model size given time and hardware constraints. It's only used if the model size is 
+    Estimates model size given time and hardware constraints. It's only used if the model size is
     not provided by the user.
 
     :param float max_training_days: number of days to train the model for.
@@ -102,14 +111,14 @@ def _estimate_model_size(
 
 
 def _estimate_training_time(
-        model_size_in_b: float,
-        gpu_count: int,
-        tflops_per_gpu: int,
-        num_tokens_in_b: int,
-        model_name: str,
+    model_size_in_b: float,
+    gpu_count: int,
+    tflops_per_gpu: int,
+    num_tokens_in_b: int,
+    model_name: str,
 ) -> float:
     """
-    Estimates training time for a given model size and hardware constraint. To be used when 
+    Estimates training time for a given model size and hardware constraint. To be used when
     a model size is provided by the user.
 
     :param float model_size_in_b: number of parameters to use for training.
@@ -139,9 +148,9 @@ def _estimate_training_time(
 
 
 def _calculate_gbs_tp_pp(
-        model_size_in_b: float,
-        gpu_memory_gb: int = 80,
-        model_name: str = "gpt3",
+    model_size_in_b: float,
+    gpu_memory_gb: int = 80,
+    model_name: str = "gpt3",
 ) -> Tuple[int]:
     """
     Calculates Global Batch Size (GBS), Tensor Parallelism (TP), and Pipeline
@@ -325,6 +334,7 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
         raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
+
 def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
     Outputs GBS, TP and PP values for any BERT model size for 80GB GPUs.
@@ -358,6 +368,7 @@ def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     else:
         raise ValueError("No BERT model larger than 250B parameters is supported.")
     return gbs, tp, pp
+
 
 def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
@@ -395,19 +406,19 @@ def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
 
 
 def generate_base_config(
-        model_size_in_b: float,
-        nodes: int,
-        gpus_per_node: int,
-        gpu_memory_gb: int,
-        max_training_days: float,
-        num_tokens_in_b: int,
-        vocab_size: int,
-        model_name: str,
-        cfg: omegaconf.dictconfig.DictConfig,
+    model_size_in_b: float,
+    nodes: int,
+    gpus_per_node: int,
+    gpu_memory_gb: int,
+    max_training_days: float,
+    num_tokens_in_b: int,
+    vocab_size: int,
+    model_name: str,
+    cfg: omegaconf.dictconfig.DictConfig,
 ):
     """
     Generates base config dictionary for a given model name and size.
-    
+
     :param float model_size_in_b: number of parameters in the model, if known.
     :param int nodes: number of nodes to use for training.
     :param int gpus_per_node: number of GPUs available in each node.
@@ -469,28 +480,24 @@ def generate_base_config(
         if kv is not None:
             base_cfg["model"]["kv_channels"] = int(kv)
         base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)
-        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
-            0.0015 * base_cfg["trainer"]["max_steps"]
-        )
-        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
-            0.166 * base_cfg["trainer"]["max_steps"]
-        )
+        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(0.0015 * base_cfg["trainer"]["max_steps"])
+        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(0.166 * base_cfg["trainer"]["max_steps"])
         # Always use partial activation checkpointing with block.
-        # Search activations_checkpoint_num_layers to be between 0 and num_layers/PP. 
+        # Search activations_checkpoint_num_layers to be between 0 and num_layers/PP.
         #     If using interleaved scheduling, activations_checkpoint_num_layers must be between 0 and num_layers/PP/Virtual_pipelines(VP).
         # If using PP>1, we can also search for num_micro_batches_with_partial_activation_checkpoints.
-        #.    num_micro_batches_with_partial_activation_checkpoints must be a value between 0 and activations_checkpoint_num_layers (both included).
+        # .    num_micro_batches_with_partial_activation_checkpoints must be a value between 0 and activations_checkpoint_num_layers (both included).
         #
-        # num_micro_batches_with_partial_activation_checkpoints WILL NEED TO SEARCH. 
+        # num_micro_batches_with_partial_activation_checkpoints WILL NEED TO SEARCH.
         # Need to know the range(min, max, interval)
         #
         # activations_checkpoint_layers_per_pipeline WILL NEED TO SEARCH.
         # range(min, max, interval)
         if model_size_in_b <= 13.0:
             base_cfg["model"]["sequence_parallel"] = False
-            #base_cfg["model"]["activations_checkpoint_granularity"] = "full"
-            #base_cfg["model"]["activations_checkpoint_method"] = "block"
-            #base_cfg["model"]["activations_checkpoint_num_layers"] = 0
+            # base_cfg["model"]["activations_checkpoint_granularity"] = "full"
+            # base_cfg["model"]["activations_checkpoint_method"] = "block"
+            # base_cfg["model"]["activations_checkpoint_num_layers"] = 0
     elif model_name == "bert":
         base_cfg["model"]["global_batch_size"] = int(gbs)
         base_cfg["model"]["num_layers"] = int(layers)
@@ -501,12 +508,8 @@ def generate_base_config(
         if kv is not None:
             base_cfg["model"]["kv_channels"] = int(kv)
         base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)
-        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
-            0.0015 * base_cfg["trainer"]["max_steps"]
-        )
-        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
-            0.166 * base_cfg["trainer"]["max_steps"]
-        )
+        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(0.0015 * base_cfg["trainer"]["max_steps"])
+        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(0.166 * base_cfg["trainer"]["max_steps"])
         if model_size_in_b <= 13.0:
             base_cfg["model"]["sequence_parallel"] = False
 
@@ -535,8 +538,6 @@ def generate_base_config(
         os.makedirs(index_map_dir, exist_ok=True)
         base_cfg["model"]["data"]["index_mapping_dir"] = index_map_dir
 
-    with open(
-        f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w"
-    ) as f:
+    with open(f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w") as f:
         yaml.dump(base_cfg, f)
     return base_cfg

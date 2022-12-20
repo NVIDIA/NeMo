@@ -1,28 +1,42 @@
-"""Prepares and launches the training HP search using bignlp-scripts."""
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""Prepares and launches the training HP search using nemo_megatron_launcher."""
+
+import math
 import os
 import shutil
-import math
-import yaml
 import subprocess
-from typing import Tuple, List
+from typing import List, Tuple
 
 import omegaconf
-
-from autoconfig import utils, train
+import yaml
+from autoconfig import train, utils
 
 
 def search_training_config(
-        base_cfg: dict,
-        model_size_in_b: float,
-        model_name: str,
-        hydra_args: str,
-        cfg: omegaconf.dictconfig.DictConfig,
+    base_cfg: dict,
+    model_size_in_b: float,
+    model_name: str,
+    hydra_args: str,
+    cfg: omegaconf.dictconfig.DictConfig,
 ) -> None:
     """
-    Entry point for the training HP search. This function calls other functions to perform three 
-    actions: generates the grid of possible configurations; launches those configurations using 
-    bignlp-scripts; and launches a final job to compare the results of all the training jobs.
+    Entry point for the training HP search. This function calls other functions to perform three
+    actions: generates the grid of possible configurations; launches those configurations using
+    nemo_megatron_launcher; and launches a final job to compare the results of all the training
+    jobs.
 
     :param dict base_cfg: base configuration of the model to be trained.
     :param float model_size_in_b: number of parameters in the model, if known.
@@ -32,9 +46,7 @@ def search_training_config(
     :return: None
     """
     # Generate candidate configs.
-    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(
-        base_cfg, model_size_in_b, model_name, cfg
-    )
+    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
@@ -42,13 +54,13 @@ def search_training_config(
 
 
 def generate_grid_search_configs(
-        base_cfg: dict,
-        model_size_in_b: float,
-        model_name: str,
-        cfg: omegaconf.dictconfig.DictConfig,
+    base_cfg: dict,
+    model_size_in_b: float,
+    model_name: str,
+    cfg: omegaconf.dictconfig.DictConfig,
 ) -> Tuple[str, List[int], int]:
     """
-    Generates the grid of all possible configurations for the given model, and stores 
+    Generates the grid of all possible configurations for the given model, and stores
     each different configuration in a yaml file.
 
     :param dict base_cfg: base configuration of the model to be trained.
@@ -107,39 +119,49 @@ def generate_grid_search_configs(
                 mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                 mod_att_heads = att_heads % tp
                 mod_layers = (multiplier * num_layers) % pp
-                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list and  min_model_parallel <= tp*pp <= max_model_parallel:
+                if (
+                    mod_gbs == 0
+                    and mod_att_heads == 0
+                    and mod_layers == 0
+                    and (tp, pp) not in valid_tp_pp_list
+                    and min_model_parallel <= tp * pp <= max_model_parallel
+                ):
                     valid_tp_pp_list.append((tp, pp))
-                    
 
     # Generate grid search configs.
     results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
     for tp, pp in valid_tp_pp_list:
-        virtual_pipelines, act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
+        (
+            virtual_pipelines,
+            act_ckpt_layers,
+            num_micro_batches_partial_act_ckpt,
+            act_ckpt_layers_per_pipeline,
+        ) = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
         for mbs in mbs_list:
-                if act_layers is not None and act_layers != "auto":
-                    act_ckpt_layers = act_layers
-                for act in act_ckpt_layers:
-                    for num_mbs_act in num_micro_batches_partial_act_ckpt:
-                        for act_per_pipe in act_ckpt_layers_per_pipeline:
-                            new_cfg = utils.modify_cfg(
-                                base_cfg=base_cfg,
-                                act=act,
-                                num_mbs_act=num_mbs_act,
-                                act_per_pipe=act_per_pipe,
-                                tp=tp,
-                                pp=pp,
-                                virtual_pipelines=virtual_pipelines,
-                                mbs=mbs,
-                                max_minutes=max_minutes,
-                                max_steps=max_steps,
-                                num_nodes=num_nodes,
-                                model_name=model_name,
-                            )
-                            if new_cfg:  # Save candidate cfg.
-                                file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}.yaml"
-                                results_cfgs[act].append(file_name)
-                                with open(f"{base_dir}/{file_name}", "w") as f:
-                                    yaml.dump(new_cfg, f)
+            if act_layers is not None and act_layers != "auto":
+                act_ckpt_layers = act_layers
+            for act in act_ckpt_layers:
+                for num_mbs_act in num_micro_batches_partial_act_ckpt:
+                    for act_per_pipe in act_ckpt_layers_per_pipeline:
+                        new_cfg = utils.modify_cfg(
+                            base_cfg=base_cfg,
+                            act=act,
+                            num_mbs_act=num_mbs_act,
+                            act_per_pipe=act_per_pipe,
+                            tp=tp,
+                            pp=pp,
+                            virtual_pipelines=virtual_pipelines,
+                            mbs=mbs,
+                            max_minutes=max_minutes,
+                            max_steps=max_steps,
+                            num_nodes=num_nodes,
+                            model_name=model_name,
+                        )
+                        if new_cfg:  # Save candidate cfg.
+                            file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}.yaml"
+                            results_cfgs[act].append(file_name)
+                            with open(f"{base_dir}/{file_name}", "w") as f:
+                                yaml.dump(new_cfg, f)
 
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs, num_nodes
@@ -170,7 +192,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
     if model_name in ["gpt3", "bert"] and pp > 2:  # Interleaved pipeline scheduling.
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
-        max_micro_b = pp * (virtual_pipelines-1) + (pp-1) * 2 + 1
+        max_micro_b = pp * (virtual_pipelines - 1) + (pp - 1) * 2 + 1
         interval_micro_b = virtual_pipelines * 8
         max_layers_per_pipe = multiplier * num_layers // pp // virtual_pipelines + 1
 
@@ -180,7 +202,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
         if virtual_pipelines is None:
             act_ckpt_layers = range(0, multiplier * num_layers // pp + 1, act_multiple)
         else:
-            act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple) 
+            act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple)
 
         if pp > 1 and model_name in ["gpt3", "bert"]:
             # Num micro batches with partial act ckpt
@@ -189,7 +211,9 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
                 num_micro_batches_partial_act_ckpt[0] = 1
 
             # Act ckpt layers per pipeline
-            act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
+            act_ckpt_layers_per_pipeline = range(
+                min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe
+            )
 
     return virtual_pipelines, act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
 
@@ -480,6 +504,7 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         max_model_parallel = 256
     return tp, pp, mbs, min_model_parallel, max_model_parallel
 
+
 def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for BERT and 80GB GPUs.
@@ -539,6 +564,7 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     else:
         raise ValueError("No BERT model larger than 250B parameters is supported.")
     return tp, pp, mbs, min_model_parallel, max_model_parallel
+
 
 def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
@@ -602,9 +628,11 @@ def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
-def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig) -> Tuple[int, int, int]:
+def _calculate_tp_pp_mbs_grid(
+    model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig
+) -> Tuple[int, int, int]:
     """
-    Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary 
+    Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary
     heuristics function accordingly.
 
     :param float model_size_in_b: number of parameters in the model.
@@ -676,7 +704,9 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
     return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
-def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_name: str, cfg: omegaconf.dictconfig.DictConfig) -> List[int]:
+def launch_grid_search_configs(
+    base_dir: str, results_cfgs: List[int], model_name: str, cfg: omegaconf.dictconfig.DictConfig
+) -> List[int]:
     """
     Launches training jobs for the grid search in parallel. The limit of how many
     jobs to launch is specified by limit_search_runs.
@@ -689,18 +719,18 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
     :rtype: list[int]
     """
     autoconfig_path = cfg.get("autoconfig_path")
-    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
+    nemo_megatron_path = cfg.get("nemo_megatron_path")
 
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
     limit = train_cfg.get("limit_search_runs")
     results_dir = os.path.join(train_cfg.get("logs"), "training_logs")
-    
+
     job_ids = []
     for cfg_list in results_cfgs:
         for file_name in cfg_list:
             src_file = os.path.join(base_dir, file_name)
-            dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
+            dst_dir = os.path.join(nemo_megatron_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
             job_id = train.run_training(file_name, model_name, results_dir, cfg)
             os.remove(dst_dir)
@@ -712,7 +742,14 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
     return job_ids
 
 
-def launch_throughput_measure(dependency_list: List[str], model_name: str, model_size_in_b: float, num_nodes: int, hydra_args: str, cfg: omegaconf.dictconfig.DictConfig) -> str:
+def launch_throughput_measure(
+    dependency_list: List[str],
+    model_name: str,
+    model_size_in_b: float,
+    num_nodes: int,
+    hydra_args: str,
+    cfg: omegaconf.dictconfig.DictConfig,
+) -> str:
     """
     Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
@@ -757,16 +794,10 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
-    mounts_str = (
-        f"{autoconfig_path}:{autoconfig_path},{base_results_dir}:{base_results_dir}"
-    )
+    mounts_str = f"{autoconfig_path}:{autoconfig_path},{base_results_dir}:{base_results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
-    flags = (
-        f"--container-image {container} "
-        f"--container-mounts {mounts_str} "
-        f"--no-container-mount-home "
-    )
+    flags = f"--container-image {container} " f"--container-mounts {mounts_str} " f"--no-container-mount-home "
     if os.getenv("BIGNLP_CI"):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
     else:
@@ -797,9 +828,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
             account=account,
         )
         if os.getenv("BIGNLP_CI"):
-            job_id = subprocess.check_output(
-                [f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True
-            )
+            job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
         else:
             job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id.decode("utf-8")
