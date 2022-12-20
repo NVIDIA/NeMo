@@ -16,6 +16,7 @@
 # NOTE: the file name does not start with "test_" on purpose to avoid executing
 #       these tests outside of the CI machines environment, where test data is
 #       stored
+
 import pytest
 from examples.asr.transcribe_speech import TranscriptionConfig
 from omegaconf import OmegaConf
@@ -26,13 +27,16 @@ TEST_DATA_PATH = "/mnt/datadrive/data/TestData/an4_dataset/an4_val.json"
 PRETRAINED_MODEL_NAME = "stt_en_conformer_transducer_small"
 
 
-def test_rnnt_alignments():
+@pytest.mark.parametrize("strategy,blank_as_pad", [("greedy", True), ("greedy_batch", True), ("greedy_batch", False),])
+def test_rnnt_alignments(strategy: str, blank_as_pad: bool):
     cfg = OmegaConf.structured(TranscriptionConfig(pretrained_name=PRETRAINED_MODEL_NAME))
     cfg.rnnt_decoding.preserve_alignments = True
+    cfg.rnnt_decoding.strategy = strategy
     cfg.dataset_manifest = TEST_DATA_PATH
     filepaths = prepare_audio_data(cfg)[0][:10]  # selecting 10 files only
 
     model = setup_model(cfg, map_location="cuda")[0]
+    model.decoder.blank_as_pad = blank_as_pad
     model.change_decoding_strategy(cfg.rnnt_decoding)
     transcriptions = model.transcribe(
         paths2audio_files=filepaths,

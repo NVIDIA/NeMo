@@ -997,6 +997,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
+                            elif self.preserve_alignments:  # creating new alignment list for samples that had blank
+                                hypotheses[kidx].alignments.append([])
                     symbols_added += 1
 
         # Remove trailing empty list of alignments at T_{am-len} x Uj
