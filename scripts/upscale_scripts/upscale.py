@@ -51,7 +51,8 @@ class EmbeddingProjector(ptl.LightningModule):
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=3e-4)
-        return optimizer
+        scheduler = torch.optim.ReduceLROnPlateau(optimizer, ...)
+        return [optimizer], [scheduler]
 
     def forward(self, x):
         z = self.encoder(x)

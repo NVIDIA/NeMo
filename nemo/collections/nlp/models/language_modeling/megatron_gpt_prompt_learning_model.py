@@ -144,7 +144,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-        if "p_tuning" in self.cfg:
+        if "p_tuning" in self.cfg and self.virtual_prompt_style in [VirtualPromptStyle.P_TUNING]:
             self.prompt_encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
         else:
             self.prompt_encoder_type = "tpmlp"
