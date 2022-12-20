@@ -73,6 +73,8 @@ Dataset preprocessing
 Next, we must clear the text data from punctuation and various “garbage” characters. In addition to deleting a standard set of elements (as in Kinyarwanda), you can compute  the frequency of characters in the train set and add the rarest (occurring less than ten times) to the list for deletion. 
 
 .. code-block:: python
+  import json
+  from tqdm import tqdm
 
   dev_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_dev_manifest.json"
   test_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json"
@@ -115,6 +117,8 @@ Next we will  check the data for anomalies in audio file (for example,  audio fi
 .. code-block:: python
 
   import re
+  import json
+  from tqdm import tqdm
 
   def clear_data_set(manifest, char_rate_threshold=None):
 
