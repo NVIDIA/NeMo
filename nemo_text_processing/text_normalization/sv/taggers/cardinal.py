@@ -146,6 +146,7 @@ class CardinalFst(GraphFst):
         graph_hundreds_component_at_least_one_non_zero_digit_no_one = graph_hundreds_component | (
             pynutil.delete("00") + digits_no_one
         )
+        self.graph_hundreds_component_at_least_one_non_zero_digit_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
 
         tusen = pynutil.insert("tusen")
         if not deterministic:
@@ -160,7 +161,7 @@ class CardinalFst(GraphFst):
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
-            pynini.cross("001", "tusen")
+            pynini.cross("001", tusen)
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
@@ -169,7 +170,7 @@ class CardinalFst(GraphFst):
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
-            pynini.cross("001", "tusen")
+            pynini.cross("001", tusen)
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
