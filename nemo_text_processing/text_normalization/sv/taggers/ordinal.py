@@ -28,6 +28,7 @@ digit = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/digit.tsv")
 teens = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/ties.tsv")))
 card_ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
+card_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
 
 
 class OrdinalFst(GraphFst):
@@ -45,21 +46,37 @@ class OrdinalFst(GraphFst):
         cardinal_graph = cardinal.graph
 
         graph_digit = digit.optimize()
-        graph_teens = teens.optimize()
+        graph_tens = teens.optimize()
         graph_ties = ties.optimize()
         graph_card_ties = card_ties.optimize()
+        graph_card_digit = card_digit.optimize()
+        digits_no_one = (NEMO_DIGIT - "1") @ graph_card_digit
+
+        if not deterministic:
+            graph_ties |= pynini.cross("4", "förtionde")
+            graph_tens |= pynini.cross("18", "adertonde")
 
         graph_tens_component = (
-            graph_teens
+            graph_tens
             | graph_card_ties + graph_digit
             | graph_ties + pynutil.delete('0')
         )
 
-        graph_hundred_component = pynini.union(
-            graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(graph_tens_component, graph_digit), 0, 1),
-            graph_tens_component,
-            graph_digit,
+        graph_two_digit_non_zero = pynini.union(
+            graph_digit, graph_tens, (pynutil.delete("0") + graph_digit)
         )
+        if not deterministic:
+            graph_two_digit_non_zero |= pynini.union(
+                graph_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + graph_digit)
+            )
+
+        graph_final_two_digit_non_zero = pynini.union(
+            graph_digit, graph_tens, (pynutil.delete("0") + graph_digit)
+        )
+        if not deterministic:
+            graph_final_two_digit_non_zero |= pynini.union(
+                graph_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + graph_digit)
+            )
 
         digit_or_space = pynini.closure(NEMO_DIGIT | pynini.accep(" "))
         cardinal_format = (NEMO_DIGIT - "0") + pynini.closure(digit_or_space + NEMO_DIGIT, 0, 1)
@@ -76,24 +93,48 @@ class OrdinalFst(GraphFst):
             1,
         ) + pynutil.delete(pynini.union(":e", ":E"))
 
-        # Need to go up to thousands for fractions
-        self.one_to_one_thousand = get_one_to_one_thousand(cardinal_graph)
+        suffixed_ordinal = a_format | e_format
+        self.suffixed_ordinal = suffixed_ordinal.optimize()
 
-        thousands = pynini.cross("mil", "milésimo")
+        bare_hundreds = digits_no_one + pynini.cross("00", "hundrade")
+        bare_hundreds |= pynini.cross("100", "hundrade")
+        if not deterministic:
+            bare_hundreds |= pynini.cross("100", "etthundrade")
+            bare_hundreds |= pynini.cross("100", "ett hundrade")
+            bare_hundreds |= digit + pynutil.insert(NEMO_SPACE) + pynini.cross("00", "hundrade")
 
-        graph_thousands = (
-            strip_accent(self.one_to_one_thousand) + NEMO_SPACE + thousands
-        )  # Cardinals become prefix for thousands series. Snce accent on the powers of ten we strip accent from leading words
-        graph_thousands @= pynini.cdrewrite(delete_space, "", "milésimo", NEMO_SIGMA)  # merge as a prefix
-        graph_thousands |= thousands
+        hundreds = digits_no_one + pynutil.insert("hundra")
+        hundreds |= pynini.cross("1", "hundra")
+        if not deterministic:
+            hundreds |= pynini.cross("1", "etthundra")
+            hundreds |= pynini.cross("1", "ett hundra")
+            hundreds |= digit + pynutil.insert(NEMO_SPACE) + pynutil.insert("hundra")
 
-        self.multiples_of_thousand = (cardinal_graph @ graph_thousands).optimize()
+        graph_hundreds = hundreds + pynini.union(
+            graph_tens, (pynutil.delete("0") + graph_digit)
+        )
+        if not deterministic:
+            graph_hundreds |= hundreds + pynini.union(
+                (graph_tens | pynutil.insert(NEMO_SPACE) + graph_tens), (pynini.cross("0", NEMO_SPACE) + graph_digit)
+            )
+        graph_hundreds |= bare_hundreds
+
+        # graph_hundred_component = pynini.union(
+        #     graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(graph_tens_component, graph_digit), 0, 1),
+        #     graph_tens_component,
+        #     graph_digit,
+        # )
+
+        graph_hundred_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
+
+        self.hundreds = graph_hundreds.optimize()
 
         if (
             not deterministic
         ):  # Formally the words preceding the power of ten should be a prefix, but some maintain word boundaries.
             graph_thousands |= (self.one_to_one_thousand @ graph_hundred_component) + NEMO_SPACE + thousands
 
+        graph_thousands = pynini.cross("a", "b")
         graph_thousands += pynini.closure(NEMO_SPACE + graph_hundred_component, 0, 1)
 
         ordinal_graph = graph_thousands | graph_hundred_component
