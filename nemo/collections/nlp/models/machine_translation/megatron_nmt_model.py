@@ -270,7 +270,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
-    def eval_step(self, batch, batch_idx, dataloader_idx):
+    def eval_step(self, batch, batch_idx, dataloader_idx=0):
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
         batch = self.process_global_batch_for_text_translation_datasets(batch)
