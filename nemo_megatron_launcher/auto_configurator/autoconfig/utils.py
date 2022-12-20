@@ -52,7 +52,7 @@ def _calculate_model_size(
         model_size = (
             12
             * num_layers
-            * hidden_size**2
+            * hidden_size ** 2
             * (1 + (13 / (12 * hidden_size)) + ((vocab_size + seq_length) / (12 * num_layers * hidden_size)))
             / 1e9
         )
@@ -218,7 +218,7 @@ def calculate_model_size_params(
     # Try powers of 2
     margin = 0.01
     for attempt in range(0, 10):
-        for layers in (2**p for p in range(1, 10)):
+        for layers in (2 ** p for p in range(1, 10)):
             out_size = _calculate_model_size(
                 vocab_size=vocab_size,
                 seq_length=seq_length,

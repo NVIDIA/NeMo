@@ -111,11 +111,7 @@ def _estimate_model_size(
 
 
 def _estimate_training_time(
-    model_size_in_b: float,
-    gpu_count: int,
-    tflops_per_gpu: int,
-    num_tokens_in_b: int,
-    model_name: str,
+    model_size_in_b: float, gpu_count: int, tflops_per_gpu: int, num_tokens_in_b: int, model_name: str,
 ) -> float:
     """
     Estimates training time for a given model size and hardware constraint. To be used when
@@ -147,11 +143,7 @@ def _estimate_training_time(
         print(f"Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero: {err}")
 
 
-def _calculate_gbs_tp_pp(
-    model_size_in_b: float,
-    gpu_memory_gb: int = 80,
-    model_name: str = "gpt3",
-) -> Tuple[int]:
+def _calculate_gbs_tp_pp(model_size_in_b: float, gpu_memory_gb: int = 80, model_name: str = "gpt3",) -> Tuple[int]:
     """
     Calculates Global Batch Size (GBS), Tensor Parallelism (TP), and Pipeline
     Parallelism (PP) values, given a model size and model name.
@@ -465,10 +457,7 @@ def generate_base_config(
 
     # MODEL
     layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(
-        model_size_in_b=model_size_in_b,
-        vocab_size=vocab_size,
-        seq_length=seq_length,
-        model_name=model_name,
+        model_size_in_b=model_size_in_b, vocab_size=vocab_size, seq_length=seq_length, model_name=model_name,
     )
     if model_name == "gpt3":
         base_cfg["model"]["num_layers"] = int(layers)

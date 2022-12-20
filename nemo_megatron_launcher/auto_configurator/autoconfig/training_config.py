@@ -26,11 +26,7 @@ from autoconfig import train, utils
 
 
 def search_training_config(
-    base_cfg: dict,
-    model_size_in_b: float,
-    model_name: str,
-    hydra_args: str,
-    cfg: omegaconf.dictconfig.DictConfig,
+    base_cfg: dict, model_size_in_b: float, model_name: str, hydra_args: str, cfg: omegaconf.dictconfig.DictConfig,
 ) -> None:
     """
     Entry point for the training HP search. This function calls other functions to perform three
@@ -54,10 +50,7 @@ def search_training_config(
 
 
 def generate_grid_search_configs(
-    base_cfg: dict,
-    model_size_in_b: float,
-    model_name: str,
-    cfg: omegaconf.dictconfig.DictConfig,
+    base_cfg: dict, model_size_in_b: float, model_name: str, cfg: omegaconf.dictconfig.DictConfig,
 ) -> Tuple[str, List[int], int]:
     """
     Generates the grid of all possible configurations for the given model, and stores
@@ -92,10 +85,7 @@ def generate_grid_search_configs(
     act_method = base_cfg["model"].get("activations_checkpoint_method", "block")
 
     tp_list, pp_list, mbs_list, min_model_parallel, max_model_parallel = _calculate_tp_pp_mbs_grid(
-        model_size_in_b=model_size_in_b,
-        num_layers=num_layers,
-        model_name=model_name,
-        train_cfg=train_cfg,
+        model_size_in_b=model_size_in_b, num_layers=num_layers, model_name=model_name, train_cfg=train_cfg,
     )
 
     base_dir = f"{cfg.search_config.train_settings.logs}/candidate_configs"
