@@ -13,12 +13,15 @@
 # limitations under the License.
 import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
+    NEMO_WHITE_SPACE,
     GraphFst,
     delete_space,
+    insert_space
 )
 from nemo_text_processing.text_normalization.es.graph_utils import roman_to_int, strip_accent
 from nemo_text_processing.text_normalization.sv.utils import get_abs_path
@@ -140,24 +143,24 @@ class OrdinalFst(GraphFst):
             tusen |= pynutil.insert(" ett tusen")
 
         graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
-            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
-            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            pynutil.delete("000") + cardinal.graph_hundreds_component_at_least_one_non_zero_digit,
+            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
-            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
-            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
         graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
-            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
-            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            pynutil.delete("000") + cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one,
+            cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
             + tusen
-            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
             pynini.cross("001", tusen)
-            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            + ((insert_space + cardinal.graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
-        non_zero_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
+        non_zero_no_one = cardinal.graph_hundreds_component_at_least_one_non_zero_digit_no_one
         graph_million = make_million("miljon", non_zero_no_one, deterministic)
         graph_milliard = make_million("miljard", non_zero_no_one, deterministic)
         graph_billion = make_million("biljon", non_zero_no_one, deterministic)
