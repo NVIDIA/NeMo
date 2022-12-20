@@ -239,16 +239,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_greedy_grad_copy = not self.megatron_amp_o2
                     param._disable_overlap_grad_sync = True
 
-            # Initialize a param bucket for each Transformer layer
+            # Initialize parameter buckets for overlapped grad and param syncs
             buckets = []
-            modules = self.model if isinstance(self.model, list) else [self.model]
-            for module in modules:
-                if isinstance(module, Float16Module):
-                    module = module.module
-                for layer in module.language_model.encoder.layers:
-                    buckets.append(
-                        [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
-                    )
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                # Initialize a bucket for each virtual pipeline stage
+                for module in self.model:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    stage_bucket = []
+                    for layer in module.language_model.encoder.layers:
+                        stage_bucket.extend(
+                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                        )
+                    buckets.append(stage_bucket)
+            else:
+                # Initialize a bucket for each Transformer layer
+                modules = self.model if isinstance(self.model, list) else [self.model]
+                for module in modules:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    for layer in module.language_model.encoder.layers:
+                        buckets.append(
+                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                        )
             buckets.reverse()
             used_params = set()
             for bucket in buckets:
