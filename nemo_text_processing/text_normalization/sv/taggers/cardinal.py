@@ -37,8 +37,8 @@ def make_million(number: str, non_zero_no_one: 'pynini.FstLike', deterministic: 
     Helper function for millions/milliards and higher
     Args:
         number: the string of the number
-        deterministic: if True, generate a deterministic fst
         non_zero_no_one: An fst of digits excluding 0 and 1, to prefix to the number
+        deterministic: if True, generate a deterministic fst
 
     Returns:
         graph: A pynini.FstLike object
