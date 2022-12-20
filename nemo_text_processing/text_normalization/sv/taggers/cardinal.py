@@ -33,6 +33,15 @@ ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 
 
 def make_million(number: str, non_zero_no_one: 'pynini.FstLike') -> 'pynini.FstLike':
+    """
+    Helper function for millions/milliards and higher
+    Args:
+        number: the string of the number
+        non_zero_no_one: An fst of digits excluding 0 and 1, to prefix to the number
+
+    Returns:
+        graph: A pynini.FstLike object
+    """
     old_orth = number.replace("lj", "lli")
     graph = pynutil.add_weight(pynini.cross("001", number), -0.001)
     if not deterministic:
