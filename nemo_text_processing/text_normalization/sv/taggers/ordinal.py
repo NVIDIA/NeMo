@@ -22,11 +22,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.es.graph_utils import roman_to_int, strip_accent
 from nemo_text_processing.text_normalization.sv.utils import get_abs_path
+from nemo_text_processing.text_normalization.sv.taggers.cardinal import make_million, filter_punctuation
 from pynini.lib import pynutil
 
 digit = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/digit.tsv")))
 teens = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/ties.tsv")))
+zero = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/zero.tsv")))
 card_ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
 card_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
 
@@ -129,70 +131,85 @@ class OrdinalFst(GraphFst):
 
         self.hundreds = graph_hundreds.optimize()
 
-        if (
-            not deterministic
-        ):  # Formally the words preceding the power of ten should be a prefix, but some maintain word boundaries.
-            graph_thousands |= (self.one_to_one_thousand @ graph_hundred_component) + NEMO_SPACE + thousands
-
-        graph_thousands = pynini.cross("a", "b")
-        graph_thousands += pynini.closure(NEMO_SPACE + graph_hundred_component, 0, 1)
-
-        ordinal_graph = graph_thousands | graph_hundred_component
-        ordinal_graph = cardinal_graph @ ordinal_graph
-
+        tusen = pynutil.insert("tusen")
         if not deterministic:
-            # The 10's and 20's series can also be two words
-            split_words = pynini.cross("decimo", "décimo ") | pynini.cross("vigesimo", "vigésimo ")
-            split_words = pynini.cdrewrite(split_words, "", NEMO_CHAR, NEMO_SIGMA)
-            ordinal_graph |= ordinal_graph @ split_words
+            tusen |= pynutil.insert(" tusen")
+            tusen |= pynutil.insert("ettusen")
+            tusen |= pynutil.insert(" ettusen")
+            tusen |= pynutil.insert("ett tusen")
+            tusen |= pynutil.insert(" ett tusen")
 
-        # If "octavo" is preceeded by the "o" within string, it needs deletion
-        ordinal_graph @= pynini.cdrewrite(pynutil.delete("o"), "", "octavo", NEMO_SIGMA)
+        graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
+            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            + tusen
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            pynini.cross("001", tusen)
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+        )
 
-        self.graph = ordinal_graph.optimize()
+        graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
+            graph_hundreds_component_at_least_one_non_zero_digit_no_one
+            + tusen
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+            pynini.cross("001", tusen)
+            + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
+        )
 
-        masc = pynini.accep("gender_masc")
-        fem = pynini.accep("gender_fem")
-        apocope = pynini.accep("apocope")
-
-        delete_period = pynini.closure(pynutil.delete("."), 0, 1)  # Sometimes the period is omitted f
-
-        accept_masc = delete_period + pynini.cross("º", masc)
-        accep_fem = delete_period + pynini.cross("ª", fem)
-        accep_apocope = delete_period + pynini.cross("ᵉʳ", apocope)
-
-        # Managing Romanization
-        graph_roman = pynutil.insert("integer: \"") + roman_to_int(ordinal_graph) + pynutil.insert("\"")
-        if not deterministic:
-            # Introduce plural
-            plural = pynini.closure(pynutil.insert("/plural"), 0, 1)
-            accept_masc += plural
-            accep_fem += plural
-
-            # Romanizations have no morphology marker, so in non-deterministic case we provide option for all
-            insert_morphology = pynutil.insert(pynini.union(masc, fem)) + plural
-            insert_morphology |= pynutil.insert(apocope)
-            insert_morphology = (
-                pynutil.insert(" morphosyntactic_features: \"") + insert_morphology + pynutil.insert("\"")
-            )
-
-            graph_roman += insert_morphology
-
-        else:
-            # We insert both genders as default
-            graph_roman += pynutil.insert(" morphosyntactic_features: \"gender_masc\"") | pynutil.insert(
-                " morphosyntactic_features: \"gender_fem\""
-            )
-
-        # Rest of graph
-        convert_abbreviation = accept_masc | accep_fem | accep_apocope
+        non_zero_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
+        graph_million = make_million("miljon", non_zero_no_one, deterministic)
+        graph_milliard = make_million("miljard", non_zero_no_one, deterministic)
+        graph_billion = make_million("biljon", non_zero_no_one, deterministic)
+        graph_billiard = make_million("biljard", non_zero_no_one, deterministic)
+        graph_trillion = make_million("triljon", non_zero_no_one, deterministic)
+        graph_trilliard = make_million("triljard", non_zero_no_one, deterministic)
 
         graph = (
+            graph_trilliard
+            + graph_trillion
+            + graph_billiard
+            + graph_billion
+            + graph_milliard
+            + graph_million
+            + (graph_thousands_component_at_least_one_non_zero_digit | pynutil.delete("000000"))
+        )
+
+        ordinal_endings = pynini.string_map([
+            ("ljon", "ljonte"),
+            ("llion", "llionte"),
+            ("ljard", "ljarte"),
+            ("lliard", "lliarte"),
+            ("tusen", "tusende")
+        ])
+
+        cleaned_graph = (graph
+            @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+            @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+            @ pynini.cdrewrite(ordinal_endings, "", "[EOS]", NEMO_SIGMA)
+        )
+
+        self.graph = (
+            ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
+            @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
+            @ NEMO_DIGIT ** 24
+            @ cleaned_graph
+            @ pynini.cdrewrite(
+                pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
+            )
+        )
+        self.graph |= zero
+
+        self.graph = filter_punctuation(self.graph).optimize()
+
+        self.suffixed_to_words = self.suffixed_ordinal @ self.graph
+
+        tok_graph = (
             pynutil.insert("integer: \"")
-            + ordinal_graph
+            + (cleaned_graph | suffixed_ordinal)
             + pynutil.insert("\"")
         )
-        graph = pynini.union(graph, graph_roman)
 
-        final_graph = self.add_tokens(graph)
+        final_graph = self.add_tokens(tok_graph)
         self.fst = final_graph.optimize()
+
