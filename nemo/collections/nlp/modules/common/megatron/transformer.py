@@ -500,7 +500,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             if self.is_adapter_available():
-                adapter_1 = self.get_from_adapter_layer(AdapterName.PRE_ATTN_ADAPTER)
+                adapter_1 = self.get_adapter_module(AdapterName.PRE_ATTN_ADAPTER)
                 if adapter_1:
                     strategy = adapter_1.adapter_strategy
                     layernorm_input = self.forward_single_enabled_adapter_(
@@ -595,7 +595,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if (
             self.is_adapter_available()
         ):  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
-            adapter_2 = self.get_from_adapter_layer(AdapterName.POST_ATTN_ADAPTER)
+            adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
             if adapter_2:
                 strategy = adapter_2.adapter_strategy
                 output = self.forward_single_enabled_adapter_(
@@ -898,6 +898,7 @@ class ParallelTransformer(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        reduce_amax=True,
         use_emha=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
@@ -971,6 +972,7 @@ class ParallelTransformer(MegatronModule):
         self.fp8_interval = fp8_interval
         self.fp8_amax_history_len = fp8_amax_history_len
         self.fp8_amax_compute_algo = fp8_amax_compute_algo
+        self.reduce_amax = reduce_amax
 
         self.fp8_recipe = None
 
@@ -985,6 +987,7 @@ class ParallelTransformer(MegatronModule):
                 fp8_format=fp8_format,
                 amax_history_len=self.fp8_amax_history_len,
                 amax_compute_algo=self.fp8_amax_compute_algo,
+                reduce_amax=reduce_amax,
             )
 
         self.is_first_microbatch = True

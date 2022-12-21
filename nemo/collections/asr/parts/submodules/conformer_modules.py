@@ -21,8 +21,10 @@ from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttentionLongformer,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.collections.common.parts import adapter_modules
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
@@ -89,6 +91,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
             )
+        elif self_attention_model == 'rel_pos_local_attn':
+            self.self_attn = RelPositionMultiHeadAttentionLongformer(
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
+                max_cache_len=MHA_max_cache_len,
+                att_context_size=att_context_size,
+            )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
@@ -96,7 +108,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
-                f"valid values can be from ['rel_pos', 'abs_pos']"
+                f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos']"
             )
 
         # second feed forward module
@@ -146,6 +158,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 cache=cache_last_channel,
                 cache_next=cache_last_channel_next,
             )
+        elif self.self_attention_model == 'rel_pos_local_attn':
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                pad_mask=pad_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(
                 query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel, cache_next=cache_last_channel_next
@@ -153,6 +175,17 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             x = None
         residual = residual + self.dropout(x)
+
+        if self.is_adapter_available():
+            # Call the MHA adapters
+            pack_ip = {
+                'x': residual,
+                'loc': 'mha',
+                'att_mask': att_mask,
+                'pos_emb': pos_emb,
+            }
+            pack_ip = self.forward_enabled_adapters(pack_ip)
+            residual = pack_ip['x']
 
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
@@ -166,12 +199,75 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         if self.is_adapter_available():
             # Call the adapters
-            x = self.forward_enabled_adapters(x)
+            pack_ip = {
+                'x': x,
+                'loc': 'post',
+            }
+            pack_ip = self.forward_enabled_adapters(pack_ip)
+            x = pack_ip['x']
 
         if self.is_access_enabled() and self.access_cfg.get('save_encoder_tensors', False):
             self.register_accessible_tensor(name='encoder', tensor=x)
 
         return x
+
+    def forward_single_enabled_adapter_(
+        self,
+        input: dict,
+        adapter_module: torch.nn.Module,
+        *,
+        adapter_name: str,
+        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+    ):
+        """
+        Perform the forward step of a single adapter module on some input data.
+
+        **Note**: Subclasses can override this method to accommodate more complicate adapter forward steps.
+
+        Args:
+            input: Dictionary of packed tensors. The dict should contain at least
+                `x`: output tensor
+                `loc`: Semantic location in module where this adapter was called
+                `att_mask`: Optional, Attention mask
+                `pos_emb`: Optional, Positional Embedding for Relative Positional Encoding.
+                The output tensor of the calling module is the input to the first adapter, whose output
+                is then chained to the next adapter until all adapters are consumed.
+            adapter_module: The adapter module that is currently required to perform the forward pass.
+            adapter_name: The resolved name of the adapter that is undergoing the current forward pass.
+            adapter_strategy: A subclass of `AbstractAdapterStrategy`, that determines how the
+                output of the adapter should be merged with the input, or if it should be merged at all.
+
+        Returns:
+            The result tensor, after the current active adapter has finished its forward pass.
+        """
+        # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
+        x = input['x']
+        loc = input['loc']
+        att_mask = input.get('att_mask', None)
+        pos_emb = input.get('pos_emb', None)
+
+        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
+            output = adapter_strategy(x, adapter_module, module=self)
+
+        elif isinstance(adapter_module, MultiHeadAttention) and loc == 'mha':
+            if self.self_attention_model == 'rel_pos':
+                x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
+                output = adapter_strategy(x, adapter_module, module=self)
+
+            elif self.self_attention_model == 'abs_pos':
+                x = dict(query=x, key=x, value=x, mask=att_mask)
+                output = adapter_strategy(x, adapter_module, module=self)
+
+            else:
+                raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
+
+        else:
+            # No adapter compatible, skip
+            output = x
+
+        input['x'] = output
+
+        return input
 
 
 class ConformerConvolution(nn.Module):

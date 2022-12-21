@@ -384,8 +384,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             query_layer = query_layer.view(*new_tensor_shape)
 
         if self.is_adapter_available():
-            key_infused_adapter = self.get_from_adapter_layer(AdapterName.KEY_INFUSED)
-            value_infused_adapter = self.get_from_adapter_layer(AdapterName.VALUE_INFUSED)
+            key_infused_adapter = self.get_adapter_module(AdapterName.KEY_INFUSED)
+            value_infused_adapter = self.get_adapter_module(AdapterName.VALUE_INFUSED)
             if key_infused_adapter:
                 assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
                 kls = key_layer.shape
