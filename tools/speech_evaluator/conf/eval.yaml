@@ -8,13 +8,14 @@ asr_eval:
     pretrained_name: "stt_en_citrinet_1024_gamma_0_25" #??? 
 
     inference_mode: 
-        mode: offline # either offline or chunked
-        chunk_len_in_secs: 1.6 #null # Need to specify if use buffered inference (default for conformer-offline is 20)
-        total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for conformer-offline is 22)
-        model_stride: 4 #null 
+        mode: offline # choose from offline, chunked or offline_by_chunked
+        chunk_len_in_secs: 1.6 #null # Need to specify if use buffered inference (default for offline_by_chunked is 20)
+        total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for offline_by_chunked is 22)
+        model_stride: 4 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models
     
     test_ds:
-        manifest_filepath: "/home/fjia/data/chris.json" #"/home/fjia/code/5_syn/english_test_single-sample.json"
+        manifest_filepath: "/data/english/librispeech/librivox-test-clean.json" 
+#         manifest_filepath: "/home/fjia/data/chris.json" #"/home/fjia/code/5_syn/english_test_single-sample.json"
         sample_rate: 16000
         batch_size: 32
 #         shuffle: False
@@ -47,35 +48,32 @@ analyst:
     #     output_filename: "stt_en_conformer_transducer_large-chris-offlineB4C1.6.json" #null
 #         output_filename: "/home/fjia/data/fake.json"
 
-
     metadata:
-        
         duration: 
             exec: True
             slot: [[0,2],[2,5],[5,10],[10,20],[20,100000]]
 #             slot: [[0,61],[61,63],[63,100000]]
             wer_each_class: False #True # whether to save wer for each class.
             
-#         gender:
-#             exec: True
-#             slot: [["m"]]
-#             wer_each_class: True
+        gender:
+            exec: False
+            slot: [["m"]]
+            wer_each_class: True
             
-#         speaker:
-#             exec: True
-#             wer_each_class: False
+        speaker:
+            exec: True
+            wer_each_class: False
             
-#         age:
-#             exec: False
-#             slot: null
-#             wer_each_class: False
+        age:
+            exec: False
+            slot: null
+            wer_each_class: False
             
-#         emotion: 
-#             exec: True
-#             slot: [['happy','laugh'],['neural'],['sad','cry']]
-#             wer_each_class: False
+        emotion: 
+            exec: True
+            slot: [['happy','laugh'],['neural'],['sad','cry']]
+            wer_each_class: False
                  
-            
 writer:
     report_filename: null
     

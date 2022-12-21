@@ -14,22 +14,7 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
         raise ValueError("Please specify either cfg.model_path or cfg.pretrained_name!")
 
     if cfg.inference_mode.mode == "offline":
-        # Specify default total_buffer_in_secs=22 and chunk_len_in_secs=20 for offline conformer
-        # to avoid problem of long audio sample.
-        OmegaConf.set_struct(cfg, True)
-        if (cfg.model_path and 'conformer' in cfg.model_path.lower()) or (
-            cfg.pretrained_name and 'conformer' in cfg.pretrained_name.lower()
-        ):
-            if 'total_buffer_in_secs' not in cfg.inference_mode or not cfg.inference_mode.total_buffer_in_secs:
-                with open_dict(cfg):
-                    cfg.inference_mode.total_buffer_in_secs = 22
-            if 'chunk_len_in_secs' not in cfg.inference_mode or not cfg.inference_mode.chunk_len_in_secs:
-                with open_dict(cfg):
-                    cfg.inference_mode.chunk_len_in_secs = 20
-
-            cfg = run_chunked_inference(cfg)
-        else:
-            cfg = run_offline_inference(cfg)
+        cfg = run_offline_inference(cfg)
 
     elif cfg.inference_mode.mode == "chunked":
         if (
@@ -43,6 +28,21 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
             )
         cfg = run_chunked_inference(cfg)
 
+    elif cfg.inference_mode.mode == "offline_by_chunked":
+        # Specify default total_buffer_in_secs=22 and chunk_len_in_secs=20 for offline conformer
+        # to avoid problem of long audio sample.
+        # OmegaConf.set_struct(cfg, True)
+        # if (cfg.model_path and 'conformer' in cfg.model_path.lower()) or (
+        #     cfg.pretrained_name and 'conformer' in cfg.pretrained_name.lower()
+        # ):
+        if 'total_buffer_in_secs' not in cfg.inference_mode or not cfg.inference_mode.total_buffer_in_secs:
+            with open_dict(cfg):
+                cfg.inference_mode.total_buffer_in_secs = 22
+        if 'chunk_len_in_secs' not in cfg.inference_mode or not cfg.inference_mode.chunk_len_in_secs:
+            with open_dict(cfg):
+                cfg.inference_mode.chunk_len_in_secs = 20
+        cfg = run_chunked_inference(cfg)
+
     else:
         raise ValueError(f"inference_mode could only be offline or chunked, but got {cfg.inference_mode.mode}")
 
@@ -52,7 +52,7 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
 def run_chunked_inference(cfg: DictConfig) -> DictConfig:
     if "output_filename" not in cfg or not cfg.output_filename:
         if cfg.model_path:
-            model_name = Path(cfg.model_path).setup_model
+            model_name = Path(cfg.model_path).stem
         else:
             model_name = cfg.pretrained_name
         dataset_name = Path(cfg.test_ds.manifest_filepath).stem
@@ -108,7 +108,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
 def run_offline_inference(cfg: DictConfig) -> DictConfig:
     if "output_filename" not in cfg or not cfg.output_filename:
         if cfg.model_path:
-            model_name = Path(cfg.model_path).setup_model
+            model_name = Path(cfg.model_path).stem
         else:
             model_name = cfg.pretrained_name
         dataset_name = Path(cfg.test_ds.manifest_filepath).stem
@@ -126,10 +126,13 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         f"pretrained_name={cfg.pretrained_name} "
         f"dataset_manifest={cfg.test_ds.manifest_filepath} "
         f"output_filename={cfg.output_filename} "
-        f"batch_size={cfg.test_ds.batch_size} ",
+        f"batch_size={cfg.test_ds.batch_size} "
+        "rnnt_decoding.strategy=greedy_batch ", 
         shell=True,
         check=True,
     )
+        # f"test_ds={cfg.test_ds} "
+            # f"dataset_manifest={cfg.test_ds.manifest_filepath} "
 
     return cfg
 
@@ -176,7 +179,8 @@ def convert_num_to_words(_str):
     out_str = ""
     num_word = []
     for word in words:
-        if word.isnumeric():
+        if word.isdigit():
+        # if word.isnumeric():
             num = int(word)
             while num:
                 digit = num % 10
@@ -217,11 +221,12 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         ref = sample['text']
 
         if cfg.analyst.metric_calculator.clean_groundtruth_text:
+            print("clean label")
             ref = clean_label(ref)
 
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=[hyp], references=[ref])
+        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer)
         sample['wer'] = wer
-        sample['words'] = words
+        sample['num_ref_words'] = words
         sample['ins_rate'] = ins_rate
         sample['del_rate'] = del_rate
         sample['sub_rate'] = sub_rate
@@ -231,7 +236,7 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         refs.append(ref)
 
     # wer = word_error_rate(hypotheses=hyps, references=refs)
-    total_wer, total_ref_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(hypotheses=hyps, references=refs)
+    total_wer, total_ref_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(hypotheses=hyps, references=refs,use_cer=cfg.analyst.metric_calculator.use_cer)
 
     if "output_filename" not in cfg.analyst.metric_calculator or not cfg.analyst.metric_calculator.output_filename:
         # overwrite the current manifest
@@ -246,8 +251,9 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
             fout.flush()
 
     total_res = {
-        "wer": wer,
+        "samples": len(samples),
         "num_ref_words": total_ref_words,
+        "wer": total_wer,
         "ins_rate": total_ins_rate,
         "del_rate": total_del_rate,
         "sub_rate": total_sub_rate
@@ -274,70 +280,60 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
             wer_each_class[target_class]["dels"] += words * sample["del_rate"] 
             wer_each_class[target_class]["subs"] += words * sample["sub_rate"] 
             
-
     if len(wer_each_class) > 0:
-        occ_avg_wer = {}
+        ret_wer_each_class = {}
         for target_class in wer_each_class:
-
-            occ_avg_wer[target_class] = {}
-            occ_avg_wer[target_class]["samples"] = occ
-            occ_avg_wer[target_class]["wer"] = avg_wer
-
-            all_occ += occ
-            all_wer += sum(wer_each_class[target_class])
-
+            ret_wer_each_class[target_class] = {}
+            ret_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
+            ret_wer_each_class[target_class]["wer"] = wer_each_class[target_class]["errors"] / wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["num_ref_words"] = wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["ins_rate"] = wer_each_class[target_class]["inss"] / wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["del_rate"] = wer_each_class[target_class]["dels"] / wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["sub_rate"] = wer_each_class[target_class]["subs"] / wer_each_class[target_class]["num_ref_words"]
     else:
         logging.info(f"metadata '{target}' does not present in manifest. Skipping! ")
-        occ_avg_wer = {'all_class': {'occ': 0, 'avg_wer': None}}
+        return None
 
-
-
-    slot_occ_avg_wer = {}
+    values = ['samples', 'num_ref_words', 'errors', 'inss', 'dels', 'subs']
+    slot_wer = {}
     if 'slot' in meta_cfg and meta_cfg.slot:
-        for target_class in occ_avg_wer:
-            if target_class != "all_class":
-                for s in meta_cfg.slot:
-                    if isinstance(s[0], float) or isinstance(s[0], int):
-                        if s[0] <= target_class < s[1]:
-                            slot_key = "slot-" + ",".join(str(i) for i in s)
-                            if slot_key not in slot_occ_avg_wer:
-                                slot_occ_avg_wer[slot_key] = {'occ': 0, 'sum_wer': 0}
-                            slot_occ_avg_wer[slot_key]['occ'] += occ_avg_wer[target_class]['occ']
-                            slot_occ_avg_wer[slot_key]['sum_wer'] += (
-                                occ_avg_wer[target_class]['avg_wer'] * occ_avg_wer[target_class]['occ']
-                            )
-                            break
+        for target_class in wer_each_class:
+            for s in meta_cfg.slot:
+                if isinstance(s[0], float) or isinstance(s[0], int):
+                    if s[0] <= target_class < s[1]:
+                        slot_key = "slot-" + ",".join(str(i) for i in s)
+                        if slot_key not in slot_wer:
+                            slot_wer[slot_key] = {'samples': 0, 'num_ref_words': 0, "errors": 0, "inss": 0, "dels": 0, "subs":0}
+                        
+                        for v in values: 
+                            slot_wer[slot_key][v] += wer_each_class[target_class][v]
+                        break
 
-                    elif isinstance(s[0], str):
-                        if target_class in s:
-                            slot_key = "slot-" + ",".join(s)
-                            if slot_key not in slot_occ_avg_wer:
-                                slot_occ_avg_wer[slot_key] = {'occ': 0, 'sum_wer': 0}
-                            slot_occ_avg_wer[slot_key]['occ'] += occ_avg_wer[target_class]['occ']
-                            slot_occ_avg_wer[slot_key]['sum_wer'] += (
-                                occ_avg_wer[target_class]['avg_wer'] * occ_avg_wer[target_class]['occ']
-                            )
-                            break
+                elif isinstance(s[0], str):
+                    if target_class in s:
+                        slot_key = "slot-" + ",".join(s)
+                        if slot_key not in slot_wer:
+                            slot_wer[slot_key] = {'samples': 0, 'num_ref_words': 0, "errors": 0, "inss": 0, "dels": 0, "subs":0}
 
-                    else:
-                        raise ValueError("Current only support target metadata belongs to numeric or string ")
+                        for v in values: 
+                            slot_wer[slot_key][v] += wer_each_class[target_class][v]
+                        break
+                else:
+                    raise ValueError("Current only support target metadata belongs to numeric or string ")
 
-        for slot_key in slot_occ_avg_wer:
-            slot_occ_avg_wer[slot_key]['avg_wer'] = (
-                slot_occ_avg_wer[slot_key]['sum_wer'] / slot_occ_avg_wer[slot_key]['occ']
-            )
-            slot_occ_avg_wer[slot_key].pop('sum_wer')
-
-        occ_avg_wer.update(slot_occ_avg_wer)
+        for slot_key in slot_wer:
+            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['num_ref_words']
+            slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['num_ref_words']
+            slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['num_ref_words']
+            slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['num_ref_words']
+            slot_wer[slot_key].pop('errors')
+            slot_wer[slot_key].pop('inss')
+            slot_wer[slot_key].pop('dels')
+            slot_wer[slot_key].pop('subs')
+        ret_wer_each_class.update(slot_wer)
 
     if meta_cfg.wer_each_class:
-        return occ_avg_wer
+        return ret_wer_each_class
 
-    elif (not meta_cfg.wer_each_class) and ('slot' in meta_cfg and meta_cfg.slot):
-        ret = {'all_class': occ_avg_wer['all_class']}
-        for i in occ_avg_wer:
-            if isinstance(i, str) and i.startswith('slot-'):
-                ret[i] = occ_avg_wer[i]
-        return ret
-    else:
-        return {'all_class': occ_avg_wer['all_class']}
+    if (not meta_cfg.wer_each_class) and ('slot' in meta_cfg and meta_cfg.slot):
+        return slot_wer
