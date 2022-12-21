@@ -277,7 +277,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     ):
                         self.decoder_cross_attention_relative_position_embeddings_weight().data.fill_(0)
                         self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
-            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
                 self.decoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
                     bidirectional=False,
                     num_attention_heads=decoder_cfg.num_attention_heads,
