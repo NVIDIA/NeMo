@@ -81,12 +81,9 @@ class DateFst(GraphFst):
             new_graph = day + pynini.cross(sep, NEMO_SPACE) + month_number + year_optional
             graph_dmy |= new_graph
 
-        dash = "-"
-        day_optional = pynini.closure(pynini.cross(dash, NEMO_SPACE) + day, 0, 1)
-        graph_ymd = NEMO_DIGIT ** 4 @ year_only + pynini.cross(dash, NEMO_SPACE) + month_number + day_optional
-        separators = [".", "/"]
-        for sep in separators:
-            graph_ymd |= NEMO_DIGIT ** 4 @ year_only + pynini.cross(sep, NEMO_SPACE) + month_number + day_optional
+            day_optional = pynini.closure(pynini.cross(sep, NEMO_SPACE) + day, 0, 1)
+            tmp_graph = NEMO_DIGIT ** 4 @ year_only + pynini.cross(sep, NEMO_SPACE) + month_number + day_optional
+            graph_ymd |= tmp_graph
 
         final_graph = graph_ymd | (graph_dmy + pynutil.insert(" preserve_order: true"))
 
