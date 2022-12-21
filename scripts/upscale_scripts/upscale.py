@@ -1,8 +1,11 @@
 import torch
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+    MegatronGPTPromptLearningModel,
+)
 import torch
+from typing import Union
 from pytorch_lightning.trainer.trainer import Trainer
 from collections import Counter
 import json
@@ -23,8 +26,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model im
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
-def get_word_embedding(cfg, path):
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+def get_word_embedding(path):
+    trainer = Trainer(strategy=NLPDDPStrategy(), devices=1, num_nodes=1, accelerator='gpu', precision=16, logger=False)
     save_restore_connector = NLPSaveRestoreConnector()
     frozen_model = MegatronGPTModel.restore_from(
                     path,
@@ -51,8 +54,7 @@ class EmbeddingProjector(ptl.LightningModule):
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=3e-4)
-        scheduler = torch.optim.ReduceLROnPlateau(optimizer, ...)
-        return [optimizer], [scheduler]
+        return optimizer
 
     def forward(self, x):
         z = self.encoder(x)
@@ -69,11 +71,11 @@ class EmbeddingProjector(ptl.LightningModule):
         assert inp_size == self.input_size
         assert out_size == self.output_size
         y_hat, z = self(x)
-        loss = F.smooth_l1_loss(y_hat, y)
+        sl1_loss = F.smooth_l1_loss(y_hat, y)
         cs_loss = self.cs_embedding_loss(y_hat, y, torch.ones(batch_size))
         cs_neighbors_loss = self.cs_embedding_loss(y_hat, y_neighbors, -torch.ones(batch_size))
-        total_loss = cs_loss + cs_neighbors_loss
-        self.log("sl1_loss", loss.item(), prog_bar=True)
+        total_loss = sl1_loss + cs_loss + cs_neighbors_loss
+        self.log("sl1_loss", sl1_loss.item(), prog_bar=True)
         self.log("cs_loss", cs_loss.item(), prog_bar=True)
         self.log("train_loss", total_loss.item(), prog_bar=True)
         return total_loss
@@ -95,25 +97,27 @@ class EmbeddingProjector(ptl.LightningModule):
         self.log("test_loss", test_loss, prog_bar=True, on_epoch=True)
 
     def validation_step(self, batch, batch_idx):
-
         x, y, y_neighbors = batch
         batch_size, inp_size = x.shape
         loss = None
         with torch.no_grad():
             y_hat, z = self(x)
-            loss = F.smooth_l1_loss(y_hat, y)
+            sl1_loss = F.smooth_l1_loss(y_hat, y)
             cs_loss = self.cs_embedding_loss(y_hat, y, torch.ones(batch_size))
             cs_neighbors_loss = self.cs_embedding_loss(y_hat, y_neighbors, -torch.ones(batch_size))
-        return loss.item(), (cs_loss + cs_neighbors_loss).item()
+        return sl1_loss.item(), cs_loss.item(), cs_neighbors_loss.item()
     
     def validation_epoch_end(self, losses):
         sl1_losses = [i[0] for i in losses]
         cs_losses = [i[1] for i in losses]
+        cs_neighbors_losses = [i[2] for i in losses]
         val_sl1_loss = sum(sl1_losses) / len(sl1_losses)
         val_cs_loss = sum(cs_losses) / len(cs_losses)
-        self.val_loss = val_cs_loss + val_sl1_loss
+        val_cs_neighbors_loss = sum(cs_neighbors_losses) / len(cs_neighbors_losses)
+        self.val_loss = val_sl1_loss + val_cs_loss + val_cs_neighbors_loss
         self.log("val_sl1_loss", val_sl1_loss, prog_bar=True, on_epoch=True)
         self.log("val_cs_loss", val_cs_loss, prog_bar=True, on_epoch=True)
+        self.log("val_cs_neighbors_loss", val_cs_neighbors_loss, prog_bar=True, on_epoch=True)
         self.log("val_loss", self.val_loss, prog_bar=True, on_epoch=True)
 
         if self.val_loss < self.best_val_loss:
@@ -151,13 +155,29 @@ class UpscaleDataset(Dataset):
         assert idx not in k_neighbors
         return self.x_embs[idx], self.y_embs[idx], self.y_embs[k_neighbors[0]]
     
+    
+def load_prompt_learning_model(virtual_prompt_model_file):
+    trainer = Trainer(strategy=NLPDDPStrategy(), devices=1, num_nodes=1, accelerator='gpu', precision=16, logger=False)
+    prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
+        virtual_prompt_model_file, trainer=trainer, return_config=True,
+    )
+
+    model = MegatronGPTPromptLearningModel.restore_from(
+        restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
+    )
+    return model
+    
 
 @hydra_runner(config_path="./", config_name="upscale")
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    word_embeddings_125m, tokenizer = get_word_embedding(cfg, '/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo')
-    word_embeddings_1_3b, tokenizer = get_word_embedding(cfg, '/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo')
+    word_embeddings_125m, tokenizer = get_word_embedding(cfg.small_model_path)
+    word_embeddings_1_3b, tokenizer = get_word_embedding(cfg.large_model_path)
+
+    model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model)
+    prompt_learning_embs_125m = model_125m.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
+    model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model)
     
     train = UpscaleDataset(word_embeddings_125m[1000:2000], word_embeddings_1_3b[1000:2000])
     val = UpscaleDataset(word_embeddings_125m[:500], word_embeddings_1_3b[:500])
@@ -173,6 +193,13 @@ def main(cfg) -> None:
     projector_2 = EmbeddingProjector(word_embeddings_125m.shape[1], 3000, word_embeddings_1_3b.shape[1])
     projector_2.load_model('model.pt')
     trainer.test(model=projector_2, dataloaders=test_dataloader)
+    projector_2 = projector_2.cuda()
+
+    y_hat, _ = projector_2(prompt_learning_embs_125m)
+    print(y_hat.shape)
+
+    model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
+    model_1_3b.save_to(cfg.projected_prompt_learning_path)
 
 
 

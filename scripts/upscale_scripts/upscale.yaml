@@ -5,3 +5,8 @@ trainer:
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train.jsonl"
+small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo"
+small_prompt_learning_model: "/home/adithyare/exp/125m_squad_prompt_tuning/prompt_learning.nemo"
+large_model_path: "/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo"
+large_prompt_learning_model: "/home/adithyare/exp/1_3b_squad_prompt_tuning/prompt_learning.nemo"
+projected_prompt_learning_model: ???
