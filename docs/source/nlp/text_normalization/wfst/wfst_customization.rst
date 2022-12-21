@@ -16,16 +16,17 @@ Steps to customize grammars
 
 1. Install [NeMo-TN from source](https://github.com/NVIDIA/NeMo-text-processing#from-source)
 2. Run [nemo_text_processing/text_normalization/normalize.py](https://github.com/NVIDIA/NeMo-text-processing/blob/main/nemo_text_processing/text_normalization/normalize.py) or [nemo_text_processing/inverse_text_normalization/inverse_normalize.py](https://github.com/NVIDIA/NeMo-text-processing/blob/main/nemo_text_processing/inverse_text_normalization/inverse_normalize.py) with `--verbose` flag to evaluate current behavior on the target case, see argument details in the scripts and [this tutorial](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb)
-3. [This function](https://github.com/kylebgorman/pynini/blob/master/pynini/lib/rewrite.py#L292) might be helpful for grammar development/debugging
+3. Modify existing grammars or add new grammars to cover the target case using [Tutorial on how to write new grammars](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb)
 
-.. code-block:: python
+Additionally, [this function](https://github.com/kylebgorman/pynini/blob/master/pynini/lib/rewrite.py#L292) might be helpful for grammar development/debugging
 
-    from pynini.lib.rewrite import top_rewrite
-    print(top_rewrite(input_string, graph))
+    .. code-block:: python
 
+        from pynini.lib.rewrite import top_rewrite
+        # print graph's output for "input_string", could be used for debugging
+        print(top_rewrite(input_string, graph))
 
-4. Modify existing grammars or add new grammars to cover the target case using [Tutorial on how to write new grammars](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb)
-5. Add new test cases [here](https://github.com/NVIDIA/NeMo-text-processing/tree/main/tests/nemo_text_processing):
+4. Add new test cases [here](https://github.com/NVIDIA/NeMo-text-processing/tree/main/tests/nemo_text_processing):
     - Run python tests:
 
     .. code-block:: bash
