@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:22.11-py3'
+          image 'nvcr.io/nvidia/pytorch:22.12-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -335,20 +335,21 @@ pipeline {
       failFast true
       parallel {
 
-        stage('Speaker Recognition') {
-          steps {
-            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=2 \
-            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
-          }
-        }
+        // TODO: This test is taking 20 minutes to complete on CI. Please fix.
+        // stage('Speaker Recognition') {
+        //   steps {
+        //     sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
+        //     model.train_ds.batch_size=10 \
+        //     model.validation_ds.batch_size=2 \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+        //     trainer.devices=[1] \
+        //     trainer.accelerator="gpu" \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+        //     sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
+        //   }
+        // }
 
         stage('Speaker Diarization') {
           steps {
