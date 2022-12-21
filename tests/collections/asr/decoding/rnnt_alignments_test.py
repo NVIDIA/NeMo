@@ -30,6 +30,7 @@ PRETRAINED_MODEL_NAME = "stt_en_conformer_transducer_small"
 @pytest.mark.parametrize("strategy,blank_as_pad", [("greedy", True), ("greedy_batch", True), ("greedy_batch", False),])
 def test_rnnt_alignments(strategy: str, blank_as_pad: bool):
     cfg = OmegaConf.structured(TranscriptionConfig(pretrained_name=PRETRAINED_MODEL_NAME))
+    cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
     cfg.rnnt_decoding.preserve_alignments = True
     cfg.rnnt_decoding.strategy = strategy
     cfg.dataset_manifest = TEST_DATA_PATH
@@ -47,7 +48,8 @@ def test_rnnt_alignments(strategy: str, blank_as_pad: bool):
     )[0]
 
     for transcription in transcriptions:
-        for align_elem in transcription.alignments:
+        for align_elem, frame_confidence in zip(transcription.alignments, transcription.frame_confidence):
+            assert len(align_elem) == len(frame_confidence)  # frame confidences have to match alignments
             for idx, pred in enumerate(align_elem):
                 if idx < len(align_elem) - 1:
                     assert pred[1].item() != model.decoder.blank_idx  # all except last have to be non-blank
