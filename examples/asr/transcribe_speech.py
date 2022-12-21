@@ -16,6 +16,7 @@ import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
+from omegaconf import DictConfig
 
 import pytorch_lightning as pl
 import torch
@@ -87,6 +88,8 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    # test_ds:  Optional[DictConfig] = None  
+    test_ds: Optional[dict] = None
 
     # General configs
     output_filename: Optional[str] = None
@@ -195,6 +198,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     transcriptions = transcribe_partial_audio(
                         asr_model=asr_model,
                         path2manifest=cfg.dataset_manifest,
+                        test_ds=cfg.test_ds,
                         batch_size=cfg.batch_size,
                         num_workers=cfg.num_workers,
                         return_hypotheses=return_hypotheses,

@@ -26,7 +26,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 def get_buffered_pred_feat_rnnt(
@@ -285,13 +285,20 @@ def write_transcription(
 
 def transcribe_partial_audio(
     asr_model,
-    path2manifest: str,
+    test_ds: dict=None, 
+    path2manifest: str=None,
     batch_size: int = 4,
     logprobs: bool = False,
     return_hypotheses: bool = False,
     num_workers: int = 0,
 ) -> List[str]:
 
+    # if test_ds:
+    
+    # elif test_ds
+
+    # else:
+    #     raise ValueError("todo")
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
     if return_hypotheses and logprobs:
@@ -321,13 +328,19 @@ def transcribe_partial_audio(
         logging_level = logging.get_verbosity()
         logging.set_verbosity(logging.WARNING)
 
+        # if "augmentor" in test_ds:
+        #     print("=========")
+        #     print(test_ds)
+        #     temporary_datalayer = asr_model._setup_dataloader_from_config(test_ds)
+        # else:
         config = {
             'manifest_filepath': path2manifest,
             'batch_size': batch_size,
             'num_workers': num_workers,
         }
-
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+
+
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
             logits, logits_len, greedy_predictions = asr_model.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
