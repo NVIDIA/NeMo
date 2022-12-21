@@ -401,7 +401,8 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
             return UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
                 np_rng=np_rng,
-                max_seq_length=max_seq_length,  # -1 to account for the <extra_id_s> token that gets added after the sample is created.
+                max_seq_length_encoder=max_seq_length,  # -1 to account for the <extra_id_s> token that gets added after the sample is created.
+                max_seq_length_decoder=max_seq_length_dec,
                 tokenizer=src_tokenizer,
                 prefix_lm_pivot_mean=prefix_lm_pivot_mean,
                 pivot_distribution=extreme_ngram_span_length_distribution,

@@ -150,7 +150,8 @@ class UL2Dataset(T5Dataset):
         cls,
         sample,
         np_rng,
-        max_seq_length: int,
+        max_seq_length_encoder: int,
+        max_seq_length_decoder: int,
         tokenizer: TokenizerSpec,
         prefix_lm_pivot_mean: float,
         pivot_distribution: LengthDistribution,
@@ -159,8 +160,8 @@ class UL2Dataset(T5Dataset):
         sample = [token for sentence in sample for token in sentence]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
             sample=sample,
-            max_seq_length_encoder=max_seq_length,
-            max_seq_length_decoder=max_seq_length,  # We don't use max_seq_length_decoder here since we typically want to use long decoder sequences for better LM performance.
+            max_seq_length_encoder=max_seq_length_encoder,
+            max_seq_length_decoder=max_seq_length_decoder,  # We don't use max_seq_length_decoder here since we typically want to use long decoder sequences for better LM performance and we can do +1 because we don't need to add the UL2 token here.
             np_rng=np_rng,
             tokenizer=tokenizer,
             pivot_mean=prefix_lm_pivot_mean,
@@ -268,7 +269,8 @@ class UL2Dataset(T5Dataset):
             return UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
                 np_rng=np_rng,
-                max_seq_length=self.max_seq_length,
+                max_seq_length_encoder=self.max_seq_length,
+                max_seq_length_decoder=self.max_seq_length_dec,
                 tokenizer=self.tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
