@@ -4,6 +4,71 @@ trainer:
   accelerator: gpu
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
+
+task_templates: # Add more/replace tasks as needed, these are just examples
+  - taskname: "boolq" # The task name
+    prompt_template: "<|VIRTUAL_PROMPT_0|> Passage: {passage} Question: {question} Answer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    total_virtual_tokens: 10 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+    virtual_token_splits: [10] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+    truncate_field: "passage" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    answer_only_loss: True 
+    answer_field: "answer"
+
+  - taskname: "intent_and_slot"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}"
+    total_virtual_tokens: 30
+    answer_only_loss: False 
+    virtual_token_splits: [15, 10, 5]
+    truncate_field: null
+
+  - taskname: "rte" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\nAnswer: {answer}" 
+    total_virtual_tokens: 9 
+    virtual_token_splits: [9] 
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "answer"
+  
+  - taskname: "squad" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> context: {context} question: {question} answer: {answer}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "answer"
+  
+  - taskname: "hellaswag" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> text: {text} A:{A} B:{B} C:{C} D:{D} answer: {answer}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: text
+    answer_only_loss: True
+    answer_field: "answer"
+
+  - taskname: "xsum" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> source: {source} summary: {target}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: "source"
+    answer_only_loss: True
+    answer_field: "target"
+
+  - taskname: "arc-challenge" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> question: {question} choices: {choices} answer: {answer}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: "question"
+    answer_only_loss: True
+    answer_field: "answer"
+
+  - taskname: "sst2" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> sentence: {sentence} answer: {answer}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: "question"
+    answer_only_loss: True
+    answer_field: "answer"
+    
 dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train.jsonl"
 small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo"
 small_prompt_learning_model: "/home/adithyare/exp/125m_squad_prompt_tuning/prompt_learning.nemo"

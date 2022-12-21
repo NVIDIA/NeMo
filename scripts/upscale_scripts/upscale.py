@@ -166,6 +166,11 @@ def load_prompt_learning_model(virtual_prompt_model_file):
         restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
     )
     return model
+
+def load_dataset(tokenizer, path):
+    dataset = open(path, 'r', encoding='utf-8')
+    for json_line in tqdm(dataset):
+        doc = json.loads(json_line)
     
 
 @hydra_runner(config_path="./", config_name="upscale")
@@ -174,6 +179,8 @@ def main(cfg) -> None:
     # trainer required for restoring model parallel models
     word_embeddings_125m, tokenizer = get_word_embedding(cfg.small_model_path)
     word_embeddings_1_3b, tokenizer = get_word_embedding(cfg.large_model_path)
+    load_dataset(tokenizer, cfg.dataset)
+
 
     model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model)
     prompt_learning_embs_125m = model_125m.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
