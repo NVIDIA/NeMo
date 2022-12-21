@@ -12,21 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from functools import partial
 
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from functools import partial
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.utils import AppState, logging
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
     get_train_valid_test_split_,
@@ -35,6 +30,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -49,9 +49,7 @@ __all__ = ['MegatronRetroFinetuneModel']
 
 
 def build_all_datasets(
-    cfg,
-    tokenizer,
-    train_valid_test_num_samples,
+    cfg, tokenizer, train_valid_test_num_samples,
 ):
     """Build train, valid, and test RETRO datasets.
        There is one to one mapping between data_prefix and knn_map_path.
@@ -100,7 +98,6 @@ def build_all_datasets(
 class MegatronRetroFinetuneModel(MegatronRetrievalModel):
     """Finetune RETRO Model """
 
-
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
@@ -116,9 +113,7 @@ class MegatronRetroFinetuneModel(MegatronRetrievalModel):
         ]
 
         self._train_ds, self._validation_ds, self._test_ds = build_all_datasets(
-            cfg=self.cfg.data,
-            tokenizer=self.tokenizer,
-            train_valid_test_num_samples=train_valid_test_num_samples,
+            cfg=self.cfg.data, tokenizer=self.tokenizer, train_valid_test_num_samples=train_valid_test_num_samples,
         )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -147,9 +142,5 @@ class MegatronRetroFinetuneModel(MegatronRetrievalModel):
             drop_last=True,
         )
         return torch.utils.data.DataLoader(
-            dataset,
-            batch_sampler=batch_sampler,
-            collate_fn=collate_fn,
-            num_workers=0,
-            pin_memory=True,
+            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
         )

@@ -136,34 +136,36 @@ class RetroQAFineTuneDataset(Dataset):
             padding_length = 64 - len(tokenized_input)
             tokenized_input = [self.pad_token_id] * padding_length + tokenized_input
 
-        if len(tokenized_input) + len(tokenized_output) > self.max_seq_length:
-            cut_tokens = len(tokenized_input) + len(tokenized_output) - self.max_seq_length
+        if len(tokenized_input) + len(target) > self.max_seq_length:
+            cut_tokens = len(tokenized_input) + len(target) - self.max_seq_length
             if len(tokenized_input) - cut_tokens > 0:
                 # cut the input by default
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_tokens]
-            elif len(tokenized_output) - cut_tokens > 0:
+            elif len(target) - cut_tokens > 0:
                 # cut the output
-                tokenized_output = tokenized_output[: len(tokenized_output) - cut_tokens]
+                target = target[: len(target) - cut_tokens]
             else:
                 # cut both the input and output
                 cut_input_tokens = len(tokenized_input) - 1  # retain at least one token
                 cut_output_tokens = cut_tokens - cut_input_tokens
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_input_tokens]
-                tokenized_output = tokenized_output[: len(tokenized_output) - cut_output_tokens]
+                target = target[: len(target) - cut_output_tokens]
 
         chunks = []
         contexts = example['ctxs']
-        assert self.neighbors <= len(contexts), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
-        for neighbor in contexts[:self.neighbors]:
+        assert self.neighbors <= len(
+            contexts
+        ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
+        for neighbor in contexts[: self.neighbors]:
             tokens = self.tokenizer.text_to_ids(neighbor)
             tokens = tokens[:128]
             if len(tokens) < 128:
-                tokens = tokens + [self.pad_token_id] * (128 - len(tokens)) 
-            chunks.append(tokens) 
+                tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
+            chunks.append(tokens)
 
         answer_start_idx = len(tokenized_input)
         input_ids = tokenized_input + target
-        assert len(input_ids) < 128, "cannot handle more than two chunks yet"
+        assert len(input_ids) <= 128, "cannot handle more than two chunks yet"
         chunks = np.array(chunks).reshape(1, self.neighbors, -1).astype(np.int64)
         results = (input_ids, answer_start_idx, chunks)
         return results
@@ -183,9 +185,7 @@ class RetroQAFineTuneDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(
-            input_ids, batch_max, answer_starts
-        )
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -196,7 +196,7 @@ class RetroQAFineTuneDataset(Dataset):
 
         hidden_mask = input_ids != self.pad_token_id
         context_mask = chunks != self.pad_token_id
- 
+
         # Using causal attention mask for whole input
 
         return {

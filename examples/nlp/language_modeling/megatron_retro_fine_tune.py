@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+import os
+
 from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
-from nemo.collections.nlp.models.language_modeling.megatron_retro_fine_tune_model import MegatronRetroFinetuneModel
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-
+from nemo.collections.nlp.models.language_modeling.megatron_retro_fine_tune_model import MegatronRetroFinetuneModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -30,7 +32,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-import os
 
 
 def _modify_config(retro_cfg, cfg, add_cfg_to_tree=False):
@@ -78,6 +79,7 @@ def main(cfg) -> None:
         no_ddp_communication_hook=True if megatron_amp_o2 else False,
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
+        timeout=datetime.timedelta(seconds=18000),
     )
 
     if cfg.trainer.precision in [16, 'bf16']:
@@ -117,10 +119,20 @@ def main(cfg) -> None:
             save_restore_connector.model_extracted_dir = cfg.model.restore_path
 
         model_cfg = MegatronRetroFinetuneModel.restore_from(
-            restore_path=cfg.model.restore_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+            restore_path=cfg.model.restore_path,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
         )
         # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-        model = load_from_nemo(MegatronRetroFinetuneModel, cfg, trainer, model_cfg, modify_confg_fn=_modify_config, save_restore_connector=save_restore_connector)
+        model = load_from_nemo(
+            MegatronRetroFinetuneModel,
+            cfg,
+            trainer,
+            model_cfg,
+            modify_confg_fn=_modify_config,
+            save_restore_connector=save_restore_connector,
+        )
     else:
         model = MegatronRetroFinetuneModel(cfg.model, trainer=trainer)
 
