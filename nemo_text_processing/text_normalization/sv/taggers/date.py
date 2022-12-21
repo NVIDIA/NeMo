@@ -37,6 +37,7 @@ class DateFst(GraphFst):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         number_to_month = month_numbers.optimize()
+        self.month_abbr = month_abbr.optimize()
         month_graph = pynini.project(number_to_month, "output")
 
         numbers = cardinal.graph
@@ -46,6 +47,7 @@ class DateFst(GraphFst):
         # 01, 31, 1
         digit_day = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 32)]) @ ordinal.graph
         day = (pynutil.insert("day: \"") + digit_day + optional_dot + pynutil.insert("\"")).optimize()
+        day_sfx = (pynutil.insert("day: \"") + ordinal.suffixed_ordinal + pynutil.insert("\"")).optimize()
         self.digit_day = digit_day
 
         digit_month = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 13)])
@@ -54,6 +56,7 @@ class DateFst(GraphFst):
 
         month_name = (pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")).optimize()
         month_number = (pynutil.insert("month: \"") + number_to_month + pynutil.insert("\"")).optimize()
+        month_abbreviation = (pynutil.insert("month: \"") + self.month_abbr + optional_dot + pynutil.insert("\"")).optimize()
 
         # prefer cardinal over year
         year_first = ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0, 1)) @ numbers
@@ -70,9 +73,9 @@ class DateFst(GraphFst):
         year_only = pynutil.insert("year: \"") + year + pynutil.insert("\"")
 
         graph_dmy = (
-            day
+            (day | day_sfx)
             + NEMO_SPACE
-            + month_name
+            + (month_name | month_abbreviation)
             + pynini.closure(NEMO_SPACE + year_only, 0, 1)
         )
 
