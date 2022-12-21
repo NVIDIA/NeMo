@@ -66,6 +66,8 @@ class OrdinalFst(GraphFst):
             | graph_card_ties + graph_digit
             | graph_ties + pynutil.delete('0')
         )
+        self.graph_tens_component = graph_tens_component
+        graph_tens = graph_tens_component
 
         digit_or_space = pynini.closure(NEMO_DIGIT | pynini.accep(" "))
         cardinal_format = (NEMO_DIGIT - "0") + pynini.closure(digit_or_space + NEMO_DIGIT, 0, 1)
@@ -100,10 +102,8 @@ class OrdinalFst(GraphFst):
             hundreds |= digit + pynutil.insert(NEMO_SPACE) + pynutil.insert("hundra")
 
         graph_hundreds = hundreds + pynini.union(
-            graph_teens,
+            graph_tens,
             (pynutil.delete("0") + graph_digit),
-            (graph_card_ties + graph_digit),
-            (graph_ties + pynutil.delete("0"))
         )
         if not deterministic:
             graph_hundreds |= hundreds + pynini.union(
@@ -111,13 +111,7 @@ class OrdinalFst(GraphFst):
             )
         graph_hundreds |= bare_hundreds
 
-        # graph_hundred_component = pynini.union(
-        #     graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(graph_tens_component, graph_digit), 0, 1),
-        #     graph_tens_component,
-        #     graph_digit,
-        # )
-
-        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_teens)
+        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
         graph_hundreds_component_at_least_one_non_zero_digit = graph_hundreds_component | (
             pynutil.delete("00") + graph_digit
         )
