@@ -486,7 +486,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             # This should only happen with PP > 1 for enc-dec prompt learning models
             enc_seq_length = enc_attn_mask.size(1)
 
-        if self.encoder_relative_position_embedding is not None and self.add_encoder:
+        if self.add_encoder and self.encoder_relative_position_embedding is not None:
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
