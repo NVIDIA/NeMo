@@ -46,8 +46,10 @@ class DateFst(GraphFst):
 
         # 01, 31, 1
         digit_day = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 32)]) @ ordinal.graph
+        digit_words = pynini.project(digit_day, "output")
         day = (pynutil.insert("day: \"") + digit_day + optional_dot + pynutil.insert("\"")).optimize()
-        day_sfx = (pynutil.insert("day: \"") + ordinal.suffixed_ordinal + pynutil.insert("\"")).optimize()
+        day_sfx = (pynutil.insert("day: \"") + ordinal.suffixed_to_words + pynutil.insert("\"")).optimize()
+        day_words = (pynutil.insert("day: \"") + digit_words + pynutil.insert("\"")).optimize()
         self.digit_day = digit_day
 
         digit_month = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 13)])
@@ -73,7 +75,7 @@ class DateFst(GraphFst):
         year_only = pynutil.insert("year: \"") + year + pynutil.insert("\"")
 
         graph_dmy = (
-            (day | day_sfx)
+            (day | day_sfx | day_words)
             + NEMO_SPACE
             + (month_name | month_abbreviation)
             + pynini.closure(NEMO_SPACE + year_only, 0, 1)
