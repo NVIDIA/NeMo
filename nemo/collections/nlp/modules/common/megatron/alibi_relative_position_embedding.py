@@ -30,12 +30,13 @@ def get_slopes(n):
         slopes = get_slopes_power_of_2(n)
     else:
         closest_power_of_2 = 2 ** math.floor(math.log2(n))
-        slopes =  (
+        slopes = (
             get_slopes_power_of_2(closest_power_of_2)
             + get_slopes(2 * closest_power_of_2)[0::2][: n - closest_power_of_2]
         )
-    
+
     return slopes
+
 
 def build_slopes(num_attention_heads, alibi_num_heads):
     """
@@ -43,7 +44,8 @@ def build_slopes(num_attention_heads, alibi_num_heads):
     """
     slopes = torch.Tensor(get_slopes(alibi_num_heads) + [0] * (num_attention_heads - alibi_num_heads)).cuda()
     return slopes.unsqueeze(-1).unsqueeze(-1)
-    
+
+
 def build_relative_position(query_length, key_length, num_attention_heads):
     context_position = torch.arange(query_length)[:, None].cuda()
     memory_position = torch.arange(key_length)[None, :].cuda()
