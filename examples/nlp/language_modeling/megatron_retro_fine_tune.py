@@ -121,13 +121,6 @@ def main(cfg) -> None:
         )
         # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
         model = load_from_nemo(MegatronRetroFinetuneModel, cfg, trainer, model_cfg, modify_confg_fn=_modify_config, save_restore_connector=save_restore_connector)
-        # model = MegatronRetroFinetuneModel.restore_from(
-        #     cfg.model.restore_path,
-        #     model_cfg,
-        #     trainer=trainer,
-        #     save_restore_connector=NLPSaveRestoreConnector(),
-        #     strict=False,
-        # )
     else:
         model = MegatronRetroFinetuneModel(cfg.model, trainer=trainer)
 
