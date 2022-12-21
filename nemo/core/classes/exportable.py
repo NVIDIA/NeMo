@@ -54,7 +54,7 @@ class Exportable(ABC):
         output: str,
         input_example=None,
         verbose=False,
-        do_constant_folding=True,
+        do_constant_folding=False,
         onnx_opset_version=None,
         training=TrainingMode.EVAL,
         check_trace: Union[bool, List[torch.Tensor]] = False,
@@ -116,7 +116,7 @@ class Exportable(ABC):
 
         # Pytorch's default for None is too low, can't pass None through
         if onnx_opset_version is None:
-            onnx_opset_version = 13
+            onnx_opset_version = 17
 
         try:
             # Disable typechecks
@@ -126,9 +126,7 @@ class Exportable(ABC):
             forward_method, old_forward_method = wrap_forward_method(self)
 
             # Set module mode
-            with torch.onnx.select_model_mode_for_export(
-                self, training
-            ), torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
+            with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
 
                 if input_example is None:
                     input_example = self.input_module.input_example()
@@ -177,7 +175,6 @@ class Exportable(ABC):
                     if dynamic_axes is None:
                         dynamic_axes = get_dynamic_axes(self.input_module.input_types, input_names)
                         dynamic_axes.update(get_dynamic_axes(self.output_module.output_types, output_names))
-
                     torch.onnx.export(
                         self,
                         input_example,

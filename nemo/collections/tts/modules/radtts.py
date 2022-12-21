@@ -107,17 +107,17 @@ class FlowStep(nn.Module):
 
 class RadTTSModule(NeuralModule, Exportable):
     """
-    Takes model parameters (modelConfig) from config file to intialize radtts module. 
-    Specifiy the type of training in the include_modules parameter. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training 
-    n_speakers (int): Number of speakers 
+    Takes model parameters (modelConfig) from config file to intialize radtts module.
+    Specifiy the type of training in the include_modules parameter. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training
+    n_speakers (int): Number of speakers
     n_speaker_dim (int): number of speakers dimention
     n_text (int): Symbols embedding size
     n_text_dim (int):
     n_flows (int):
-    n_conv_layers_per_step (int): number of convultion layers per step 
-    dummy_speaker_embedding (bool): 
-    include_modules (string): A string that describes what to train. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training. 
-    scaling_fn (string): scaling function 
+    n_conv_layers_per_step (int): number of convultion layers per step
+    dummy_speaker_embedding (bool):
+    include_modules (string): A string that describes what to train. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training.
+    scaling_fn (string): scaling function
     decoder_use_partial_padding (Bool): Set this to True to add partial padding
     learn_alignments (Bool): set this to true to learn alignments
     attn_use_CTC (Bool): set True to use CTC
@@ -241,6 +241,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if 'dpm' in include_modules:
             dur_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
+            print("dur:", dur_model_config['hparams'])
             self.dur_pred_layer = get_attribute_prediction_model(dur_model_config)
 
         self.use_unvoiced_bias = False
@@ -601,9 +602,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if dur is None:
             # get token durations
-            z_dur = txt_enc.new_zeros((batch_size, 1, n_tokens), dtype=torch.float)
-            z_dur = torch.normal(z_dur) * sigma_txt
-            dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text, lens=in_lens)
+            dur = self.dur_pred_layer.infer(txt_enc, spk_vec_text, lens=in_lens)
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
@@ -623,7 +622,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if voiced_mask is None:
             if self.use_vpred_module:
                 # get logits
-                voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
+                voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
         else:
@@ -641,18 +640,12 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = -f0_bias[..., 0]
 
         if f0 is None:
-            n_f0_feature_channels = 2 if self.use_first_order_features else 1
-            z_f0 = torch.normal(txt_enc.new_zeros(batch_size, n_f0_feature_channels, max_out_len)) * sigma_f0
-            f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
+            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
 
         if energy_avg is None:
-            n_energy_feature_channels = 2 if self.use_first_order_features else 1
-            z_energy_avg = (
-                torch.normal(txt_enc.new_zeros(batch_size, n_energy_feature_channels, max_out_len)) * sigma_energy
-            )
-            energy_avg = self.infer_energy(z_energy_avg, ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
+            energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
 
         # replication pad, because ungrouping with different group sizes
         # may lead to mismatched lengths
@@ -663,7 +656,9 @@ class RadTTSModule(NeuralModule, Exportable):
             txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg
         )
 
-        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
+        residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
+        if sigma > 0.0:
+            residual = torch.normal(residual) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
@@ -683,10 +678,10 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
+        return mel, out_lens, dur  # , f0, energy_avg
 
-    def infer_f0(self, residual, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
-        f0 = self.f0_pred_module.infer(residual, txt_enc_time_expanded, spk_vec, lens)
+    def infer_f0(self, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
+        f0 = self.f0_pred_module.infer(txt_enc_time_expanded, spk_vec, lens)
 
         # constants
         if self.ap_pred_log_f0:
@@ -713,8 +708,8 @@ class RadTTSModule(NeuralModule, Exportable):
         f0.masked_fill_(~voiced_mask, 0.0)
         return f0
 
-    def infer_energy(self, residual, txt_enc_time_expanded, spk_vec, lens):
-        energy = self.energy_pred_module.infer(residual, txt_enc_time_expanded, spk_vec, lens)
+    def infer_energy(self, txt_enc_time_expanded, spk_vec, lens):
+        energy = self.energy_pred_module.infer(txt_enc_time_expanded, spk_vec, lens)
 
         # magic constants
         if self.use_first_order_features:
@@ -778,7 +773,7 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(16, 32, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(max_dim // 4, max_dim // 2, (max_batch,), device=par.device, dtype=torch.int)
+        lens = torch.randint(max_dim // 8, max_dim // 4, (max_batch,), device=par.device, dtype=torch.int)
         zeros_src = torch.zeros_like(inp)
         inp.scatter_(1, lens.long().unsqueeze(-1) - 1, zeros_src)  # set the inp[i, lens[i]-1] elt to zero
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
@@ -795,7 +790,7 @@ class RadTTSModule(NeuralModule, Exportable):
         """
         Runs the generator, for inputs and outputs see input_types, and output_types
         """
-        (mel, n_frames, dur, _, _) = self.infer(
+        mel, n_frames, dur = self.infer(
             speaker_id,
             text,
             speaker_id_text=speaker_id_text,
@@ -807,5 +802,5 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_mean=145.0,
             f0_std=30.0,
             in_lens=lens,
-        ).values()
+        )
         return mel.float(), n_frames, dur.float()
