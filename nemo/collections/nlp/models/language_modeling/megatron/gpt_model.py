@@ -113,6 +113,7 @@ class GPTModel(MegatronModule):
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_granularity=None,
@@ -137,6 +138,7 @@ class GPTModel(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        reduce_amax=True,
         use_emha=False,
     ):
 
@@ -164,6 +166,7 @@ class GPTModel(MegatronModule):
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             num_tokentypes=num_tokentypes,
             max_position_embeddings=max_position_embeddings,
             num_layers=num_layers,
@@ -203,6 +206,7 @@ class GPTModel(MegatronModule):
             fp8_interval=fp8_interval,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
+            reduce_amax=reduce_amax,
             use_emha=use_emha,
         )
 
