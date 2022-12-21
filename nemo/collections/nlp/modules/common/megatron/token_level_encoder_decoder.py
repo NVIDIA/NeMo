@@ -519,7 +519,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
 
-            if self.decoder_relative_position_embedding is not None and self.add_decoder:
+            if self.add_decoder and self.decoder_relative_position_embedding is not None:
                 decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                     query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                 )
