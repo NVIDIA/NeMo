@@ -91,6 +91,73 @@ class _RNNTNumba(Function):
             return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None
 
 
+class _MultiblankRNNTNumba(Function):
+    """
+    Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
+    """
+
+    @staticmethod
+    def forward(
+        ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma
+    ):
+        """
+        big_blank_durations: list of durations for multi-blank transducer, e.g.
+            [2, 4, 8].
+        sigma: hyper-parameter for logit under-normalization method for training
+            multi-blank transducers. Recommended value 0.05.
+        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+            the above parameters;
+        For other parameters for this class, refer to comment for class _RNNTNumba
+        """
+        is_cuda = acts.is_cuda
+
+        certify_inputs(acts, labels, act_lens, label_lens)
+        if clamp < 0:
+            raise ValueError("`clamp` must be 0.0 or positive float value.")
+
+        if is_cuda:
+            loss_func = rnnt.multiblank_rnnt_loss_gpu
+        else:
+            raise NotImplementedError()
+
+        grads = torch.zeros_like(acts) if acts.requires_grad else None
+        minibatch_size = acts.size(0)
+        costs = torch.zeros(minibatch_size, device=acts.device, dtype=acts.dtype)
+
+        loss_func(
+            acts,
+            labels=labels,
+            input_lengths=act_lens,
+            label_lengths=label_lens,
+            costs=costs,
+            grads=grads,
+            blank_label=blank,
+            big_blank_durations=big_blank_durations,
+            fastemit_lambda=fastemit_lambda,
+            clamp=clamp,
+            sigma=sigma,
+            num_threads=0,
+        )
+
+        if reduction in ['sum', 'mean']:
+            costs = costs.sum().unsqueeze_(-1)
+            if reduction == 'mean':
+                costs /= minibatch_size
+
+                if grads is not None:
+                    grads /= minibatch_size
+
+        ctx.grads = grads
+
+        return costs
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        if grad_output is not None and ctx.grads is not None:
+            grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.grads)
+            return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None, None, None, None
+
+
 class _TDTNumba(Function):
     """
     Numba class for Token-and-Duration Transducer (TDT) loss (https://arxiv.org/abs/2304.06795)
