@@ -113,11 +113,12 @@ class RetroQAFineTuneDataset(Dataset):
         """
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
-        tokenized_input = self.tokenizer.text_to_ids(f"question: {example['question']}\n")
+        question = example['question'].strip()
+        tokenized_input = self.tokenizer.text_to_ids(f"question: {question}\n")
         # add a space between input and output
         if 'answers' in example:
             # sample one answer from answers
-            answer = sample(example['answers'], 1)[0]
+            answer = sample(example['answers'], 1)[0].strip()
             tokenized_output = self.tokenizer.text_to_ids(f"answer: {answer}")
         else:
             tokenized_output = self.tokenizer.text_to_ids('answer: ')

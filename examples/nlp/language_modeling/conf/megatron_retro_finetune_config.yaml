@@ -68,7 +68,7 @@ model:
     train_ds:
       file_name: ??? # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
@@ -76,7 +76,7 @@ model:
     val_ds:
       file_name: ??? # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
@@ -84,7 +84,7 @@ model:
     test_ds:
       file_name: ??? # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
