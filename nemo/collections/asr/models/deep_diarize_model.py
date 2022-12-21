@@ -76,7 +76,6 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
                 ffn_dropout=dropout,
             )
             self.projection = torch.nn.Linear(hidden_dim, 1)
-        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor) -> torch.Tensor:
         B, K, H = attractors.size()
@@ -98,7 +97,7 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 
             # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
             activities = self.projection(output).view(B, K, N).transpose(1, 2)
-            return activities.sigmoid()
+            return activities
 
         output = self.decoder(
             decoder_states=attractors,
@@ -110,7 +109,7 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 
         # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
         activities = self.projection(output).view(B, K, N).transpose(1, 2)
-        return self.sigmoid(activities)
+        return activities
 
 
 class DeepDiarizeModel(ModelPT):
@@ -178,8 +177,8 @@ class DeepDiarizeModel(ModelPT):
             cat_features=self.cfg.decoder.cat_features,
         )
 
-        self.valid_loss = torch.nn.BCELoss()
-        self.train_loss = torch.nn.BCELoss(reduction='none' if self.cfg.focal else 'mean')
+        self.valid_loss = torch.nn.BCEWithLogitsLoss()
+        self.train_loss = torch.nn.BCEWithLogitsLoss(reduction='none' if self.cfg.focal else 'mean')
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
@@ -252,6 +251,8 @@ class DeepDiarizeModel(ModelPT):
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
+        if self.trainer.precision == "bf16":
+            train_x, y = train_x.bfloat16(), y.bfloat16()
         if self.cfg.conv_subsampling:
             train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         else:
@@ -267,7 +268,7 @@ class DeepDiarizeModel(ModelPT):
 
         # loss would be calculated between outputs and number of speakers present in segment
         # sigmoid results where greater than threshold should not be masked
-        attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
+        attractors_speaker_exists = self.fc(attractors).squeeze()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
         speaker_outputs = self._apply_mask(attractors_speaker_exists, speaker_outputs)
 
@@ -287,6 +288,7 @@ class DeepDiarizeModel(ModelPT):
         return loss + (self.cfg.existence_alpha * existence_loss)
 
     def _apply_mask(self, attractors_speaker_exists, speaker_outputs):
+        attractors_speaker_exists = attractors_speaker_exists.sigmoid()
         mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
         # todo: expose threshold
         mask[attractors_speaker_exists >= 0.5, :] = 1
@@ -316,6 +318,8 @@ class DeepDiarizeModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations, files = batch
+        if self.trainer.precision == "bf16":
+            inputs, y, fr_level_ys = [i.bfloat16() for i in inputs], y.bfloat16(), [x.bfloat16() for x in fr_level_ys]
         segment_loss = 0
         if self.cfg.mem_enabled:
             mems = [
@@ -349,13 +353,14 @@ class DeepDiarizeModel(ModelPT):
 
             # loss would be calculated between outputs and number of speakers present in segment
             # sigmoid results where greater than threshold should not be masked
-            attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
+            attractors_speaker_exists = self.fc(attractors).squeeze()
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
             speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
+            segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
 
+            speaker_outputs = speaker_outputs.sigmoid()
             for k, metric in self.segment_metrics.items():
                 metric(speaker_outputs.squeeze(0), segment_annotation)
-            segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )

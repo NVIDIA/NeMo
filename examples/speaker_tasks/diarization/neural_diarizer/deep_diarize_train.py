@@ -54,6 +54,9 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     deep_diarize = DeepDiarizeModel(cfg=cfg.model, trainer=trainer)
 
+    if trainer.precision == "bf16":
+        deep_diarize.bfloat16()
+
     if cfg.model.pretrained_weights:
         print("Loading pre-trained model weights")
         weights = torch.load(cfg.model.pretrained_weights, map_location=torch.device('cpu'))['state_dict']

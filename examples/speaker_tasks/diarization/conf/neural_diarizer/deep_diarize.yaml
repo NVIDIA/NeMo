@@ -127,6 +127,7 @@ model:
 
 trainer:
   devices: -1 # number of gpus (devices)
+  precision: 32
   accelerator: gpu
   max_steps: 500000
   num_nodes: 1

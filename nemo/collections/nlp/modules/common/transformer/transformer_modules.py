@@ -18,6 +18,7 @@ import math
 
 import numpy as np
 import torch
+import xformers.ops as xops
 from torch import nn
 from torch.nn.functional import gelu
 
@@ -191,21 +192,28 @@ class MultiHeadAttention(nn.Module):
         query = self.query_net(queries)
         key = self.key_net(keys)
         value = self.value_net(values)
-        query = self.transpose_for_scores(query) / self.attn_scale
-        key = self.transpose_for_scores(key) / self.attn_scale
-        value = self.transpose_for_scores(value)
+        q = self.transpose_for_scores(query).permute(0, 2, 1, 3)
+        k = self.transpose_for_scores(key).permute(0, 2, 1, 3) / self.attn_scale
+        v = self.transpose_for_scores(value).permute(0, 2, 1, 3)
+        c = xops.memory_efficient_attention(q, k, v, scale=1 / self.attn_scale)
 
-        # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
-        attention_scores = torch.matmul(query, key.transpose(-1, -2))
-        if attention_mask is not None:
-            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
-        attention_probs = torch.softmax(attention_scores, dim=-1)
-        attention_probs = self.attn_dropout(attention_probs)
-
-        context = torch.matmul(attention_probs, value)
-        context = context.permute(0, 2, 1, 3).contiguous()
-        new_context_shape = context.size()[:-2] + (self.hidden_size,)
-        context = context.view(*new_context_shape)
+        # query = self.transpose_for_scores(query) / self.attn_scale
+        # key = self.transpose_for_scores(key) / self.attn_scale
+        # value = self.transpose_for_scores(value)
+        #
+        # # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
+        # attention_scores = torch.matmul(query, key.transpose(-1, -2))
+        # if attention_mask is not None:
+        #     attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
+        # attention_probs = torch.softmax(attention_scores, dim=-1)
+        # attention_probs = self.attn_dropout(attention_probs)
+        #
+        # context = torch.matmul(attention_probs, value)
+        # context = context.permute(0, 2, 1, 3).contiguous()
+        # new_context_shape = context.size()[:-2] + (self.hidden_size,)
+        # context = context.view(*new_context_shape)
+        new_context_shape = c.size()[:-2] + (self.hidden_size,)
+        context = c.view(*new_context_shape)
 
         # output projection
         output_states = self.out_projection(context)
