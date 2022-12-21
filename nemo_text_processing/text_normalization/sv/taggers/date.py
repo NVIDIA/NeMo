@@ -18,6 +18,7 @@ from pynini.lib import pynutil
 
 delete_leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
 month_numbers = pynini.string_file(get_abs_path("data/dates/months.tsv"))
+month_abbr = pynini.string_file(get_abs_path("data/dates/month_abbr.tsv"))
 
 
 class DateFst(GraphFst):
@@ -75,15 +76,16 @@ class DateFst(GraphFst):
             + pynini.closure(NEMO_SPACE + year_only, 0, 1)
         )
 
+        day_optional = pynini.closure(pynini.cross("-", NEMO_SPACE) + day, 0, 1)
+        graph_ymd = year_only + pynini.cross("-", NEMO_SPACE) + month_number + day_optional
+
         separators = [".", "-", "/"]
         for sep in separators:
+            day_optional = pynini.closure(pynini.cross(sep, NEMO_SPACE) + day, 0, 1)
             year_optional = pynini.closure(pynini.cross(sep, NEMO_SPACE) + year_only, 0, 1)
             new_graph = day + pynini.cross(sep, NEMO_SPACE) + month_number + year_optional
             graph_dmy |= new_graph
-
-            day_optional = pynini.closure(pynini.cross(sep, NEMO_SPACE) + day, 0, 1)
-            tmp_graph = NEMO_DIGIT ** 4 @ year_only + pynini.cross(sep, NEMO_SPACE) + month_number + day_optional
-            graph_ymd |= tmp_graph
+            graph_ymd |= year_only + pynini.cross(sep, NEMO_SPACE) + month_number + day_optional
 
         final_graph = graph_ymd | (graph_dmy + pynutil.insert(" preserve_order: true"))
 
