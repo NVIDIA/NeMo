@@ -23,7 +23,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data, setup_model
 
-TEST_DATA_PATH = "/mnt/datadrive/data/TestData/an4_dataset/an4_val.json"
+TEST_DATA_PATH = "/home/TestData/an4_dataset/an4_val.json"
 PRETRAINED_MODEL_NAME = "stt_en_conformer_transducer_small"
 
 
