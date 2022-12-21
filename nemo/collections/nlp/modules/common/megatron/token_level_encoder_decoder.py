@@ -15,6 +15,9 @@
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+    ALiBiRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -24,7 +27,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import ALiBiRelativePositionEmbedding
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -157,10 +159,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     self.encoder_relative_position_embeddings_weight().shared = True
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
                 self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
-                    bidirectional=True, 
+                    bidirectional=True,
                     num_attention_heads=encoder_cfg.num_attention_heads,
                     layer_type=LayerType.encoder,
-                    alibi_num_heads=None, 
+                    alibi_num_heads=None,
                     max_seq_len=max_position_embeddings,
                 )
                 self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
@@ -277,10 +279,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
                 self.decoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
-                    bidirectional=False, 
+                    bidirectional=False,
                     num_attention_heads=decoder_cfg.num_attention_heads,
                     layer_type=LayerType.decoder,
-                    alibi_num_heads=None, 
+                    alibi_num_heads=None,
                     max_seq_len=max_position_embeddings,
                 )
                 self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
