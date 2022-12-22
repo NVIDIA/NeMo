@@ -2,7 +2,7 @@ import random
 import sys
 from argparse import ArgumentParser
 from collections import defaultdict
-from os.path import join
+from os.path import exists
 from typing import List
 
 import numpy as np
@@ -68,6 +68,8 @@ for input_name, input_custom_vocab_name, output_name, output_info_name in zip(
     output_paths,
     output_info_paths
 ):
+    if not exists(input_name) or not exists(input_custom_vocab_name):
+        continue
     custom_phrases = read_custom_vocab(input_custom_vocab_name)
     phrases, ngram2phrases = get_index(custom_phrases, ngram_mapping_vocab, ban_ngram)
 
