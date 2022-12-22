@@ -88,6 +88,7 @@ def get_encoder_model(
     moe_frequency=1,
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
+    version=1,  # model version
 ):
     """Build language model and return along with the key to save."""
 
@@ -185,6 +186,7 @@ def get_encoder_model(
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             turn_off_rop=turn_off_rop,
+            version=version,
         )
     elif arch == "perceiver":
         encoder = MegatronPerceiverEncoderModule(

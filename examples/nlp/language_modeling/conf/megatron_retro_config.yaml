@@ -42,6 +42,8 @@ exp_manager:
 
 
 model:
+  version: 1 # indicate the retro model version
+
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1

@@ -92,6 +92,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         normalize_attention_scores=True,
         activations_checkpoint_granularity=None,
         megatron_lm_compatible=False,
+        version=1,
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
         if megatron_lm_compatible:
@@ -189,6 +190,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
                 turn_off_rop=megatron_lm_compatible,
+                version=version,
             )
             self._encoder_key = "encoder"
 
@@ -252,6 +254,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
                 turn_off_rop=megatron_lm_compatible,
+                version=version,
             )
 
             # it is where the chunked cross attention happens
@@ -295,6 +298,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_number_offset=pre_decoder_num_layers + 1,
                 normalize_attention_scores=normalize_attention_scores,
                 turn_off_rop=megatron_lm_compatible,
+                version=version,
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"

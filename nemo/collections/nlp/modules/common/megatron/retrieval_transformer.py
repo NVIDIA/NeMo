@@ -80,6 +80,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
+        version=1,  # model version
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -93,6 +94,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
         self.turn_off_rop = turn_off_rop
+        self.version = version
 
         if kv_channels is None:
 
@@ -363,6 +365,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
+        version=1,  # model version
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 
@@ -375,6 +378,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
         self.turn_off_rop = turn_off_rop
+        self.version = version
 
         if kv_channels is None:
 
@@ -513,10 +517,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             if retrieved_emb is not None:
                 # -63, -62, ... 63  will be cut into -> [0, ... 63] in the chunk cross attention layer
                 cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, offset=-self.chunk_size + 1)
-                cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
-                # TODO, the first 64 tokens in retrieved is from the last chunk, align the continuation part with the query tokens
-                # use the following in the future. [-63, -62, ..., 63, 64]
-                # cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=-self.chunk_size + 1)
+                if self.version == 1:
+                    cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
+                elif self.version > 1:
+                    # the first 64 tokens in retrieved is from the last chunk, align the continuation part with the query tokens
+                    # use the following in the future. [-63, -62, ..., 63, 64]
+                    cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=-self.chunk_size + 1)
                 attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
             else:
                 attn_pos_emb = (self_attn_emb, None, None)

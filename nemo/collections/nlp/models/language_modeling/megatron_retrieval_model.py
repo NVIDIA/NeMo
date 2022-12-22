@@ -214,6 +214,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             tokenizer=self.tokenizer,
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
             megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
+            version=self.cfg.get('version', 1),
         )
         return model
 
