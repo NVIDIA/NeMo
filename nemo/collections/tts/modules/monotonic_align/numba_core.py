@@ -17,6 +17,7 @@ import numba
 import numpy as np
 import torch
 
+
 @numba.jit(nopython=True, boundscheck=False, parallel=True)
 def maximum_path_each(path, value, t_y: int, t_x: int, max_neg_val=-1e9):
     """
@@ -78,6 +79,7 @@ def maximum_path(neg_cent, mask):
     t_s_max = mask.sum(2)[:, 0].data.cpu().numpy().astype(np.int32)
     maximum_path_c(path, neg_cent, t_t_max, t_s_max)
     return torch.from_numpy(path).to(device=device, dtype=dtype)
+
 
 if __name__ == '__main__':
     pass
