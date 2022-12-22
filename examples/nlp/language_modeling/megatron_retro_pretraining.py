@@ -22,6 +22,7 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -80,13 +81,11 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-
     # load existing nemo retro model
     if cfg.get("restore_from_path", None) is not None:
         save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.model.restore_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_path
-
+        if os.path.isdir(cfg.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.restore_from_path
         model = MegatronRetrievalModel.restore_from(
             restore_path=cfg.restore_from_path,
             trainer=trainer,

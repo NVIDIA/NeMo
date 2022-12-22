@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import abc
-import pickle
 import time
 from typing import List, Tuple
 
+import numpy as np
 import torch
 import torch.distributed as dist
 
@@ -461,7 +461,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
-        retrieved = torch.tensor(self.retrieved, device=torch.cuda.current_device())
+        retrieved = torch.tensor(np.array(self.retrieved), device=torch.cuda.current_device())
         if retrieved.numel() != 0:
             retrieved = retrieved.transpose(0, 1).contiguous()
         retrieved_mask = retrieved != tokenizer.pad_id
