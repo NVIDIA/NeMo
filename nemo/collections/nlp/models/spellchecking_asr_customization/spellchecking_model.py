@@ -26,6 +26,7 @@ from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.spellchecking_asr_customization import (
     SpellcheckingAsrCustomizationDataset,
     SpellcheckingAsrCustomizationTestDataset,
+    TarredSpellcheckingAsrCustomizationDataset,
     bert_example,
 )
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
@@ -196,7 +197,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         #    pdb.set_trace()
         for prediction, label, span in zip(predictions, tag_labels, spans):
             # Here we want to track whether the predicted output matches ground truth labels
-            # for each whole span
+            # fnor each whole span
             # so we construct the special input for classification report, for example:
             #   label = [PLAIN, PLAIN, CUSTOM, PLAIN, PLAIN]
             #   pred = [PLAIN, PLAIN, WRONG, PLAIN, PLAIN]
@@ -380,8 +381,17 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         start_time = perf_counter()
         logging.info(f'Creating {data_split} dataset')
-        input_file = cfg.data_path
-        dataset = SpellcheckingAsrCustomizationDataset(input_file=input_file, example_builder=self.builder)
+        if cfg.get("use_tarred_dataset", False):
+            dataset = TarredSpellcheckingAsrCustomizationDataset(
+                cfg.data_path,
+                shuffle_n=cfg.get("tar_shuffle_n", 100),
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                pad_token_id=self.builder._pad_id
+            )
+        else:
+            input_file = cfg.data_path
+            dataset = SpellcheckingAsrCustomizationDataset(input_file=input_file, example_builder=self.builder)
         dl = torch.utils.data.DataLoader(
             dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=dataset.collate_fn
         )
