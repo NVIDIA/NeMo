@@ -16,11 +16,12 @@
 
 import numpy as np
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+
 
 class BARTDataset(T5Dataset):
     # account for added tokens
