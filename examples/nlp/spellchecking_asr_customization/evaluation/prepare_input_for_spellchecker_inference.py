@@ -26,6 +26,7 @@ parser.add_argument(
 
 parser.add_argument("--output_name", type=str, required=True, help="Output file in format required by the inference")
 parser.add_argument("--output_info_name", type=str, required=True, help="Additional output file with information about candidates")
+parser.add_argument("--debug", action='store_true', help="Whether to create files with debug information")
 
 
 args = parser.parse_args()
@@ -47,11 +48,12 @@ phrases, ngram2phrases = get_index(custom_phrases, vocab, ban_ngram)
 
 print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases))
 
-with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
-    for ngram in ngram2phrases:
-        for phrase_id, b, size, lp in ngram2phrases[ngram]:
-            phr = phrases[phrase_id]
-            out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
+if args.debug:
+    with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
+        for ngram in ngram2phrases:
+            for phrase_id, b, size, lp in ngram2phrases[ngram]:
+                phr = phrases[phrase_id]
+                out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
 
 big_sample_of_phrases = set()
 with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
@@ -69,8 +71,9 @@ path_parts = args.output_name.split("/")
 path_parts2 = path_parts[-1].split(".")
 doc_id = path_parts2[0]
 
-out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
-out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
+if args.debug:
+    out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
+    out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
 out = open(args.output_name, "w", encoding="utf-8")
 out_info = open(args.output_info_name, "w", encoding="utf-8")
 with open(args.input_file, "r", encoding="utf-8") as f:
@@ -82,10 +85,11 @@ with open(args.input_file, "r", encoding="utf-8") as f:
         phrases2positions, position2ngrams = search_in_index(ngram2phrases, phrases, letters)
         candidate2coverage, candidate2position = get_all_candidates_coverage(phrases, phrases2positions)
 
-        out_debug.write(" ".join(letters) + "\n")
-        for pos in range(len(position2ngrams)):
-            if len(position2ngrams[pos]) > 0:
-                out_debug.write("\t\t" + str(pos) + "\t" + "|".join(list(position2ngrams[pos])) + "\n")
+        if args.debug:
+            out_debug.write(" ".join(letters) + "\n")
+            for pos in range(len(position2ngrams)):
+                if len(position2ngrams[pos]) > 0:
+                    out_debug.write("\t\t" + str(pos) + "\t" + "|".join(list(position2ngrams[pos])) + "\n")
 
         # mask for each custom phrase, how many which symbols are covered by input ngrams
         phrases2coveredsymbols = [[0 for x in phrases[i].split(" ")] for i in range(len(phrases))]
@@ -110,13 +114,18 @@ with open(args.input_file, "r", encoding="utf-8") as f:
                 break
             real_coverage = sum(phrases2coveredsymbols[idx]) / len(phrases2coveredsymbols[idx])
             if real_coverage < 0.8:
-                out_debug.write("\t\t- " + phrases[idx] + "\tcov: " + str(coverage) + "\treal_cov: " + str(real_coverage) + "\n")
+                if args.debug:
+                    out_debug.write("\t\t- " + phrases[idx] + "\tcov: " + str(coverage) + "\treal_cov: " + str(real_coverage) + "\n")
                 continue
             candidates.append((phrases[idx], begin, phrase_length, coverage, real_coverage))
-            out_debug.write(
-                "\t" + str(real_coverage) + "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
-            )
-            out_debug2.write(doc_id + "\t" + phrases[idx].replace(" ", "").replace("_", " ") + "\t" + short_sent + "\n")
+            if args.debug:
+                out_debug.write(
+                    "\t" + str(real_coverage) + "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
+                )
+                out_debug2.write(doc_id + "\t" + phrases[idx].replace(" ", "").replace("_", " ") + "\t" + short_sent + "\n")
+
+        if len(candidates) == 0:  # no need to process this short_sent further if it does not contain any real candidates
+            continue
 
         while len(candidates) < 10:
             dummy = random.choice(big_sample_of_phrases)
@@ -135,5 +144,6 @@ with open(args.input_file, "r", encoding="utf-8") as f:
         out_info.write(info[:-1] + "\n")
 out.close()
 out_info.close()
-out_debug.close()
-out_debug2.close()
+if args.debug:
+    out_debug.close()
+    out_debug2.close()
