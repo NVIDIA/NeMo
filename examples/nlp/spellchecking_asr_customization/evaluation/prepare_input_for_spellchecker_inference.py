@@ -80,13 +80,13 @@ for input_name, input_custom_vocab_name, output_name, output_info_name in zip(
                     phr = phrases[phrase_id]
                     out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
 
-    path_parts = args.output_name.split("/")
+    path_parts = output_name.split("/")
     path_parts2 = path_parts[-1].split(".")
     doc_id = path_parts2[0]
 
     if args.debug:
-        out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
-        out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
+        out_debug = open(output_name + ".candidates", "w", encoding="utf-8")
+        out_debug2 = open(output_name + ".candidates_select", "w", encoding="utf-8")
 
     out = open(output_name, "w", encoding="utf-8")
     out_info = open(output_info_name, "w", encoding="utf-8")
