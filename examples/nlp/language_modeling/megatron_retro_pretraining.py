@@ -89,6 +89,7 @@ def main(cfg) -> None:
         model = MegatronRetrievalModel.restore_from(
             restore_path=cfg.restore_from_path,
             trainer=trainer,
+            override_config_path=cfg.model,
             save_restore_connector=save_restore_connector,
             strict=False,
         )
