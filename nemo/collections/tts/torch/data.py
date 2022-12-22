@@ -242,6 +242,7 @@ class TTSDataset(Dataset):
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
 
                     data.append(file_info)
+                    # Calculating length of spectrogram from input audio for batch sampling
                     self.lengths.append(os.path.getsize(item["audio_filepath"]) // (n_fft // 2))
 
                     if file_info["duration"] is None:

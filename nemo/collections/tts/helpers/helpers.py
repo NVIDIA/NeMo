@@ -545,7 +545,7 @@ def slice_segments(x, ids_str, segment_size=4):
 
 def rand_slice_segments(x, x_lengths=None, segment_size=4):
     """
-    Chooses random indices and lices segments from batch
+    Chooses random indices and slices segments from batch
     """
     b, d, t = x.size()
     if x_lengths is None:
