@@ -714,6 +714,11 @@ class TestSaveRestore:
                 assert parent.child1_model.temp_data == child1_data
                 assert parent.child2_model.temp_data == child2_data
 
+                # test number of artifacts
+                assert hasattr(parent, "artifacts")
+                assert isinstance(parent.artifacts, dict)
+                assert len(parent.artifacts) == 3  # model itself + 2 children
+
     @pytest.mark.unit
     def test_mock_model_nested_double_with_resources(self):
         """
@@ -782,6 +787,11 @@ class TestSaveRestore:
                 assert parent.temp_data == parent_data
                 assert parent.child1_model.temp_data == child_with_child_data
                 assert parent.child1_model.child1_model.temp_data == child_data
+
+                # test number of artifacts
+                assert hasattr(parent, "artifacts")
+                assert isinstance(parent.artifacts, dict)
+                assert len(parent.artifacts) == 3  # model itself, child_with_child, child
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):

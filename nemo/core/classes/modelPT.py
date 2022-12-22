@@ -242,6 +242,13 @@ class ModelPT(LightningModule, Model):
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
     def register_submodule_artifacts(self, submodule: ModelPT, module_config_path: str):
+        """
+        Register submodule artifacts for nested NeMo models.
+        Should be called after construction and assigning NeMo submodule and config
+        Args:
+            submodule (ModelPT): NeMo submodule
+            module_config_path (str): Path in config, where config of submodule is assigned
+        """
         # check submodule contains artifacts
         if not hasattr(submodule, 'artifacts') or getattr(submodule, 'artifacts') is None:
             return  # nothing to register
