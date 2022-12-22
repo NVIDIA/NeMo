@@ -278,11 +278,13 @@ def get_index(
 
         for b in range(len(index_keys)):
             for ngram, lp in sorted(index_keys[b].items(), key=lambda item: item[1], reverse=True):
-                if ngram in ban_ngram_global:
+                if ngram in ban_ngram_global:  # here ngram ends with a space
                     continue
                 real_length = ngram.count(" ")
                 ngram = ngram.replace("+", " ").replace("=", " ")
-                ngram = " ".join(ngram.split())
+                ngram = " ".join(ngram.split())  # here ngram doesn't end with a space anymore
+                if ngram + " " in ban_ngram_global:  # this can happen after deletion of + and =
+                    continue
                 if ngram in ban_ngram_local:
                     continue
                 ngram_to_phrase_and_position[ngram].append((custom_phrase, b, real_length, lp))

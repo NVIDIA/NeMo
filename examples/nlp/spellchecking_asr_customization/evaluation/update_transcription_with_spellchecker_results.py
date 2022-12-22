@@ -16,6 +16,13 @@ parser.add_argument(
 )
 parser.add_argument("--input_manifest", required=True, type=str, help="Manifest with trancription before correction")
 parser.add_argument("--output_manifest", required=True, type=str, help="Manifest with trancription after correction")
+parser.add_argument(
+    "--min_cov", required=True, type=float, help="Minimum coverage value"
+)
+parser.add_argument(
+    "--min_real_cov", required=True, type=float, help="Minimum real coverage value"
+)
+
 args = parser.parse_args()
 
 
@@ -276,6 +283,12 @@ for name in os.listdir(args.spellchecker_results_folder):
                 continue
             begin, length, cov, real_cov = short2info[short_sent][dst]
             if begin == -1:  # dummy candidate
+                banned_count += 1
+                continue
+            if cov < args.min_cov:
+                banned_count += 1
+                continue
+            if real_cov < args.min_real_cov:
                 banned_count += 1
                 continue
 

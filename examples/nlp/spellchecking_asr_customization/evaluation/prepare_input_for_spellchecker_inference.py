@@ -40,6 +40,8 @@ def read_custom_vocab():
 
 
 vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, 10000)
+# CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
+
 custom_phrases = read_custom_vocab()
 phrases, ngram2phrases = get_index(custom_phrases, vocab, ban_ngram)
 
