@@ -17,6 +17,7 @@ import numba
 import numpy as np
 import torch
 
+
 def maximum_path(neg_cent, mask):
     """ Numba version.
     neg_cent: [b, t_t, t_s]
