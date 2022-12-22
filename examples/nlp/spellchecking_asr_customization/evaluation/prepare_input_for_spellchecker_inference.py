@@ -3,7 +3,7 @@ import sys
 from argparse import ArgumentParser
 from collections import defaultdict
 from os.path import join
-from typing import Dict, Optional, TextIO, Tuple
+from typing import List
 
 import numpy as np
 import braceexpand
@@ -19,7 +19,7 @@ parser = ArgumentParser(
     description="Prepare input examples for inference"
 )
 parser.add_argument("--input_path", required=True, type=str, help="Path to input file with asr hypotheses, brace expanded")
-parser.add_argument("--input_vocab", type=str, required=True, help="Path to custom vocabulary")
+parser.add_argument("--input_vocab_path", type=str, required=True, help="Path to custom vocabulary, brace expanded")
 parser.add_argument("--ngram_mapping", type=str, required=True, help="Path to ngram mapping vocabulary")
 parser.add_argument(
     "--sub_misspells_file", required=True, type=str, help="File with misspells from which only keys will be used to sample dummy candidates"
@@ -32,29 +32,16 @@ parser.add_argument("--debug", action='store_true', help="Whether to create file
 
 args = parser.parse_args()
 
-
-def read_custom_vocab():
+def read_custom_vocab(filename: str) -> List[str]:
     phrases = set()
-    with open(args.input_vocab, "r", encoding="utf-8") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         for line in f:
             phrases.add(" ".join(list(line.strip().casefold().replace(" ", "_"))))
     return list(phrases)
 
 
-vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, 10000)
+ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, 10000)
 # CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
-
-custom_phrases = read_custom_vocab()
-phrases, ngram2phrases = get_index(custom_phrases, vocab, ban_ngram)
-
-print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases))
-
-if args.debug:
-    with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
-        for ngram in ngram2phrases:
-            for phrase_id, b, size, lp in ngram2phrases[ngram]:
-                phr = phrases[phrase_id]
-                out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
 
 big_sample_of_phrases = set()
 with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
@@ -68,26 +55,39 @@ with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
 
 big_sample_of_phrases = list(big_sample_of_phrases)
 
-path_parts = args.output_name.split("/")
-path_parts2 = path_parts[-1].split(".")
-doc_id = path_parts2[0]
-
-if args.debug:
-    out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
-    out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
-
 input_paths = list(braceexpand.braceexpand(args.input_path))
+input_custom_vocab_paths = list(braceexpand.braceexpand(args.input_vocab_path))
 output_paths = list(braceexpand.braceexpand(args.output_path))
 output_info_paths = list(braceexpand.braceexpand(args.output_info_path))
-
-if len(input_paths) != len(output_paths) or len(input_paths) != len(output_info_paths):
+if len(input_paths) != len(output_paths) or len(input_paths) != len(output_info_paths) or len(input_paths) != len(input_custom_vocab_paths):
     raise(IndexError, "number of input_path, output_path and output_info_path should match!")
 
-for input_name, output_name, output_info_name in zip(
+for input_name, input_custom_vocab_name, output_name, output_info_name in zip(
     input_paths,
+    input_custom_vocab_paths,
     output_paths,
     output_info_paths
 ):
+    custom_phrases = read_custom_vocab(input_custom_vocab_name)
+    phrases, ngram2phrases = get_index(custom_phrases, ngram_mapping_vocab, ban_ngram)
+
+    print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases))
+
+    if args.debug:
+        with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
+            for ngram in ngram2phrases:
+                for phrase_id, b, size, lp in ngram2phrases[ngram]:
+                    phr = phrases[phrase_id]
+                    out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
+
+    path_parts = args.output_name.split("/")
+    path_parts2 = path_parts[-1].split(".")
+    doc_id = path_parts2[0]
+
+    if args.debug:
+        out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
+        out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
+
     out = open(output_name, "w", encoding="utf-8")
     out_info = open(output_info_name, "w", encoding="utf-8")
     with open(input_name, "r", encoding="utf-8") as f:
