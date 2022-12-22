@@ -27,7 +27,10 @@ from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
-__all__ = ["SpellcheckingAsrCustomizationDataset", "SpellcheckingAsrCustomizationTestDataset"]
+__all__ = ["SpellcheckingAsrCustomizationDataset",
+ "SpellcheckingAsrCustomizationTestDataset",
+ "TarredSpellcheckingAsrCustomizationDataset"
+ ]
 
 
 class SpellcheckingAsrCustomizationDataset(Dataset):
