@@ -80,5 +80,24 @@ def maximum_path_c(paths, values, t_ys, t_xs):
         maximum_path_each(paths[i], values[i], t_ys[i], t_xs[i])
 
 
+<<<<<<< HEAD
+=======
+def maximum_path(neg_cent, mask):
+    """ Numba version.
+    neg_cent: [b, t_t, t_s]
+    mask: [b, t_t, t_s]
+    """
+    device = neg_cent.device
+    dtype = neg_cent.dtype
+    neg_cent = neg_cent.data.cpu().numpy().astype(np.float32)
+    path = np.zeros(neg_cent.shape, dtype=np.int32)
+
+    t_t_max = mask.sum(1)[:, 0].data.cpu().numpy().astype(np.int32)
+    t_s_max = mask.sum(2)[:, 0].data.cpu().numpy().astype(np.int32)
+    maximum_path_c(path, neg_cent, t_t_max, t_s_max)
+    return torch.from_numpy(path).to(device=device, dtype=dtype)
+
+
+>>>>>>> 736666d0d1bcd97511de431152205727405f3f35
 if __name__ == '__main__':
     pass

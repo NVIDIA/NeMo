@@ -164,7 +164,7 @@ class VitsModel(TextToWaveform):
             return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
         else:
             return [optim_g, optim_d]
-    
+
     # for inference
     @typecheck(
         input_types={
@@ -374,7 +374,7 @@ class VitsModel(TextToWaveform):
         list_of_models = []
         # TODO: List available models??
         return list_of_models
-    
+
     @typecheck(
         input_types={"text_tokens": NeuralType(('B', 'T_text'), TokenIndex())},
         output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())},
