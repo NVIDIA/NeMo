@@ -273,7 +273,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     feat_in=feat_in,
                     feat_out=d_model,
                     hidden_sizes = subsampling_fc_sizes,
-                    activation = subsampling_activation,
+                    activation = self.subsampling_activation,
                     norm=True if subsampling == 'stacking_norm' else False,
                 )
             elif subsampling == 'pooling':
