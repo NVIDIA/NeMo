@@ -77,17 +77,27 @@ class CardinalFst(GraphFst):
         graph_digit = digit
         digits_no_one = (NEMO_DIGIT - "1") @ graph_digit
 
-        teen = pynutil.delete("1") + digits_no_one + pynutil.insert("nuppelohkái")
+        if not deterministic:
+            zero |= pynini.cross("0", "nulˈla")
+            zero |= pynini.cross("0", "nolla")
+            zero |= pynini.cross("0", "nulla")
+
+        teen = pynutil.delete("1") + digit + pynutil.insert("nuppelohkái")
         teen |= pynini.cross("10", "logi")
         ties = digits_no_one + pynini.cross("0", "logi")
+        ties |= digits_no_one + pynutil.insert("logi") + digit
 
         graph_tens = teen
         graph_ties = ties
 
         self.tens = graph_tens.optimize()
+        self.ties = graph_ties.optimize()
 
+        two_digit_non_zero = pynini.union(
+            graph_tens, graph_ties, (pynutil.delete("0") + graph_digit)
+        )
         graph_two_digit_non_zero = pynini.union(
-            graph_digit, graph_tens, graph_ties, (pynutil.delete("0") + graph_digit)
+            graph_digit, two_digit_non_zero
         )
 
         self.two_digit_non_zero = graph_two_digit_non_zero.optimize()
@@ -96,8 +106,11 @@ class CardinalFst(GraphFst):
         hundreds = digits_no_one + pynutil.insert("čuođi")
         hundreds |= pynini.cross("1", "čuođi")
 
-        graph_hundreds = hundreds + pynini.union(
-            pynutil.delete("00"), graph_tens, graph_ties, (pynutil.delete("0") + graph_digit)
+        final_hundreds = hundreds + pynini.union(
+            two_digit_non_zero, pynutil.delete("00")
+        )
+        graph_hundreds = pynini.union(
+            final_hundreds, graph_two_digit_non_zero
         )
 
         self.hundreds = graph_hundreds.optimize()
@@ -133,42 +146,42 @@ class CardinalFst(GraphFst):
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
-        non_zero_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
-        graph_million = make_million("miljon", non_zero_no_one, deterministic)
-        graph_milliard = make_million("miljard", non_zero_no_one, deterministic)
-        graph_billion = make_million("biljon", non_zero_no_one, deterministic)
-        graph_billiard = make_million("biljard", non_zero_no_one, deterministic)
-        graph_trillion = make_million("triljon", non_zero_no_one, deterministic)
-        graph_trilliard = make_million("triljard", non_zero_no_one, deterministic)
+        # non_zero_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one
+        # graph_million = make_million("miljon", non_zero_no_one, deterministic)
+        # graph_milliard = make_million("miljard", non_zero_no_one, deterministic)
+        # graph_billion = make_million("biljon", non_zero_no_one, deterministic)
+        # graph_billiard = make_million("biljard", non_zero_no_one, deterministic)
+        # graph_trillion = make_million("triljon", non_zero_no_one, deterministic)
+        # graph_trilliard = make_million("triljard", non_zero_no_one, deterministic)
 
-        graph = (
-            graph_trilliard
-            + graph_trillion
-            + graph_billiard
-            + graph_billion
-            + graph_milliard
-            + graph_million
-            + (graph_thousands_component_at_least_one_non_zero_digit | pynutil.delete("000000"))
-        )
+        # graph = (
+        #     graph_trilliard
+        #     + graph_trillion
+        #     + graph_billiard
+        #     + graph_billion
+        #     + graph_milliard
+        #     + graph_million
+        #     + (graph_thousands_component_at_least_one_non_zero_digit | pynutil.delete("000000"))
+        # )
 
-        self.graph = (
-            ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
-            @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
-            @ NEMO_DIGIT ** 24
-            @ graph
-            @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
-            @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
-            @ pynini.cdrewrite(
-                pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
-            )
-        )
-        self.graph |= zero
+        # self.graph = (
+        #     ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
+        #     @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
+        #     @ NEMO_DIGIT ** 24
+        #     @ graph
+        #     @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+        #     @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+        #     @ pynini.cdrewrite(
+        #         pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
+        #     )
+        # )
+        # self.graph |= zero
 
-        self.graph = filter_punctuation(self.graph).optimize()
+        # self.graph = filter_punctuation(self.graph).optimize()
 
-        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
+        # optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        # final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
 
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
+        # final_graph = self.add_tokens(final_graph)
+        # self.fst = final_graph.optimize()
