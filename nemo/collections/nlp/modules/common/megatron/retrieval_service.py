@@ -27,10 +27,10 @@ import requests
 import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
-from sentence_transformers import SentenceTransformer
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+from nemo.collections.nlp.modules.common.megatron.bert_service import BERT_MODEL_MAP
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -40,7 +40,6 @@ headers = {"Content-Type": "application/json"}
 
 PORT_NUM = 17179
 PORT_NUM_DYN = 17180
-PORT_NUM_BERT = 17181
 
 
 def request_data(data, port=PORT_NUM):
@@ -92,98 +91,6 @@ class ChunkStore:
         self.store[-1] = self.no_retrieval
 
 
-class SentenceBertResource(Resource):
-    """
-    SentenceBERT Flask resource.
-    The PUT method is to get token/str embedding.
-    """
-
-    def __init__(
-        self, bert_model, tokenizer, pool, sentence_bert_batch,
-    ):
-        # server
-        self.bert_model = bert_model
-        self.tokenizer = tokenizer
-        self.pool = pool
-        self.sentence_bert_batch = sentence_bert_batch
-        self.embedding_dim = self.bert_model.get_sentence_embedding_dimension()
-
-    def put(self):
-        data = request.get_json()
-        if isinstance(data, dict):
-            return jsonify({'dim': self.embedding_dim})
-        sentences = data
-        emb = self.get_emb(sentences)
-        str_emb = base64.b64encode(pickle.dumps(emb))
-        return str_emb.decode('ascii')
-
-    def get_emb(self, query: Union[List[str], str, torch.Tensor]):
-        if isinstance(query, str):
-            query = [query]
-        elif isinstance(query, torch.Tensor):
-            sentence_list = []
-            for q in query:
-                text = self.tokenizer.ids_to_text(q)
-                sentence_list.append(text)
-            query = sentence_list
-        emb = self.bert_model.encode_multi_process(
-            sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
-        )
-        return emb
-
-
-class SentenceBertServer(object):
-    """
-    Flask SentenceBERT server, which helps to calculate str/token embeddings
-    """
-
-    def __init__(
-        self,
-        devices: str,
-        tokenizer: TokenizerSpec,
-        sentence_bert: str = 'all-mpnet-base-v2',
-        sentence_bert_batch: int = 4,
-    ):
-        self.app = Flask(__name__, static_url_path='')
-
-        if devices is None or not torch.cuda.is_available():
-            device_list = None
-        else:
-            device_list = ['cuda:' + str(device) for device in devices.split(',')]
-
-        self.bert_model = SentenceTransformer(sentence_bert)
-        self.tokenizer = tokenizer
-        self.pool = self.bert_model.start_multi_process_pool(device_list)
-        self.sentence_bert_batch = sentence_bert_batch
-        api = Api(self.app)
-        api.add_resource(
-            SentenceBertResource,
-            '/knn',
-            resource_class_args=[self.bert_model, self.tokenizer, self.pool, self.sentence_bert_batch,],
-        )
-
-    def run(self, url, port=PORT_NUM_BERT):
-        threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
-
-
-def start_sentence_bert_server(
-    devices: str, tokenizer: TokenizerSpec, sentence_bert: str = 'all-mpnet-base-v2', sentence_bert_batch: int = 4
-):
-    """
-    Start the sentence bert server method.
-    It only starts the server at rank 0 worker.
-    Doesn't support multiple nodes yet.
-    """
-    if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:
-            server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
-            server.run("0.0.0.0")
-        torch.distributed.barrier()
-    else:
-        server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
-        server.run("0.0.0.0")
-
-
 class FaissRetrievalResource(Resource):
     """
     Static Faiss Retrieval Flask resource.
@@ -191,12 +98,13 @@ class FaissRetrievalResource(Resource):
     """
 
     def __init__(
-        self, index, tokenizer, ds,
+        self, index, tokenizer, ds, query_bert_port,
     ):
         # server
         self.index = index
         self.tokenizer = tokenizer
         self.ds = ds
+        self.query_bert_port = query_bert_port
 
     def put(self):
         data = request.get_json()
@@ -218,7 +126,7 @@ class FaissRetrievalResource(Resource):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        emb = request_data(query, PORT_NUM_BERT)
+        emb = request_data(query, self.query_bert_port)
         emb_data = base64.b64decode(emb.encode())
         emb = pickle.loads(emb_data)
         D, knn = self.index.search(emb, neighbors)
@@ -242,7 +150,13 @@ class RetrievalServer(object):
     """
 
     def __init__(
-        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
+        self,
+        faiss_index: str,
+        faiss_devices: str,
+        nprobe: int,
+        retrieval_index: str,
+        tokenizer: TokenizerSpec,
+        query_bert_port: int,
     ):
         self.app = Flask(__name__, static_url_path='')
         # server
@@ -268,7 +182,7 @@ class RetrievalServer(object):
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
         api = Api(self.app)
         api.add_resource(
-            FaissRetrievalResource, '/knn', resource_class_args=[self.index, self.tokenizer, self.ds,],
+            FaissRetrievalResource, '/knn', resource_class_args=[self.index, self.tokenizer, self.ds, query_bert_port],
         )
 
     def run(self, url, port=PORT_NUM):
@@ -281,15 +195,15 @@ class DynamicRetrievalResource(FaissRetrievalResource):
     The PUT method is to get KNN tokens, add new chunks, reset index.
     """
 
-    def __init__(
-        self, index, tokenizer, chunk_size, stride, store,
-    ):
+    def __init__(self, index, tokenizer, chunk_size, stride, store, ctx_bert_port, query_bert_port):
         self.index = index
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
         self.stride = stride
         self.pad_id = self.tokenizer.pad_id
         self.ds = store
+        self.ctx_bert_port = ctx_bert_port
+        self.query_bert_port = query_bert_port
 
     def put(self):
         data = request.get_json()
@@ -349,7 +263,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                     chunk = np_array[i : i + 2 * self.chunk_size]
                     self.ds.add(chunk)
                     chunk_texts.append(self.tokenizer.ids_to_text(chunk))
-            emb = request_data(chunk_texts, PORT_NUM_BERT)
+            emb = request_data(chunk_texts, self.ctx_bert_port)
             emb_data = base64.b64decode(emb.encode())
             emb = pickle.loads(emb_data)
             self.index.add(emb)  # add vectors to the index
@@ -368,10 +282,12 @@ class DynamicRetrievalServer(object):
         stride: int = 32,
         faiss_index: str = None,
         store_file: str = None,
+        ctx_bert_port: int = 0,
+        query_bert_port: int = 0,
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
-        embedding_dim = request_data({}, PORT_NUM_BERT)['dim']
+        embedding_dim = request_data({}, ctx_bert_port)['dim']
 
         if faiss_index is not None:
             self.index = faiss.read_index(faiss_index)
@@ -407,7 +323,15 @@ class DynamicRetrievalServer(object):
         api.add_resource(
             DynamicRetrievalResource,
             '/knn',
-            resource_class_args=[self.index, self.tokenizer, self.chunk_size, self.stride, self.store,],
+            resource_class_args=[
+                self.index,
+                self.tokenizer,
+                self.chunk_size,
+                self.stride,
+                self.store,
+                ctx_bert_port,
+                query_bert_port,
+            ],
         )
 
     def run(self, url, port=PORT_NUM_DYN):
@@ -422,22 +346,31 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
+        self,
+        faiss_index: str,
+        faiss_devices: str,
+        nprobe: int,
+        retrieval_index: str,
+        tokenizer: TokenizerSpec,
+        query_bert: str = None,
     ):
         self.updatable = False
         self.tokenizer = tokenizer
         ds = MMapRetrievalIndexedDataset(retrieval_index)
         self.chunk_size = ds.chunk_size
         pad_id = self.tokenizer.pad_id
+        query_bert_port = BERT_MODEL_MAP[query_bert]
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
         if torch.distributed.is_initialized():
             if torch.distributed.get_rank() == 0:
-                server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
+                server = RetrievalServer(
+                    faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, query_bert_port
+                )
                 server.run("0.0.0.0")
             torch.distributed.barrier()
         else:
-            server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
+            server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, query_bert_port)
             server.run("0.0.0.0")
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
@@ -473,20 +406,35 @@ class DynamicFaissRetrievalService(RetrievalService):
         stride: int,
         faiss_index: str = None,
         store_file: str = None,
+        ctx_bert: str = None,
+        query_bert: str = None,
     ):
         self.updatable = True
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
         pad_id = self.tokenizer.pad_id
+        ctx_bert_port = BERT_MODEL_MAP[ctx_bert]
+        query_bert_port = BERT_MODEL_MAP[query_bert]
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=np.int64) * pad_id
         if torch.distributed.is_initialized():
             if torch.distributed.get_rank() == 0:
-                server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file)
+                server = DynamicRetrievalServer(
+                    faiss_devices,
+                    tokenizer,
+                    chunk_size,
+                    stride,
+                    faiss_index,
+                    store_file,
+                    ctx_bert_port,
+                    query_bert_port,
+                )
                 server.run("0.0.0.0")
             torch.distributed.barrier()
         else:
-            server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file)
+            server = DynamicRetrievalServer(
+                faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file, ctx_bert_port, query_bert_port
+            )
             server.run("0.0.0.0")
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):

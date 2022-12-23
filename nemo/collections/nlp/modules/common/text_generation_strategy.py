@@ -20,11 +20,11 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
+from nemo.collections.nlp.modules.common.megatron.bert_service import start_sentence_bert_server
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,
     DynamicFaissRetrievalService,
     FaissRetrievalService,
-    start_sentence_bert_server,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -296,9 +296,9 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.store = dist.FileStore('/tmp/filestore_eval', -1)
         self.store.set('neighbors', str(args['neighbors']))
         # start the sentence bert server
-        start_sentence_bert_server(tokenizer=self.model.tokenizer, **args['sentence_bert'])
-        # sleep to make sure the sentence bert server is full started.
-        time.sleep(2)
+        for name in args['sentence_bert']:
+            conf = args['sentence_bert'][name]
+            start_sentence_bert_server(tokenizer=self.model.tokenizer, name=name, **conf)
         services = []
         for service_conf in args['services']:
             if service_conf['type'] == 'FaissRetrievalService':
