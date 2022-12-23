@@ -82,3 +82,13 @@ class TestExportable:
             filename = os.path.join(tmpdir, 'rad.ts')
             with torch.cuda.amp.autocast(enabled=True):
                 model.export(output=filename, verbose=True, check_trace=True)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_RadTTSModel_export_to_onnx(self, radtts_model):
+        model = radtts_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'rad.onnx')
+            with torch.cuda.amp.autocast(enabled=False):
+                input_example = model.input_module.input_example(max_batch=16, max_dim=1024)
+                model.export(output=filename, input_example=input_example, verbose=True, check_trace=True)

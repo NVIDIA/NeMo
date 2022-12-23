@@ -518,13 +518,6 @@ def regulate_len(
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
     reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
 
-    if replicate_to_nearest_multiple:
-        to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
-        to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
-        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
-        reps = reps + to_pad_expanded
-        dec_lens = reps.sum(dim=1)
-
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
     mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)

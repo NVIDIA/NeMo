@@ -411,9 +411,7 @@ default_replacements = {
     "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
 }
 
-script_replacements = {
-    # "BiLSTM": script_module,
-}
+script_replacements = {}
 
 
 def replace_for_export(model: nn.Module) -> nn.Module:

@@ -103,7 +103,7 @@ def sort_tensor(context: Tensor, lens: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral"):
+    def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral", max_batch_size=64):
         super().__init__()
         self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
         if lstm_norm_fn is not None:
@@ -116,6 +116,14 @@ class BiLSTM(nn.Module):
 
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
+
+        # Create a buffer of zeroes to be passed as hx parameter to LSTM()
+        self.real_hidden_size = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
+        h_zeros = torch.zeros(
+            self.bilstm.num_layers * 2 * max_batch_size * max(self.real_hidden_size, self.bilstm.hidden_size)
+        )
+        self.register_buffer('h_zeros', h_zeros, persistent=False)
+
         self.bilstm.flatten_parameters()
 
     def lstm_tensor(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> Tuple[Tensor, Tensor]:
@@ -127,7 +135,18 @@ class BiLSTM(nn.Module):
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        ret, _ = self.bilstm(seq)
+        # Calculate sizes and prepare views to our zero buffer to pass as hx
+        max_batch_size = seq[1][0]
+        common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+        common_size = max_batch_size * self.bilstm.num_layers * 2
+        h_shape = (*common_shape, self.real_hidden_size)
+        c_shape = (*common_shape, self.bilstm.hidden_size)
+        hx = (
+            self.h_zeros[: common_size * self.real_hidden_size].view(h_shape),
+            self.h_zeros[: common_size * self.bilstm.hidden_size].view(c_shape),
+        )
+
+        ret, _ = self.bilstm(seq, hx=hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
@@ -135,6 +154,7 @@ class BiLSTM(nn.Module):
         dtype = context.dtype
         # this is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
+        # return self.lstm_tensor(context, lens_sorted, enforce_sorted=True)[unsort_ids]
         with torch.cuda.amp.autocast(enabled=False):
             ret = self.lstm_tensor(context.to(dtype=torch.float32), lens_sorted, enforce_sorted=True)
         return ret[0].to(dtype=dtype)[unsort_ids]

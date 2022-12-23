@@ -152,7 +152,7 @@ class Exportable(ABC):
                         check_trace_input = check_trace
 
                 if format == ExportFormat.TORCHSCRIPT:
-
+                    # torch._C._jit_set_autocast_mode(False)
                     jitted_model = torch.jit.trace_module(
                         self,
                         {"forward": tuple(input_list) + tuple(input_dict.values())},
