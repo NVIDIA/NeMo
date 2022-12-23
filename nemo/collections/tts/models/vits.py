@@ -168,8 +168,8 @@ class VitsModel(TextToWaveform):
     # for inference
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "speaker": NeuralType(('B',), Index(), optional=True),
+            "tokens": NeuralType(('B', 'T_text'), TokenIndex()),
+            "speakers": NeuralType(('B',), Index(), optional=True),
             "noise_scale": NeuralType(('B',), FloatType(), optional=True),
             "length_scale": NeuralType(('B',), FloatType(), optional=True),
             "noise_scale_w": NeuralType(('B',), FloatType(), optional=True),
@@ -376,8 +376,9 @@ class VitsModel(TextToWaveform):
         return list_of_models
 
     @typecheck(
-        input_types={"text_tokens": NeuralType(('B', 'T_text'), TokenIndex())},
+        input_types={"tokens": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),},
         output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())},
     )
     def convert_text_to_waveform(self, *, tokens, speakers=None):
-        return self(tokens, speakers=speakers)[0].squeeze(1)
+        audio = self(tokens=tokens, speakers=speakers)[0].squeeze(1)
+        return audio
