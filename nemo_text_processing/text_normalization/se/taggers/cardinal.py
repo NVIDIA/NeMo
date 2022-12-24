@@ -128,13 +128,19 @@ class CardinalFst(GraphFst):
         self.graph_hundreds_component_at_least_one_non_zero_digit = graph_hundreds_component_at_least_one_non_zero_digit
         self.graph_hundreds_component_at_least_one_non_zero_digit_no_one = graph_hundreds_component_at_least_one_non_zero_digit_no_one.optimize()
 
+        duhat = pynutil.insert("duhát")
+        if not deterministic:
+            duhat |= pynutil.insert("duhat")
+        duhat_cross = pynini.cross("001", "duhát")
+        if not deterministic:
+            duhat_cross |= pynini.cross("001", "duhat")
 
         graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
-            + pynutil.insert("duhat")
+            + duhat
             + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")),
-            pynini.cross("001", "duhat")
+            duhat_cross
             + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000"))
         )
         self.graph_thousands_component_at_least_one_non_zero_digit = graph_thousands_component_at_least_one_non_zero_digit
@@ -142,9 +148,9 @@ class CardinalFst(GraphFst):
         graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
-            + pynutil.insert("duhat")
+            + duhat
             + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")),
-            pynini.cross("001", "duhat")
+            duhat_cross
             + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000"))
         )
 
