@@ -132,19 +132,20 @@ class CardinalFst(GraphFst):
         graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
-            + "duhat"
+            + pynutil.insert("duhat")
             + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")),
             pynini.cross("001", "duhat")
-            + graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")
+            + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000"))
         )
+        self.graph_thousands_component_at_least_one_non_zero_digit = graph_thousands_component_at_least_one_non_zero_digit
 
         graph_thousands_component_at_least_one_non_zero_digit_no_one = pynini.union(
             pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit_no_one,
             graph_hundreds_component_at_least_one_non_zero_digit_no_one
-            + "duhat"
-            + graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000"),
+            + pynutil.insert("duhat")
+            + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")),
             pynini.cross("001", "duhat")
-            + graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000")
+            + (graph_hundreds_component_at_least_one_non_zero_digit | pynutil.delete("000"))
         )
 
         graph_million = pynutil.add_weight(pynini.cross("001", "miljovdna"), -0.001)
