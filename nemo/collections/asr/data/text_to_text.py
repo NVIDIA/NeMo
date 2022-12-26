@@ -14,11 +14,9 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
-import nemo.core.neural_types as ntypes
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 AnyPath = Union[Path, str]
@@ -68,7 +66,7 @@ class TextOrAudioToTextBatch(NamedTuple):
         asr_items = [item for item in batch if not isinstance(item, TextToTextItem)]
 
         if not asr_items:
-            return TextToTextBatch.collate_fn(batch=batch, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id)
+            return TextToTextBatch.collate_fn(batch=text_items, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id)
 
         audio_signal = pad_sequence([item[0] for item in asr_items], batch_first=True, padding_value=0.0)
         a_sig_length = torch.tensor([item[1] for item in asr_items]).long()
