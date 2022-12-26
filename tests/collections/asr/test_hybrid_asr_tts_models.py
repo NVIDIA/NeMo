@@ -105,9 +105,7 @@ class TestASRWithTTSModel:
     @pytest.mark.unit
     def test_from_asr_config(self, asr_model_ctc_bpe_config, fastpitch_model_path):
         model = ASRWithTTSModel.from_asr_config(
-            asr_cfg=asr_model_ctc_bpe_config,
-            asr_model_type="ctc_bpe",
-            tts_model_path=fastpitch_model_path,
+            asr_cfg=asr_model_ctc_bpe_config, asr_model_type="ctc_bpe", tts_model_path=fastpitch_model_path,
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
