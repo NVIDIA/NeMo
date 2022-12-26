@@ -1,11 +1,9 @@
 import copy
 import itertools
-from functools import reduce
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
@@ -14,8 +12,8 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.parts.preprocessing.features import normalize_batch
-from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
+from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
+from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
 from nemo.collections.tts.models import FastPitchModel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -23,49 +21,13 @@ from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
 
 
-def clean_spectrogram(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, fill_value=0.0) -> torch.Tensor:
-    device = spectrogram.device
-    batch_size, num_channels, max_len = spectrogram.shape
-    mask = torch.arange(max_len, device=device)[None, :] >= spectrogram_len[:, None]
-    mask = mask.unsqueeze(1).expand_as(spectrogram)
-    return spectrogram.masked_fill(mask, fill_value)
-
-
-def get_module_by_name(module: nn.Module, full_layer_name: str) -> nn.Module:
-    names = full_layer_name.split(sep='.')
-    return reduce(getattr, names, module)
-
-
-def replace_bn_with_fused_bn(module: nn.Module, full_layer_name: str) -> bool:
-    bn = get_module_by_name(module, full_layer_name)
-    if not isinstance(bn, nn.BatchNorm1d):
-        logging.warning(f"Expected BatchNorm1d, found {bn}")
-        return False
-    fused_bn = FusedBatchNorm1d.from_batchnorm(bn)
-    parent_name, norm_name = full_layer_name.rsplit(".", maxsplit=1)
-    setattr(get_module_by_name(module, parent_name), norm_name, fused_bn)
-    return True
-
-
-def fuse_bn_all(model: nn.Module):
-    replaced_in_model = False
-    for name, module in model.named_modules():
-        if "batch_norm" in name.split("."):
-            replaced = replace_bn_with_fused_bn(model, name)
-            replaced_in_model = replaced_in_model or replaced
-    if replaced_in_model:
-        logging.info("Successfully replaced BatchNorm with FusedBatchNorm")
-    else:
-        logging.warning(f"No BatchNorm to replace with FusedBatchNorm in model {model}")
-
-
-def fuse_bn_in_conformer(asr_model: ASRModel):
-    logging.info("Trying to replace BatchNorm with Fused BatchNorm")
+def _fuse_bn_in_conformer(asr_model: ASRModel):
+    logging.info("Replacing BatchNorm with Fused BatchNorm")
     if not hasattr(asr_model, "encoder"):
         raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
     if not isinstance(asr_model.encoder, ConformerEncoder):
         raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
-    fuse_bn_all(asr_model.encoder)
+    replace_bn_with_fused_bn_all(asr_model.encoder)
     if "conv_norm_type" not in asr_model.cfg.encoder:
         # old CTC models from NGC don't have such param
         logging.warning("conv_norm_type not in encoder config, adding parameter")
@@ -143,7 +105,7 @@ class ASRWithTTSModel(ASRModel):
 
         # replace BatchNorm with FusedBatchNorm
         if cfg.get("asr_model_fuse_bn"):
-            fuse_bn_in_conformer(self.asr_model)
+            _fuse_bn_in_conformer(self.asr_model)
             self.cfg.asr_model = self.asr_model.cfg
             cfg.asr_model_fuse_bn = False  # no need to fuse anymore
 
@@ -353,7 +315,7 @@ class ASRWithTTSModel(ASRModel):
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = batch
             spectrogram, spectrogram_len = self.preprocessor(input_signal=audio_signal, length=audio_signal_len,)
-        spectrogram = clean_spectrogram(spectrogram, spectrogram_len)
+        spectrogram = clean_spectrogram_batch(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):

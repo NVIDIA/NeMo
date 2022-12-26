@@ -2,10 +2,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import torch.nn as nn
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
+from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel
 
 
@@ -150,3 +152,36 @@ class TestASRWithTTSModel:
 
             restored_model = ASRModel.restore_from(save_path)
             assert isinstance(restored_model, EncDecCTCModelBPE)
+
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    def test_from_pretrained_ctc_model_fused_bn(self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path):
+        model = ASRWithTTSModel.from_pretrained_models(
+            asr_model_path=conformer_ctc_bpe_bn_model_path,
+            tts_model_path=fastpitch_model_path,
+            asr_model_fuse_bn=True,
+        )
+        assert isinstance(model.tts_model, FastPitchModel)
+        assert isinstance(model.asr_model, EncDecCTCModelBPE)
+        assert model.asr_model.cfg.encoder.conv_norm_type == "fused_batch_norm"
+
+        # test model has fused BatchNorm
+        has_fused_bn = False
+        for name, module in model.asr_model.named_modules():
+            assert not isinstance(module, nn.BatchNorm1d)
+            has_fused_bn = has_fused_bn or isinstance(module, FusedBatchNorm1d)
+        assert has_fused_bn, "Fused BatchNorm not found model"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = str(Path(tmpdir) / "asr_tts_model.nemo")
+            model.save_to(save_path)
+
+            # check restored model has fused batchnorm
+            model = ASRWithTTSModel.restore_from(save_path)
+            assert model.asr_model.cfg.encoder.conv_norm_type == "fused_batch_norm"
+
+            has_fused_bn = False
+            for name, module in model.asr_model.named_modules():
+                assert not isinstance(module, nn.BatchNorm1d)
+                has_fused_bn = has_fused_bn or isinstance(module, FusedBatchNorm1d)
+            assert has_fused_bn, "Fused BatchNorm not found model"
