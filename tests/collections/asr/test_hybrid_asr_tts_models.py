@@ -1,46 +1,47 @@
+import tempfile
 from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
 from nemo.collections.tts.models import FastPitchModel
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def fastpitch_model():
     model = FastPitchModel.from_pretrained(model_name="tts_en_fastpitch_multispeaker")
     return model
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def fastpitch_model_path(fastpitch_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("tts_models") / "fastpitch.nemo"
     fastpitch_model.save_to(path)
     return path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def conformer_ctc_bpe_bn_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
     return model
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def conformer_ctc_bpe_bn_model_path(conformer_ctc_bpe_bn_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("asr_models") / "conformer-ctc-bpe-bn.nemo"
     conformer_ctc_bpe_bn_model.save_to(path)
     return path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def conformer_rnnt_bpe_bn_model():
     model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small")
     return model
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def conformer_rnnt_bpe_bn_model_path(conformer_rnnt_bpe_bn_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("asr_models") / "conformer-rnnt-bpe.nemo"
     conformer_rnnt_bpe_bn_model.save_to(path)
@@ -91,15 +92,32 @@ def asr_model_ctc_bpe_config(test_data_dir):
     return model_config
 
 
+@pytest.fixture
+def asr_tts_ctc_bpe_model(asr_model_ctc_bpe_config, fastpitch_model_path):
+    model = ASRWithTTSModel.from_asr_config(
+        asr_cfg=asr_model_ctc_bpe_config, asr_model_type="ctc_bpe", tts_model_path=fastpitch_model_path,
+    )
+    return model
+
+
 class TestASRWithTTSModel:
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    def test_from_pretrained_models(self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path):
+    def test_from_pretrained_ctc_model(self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path):
         model = ASRWithTTSModel.from_pretrained_models(
             asr_model_path=conformer_ctc_bpe_bn_model_path, tts_model_path=fastpitch_model_path
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
+
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    def test_from_pretrained_rnnt_model(self, fastpitch_model_path, conformer_rnnt_bpe_bn_model_path):
+        model = ASRWithTTSModel.from_pretrained_models(
+            asr_model_path=conformer_rnnt_bpe_bn_model_path, tts_model_path=fastpitch_model_path
+        )
+        assert isinstance(model.tts_model, FastPitchModel)
+        assert isinstance(model.asr_model, EncDecRNNTBPEModel)
 
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -109,3 +127,26 @@ class TestASRWithTTSModel:
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
+
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    def test_save_restore(self, asr_tts_ctc_bpe_model):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = str(Path(tmpdir) / "model.nemo")
+            asr_tts_ctc_bpe_model.train()
+            asr_tts_ctc_bpe_model.save_to(save_path)
+
+            restored_model = ASRModel.restore_from(save_path)
+            assert isinstance(restored_model, ASRWithTTSModel)
+            assert isinstance(restored_model.tts_model, FastPitchModel)
+            assert isinstance(restored_model.asr_model, EncDecCTCModelBPE)
+
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    def test_save_restore_asr(self, asr_tts_ctc_bpe_model):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = str(Path(tmpdir) / "asr_model.nemo")
+            asr_tts_ctc_bpe_model.save_asr_model_to(save_path)
+
+            restored_model = ASRModel.restore_from(save_path)
+            assert isinstance(restored_model, EncDecCTCModelBPE)

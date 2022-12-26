@@ -285,9 +285,6 @@ class ASRWithTTSModel(ASRModel):
     def save_asr_model_to(self, save_path: str):
         return self.asr_model.save_to(save_path=save_path)
 
-    def save_tts_model_to(self, save_path: str):
-        return self.tts_model.save_to(save_path=save_path)
-
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
 
