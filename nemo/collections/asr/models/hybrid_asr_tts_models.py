@@ -93,9 +93,9 @@ class ASRWithTTSModel(ASRModel):
             raise ValueError(f"Unsupported model type: {type(model)}")
 
         def get_asr_cls(self):
-            if self.value == self.RNNT_BPE:
+            if self == self.RNNT_BPE:
                 return EncDecRNNTBPEModel
-            if self.value == self.CTC_BPE:
+            if self == self.CTC_BPE:
                 return EncDecCTCModelBPE
             raise NotImplementedError(f"Not implemented for value {self.value}")
 
@@ -137,7 +137,7 @@ class ASRWithTTSModel(ASRModel):
             self.cfg.asr_model_type = str(self.asr_model_type)
         else:
             self.asr_model_type = self.ASRModelTypes(cfg.asr_model_type)  # convert to enum
-            self.asr_model = self.asr_model_type.get_asr_cls()(cfg)  # instantiate
+            self.asr_model = self.asr_model_type.get_asr_cls()(cfg.asr_model)  # instantiate
             self.cfg.asr_model = self.asr_model.cfg
         self.register_submodule_artifacts(self.asr_model, "asr_model")
 
@@ -190,7 +190,6 @@ class ASRWithTTSModel(ASRModel):
         model_type = cls.ASRModelTypes(asr_model_type)
         cfg = DictConfig(
             dict(
-                sample_rate=asr_cfg.sample_rate,
                 asr_model_path=None,
                 asr_model=None,
                 tts_model_path=f"{tts_model_path}",
@@ -226,7 +225,6 @@ class ASRWithTTSModel(ASRModel):
         if cfg is None:
             cfg = DictConfig(
                 dict(
-                    sample_rate=None,
                     asr_model_path=f"{asr_model_path}",
                     asr_model=None,
                     tts_model_path=f"{tts_model_path}",
