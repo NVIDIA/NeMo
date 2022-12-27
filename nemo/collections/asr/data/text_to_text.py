@@ -262,7 +262,7 @@ class TextToTextDatasetBase:
                 max_workers=tokenizer_workers,
             ) as pool:
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_asr_text_to_tokens, asr_texts), total=len(asr_texts), chunksize=1000)
+                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=1000), total=len(asr_texts))
                 ):
                     self.data[i]["asr_text_tokens"] = tokenized_text
         # force free memory
@@ -286,7 +286,7 @@ class TextToTextDatasetBase:
                 initializer=_init_tts_tokenize_process, initargs=(tts_parser,), max_workers=tokenizer_workers,
             ) as pool:
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_tts_text_to_tokens, tts_texts), total=len(tts_texts), chunksize=1000)
+                    tqdm(pool.map(_tts_text_to_tokens, tts_texts, chunksize=1000), total=len(tts_texts))
                 ):
                     self.data[i]["tts_text_tokens"] = tokenized_text
         # force free memory
