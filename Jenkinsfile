@@ -334,8 +334,7 @@ pipeline {
       }
       failFast true
       parallel {
-
-        // TODO: This test is taking 20 minutes to complete on CI. Please fix.
+        // Temp disable this test due to long duration. TODO: bring it back
         // stage('Speaker Recognition') {
         //   steps {
         //     sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
