@@ -32,7 +32,6 @@ from nemo.collections.tts.helpers.splines import (
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm, MaskedInstanceNorm1d
 
 
-@torch.jit.script
 def get_mask_from_lengths_and_val(lengths, val):
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -47,7 +46,6 @@ def get_mask_from_lengths_and_val(lengths, val):
     return mask
 
 
-@torch.jit.script
 def get_mask_from_lengths(lengths):
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -118,10 +116,9 @@ class BiLSTM(nn.Module):
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
 
         # Create a buffer of zeroes to be passed as hx parameter to LSTM()
-        self.real_hidden_size = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
-        h_zeros = torch.zeros(
-            self.bilstm.num_layers * 2 * max_batch_size * max(self.real_hidden_size, self.bilstm.hidden_size)
-        )
+        self.real_hidden_size: int = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
+        self.n_dir: int = int(self.bilstm.num_layers * 2)
+        h_zeros = torch.zeros(self.n_dir * max_batch_size * max(self.real_hidden_size, self.bilstm.hidden_size))
         self.register_buffer('h_zeros', h_zeros, persistent=False)
 
         self.bilstm.flatten_parameters()
@@ -132,31 +129,35 @@ class BiLSTM(nn.Module):
         )
         return self.lstm_sequence(seq)
 
+    def lstm_sequence_simple(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
+        ret, _ = self.bilstm(seq)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
+
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
         # Calculate sizes and prepare views to our zero buffer to pass as hx
-        max_batch_size = seq[1][0]
-        common_shape = (self.bilstm.num_layers * 2, max_batch_size)
-        common_size = max_batch_size * self.bilstm.num_layers * 2
+        max_batch_size = seq.batch_sizes[0]
+        common_shape = (self.n_dir, max_batch_size)
+        common_size = max_batch_size.float().mul(self.n_dir).long()
         h_shape = (*common_shape, self.real_hidden_size)
         c_shape = (*common_shape, self.bilstm.hidden_size)
         hx = (
-            self.h_zeros[: common_size * self.real_hidden_size].view(h_shape),
-            self.h_zeros[: common_size * self.bilstm.hidden_size].view(c_shape),
+            self.h_zeros[: common_size.mul(self.real_hidden_size)].view(h_shape),
+            self.h_zeros[: common_size.mul(self.bilstm.hidden_size)].view(c_shape),
         )
 
         ret, _ = self.bilstm(seq, hx=hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        context, lens_sorted, unsort_ids = sort_tensor(context, lens)
+        context, lens, unsort_ids = sort_tensor(context, lens)
         dtype = context.dtype
         # this is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
         # return self.lstm_tensor(context, lens_sorted, enforce_sorted=True)[unsort_ids]
         with torch.cuda.amp.autocast(enabled=False):
-            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens_sorted, enforce_sorted=True)
+            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
         return ret[0].to(dtype=dtype)[unsort_ids]
 
 

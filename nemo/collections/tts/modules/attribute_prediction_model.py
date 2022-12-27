@@ -58,6 +58,8 @@ class BottleneckLayerLayer(nn.Module):
                 norm_args = {"use_weight_norm": True}
             elif norm == 'instancenorm':
                 norm_args = {"norm_fn": nn.InstanceNorm1d}
+            else:
+                norm_args = {}
             fn = ConvNorm(in_dim, reduced_dim, kernel_size=3, **norm_args)
             self.projection_fn = fn
             self.non_linearity = non_linearity

@@ -599,6 +599,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
+        return txt_enc, in_lens, in_lens
 
         if dur is None:
             # get token durations
@@ -607,6 +608,7 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
+    def filter_out(self):
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
             txt_enc.transpose(1, 2),
@@ -625,6 +627,8 @@ class RadTTSModule(NeuralModule, Exportable):
                 voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
+            else:
+                voiced_mask_bool = None
         else:
             voiced_mask_bool = voiced_mask.bool()
 
