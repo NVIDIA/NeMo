@@ -42,6 +42,10 @@ from nemo.utils.enum import PrettyStrEnum
 
 
 def _fuse_bn_in_conformer(asr_model: ASRModel):
+    """
+    Replace BatchNorm with Fused BatchNorm in Conformer and fixes model config inplace
+    Expected `encoder` model to exist and be of type ConformerEncoder
+    """
     logging.info("Replacing BatchNorm with Fused BatchNorm")
     if not hasattr(asr_model, "encoder"):
         raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
@@ -59,10 +63,20 @@ def _fuse_bn_in_conformer(asr_model: ASRModel):
 
 
 class ASRWithTTSModel(ASRModel):
+    """
+    Hybrid ASR-TTS model: a transparent wrapper for ASR model
+    with frozen text-to-spectrogram pretrained model, which allows to use text-only data for training/finetuning
+    Text-only data can be mixed with audio-text pairs
+    """
+
     asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE]
     tts_model: FastPitchModel
 
     class ASRModelTypes(PrettyStrEnum):
+        """
+        Supported ASR types, needed for training from scratch
+        """
+
         RNNT_BPE = "rnnt_bpe"
         CTC_BPE = "ctc_bpe"
 
@@ -86,12 +100,9 @@ class ASRWithTTSModel(ASRModel):
         return []
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """
-        config should contain
-        :param cfg:
-        :param trainer:
-        """
         self._full_init_guard = False
+        # setup datasets and optimizer after model is fully initialized
+        # since it's done automatically, remove options from config
         cfg = copy.deepcopy(cfg)
         OmegaConf.set_struct(cfg, False)
         # avoid dataset and optim setup here
@@ -99,25 +110,31 @@ class ASRWithTTSModel(ASRModel):
         validation_ds_cfg = cfg.pop("validation_ds", None)
         test_ds_cfg = cfg.pop("test_ds", None)
         optim_cfg = cfg.pop("optim", None)
+        OmegaConf.set_struct(cfg, True)
 
         super().__init__(cfg, trainer=trainer)
 
         # tts model
         if cfg.tts_model_path is not None:
+            # if path provided, restore from path
             self.tts_model = FastPitchModel.restore_from(cfg.tts_model_path, map_location=torch.device("cpu"))
-            self.cfg.tts_model_path = None
+            self.cfg.tts_model_path = None  # set to None, after save/restore model will be instantiated from config
             self.cfg.tts_model = self.tts_model.cfg
         else:
+            # init from config
             assert cfg.tts_model is not None
             self.tts_model = ModelPT.from_config_dict(cfg.tts_model)
         self.register_submodule_artifacts(self.tts_model, "tts_model")
         self.tts_model.freeze()  # tts model should be always frozen
 
         if cfg.asr_model_path is not None:
+            # if path provided, restore from path
             self.asr_model = ASRModel.restore_from(cfg.asr_model_path, map_location=torch.device("cpu"))
+            self.cfg.asr_model_path = None  # set to None, after save/restore model will be instantiated from config
             self.asr_model_type = self.ASRModelTypes.from_asr_model(self.asr_model)
             self.cfg.asr_model_type = str(self.asr_model_type)
         else:
+            # init from config
             self.asr_model_type = self.ASRModelTypes(cfg.asr_model_type)  # convert to enum
             self.asr_model = self.asr_model_type.get_asr_cls()(cfg.asr_model)  # instantiate
             self.cfg.asr_model = self.asr_model.cfg
@@ -130,11 +147,12 @@ class ASRWithTTSModel(ASRModel):
             cfg.asr_model_fuse_bn = False  # no need to fuse anymore
 
         if cfg.enhancer_model_path is not None:
-            # ToDo: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
+            # TODO: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
             raise NotImplementedError
 
         self._full_init_guard = True
 
+        # initialize optimizer and datasets, asr/tts models are initialized here
         if optim_cfg:
             OmegaConf.set_struct(self.cfg, False)
             self.cfg.optim = optim_cfg
@@ -163,11 +181,6 @@ class ASRWithTTSModel(ASRModel):
     ):
         """
         Method to construct model from ASR config for training from scratch
-        :param asr_cfg:
-        :param asr_model_type:
-        :param tts_model_path:
-        :param trainer:
-        :return:
         """
         model_type = cls.ASRModelTypes(asr_model_type)
         cfg = DictConfig(
@@ -228,9 +241,8 @@ class ASRWithTTSModel(ASRModel):
 
     def __setattr__(self, name, value):
         # pytorch-lightning magic, allows to call *_step on asr_model
-        if self._full_init_guard:
-            if name == "_current_fx_name":
-                self.asr_model._current_fx_name = value  # need to make asr_model.log work
+        if name == "_current_fx_name" and self._full_init_guard:
+            self.asr_model._current_fx_name = value  # need to make logging inside asr_model work
         return super().__setattr__(name, value)
 
     def setup_optimization(
@@ -238,7 +250,7 @@ class ASRWithTTSModel(ASRModel):
     ):
         self.tts_model.freeze()
         optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
-        # set asr model optimizer/scheduler to allow training_step on asr_model
+        # set ASR model optimizer/scheduler to allow training_step on asr_model
         self.asr_model._optimizer = optimizer
         self.asr_model._scheduler = scheduler
         return optimizer, scheduler
@@ -301,8 +313,7 @@ class ASRWithTTSModel(ASRModel):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         with torch.no_grad():
             spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
-            # ToDo: enhancer
-
+            # TODO: use enhancer
             spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
             return spectrogram, spectrogram_len
 
@@ -383,7 +394,6 @@ class ASRWithTTSModel(ASRModel):
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
-        return self._train_dl
 
     def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]], iterable=True):
         # expected fields for text_data: manifest_filepath, speakers_filepath, min_words, max_words
