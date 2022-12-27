@@ -18,19 +18,21 @@ import concurrent.futures
 import copy
 import gc
 import json
+import math
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Set, Union
 
 import numpy as np
 import torch
+import torch.utils.data
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 
 AnyPath = Union[Path, str]
@@ -116,8 +118,6 @@ def _asr_text_to_tokens(text: str) -> np.ndarray:
     Helper function for asr tokenization with multiprocessing pool only.
     Must be defined on the top level.
     Expects asr_tokenizer_global, asr_bos_id_global, asr_eos_id_global to exist in the current pool process
-    :param text:
-    :return: tokenized text
     """
     ids = asr_tokenizer_global.text_to_ids(text)
     if asr_bos_id_global is not None:
@@ -132,34 +132,25 @@ def _tts_text_to_tokens(text: str) -> np.ndarray:
     Helper function for asr tokenization with multiprocessing pool only.
     Must be defined on the top level.
     Expects tts_tokenizer_global to exist in the current pool process
-    :param text:
-    :return: tokenized text
     """
     return np.asarray(tts_tokenizer_global(text))
 
 
 def iterate_manifest(filepath: AnyPath) -> Iterable[Dict[str, Any]]:
+    """
+    Helper function to iterate manifest
+    """
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
             record = json.loads(line)
             yield record
 
 
-class TextToTextDataset(Dataset):
+class TextToTextDatasetBase:
     asr_pad_id: int
     tts_text_pad_id: int
     asr_bos_id: Optional[int] = None
     asr_eos_id: Optional[int] = None
-
-    # @property
-    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
-    #     """Returns definitions of module output ports."""
-    #     return {
-    #         'transcripts': NeuralType(('B', 'T'), ntypes.LabelsType()),
-    #         'transcript_length': NeuralType(tuple('B'), ntypes.LengthsType()),
-    #         'tts_texts': NeuralType(('B', 'T'), ntypes.TokenIndex()),
-    #         'tts_text_length': NeuralType(tuple('B'), ntypes.LengthsType()),
-    #     }
 
     def __init__(
         self,
@@ -167,13 +158,15 @@ class TextToTextDataset(Dataset):
         speakers_filepath: Union[AnyPath, List[AnyPath]],
         asr_tokenizer: TokenizerSpec,
         asr_use_start_end_token: bool,
-        tts_text_normalizer: Normalizer,
-        tts_text_normalizer_call_kwargs: Dict,
         tts_parser: Callable,
         tts_text_pad_id: int,
+        tts_text_normalizer: Normalizer,
+        tts_text_normalizer_call_kwargs: Dict,
         min_words: int = 1,
         max_words: int = 1_000_000,
         tokenizer_workers: int = 1,
+        num_parts: int = 1,
+        current_part_index: int = 0,
     ):
         super().__init__()
         # ASR tokenizer setup
@@ -235,6 +228,19 @@ class TextToTextDataset(Dataset):
             logging.warning(f"Skipped {num_skipped_utterances} utterances " f"with {num_skipped_words}")
 
         num_utterances = len(asr_texts)
+        # preprocessing is very costly, if we need only part - remove unnecessary utterances
+        if num_parts > 1:
+            # NB: floor division, full dataset can contain fewer utterances than original
+            num_utterances_part = num_utterances // num_parts
+            start = num_utterances_part * current_part_index
+            end = start + num_utterances_part
+            logging.info(
+                f"Taking part of the dataset: {current_part_index} index, total {num_parts} from {start} to {end}"
+            )
+            asr_texts = asr_texts[start:end]
+            tts_texts = tts_texts[start:end]
+            num_utterances = num_utterances_part
+
         self.data: List[Dict[str, Any]] = [dict() for _ in range(num_utterances)]
 
         if tokenizer_workers == 1:
@@ -256,14 +262,14 @@ class TextToTextDataset(Dataset):
                 max_workers=tokenizer_workers,
             ) as pool:
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_asr_text_to_tokens, asr_texts), total=len(asr_texts))
+                    tqdm(pool.map(_asr_text_to_tokens, asr_texts), total=len(asr_texts), chunksize=1000)
                 ):
                     self.data[i]["asr_text_tokens"] = tokenized_text
         # force free memory
         del asr_texts
         gc.collect()
 
-        # fixme: normalization
+        # fixme: maybe allow unnormalized text
         if tokenizer_workers == 1:
             logging.warning("Preprocessing text with tokenizer_workers=1 may be slow")
             for i, tokenized_text in enumerate(
@@ -277,12 +283,10 @@ class TextToTextDataset(Dataset):
                 tts_tokenizer_global = copy.deepcopy(tokenizer)
 
             with concurrent.futures.ProcessPoolExecutor(
-                initializer=_init_tts_tokenize_process,
-                initargs=(tts_parser, self.asr_bos_id, self.asr_eos_id),
-                max_workers=tokenizer_workers,
+                initializer=_init_tts_tokenize_process, initargs=(tts_parser,), max_workers=tokenizer_workers,
             ) as pool:
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_tts_text_to_tokens, tts_texts), total=len(tts_texts))
+                    tqdm(pool.map(_tts_text_to_tokens, tts_texts), total=len(tts_texts), chunksize=1000)
                 ):
                     self.data[i]["tts_text_tokens"] = tokenized_text
         # force free memory
@@ -313,6 +317,115 @@ class TextToTextDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+class TextToTextDataset(TextToTextDatasetBase, Dataset):
+    """Text-to-Text Map-style Dataset for hybrid ASR-TTS models"""
+
+    def __init__(
+        self,
+        manifest_filepath: Union[AnyPath, List[AnyPath]],
+        speakers_filepath: Union[AnyPath, List[AnyPath]],
+        asr_tokenizer: TokenizerSpec,
+        asr_use_start_end_token: bool,
+        tts_parser: Callable,
+        tts_text_pad_id: int,
+        tts_text_normalizer: Normalizer,
+        tts_text_normalizer_call_kwargs: Dict,
+        min_words: int = 1,
+        max_words: int = 1_000_000,
+        tokenizer_workers: int = 1,
+    ):
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            speakers_filepath=speakers_filepath,
+            asr_tokenizer=asr_tokenizer,
+            asr_use_start_end_token=asr_use_start_end_token,
+            tts_parser=tts_parser,
+            tts_text_pad_id=tts_text_pad_id,
+            tts_text_normalizer=tts_text_normalizer,
+            tts_text_normalizer_call_kwargs=tts_text_normalizer_call_kwargs,
+            min_words=min_words,
+            max_words=max_words,
+            tokenizer_workers=tokenizer_workers,
+            num_parts=1,
+        )
+
+    def collate_fn(self, batch: List[tuple]) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+        return TextOrAudioToTextBatch.collate_fn(
+            batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
+        )
+
+
+class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
+    """
+    Text-to-Text Iterable Dataset for hybrid ASR-TTS models
+    Only part necessary for current process should be loaded and stored
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: Union[AnyPath, List[AnyPath]],
+        speakers_filepath: Union[AnyPath, List[AnyPath]],
+        asr_tokenizer: TokenizerSpec,
+        asr_use_start_end_token: bool,
+        tts_parser: Callable,
+        tts_text_pad_id: int,
+        tts_text_normalizer: Normalizer,
+        tts_text_normalizer_call_kwargs: Dict,
+        min_words: int = 1,
+        max_words: int = 1_000_000,
+        tokenizer_workers: int = 1,
+        num_parts: int = 1,
+        current_part_index: int = 0,
+    ):
+        """
+        Args:
+            manifest_filepath:
+            speakers_filepath:
+            asr_tokenizer:
+            asr_use_start_end_token:
+            tts_parser:
+            tts_text_pad_id:
+            tts_text_normalizer:
+            tts_text_normalizer_call_kwargs:
+            min_words:
+            max_words:
+            tokenizer_workers:
+            num_parts:
+            current_part_index:
+        """
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            speakers_filepath=speakers_filepath,
+            asr_tokenizer=asr_tokenizer,
+            asr_use_start_end_token=asr_use_start_end_token,
+            tts_parser=tts_parser,
+            tts_text_pad_id=tts_text_pad_id,
+            tts_text_normalizer=tts_text_normalizer,
+            tts_text_normalizer_call_kwargs=tts_text_normalizer_call_kwargs,
+            min_words=min_words,
+            max_words=max_words,
+            tokenizer_workers=tokenizer_workers,
+            num_parts=num_parts,
+            current_part_index=current_part_index,
+        )
+
+    def __iter__(self):
+        # Based on docs: https://pytorch.org/docs/stable/data.html#torch.utils.data.IterableDataset
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:  # single-process data loading, return the full iterator
+            start = 0
+            end = len(self)
+        else:  # in a worker process
+            # split workload
+            per_worker = int(math.ceil(len(self) / float(worker_info.num_workers)))
+            worker_id = worker_info.id
+            start = worker_id * per_worker
+            end = min(start + per_worker, len(self))
+        indices = np.arange(start, end)
+        np.random.shuffle(indices)
+        return map(self.__getitem__, indices)
 
     def collate_fn(self, batch: List[tuple]) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
         return TextOrAudioToTextBatch.collate_fn(

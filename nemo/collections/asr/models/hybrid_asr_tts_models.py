@@ -23,13 +23,19 @@ from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.data.text_to_text import TextOrAudioToTextBatch, TextToTextBatch, TextToTextDataset
+from nemo.collections.asr.data.text_to_text import (
+    TextOrAudioToTextBatch,
+    TextToTextBatch,
+    TextToTextDataset,
+    TextToTextIterableDataset,
+)
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
+from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
 from nemo.collections.tts.models import FastPitchModel
-from nemo.core.classes import ModelPT
+from nemo.core.classes import Dataset, ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
@@ -221,10 +227,10 @@ class ASRWithTTSModel(ASRModel):
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     def __setattr__(self, name, value):
-        if name == "_current_fx_name" and self._full_init_guard:
-            # needed to call *_step on asr_model
-            # FixMe: use on_* methods
-            self.asr_model._current_fx_name = value
+        # pytorch-lightning magic, allows to call *_step on asr_model
+        if self._full_init_guard:
+            if name == "_current_fx_name":
+                self.asr_model._current_fx_name = value  # need to make asr_model.log work
         return super().__setattr__(name, value)
 
     def setup_optimization(
@@ -338,19 +344,36 @@ class ASRWithTTSModel(ASRModel):
             return
 
         self._update_dataset_config(dataset_name='train', config=train_data_config)
+        asr_dataset = self.asr_model._setup_dataset_from_config(train_data_config)
+
+        dataset_iterable = True
+        if asr_dataset is not None and isinstance(asr_dataset, Dataset):
+            # asr_dataset is map-style, for mixing datasets use map-style text-to-text dataset
+            dataset_iterable = False
         if train_data_config.get("text_data") is not None:
-            tts_dataset = self._setup_text_dataset_from_config(train_data_config)
+            tts_dataset = self._setup_text_dataset_from_config(train_data_config, iterable=dataset_iterable)
         else:
             tts_dataset = None
-        asr_dataset = self.asr_model._setup_dataset_from_config(train_data_config)
+
         if tts_dataset and asr_dataset:
-            raise NotImplementedError
-            # dataset = ConcatDataset(tts_dataset, asr_dataset)  # FixMe: implementation
+            # fixme: concatenation params
+            if dataset_iterable:
+                dataset = ConcatDataset(datasets=[tts_dataset, asr_dataset])
+            else:
+                dataset = ConcatMapDataset(datasets=[tts_dataset, asr_dataset])
         else:
             dataset = tts_dataset or asr_dataset
+
         if dataset is None:
-            return None
-        collate_fn = dataset.collate_fn
+            return
+
+        if tts_dataset:
+            collate_fn = tts_dataset.collate_fn
+        else:
+            if hasattr(asr_dataset, "collate_fn"):
+                collate_fn = asr_dataset.collate_fn
+            else:
+                collate_fn = asr_dataset.datasets[0].collate_fn
         self._train_dl = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=train_data_config['batch_size'],
@@ -360,22 +383,42 @@ class ASRWithTTSModel(ASRModel):
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
+        return self._train_dl
 
-    def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+    def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]], iterable=True):
+        # expected fields for text_data: manifest_filepath, speakers_filepath, min_words, max_words
+        # + optional tokenizer_workers
         text_data_config = train_data_config.text_data
-        textonly_ds = TextToTextDataset(
-            manifest_filepath=text_data_config.manifest_filepath,
-            speakers_filepath=text_data_config.speakers_filepath,
-            asr_tokenizer=self.asr_model.tokenizer,
-            asr_use_start_end_token=train_data_config.use_start_end_token,
-            tts_text_normalizer=self.tts_model.normalizer,
-            tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
-            tts_parser=self.tts_model.parser,
-            tts_text_pad_id=self.tts_model.vocab.pad,
-            min_words=text_data_config.get("min_words", 1),
-            max_words=text_data_config.get("max_words", 1_000_000),  # 45 - recommended value, ~16.7 sec
-            tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
-        )
+        if iterable:
+            textonly_ds = TextToTextIterableDataset(
+                manifest_filepath=text_data_config.manifest_filepath,
+                speakers_filepath=text_data_config.speakers_filepath,
+                asr_tokenizer=self.asr_model.tokenizer,
+                asr_use_start_end_token=train_data_config.use_start_end_token,
+                tts_parser=self.tts_model.parser,
+                tts_text_pad_id=self.tts_model.vocab.pad,
+                tts_text_normalizer=self.tts_model.normalizer,
+                tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
+                min_words=text_data_config.min_words,
+                max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
+                tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
+                num_parts=self.world_size,
+                current_part_index=self.global_rank,
+            )
+        else:
+            textonly_ds = TextToTextDataset(
+                manifest_filepath=text_data_config.manifest_filepath,
+                speakers_filepath=text_data_config.speakers_filepath,
+                asr_tokenizer=self.asr_model.tokenizer,
+                asr_use_start_end_token=train_data_config.use_start_end_token,
+                tts_parser=self.tts_model.parser,
+                tts_text_pad_id=self.tts_model.vocab.pad,
+                tts_text_normalizer=self.tts_model.normalizer,
+                tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
+                min_words=text_data_config.min_words,
+                max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
+                tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
+            )
         return textonly_ds
 
     def training_step(self, batch: Union[TextOrAudioToTextBatch, TextToTextBatch, DALIOutputs, tuple], batch_nb: int):
