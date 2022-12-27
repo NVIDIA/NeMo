@@ -367,11 +367,19 @@ class ASRWithTTSModel(ASRModel):
             tts_dataset = None
 
         if tts_dataset and asr_dataset:
-            # TODO: concatenation params
+            text_data_config = train_data_config.text_data
+            concat_kwargs = dict()
+            if "asr_tts_sampling_technique" in text_data_config:
+                concat_kwargs["sampling_technique"] = text_data_config.asr_tts_sampling_technique
+            if "asr_tts_sampling_technique" in text_data_config:
+                concat_kwargs["sampling_temperature"] = text_data_config.asr_tts_sampling_temperature
+            if "asr_tts_sampling_probabilities" in text_data_config:
+                concat_kwargs["sampling_probabilities"] = text_data_config.asr_tts_sampling_probabilities
+
             if dataset_iterable:
-                dataset = ConcatDataset(datasets=[tts_dataset, asr_dataset])
+                dataset = ConcatDataset(datasets=[tts_dataset, asr_dataset], **concat_kwargs)
             else:
-                dataset = ConcatMapDataset(datasets=[tts_dataset, asr_dataset])
+                dataset = ConcatMapDataset(datasets=[tts_dataset, asr_dataset], **concat_kwargs)
         else:
             dataset = tts_dataset or asr_dataset
 
