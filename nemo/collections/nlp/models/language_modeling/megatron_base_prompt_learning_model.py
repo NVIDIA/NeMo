@@ -233,11 +233,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
-        # cast the model weights to bf16 only for 'bf16' precision
-        # For fp16, cannot cast the model weights as AMP will complain
-        if self.trainer.precision == 'bf16' and self.prompt_encoder is not None:
-            self.prompt_encoder = self.prompt_encoder.to(dtype=self.autocast_dtype)
-
     def add_ptuned_prompts_to_prompt_table(self):
         """
         Adds all newly p-tuned virtual prompts to the prompt table 
