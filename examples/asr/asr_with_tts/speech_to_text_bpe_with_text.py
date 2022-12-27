@@ -13,28 +13,39 @@
 # limitations under the License.
 
 """
-# Training the model from scratch
+Training the model from scratch
 ```sh
 python speech_to_text_bpe_with_text.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
-    ++model.tts_model_path={tts_model_path} \
-    ++model.asr_model_type=<rnnt_bpe or ctc_bpe> \
-    model.train_ds.manifest_filepath=<path to manifest with audio-text pairs or null> \
-    ++model.train_ds.text_data.manifest_filepath=<path to manifest with train text> \
-    ++model.train_ds.text_data.speakers_filepath=<path to speakers list> \
+    ++asr_model_type=<rnnt_bpe or ctc_bpe> \
+    ++tts_model_path=<path to compatible tts model> \
+    model.tokenizer.dir=<path to tokenizer> \
+    model.tokenizer.type="bpe" \
+    model.train_ds.manifest_filepath=<path(s) to manifest with audio-text pairs or null> \
+    ++model.train_ds.text_data.manifest_filepath=<path(s) to manifests with train text> \
+    ++model.train_ds.text_data.speakers_filepath=<path(s) to speakers list> \
     ++model.train_ds.text_data.min_words=1 \
     ++model.train_ds.text_data.max_words=45 \
-    model.validation_ds.manifest_filepath=<path to val/test manifest> \
+    ++model.train_ds.text_data.tokenizer_workers=4 \
+    model.validation_ds.manifest_filepath=<path(s) to val/test manifest> \
+    model.train_ds.batch_size=<batch size> \
+    trainer.max_epochs=<num epochs> \
+    trainer.num_nodes=<number of nodes> \
+    trainer.accumulate_grad_batches=<grad accumultion> \
+    ++trainer.precision=<precision> \
     exp_manager.create_wandb_logger=True \
-    exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
-    exp_manager.wandb_logger_kwargs.project="<Name of project>"
+    exp_manager.wandb_logger_kwargs.name="<name of experiment>" \
+    exp_manager.wandb_logger_kwargs.project="<name of project>" \
+    ++exp_manager.wandb_logger_kwargs.resume=auto \
+    ++exp_manager.wandb_logger_kwargs.id="<name of experiment>" \
+    exp_manager.resume_if_exists=true \
+    exp_manager.resume_ignore_no_checkpoint=true \
+    exp_manager.exp_dir=<experiment dir> \
+    exp_manager.name=<name of experiment>
 ```
 
-# Fine-tune a model
-
 For documentation on fine-tuning this model, please visit -
-ToDo
-
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
 
 
@@ -47,7 +58,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="examples/asr/asr_tts", config_name="hybrid_asr_tts")
+@hydra_runner(config_path="examples/asr/conf/conformer", config_name="conformer_transducer_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     OmegaConf.resolve(cfg)

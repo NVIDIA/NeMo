@@ -356,7 +356,7 @@ class ASRWithTTSModel(ASRModel):
             tts_dataset = None
 
         if tts_dataset and asr_dataset:
-            # fixme: concatenation params
+            # TODO: concatenation params
             if dataset_iterable:
                 dataset = ConcatDataset(datasets=[tts_dataset, asr_dataset])
             else:
@@ -427,7 +427,7 @@ class ASRWithTTSModel(ASRModel):
             return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)
         with torch.no_grad():
             spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
-        # FixMe: maybe support precomputed without DALIOutputs
+        # TODO: maybe support precomputed without DALIOutputs
         return self.asr_model.training_step(
             batch=DALIOutputs(
                 dict(

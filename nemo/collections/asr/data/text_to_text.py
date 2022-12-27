@@ -39,17 +39,17 @@ AnyPath = Union[Path, str]
 
 
 class TextToTextItem(NamedTuple):
-    transcript: torch.Tensor
-    tts_text: torch.Tensor
-    speaker: int
+    tts_text: torch.Tensor  # normalized and tokenized text for TTS
+    transcript: torch.Tensor  # tokenized text for ASR
+    speaker: int  # speaker id for multi-speaker TTS
 
 
 class TextToTextBatch(NamedTuple):
-    tts_texts: torch.Tensor
+    tts_texts: torch.Tensor  # tokenized texts for tts
     tts_text_length: torch.Tensor
-    transcripts: torch.Tensor
+    transcripts: torch.Tensor  # tokenized texts for ASR
     transcript_length: torch.Tensor
-    speakers: torch.Tensor
+    speakers: torch.Tensor  # speaker ids for multi-speaker TTS
 
     @staticmethod
     def collate_fn(batch: List[TextToTextItem], asr_pad_id: int, tts_text_pad_id: int) -> TextToTextBatch:
@@ -73,17 +73,24 @@ class TextOrAudioToTextBatch(NamedTuple):
 
     @staticmethod
     def collate_fn(
-        batch: List[tuple], tts_text_pad_id: int, asr_pad_id: int
+        batch: List[Union[TextToTextItem, tuple]], tts_text_pad_id: int, asr_pad_id: int
     ) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+        """
+        Collate function for dataloader
+        Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
+        """
         text_items: List[TextToTextItem] = [item for item in batch if isinstance(item, TextToTextItem)]
         if not text_items:
+            # pure audio-text batch
             return _speech_collate_fn(batch=batch, pad_id=asr_pad_id)
 
         asr_items = [item for item in batch if not isinstance(item, TextToTextItem)]
 
         if not asr_items:
+            # pure text-to-text batch
             return TextToTextBatch.collate_fn(batch=text_items, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id)
 
+        # mixed batch
         audio_signal = pad_sequence([item[0] for item in asr_items], batch_first=True, padding_value=0.0)
         a_sig_length = torch.tensor([item[1] for item in asr_items]).long()
 
@@ -136,7 +143,7 @@ def _tts_text_to_tokens(text: str) -> np.ndarray:
     return np.asarray(tts_tokenizer_global(text))
 
 
-def iterate_manifest(filepath: AnyPath) -> Iterable[Dict[str, Any]]:
+def _iterate_manifest(filepath: AnyPath) -> Iterable[Dict[str, Any]]:
     """
     Helper function to iterate manifest
     """
@@ -147,6 +154,11 @@ def iterate_manifest(filepath: AnyPath) -> Iterable[Dict[str, Any]]:
 
 
 class TextToTextDatasetBase:
+    """
+    Base class for loading text-to-text manifests
+    Map-style and Iterable datasets should inherit this class
+    """
+
     asr_pad_id: int
     tts_text_pad_id: int
     asr_bos_id: Optional[int] = None
@@ -189,13 +201,6 @@ class TextToTextDatasetBase:
         self.tts_normalizer_kwargs = tts_text_normalizer_call_kwargs
         self.tts_text_pad_id = tts_text_pad_id
 
-        # Load manifest
-        if isinstance(manifest_filepath, str):
-            manifest_filepath = manifest_filepath.split(",")
-        elif isinstance(manifest_filepath, Path):
-            manifest_filepath = [manifest_filepath]
-        self.manifest_paths = [Path(filepath) for filepath in manifest_filepath]
-
         # Load speakers
         if isinstance(speakers_filepath, str):
             speakers_filepath = speakers_filepath.split(",")
@@ -208,21 +213,38 @@ class TextToTextDatasetBase:
         self.speakers = np.asarray(sorted(speakers))
         logging.info(f"Loaded {len(self.speakers)} speakers")
 
+        # Load manifest
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = manifest_filepath.split(",")
+        elif isinstance(manifest_filepath, Path):
+            manifest_filepath = [manifest_filepath]
+        self.manifest_paths = [Path(filepath) for filepath in manifest_filepath]
+
         num_skipped_words = 0
         num_skipped_utterances = 0
         asr_texts = []
         tts_texts = []
+        need_normalization = False
 
         for manifest_path in self.manifest_paths:
-            for tmp_item in tqdm(iterate_manifest(manifest_path)):
+            for tmp_item in tqdm(_iterate_manifest(manifest_path)):
                 text = tmp_item["text"]
                 num_words = len(text.split())
+                # skip if number of works not in desired range
+                # TODO: maybe it would be valuable to sample sub-utterances from long utterances
                 if not (min_words <= num_words <= max_words):
                     num_skipped_words += num_words
                     num_skipped_utterances += 1
                     continue
                 asr_texts.append(tmp_item["text"])
-                tts_texts.append(tmp_item["tts_text_normalized"])
+                try:
+                    tts_texts.append(tmp_item["tts_text_normalized"])
+                except KeyError:
+                    tts_texts.append(tmp_item["tts_text"])
+                    need_normalization = True
+
+        if need_normalization:
+            logging.warning("TTS normalization is extremely slow! It is recommended to normalize TTS text")
 
         if num_skipped_utterances:
             logging.warning(f"Skipped {num_skipped_utterances} utterances " f"with {num_skipped_words}")
@@ -230,7 +252,7 @@ class TextToTextDatasetBase:
         num_utterances = len(asr_texts)
         # preprocessing is very costly, if we need only part - remove unnecessary utterances
         if num_parts > 1:
-            # NB: floor division, full dataset can contain fewer utterances than original
+            # NB: floor division, full dataset can contain fewer utterances than original, like in tarred dataset
             num_utterances_part = num_utterances // num_parts
             start = num_utterances_part * current_part_index
             end = start + num_utterances_part
@@ -244,6 +266,7 @@ class TextToTextDatasetBase:
         self.data: List[Dict[str, Any]] = [dict() for _ in range(num_utterances)]
 
         if tokenizer_workers == 1:
+            logging.warning("Preprocessing large text with tokenizer_workers=1 may be slow with ASR tokenizer")
             for i, tokenized_text in enumerate(
                 tqdm((self._asr_text_to_tokens(text) for text in asr_texts), total=len(asr_texts))
             ):
@@ -252,31 +275,41 @@ class TextToTextDatasetBase:
             # Multiprocessing hack: use global variables for every process (not really global in program context)
             def _init_asr_tokenize_process(tokenizer, bos_id, eos_id):
                 global asr_tokenizer_global, asr_bos_id_global, asr_eos_id_global  # process-global
+                # deepcopy to avoid serialization of parent models
                 asr_tokenizer_global = copy.deepcopy(tokenizer)
                 asr_bos_id_global = copy.deepcopy(bos_id)
                 asr_eos_id_global = copy.deepcopy(eos_id)
 
+            chunksize = 1000  # chunk size for pool map, higher is faster, but less responsive
             with concurrent.futures.ProcessPoolExecutor(
                 initializer=_init_asr_tokenize_process,
                 initargs=(asr_tokenizer, self.asr_bos_id, self.asr_eos_id),
                 max_workers=tokenizer_workers,
             ) as pool:
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=1000), total=len(asr_texts))
+                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=chunksize), total=len(asr_texts))
                 ):
                     self.data[i]["asr_text_tokens"] = tokenized_text
         # force free memory
         del asr_texts
         gc.collect()
 
-        # fixme: maybe allow unnormalized text
         if tokenizer_workers == 1:
-            logging.warning("Preprocessing text with tokenizer_workers=1 may be slow")
+            logging.warning("Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer")
             for i, tokenized_text in enumerate(
-                tqdm((self._tts_text_to_tokens(text, normalize=False) for text in tts_texts), total=len(tts_texts))
+                tqdm(
+                    (self._tts_text_to_tokens(text, normalize=need_normalization) for text in tts_texts),
+                    total=len(tts_texts),
+                )
             ):
                 self.data[i]["tts_text_tokens"] = tokenized_text
         else:
+            if need_normalization:
+                # TODO: implement, if we really need normalization inplace
+                raise NotImplementedError(
+                    "Normalization with tokenizer_workers > 1 is not implemented"
+                    "It is not recommended to use normalization on the fly at all, since it's extremely slow"
+                )
 
             def _init_tts_tokenize_process(tokenizer):
                 global tts_tokenizer_global  # process-global
@@ -351,7 +384,13 @@ class TextToTextDataset(TextToTextDatasetBase, Dataset):
             num_parts=1,
         )
 
-    def collate_fn(self, batch: List[tuple]) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+    def collate_fn(
+        self, batch: List[Union[TextToTextItem, tuple]]
+    ) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+        """
+        Collate function for dataloader
+        Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
+        """
         return TextOrAudioToTextBatch.collate_fn(
             batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
         )
@@ -379,22 +418,6 @@ class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
         num_parts: int = 1,
         current_part_index: int = 0,
     ):
-        """
-        Args:
-            manifest_filepath:
-            speakers_filepath:
-            asr_tokenizer:
-            asr_use_start_end_token:
-            tts_parser:
-            tts_text_pad_id:
-            tts_text_normalizer:
-            tts_text_normalizer_call_kwargs:
-            min_words:
-            max_words:
-            tokenizer_workers:
-            num_parts:
-            current_part_index:
-        """
         super().__init__(
             manifest_filepath=manifest_filepath,
             speakers_filepath=speakers_filepath,
@@ -412,7 +435,7 @@ class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
         )
 
     def __iter__(self):
-        # Based on docs: https://pytorch.org/docs/stable/data.html#torch.utils.data.IterableDataset
+        # Implementation based on docs: https://pytorch.org/docs/stable/data.html#torch.utils.data.IterableDataset
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:  # single-process data loading, return the full iterator
             start = 0
@@ -427,7 +450,13 @@ class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
         np.random.shuffle(indices)
         return map(self.__getitem__, indices)
 
-    def collate_fn(self, batch: List[tuple]) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+    def collate_fn(
+        self, batch: List[Union[TextToTextItem, tuple]]
+    ) -> Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]:
+        """
+        Collate function for dataloader
+        Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
+        """
         return TextOrAudioToTextBatch.collate_fn(
             batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
         )
