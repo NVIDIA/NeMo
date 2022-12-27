@@ -608,7 +608,6 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
-    def filter_out(self):
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
             txt_enc.transpose(1, 2),
