@@ -33,6 +33,35 @@ tens_inline = pynini.invert(pynini.string_file(get_abs_path("data/number/tens_in
 delete_hyphen = pynutil.delete(pynini.closure("-"))
 
 
+def filter_punctuation(fst: 'pynini.FstLike') -> 'pynini.FstLike':
+    """
+    Helper function for parsing number strings. Converts common cardinal strings (groups of three digits delineated by space)
+    and converts to a string of digits:
+        "1 000" -> "1000"
+    Args:
+        fst: Any pynini.FstLike object. Function composes fst onto string parser fst
+
+    Returns:
+        fst: A pynini.FstLike object
+    """
+    exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
+    up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
+
+    cardinal_separator = NEMO_SPACE
+    cardinal_string = pynini.closure(
+        NEMO_DIGIT, 1
+    )  # For string w/o punctuation (used for page numbers, thousand series)
+
+    cardinal_string |= (
+        up_to_three_digits
+        + pynutil.delete(cardinal_separator)
+        + pynini.closure(exactly_three_digits + pynutil.delete(cardinal_separator))
+        + exactly_three_digits
+    )
+
+    return cardinal_string @ fst
+
+
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g.
