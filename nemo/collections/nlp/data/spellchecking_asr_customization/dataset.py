@@ -419,7 +419,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
             ) in batch:
             if len(input_ids) < max_length:
                 pad_length = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.pad_token_id))
                 padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
                 padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
                 padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
@@ -435,7 +435,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
 
             if len(input_ids_for_subwords) < max_length_for_subwords:
                 pad_length = max_length_for_subwords - len(input_ids_for_subwords)
-                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
+                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.pad_token_id))
                 padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
                 padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
             else:
