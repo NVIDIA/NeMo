@@ -41,6 +41,7 @@ class FractionFst(GraphFst):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
         ordinal_graph = ordinal.graph
+        numerator_graph = cardinal.graph_en
 
         fractional_endings = pynini.string_map([
             ("ljarte", "ljarddel"),
@@ -66,8 +67,8 @@ class FractionFst(GraphFst):
         ])
         alt_lexicalised = pynini.string_map([
             ("halv", "andradel"),
-            ("kvarts", "fjärdedel"),
-            ("kvarts", "kvart")
+            ("kvart", "fjärdedel"),
+            ("kvart", "kvarts")
         ])
 
         fractions = (
@@ -84,8 +85,6 @@ class FractionFst(GraphFst):
             fractions |= fractions_alt
 
         self.fractions = fractions
-        ett_to_en = pynini.string_map([("ett", "en")])
-        numerator_graph = cardinal_graph @ pynini.cdrewrite(ett_to_en, "", "[EOS]", NEMO_SIGMA)
 
         integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         numerator = (

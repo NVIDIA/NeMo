@@ -30,6 +30,7 @@ zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
 digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
 teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
 ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
+ett_to_en = pynini.string_map([("ett", "en")])
 
 
 def make_million(number: str, non_zero_no_one: 'pynini.FstLike', deterministic: bool=True) -> 'pynini.FstLike':
@@ -234,6 +235,7 @@ class CardinalFst(GraphFst):
         self.graph |= zero
 
         self.graph = filter_punctuation(self.graph).optimize()
+        self.graph_en = self.graph @ pynini.cdrewrite(ett_to_en, "", "[EOS]", NEMO_SIGMA)
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
