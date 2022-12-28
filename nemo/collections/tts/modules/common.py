@@ -129,28 +129,23 @@ class BiLSTM(nn.Module):
         )
         return self.lstm_sequence(seq)
 
-    def lstm_sequence_simple(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
-        if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
-            self.bilstm.flatten_parameters()
-        ret, _ = self.bilstm(seq)
-        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
-
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        # Calculate sizes and prepare views to our zero buffer to pass as hx
-        max_batch_size = seq.batch_sizes[0]
-        common_shape = (self.n_dir, max_batch_size)
-        # borisf: ONNX inssists on having self.n_dir float
-        common_size = max_batch_size.float().mul(self.n_dir).long()
-        h_shape = (*common_shape, self.real_hidden_size)
-        c_shape = (*common_shape, self.bilstm.hidden_size)
-        hx = (
-            self.h_zeros[: common_size.mul(self.real_hidden_size)].view(h_shape),
-            self.h_zeros[: common_size.mul(self.bilstm.hidden_size)].view(c_shape),
-        )
-
-        ret, _ = self.bilstm(seq, hx=hx)
+            ret, _ = self.bilstm(seq)
+        else:
+            # Calculate sizes and prepare views to our zero buffer to pass as hx
+            max_batch_size = seq.batch_sizes[0]
+            common_shape = (self.n_dir, max_batch_size)
+            # borisf: ONNX inssists on having self.n_dir float
+            common_size = max_batch_size.float().mul(self.n_dir).long()
+            h_shape = (*common_shape, self.real_hidden_size)
+            c_shape = (*common_shape, self.bilstm.hidden_size)
+            hx = (
+                self.h_zeros[: common_size.mul(self.real_hidden_size)].view(h_shape),
+                self.h_zeros[: common_size.mul(self.bilstm.hidden_size)].view(c_shape),
+            )
+            ret, _ = self.bilstm(seq, hx=hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
