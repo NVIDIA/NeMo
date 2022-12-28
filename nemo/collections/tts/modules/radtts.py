@@ -317,14 +317,14 @@ class RadTTSModule(NeuralModule, Exportable):
         text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
         return text_enc, text_embeddings
 
-    def preprocess_context(self, context, speaker_vecs, out_lens, f0, energy_avg):
+    def preprocess_context(self, context, speaker_vecs, out_lens, f0, energy_avg, assume_padded=False):
         if self.n_group_size > 1:
-            context = self.unfold(context)
+            context = self.unfold(context, assume_padded=assume_padded)
 
             if f0 is not None:
-                f0 = self.unfold(f0[:, None, :])
+                f0 = self.unfold(f0[:, None, :], assume_padded=assume_padded)
             if energy_avg is not None:
-                energy_avg = self.unfold(energy_avg[:, None, :])
+                energy_avg = self.unfold(energy_avg[:, None, :], assume_padded=assume_padded)
         speaker_vecs = speaker_vecs[..., None].expand(-1, -1, context.shape[2])
         context_w_spkvec = torch.cat((context, speaker_vecs), 1)
 
@@ -360,7 +360,7 @@ class RadTTSModule(NeuralModule, Exportable):
         mel = mel.reshape(b, -1, self.n_group_size, t).transpose(2, 3)
         return mel.reshape(b, -1, t * self.n_group_size)
 
-    def unfold(self, mel):
+    def unfold(self, mel, assume_padded=False):
         """operation used for the
         grouping or "squeeze" operation on input
 
@@ -369,7 +369,7 @@ class RadTTSModule(NeuralModule, Exportable):
         """
         b, d, t = mel.shape
         # for inference, mel is being padded beforehand
-        if self.training:
+        if not assume_padded:
             t = (t // self.n_group_size) * self.n_group_size
             mel = mel[:, :, :t]
         mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2, 3)
@@ -660,7 +660,7 @@ class RadTTSModule(NeuralModule, Exportable):
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True
         )
 
         residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
