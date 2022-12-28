@@ -70,19 +70,16 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
 
     def __getitem__(self, idx: int):
         example = self.examples[idx]
-        #-example.pad_to_max_length(
-        #    self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id
-        #)
-        input_ids = np.array(example.features["input_ids"])
-        input_mask = np.array(example.features["input_mask"])
-        segment_ids = np.array(example.features["segment_ids"])
-        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
-        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
-        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
-        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"])
-        labels_mask = np.array(example.features["labels_mask"])
-        labels = np.array(example.features["labels"])
-        spans = np.array(example.features["spans"])
+        input_ids = np.array(example.features["input_ids"], dtype=np.int16)
+        input_mask = np.array(example.features["input_mask"], dtype=np.int8)
+        segment_ids = np.array(example.features["segment_ids"], dtype=np.int8)
+        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"], dtype=np.int16)
+        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"], dtype=np.int8)
+        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"], dtype=np.int8)
+        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int16)
+        labels_mask = np.array(example.features["labels_mask"], dtype=np.int8)
+        labels = np.array(example.features["labels"], dtype=np.int8)
+        spans = np.array(example.features["spans"], dtype=np.int16)
         return (
             input_ids,
             input_mask,
