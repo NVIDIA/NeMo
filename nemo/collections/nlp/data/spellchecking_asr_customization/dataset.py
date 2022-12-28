@@ -174,7 +174,8 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
             if len(spans) < max_length_for_spans:
                 pad_length = max_length_for_spans - len(spans)
                 padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)    # pad value is [-1, -1, -1]
-                padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
+                if len(spans) > 0:
+                    padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
             else:
                 padded_spans.append(spans)
 
