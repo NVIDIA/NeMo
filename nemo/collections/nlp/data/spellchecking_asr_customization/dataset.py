@@ -122,6 +122,8 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
                 max_length_for_subwords = len(input_ids_for_subwords)
             if len(spans) > max_length_for_spans:
                 max_length_for_spans = len(spans)
+        if max_length_for_spans == 0:  # to avoid empty tensor
+            max_length_for_spans = 1
 
         padded_input_ids = []
         padded_input_mask = []
