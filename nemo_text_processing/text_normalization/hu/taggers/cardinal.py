@@ -73,6 +73,8 @@ class CardinalFst(GraphFst):
             pynini.cross("1", "száz"),
             digits_inline_no_one + pynutil.insert("száz")
         )
+        if not deterministic:
+            base_hundreds |= pynini.cross("1", "egyszáz")
 
         hundreds = pynini.union(
             pynini.cross("100", "száz"),
@@ -80,6 +82,11 @@ class CardinalFst(GraphFst):
             digits_inline_no_one + pynini.cross("00", "száz"),
             digits_inline_no_one + pynutil.insert("száz") + graph_tens
         )
+        if not deterministic:
+            hundreds |= pynini.union(
+                pynini.cross("100", "egyszáz"),
+                pynini.cross("1", "egyszáz") + graph_tens
+            )
 
         # Three digit strings
         graph_hundreds = base_hundreds + pynini.union(
@@ -104,6 +111,12 @@ class CardinalFst(GraphFst):
             pynini.cross("10", "ezer") + graph_tens,
             pynini.cross("1", "ezer") + bare_hundreds
         )
+        if not deterministic:
+            one_thousand |= pynini.union(
+                pynini.cross("1000", "egyezer"),
+                pynini.cross("10", "egyezer") + graph_tens,
+                pynini.cross("1", "egyezer") + bare_hundreds
+            )
 
         other_thousands = pynini.union(
             digits_inline_no_one + pynini.cross("000", "ezer"),
@@ -129,26 +142,42 @@ class CardinalFst(GraphFst):
             + ((insert_space + graph_hundreds_component_at_least_one_non_zero_digit) | pynutil.delete("000")),
         )
 
-        graph_million = pynutil.add_weight(pynini.cross("000001", "un millón"), -0.001)
-        graph_million |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" millones")
-        graph_million |= pynutil.delete("000000")
-        graph_million += insert_space
+        graph_million = pynutil.add_weight(pynini.cross("001", "miljovdna"), -0.001)
+        graph_million |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("miljovnna"))
+        if not deterministic:
+            graph_million |= pynutil.add_weight(pynini.cross("001", "milliuvdna"), -0.001)
+            graph_million |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("milliuvnna"))
+        graph_million |= pynutil.delete("000")
 
-        graph_billion = pynutil.add_weight(pynini.cross("000001", "un billón"), -0.001)
-        graph_billion |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" billones")
-        graph_billion |= pynutil.delete("000000")
-        graph_billion += insert_space
+        graph_milliard = pynutil.add_weight(pynini.cross("001", "miljárda"), -0.001)
+        graph_milliard |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("miljárdda"))
+        graph_milliard |= pynutil.delete("000")
 
-        graph_trillion = pynutil.add_weight(pynini.cross("000001", "un trillón"), -0.001)
-        graph_trillion |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" trillones")
-        graph_trillion |= pynutil.delete("000000")
-        graph_trillion += insert_space
+        graph_billion = pynutil.add_weight(pynini.cross("001", "biljovdna"), -0.001)
+        graph_billion |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("biljovnna"))
+        graph_billion |= pynutil.delete("000")
+
+        graph_billiard = pynutil.add_weight(pynini.cross("001", "biljárda"), -0.001)
+        graph_billiard |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("biljárdda"))
+        graph_billiard |= pynutil.delete("000")
+
+        # Guess
+        graph_trillion = pynutil.add_weight(pynini.cross("001", "triljovdna"), -0.001)
+        graph_trillion |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("triljovnna"))
+        graph_trillion |= pynutil.delete("000")
+
+        graph_trilliard = pynutil.add_weight(pynini.cross("001", "triljárda"), -0.001)
+        graph_trilliard |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("triljárdda"))
+        graph_trilliard |= pynutil.delete("000")
 
         graph = (
-            graph_trillion
+            graph_trilliard
+            + graph_trillion
+            + graph_billiard
             + graph_billion
+            + graph_milliard
             + graph_million
-            + (pynutil.delete("000000"))
+            + (graph_thousands_component_at_least_one_non_zero_digit | pynutil.delete("000"))
         )
 
         self.graph = (
@@ -162,7 +191,7 @@ class CardinalFst(GraphFst):
                 pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
             )
         )
-        self.graph |= zero
+        self.graph |= graph_zero
 
         self.graph = filter_punctuation(self.graph).optimize()
 
