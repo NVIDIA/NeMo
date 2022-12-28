@@ -392,6 +392,8 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
                 max_length_for_subwords = len(input_ids_for_subwords)
             if len(spans) > max_length_for_spans:
                 max_length_for_spans = len(spans)
+        if max_length_for_spans == 0:  # to avoid empty tensor
+            max_length_for_spans = 1
 
         padded_input_ids = []
         padded_input_mask = []
@@ -417,7 +419,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
             ) in batch:
             if len(input_ids) < max_length:
                 pad_length = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.pad_token_id))
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
                 padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
                 padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
                 padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
@@ -433,7 +435,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
 
             if len(input_ids_for_subwords) < max_length_for_subwords:
                 pad_length = max_length_for_subwords - len(input_ids_for_subwords)
-                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.pad_token_id))
+                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
                 padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
                 padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
             else:
@@ -443,21 +445,21 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
 
             if len(spans) < max_length_for_spans:
                 pad_length = max_length_for_spans - len(spans)
-                padded_spans.append(np.ones(max_length_for_spans, 3) * -1)   # pad value is [-1, -1, -1]
-                padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
+                padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)    # pad value is [-1, -1, -1]
+                if len(spans) > 0:
+                    padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
             else:
                 padded_spans.append(spans)
 
         return (
-            torch.IntTensor(padded_input_ids),
-            torch.IntTensor(padded_input_mask),
-            torch.IntTensor(padded_segment_ids),
-            torch.IntTensor(padded_input_ids_for_subwords),
-            torch.IntTensor(padded_input_mask_for_subwords),
-            torch.IntTensor(padded_segment_ids_for_subwords),
-            torch.IntTensor(padded_character_pos_to_subword_pos),
-            torch.IntTensor(padded_labels_mask),
-            torch.IntTensor(padded_labels),
-            torch.IntTensor(padded_spans)
+            torch.LongTensor(padded_input_ids),
+            torch.LongTensor(padded_input_mask),
+            torch.LongTensor(padded_segment_ids),
+            torch.LongTensor(padded_input_ids_for_subwords),
+            torch.LongTensor(padded_input_mask_for_subwords),
+            torch.LongTensor(padded_segment_ids_for_subwords),
+            torch.LongTensor(padded_character_pos_to_subword_pos),
+            torch.LongTensor(padded_labels_mask),
+            torch.LongTensor(padded_labels),
+            torch.LongTensor(padded_spans)
         )
-
