@@ -140,7 +140,7 @@ class BiLSTM(nn.Module):
         max_batch_size = seq.batch_sizes[0]
         common_shape = (self.n_dir, max_batch_size)
         # borisf: ONNX inssists on having self.n_dir float
-        common_size = max_batch_size.mul(self.n_dir).long()
+        common_size = max_batch_size.float().mul(self.n_dir).long()
         h_shape = (*common_shape, self.real_hidden_size)
         c_shape = (*common_shape, self.bilstm.hidden_size)
         hx = (

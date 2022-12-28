@@ -436,7 +436,7 @@ class RadTTSModule(NeuralModule, Exportable):
         attn_hard = None
         if 'atn' in self.include_modules or 'dec' in self.include_modules:
             # make sure to do the alignments before folding
-            attn_mask = get_mask_from_lengths(in_lens)[..., None] == 0
+            attn_mask = get_mask_from_lengths(in_lens)[..., None]
             # attn_mask shld be 1 for unsd t-steps in text_enc_w_spkvec tensor
             attn_soft, attn_logprob = self.attention(
                 mel, text_embeddings, out_lens, attn_mask, key_lens=in_lens, attn_prior=attn_prior
@@ -464,7 +464,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 # might truncate some frames at the end, but that's ok
                 # sometimes referred to as the "squeeze" operation
                 # invert this by calling self.fold(mel_or_z)
-                mel = self.unfold(mel.unsqueeze(-1))
+                mel = self.unfold(mel)
             # where context is folded
             # mask f0 in case values are interpolated
             context_w_spkvec = self.preprocess_context(
@@ -599,7 +599,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
-        # return txt_enc, in_lens, in_lens
+        return txt_enc, in_lens, in_lens
 
         if dur is None:
             # get token durations
