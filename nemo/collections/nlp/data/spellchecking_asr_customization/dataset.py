@@ -180,16 +180,16 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
                 padded_spans.append(spans)
 
         return (
-            torch.IntTensor(padded_input_ids),
-            torch.IntTensor(padded_input_mask),
-            torch.IntTensor(padded_segment_ids),
-            torch.IntTensor(padded_input_ids_for_subwords),
-            torch.IntTensor(padded_input_mask_for_subwords),
-            torch.IntTensor(padded_segment_ids_for_subwords),
-            torch.IntTensor(padded_character_pos_to_subword_pos),
-            torch.IntTensor(padded_labels_mask),
-            torch.IntTensor(padded_labels),
-            torch.IntTensor(padded_spans)
+            torch.LongTensor(padded_input_ids),
+            torch.LongTensor(padded_input_mask),
+            torch.LongTensor(padded_segment_ids),
+            torch.LongTensor(padded_input_ids_for_subwords),
+            torch.LongTensor(padded_input_mask_for_subwords),
+            torch.LongTensor(padded_segment_ids_for_subwords),
+            torch.LongTensor(padded_character_pos_to_subword_pos),
+            torch.LongTensor(padded_labels_mask),
+            torch.LongTensor(padded_labels),
+            torch.LongTensor(padded_spans)
         )
 
 
