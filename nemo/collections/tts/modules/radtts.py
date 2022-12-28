@@ -241,7 +241,6 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if 'dpm' in include_modules:
             dur_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
-            print("dur:", dur_model_config['hparams'])
             self.dur_pred_layer = get_attribute_prediction_model(dur_model_config)
 
         self.use_unvoiced_bias = False
@@ -440,7 +439,7 @@ class RadTTSModule(NeuralModule, Exportable):
         attn_hard = None
         if 'atn' in self.include_modules or 'dec' in self.include_modules:
             # make sure to do the alignments before folding
-            attn_mask = get_mask_from_lengths(in_lens)[..., None]
+            attn_mask = ~get_mask_from_lengths(in_lens)[..., None]
             # attn_mask shld be 1 for unsd t-steps in text_enc_w_spkvec tensor
             attn_soft, attn_logprob = self.attention(
                 mel, text_embeddings, out_lens, attn_mask, key_lens=in_lens, attn_prior=attn_prior
