@@ -1,3 +1,17 @@
+inference:
+  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
+  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 1.0 # sampling temperature
+  add_BOS: True # add the bos token at the begining of the prompt
+  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  all_probs: False  # whether return the log prob for all the tokens in vocab
+  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
+  compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
+  batch_size: 1
+
+
 trainer:
   devices: 1
   num_nodes: 1
@@ -5,73 +19,11 @@ trainer:
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
-task_templates: # Add more/replace tasks as needed, these are just examples
-  - taskname: "boolq" # The task name
-    prompt_template: "<|VIRTUAL_PROMPT_0|> Passage: {passage} Question: {question} Answer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
-    total_virtual_tokens: 10 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
-    virtual_token_splits: [10] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
-    truncate_field: "passage" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
-    answer_only_loss: True 
-    answer_field: "answer"
-
-  - taskname: "intent_and_slot"
-    prompt_template: "<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}"
-    total_virtual_tokens: 30
-    answer_only_loss: False 
-    virtual_token_splits: [15, 10, 5]
-    truncate_field: null
-
-  - taskname: "rte" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\nAnswer: {answer}" 
-    total_virtual_tokens: 9 
-    virtual_token_splits: [9] 
-    truncate_field: null
-    answer_only_loss: True
-    answer_field: "answer"
-  
-  - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> context: {context} question: {question} answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: null
-    answer_only_loss: True
-    answer_field: "answer"
-  
-  - taskname: "hellaswag" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> text: {text} A:{A} B:{B} C:{C} D:{D} answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: text
-    answer_only_loss: True
-    answer_field: "answer"
-
-  - taskname: "xsum" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> source: {source} summary: {target}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: "source"
-    answer_only_loss: True
-    answer_field: "target"
-
-  - taskname: "arc-challenge" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> question: {question} choices: {choices} answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: "question"
-    answer_only_loss: True
-    answer_field: "answer"
-
-  - taskname: "sst2" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> sentence: {sentence} answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: "question"
-    answer_only_loss: True
-    answer_field: "answer"
-    
-dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train.jsonl"
+taskname: "squad"
+train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_1k.jsonl"
+eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_test_10.jsonl"
 small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo"
 small_prompt_learning_model: "/home/adithyare/exp/125m_squad_prompt_tuning/prompt_learning.nemo"
 large_model_path: "/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo"
 large_prompt_learning_model: "/home/adithyare/exp/1_3b_squad_prompt_tuning/prompt_learning.nemo"
-projected_prompt_learning_model: ???
+pred_file_path: "/home/adithyare/tmp.foo"
