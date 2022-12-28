@@ -217,6 +217,15 @@ class RadTTSModule(NeuralModule, Exportable):
                     input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
                 )
 
+                if self.n_group_size > 1:
+                    self.unfold_params = {
+                        'kernel_size': (n_group_size, 1),
+                        'stride': n_group_size,
+                        'padding': 0,
+                        'dilation': 1,
+                    }
+                    self.unfold_mod = nn.Unfold(**self.unfold_params)
+
             self.exit_steps = []
             self.n_early_size = n_early_size
             n_mel_channels = n_mel_channels * n_group_size
@@ -366,13 +375,13 @@ class RadTTSModule(NeuralModule, Exportable):
         Args:
             mel: B x C x T tensor of temporal data
         """
-        b, d, t = mel.shape
         # for inference, mel is being padded beforehand
-        if not assume_padded:
-            t = (t // self.n_group_size) * self.n_group_size
-            mel = mel[:, :, :t]
-        mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2, 3)
-        return mel.reshape(b, d * self.n_group_size, -1)
+        if assume_padded:
+            b, d, t = mel.shape
+            mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2, 3)
+            return mel.reshape(b, d * self.n_group_size, -1)
+        else:
+            return self.unfold_mod(mel.unsqueeze(-1))
 
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
