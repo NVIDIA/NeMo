@@ -149,11 +149,16 @@ class CardinalFst(GraphFst):
                 pynini.cross("1", "egyezer") + base_hundreds
             )
 
+        # FIXME: 1-9000 only
+        # FIXME: missing hundreds + digits: Error: No valid output with given input: '1111'
+        # FIXME: missing digits: Error: No valid output with given input: '1001'
         other_thousands = pynini.union(
             digits_inline_no_one + pynini.cross("000", "ezer"),
             digits_inline_no_one + pynini.cross("0", "ezer") + insert_hyphen + graph_tens,
             digits_inline_no_one + pynutil.insert("ezer") + insert_hyphen + base_hundreds
         )
+
+        self.thousands = (one_thousand | other_thousands).optimize()
 
         # graph_thousands_component_at_least_one_non_zero_digit = pynini.union(
         #     pynutil.delete("000") + graph_hundreds_component_at_least_one_non_zero_digit,
@@ -174,6 +179,8 @@ class CardinalFst(GraphFst):
         # )
         graph_thousands_component_at_least_one_non_zero_digit = one_thousand | other_thousands
         graph_thousands_component_at_least_one_none_zero_digit_no_one = other_thousands
+        self.graph_thousands_component_at_least_one_non_zero_digit = graph_thousands_component_at_least_one_non_zero_digit
+        self.graph_thousands_component_at_least_one_none_zero_digit_no_one = graph_thousands_component_at_least_one_none_zero_digit_no_one
 
         graph_million = pynutil.add_weight(pynini.cross("001", "millió"), -0.001)
         graph_million |= (graph_hundreds_component_at_least_one_non_zero_digit_no_one + pynutil.insert("millió"))
