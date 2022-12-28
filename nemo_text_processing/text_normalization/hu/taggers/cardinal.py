@@ -30,6 +30,7 @@ digit = pynini.invert(pynini.string_file(get_abs_path("data/number/digit.tsv")))
 digit_inline = pynini.invert(pynini.string_file(get_abs_path("data/number/digit_inline.tsv")))
 tens = pynini.invert(pynini.string_file(get_abs_path("data/number/tens.tsv")))
 tens_inline = pynini.invert(pynini.string_file(get_abs_path("data/number/tens_inline.tsv")))
+delete_hyphen = pynutil.delete(pynini.closure("-"))
 
 
 class CardinalFst(GraphFst):
@@ -196,6 +197,7 @@ class CardinalFst(GraphFst):
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+            @ pynini.cdrewrite(delete_hyphen, "", "[EOS]", NEMO_SIGMA)
             @ pynini.cdrewrite(
                 pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
             )
