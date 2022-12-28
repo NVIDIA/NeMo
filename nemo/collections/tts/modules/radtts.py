@@ -464,7 +464,9 @@ class RadTTSModule(NeuralModule, Exportable):
                 # might truncate some frames at the end, but that's ok
                 # sometimes referred to as the "squeeze" operation
                 # invert this by calling self.fold(mel_or_z)
-                mel = self.unfold(mel)
+                mel_len = mel.shape[-1]
+                mel_len = (mel_len // self.n_group_size) * self.n_group_size
+                mel = self.unfold(mel[:, :, :mel_len])
             # where context is folded
             # mask f0 in case values are interpolated
             context_w_spkvec = self.preprocess_context(
