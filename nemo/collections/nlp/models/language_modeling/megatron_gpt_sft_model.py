@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingBatchSampler,
 )
 
-from nemo.collections.nlp.data.language_modeling.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 
 from nemo.utils import AppState, logging
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

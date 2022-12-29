@@ -128,16 +128,17 @@ class GPTSFTDataset(Dataset):
 
         input_ids = text_ids
 
+        answer_start_idx = len(input_ids) -1
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             input_ids = input_ids + [self.sep_id]
-
-        answer_start_idx = len(input_ids)
+            answer_start_idx +=1
 
         input_ids = input_ids + answer_ids
 
         if self.add_bos:
             input_ids = [self.tokenizer.bos_id] + input_ids
+            answer_start_idx += 1
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
