@@ -90,7 +90,7 @@ model:
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
       max_duration: null
-      min_duration: 0.1
+      min_duration: 2.0
       ignore_file: null
       trim: false
       pitch_fmin: ${model.pitch_fmin}

@@ -532,7 +532,7 @@ class InpainterModel(ModelPT, Exportable):
             start = random.randint(
                 0,
                 # make sure some part of the spectrogram is masked
-                spec_len - (max_duration_frames / 2)
+                spec_len - (min_duration_frames / 2)
             )
             mask_len = random.randint(
                 min_duration_frames, max_duration_frames)
