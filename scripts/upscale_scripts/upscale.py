@@ -9,6 +9,8 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+from pytorch_lightning.loggers import WandbLogger
+
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -115,7 +117,7 @@ class EmbeddingProjector(ptl.LightningModule):
         self.log("sl1_loss", sl1_loss.item(), prog_bar=True)
         self.log("cs_loss", cs_loss.item(), prog_bar=True)
         self.log("csn_loss", cs_neighbors_loss.item(), prog_bar=True)
-        self.log("train_loss", total_loss.item(), prog_bar=True)
+        self.log("loss", total_loss.item(), prog_bar=True)
         return total_loss
 
     def on_validation_epoch_start(self):
@@ -132,10 +134,10 @@ class EmbeddingProjector(ptl.LightningModule):
         cs_loss = sum(cs_losses) / len(cs_losses)
         csn_loss = sum(csn_losses) / len(csn_losses)
         total_loss = (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.csn_wt * csn_loss)
-        self.log("sl1_loss", sl1_loss, prog_bar=True, on_epoch=True)
-        self.log("cs_loss", cs_loss, prog_bar=True, on_epoch=True)
-        self.log("csn_loss", csn_loss, prog_bar=True, on_epoch=True)
-        self.log("total_loss", total_loss, prog_bar=True, on_epoch=True)
+        self.log("test_sl1_loss", sl1_loss, prog_bar=True, on_epoch=True)
+        self.log("test_cs_loss", cs_loss, prog_bar=True, on_epoch=True)
+        self.log("test_csn_loss", csn_loss, prog_bar=True, on_epoch=True)
+        self.log("test_loss", total_loss, prog_bar=True, on_epoch=True)
 
     def validation_step(self, batch, batch_idx):
         x, y, y_neighbors = batch
@@ -276,8 +278,9 @@ def main(cfg) -> None:
     projector = EmbeddingProjector(
         word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
     )
-    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=5, verbose=True, mode="min")
-    trainer = ptl.Trainer(**cfg.upscaler.trainer, callbacks=[early_stop_callback])
+    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=10, verbose=True, mode="min")
+    wblogger = WandbLogger(**cfg.upscaler.wandb)
+    trainer = ptl.Trainer(**cfg.upscaler.trainer, callbacks=[early_stop_callback], logger=wblogger)
     trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.fit(model=projector, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.test(model=projector, dataloaders=test_dataloader)
