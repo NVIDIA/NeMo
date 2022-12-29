@@ -336,6 +336,14 @@ class ASRDecoderTimeStamps:
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
             self.model_stride_in_secs = 0.02
 
+        if 'zh_citrinet' in self.ASR_model_name.lower():
+            self.run_ASR = self.run_ASR_QuartzNet_CTC
+            self.encdec_class = EncDecCTCModel
+            self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.04)
+            self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
+            self.model_stride_in_secs = 0.02
+
         elif 'conformer' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_BPE_CTC
             self.encdec_class = EncDecCTCModelBPE
