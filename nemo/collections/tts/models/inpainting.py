@@ -526,7 +526,7 @@ class InpainterModel(ModelPT, Exportable):
 
         # TODO - have these as parameters in the future
         min_duration_frames = int(ffts_per_sec * 0.5)
-        max_duration_frames = int(ffts_per_sec * 2)
+        max_duration_frames = int(ffts_per_sec * 1)
 
         for i, spec_len in enumerate(mel_lens):
             start = random.randint(
@@ -548,3 +548,58 @@ class InpainterModel(ModelPT, Exportable):
                 return logger.experiment
 
         return None
+
+
+class ConvDiscriminator(NeuralModule):
+    def __init__(self, num_mels, window_size):
+
+        pass
+
+
+class ConvUnit(NeuralModule):
+    def __init__(self, input_dims, c, s_t, s_f):
+        """TODO"""
+        in_channels, input_width, input_height = input_dims
+        # first part:
+        super().__init__()
+        self.elu = torch.nn.ELU()
+        self.conv_1_1 = torch.nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=c,
+            kernel_size=3,
+            stride=1,
+            padding='same'
+        )
+        self.norm_1_1 = torch.nn.LayerNorm((c, input_width, input_height))
+
+        self.conv_1_2 = torch.nn.Conv2d(
+            in_channels=c,
+            out_channels=2 * c,
+            kernel_size=(s_t + 2, s_f + 2),
+            stride=(s_t, s_f),
+            padding=(1, 1)
+        )
+        self.norm_1_2 = torch.nn.LayerNorm(
+            (c * 2, input_width // 2, input_height // 2))
+
+        # second part
+        self.pooling = torch.nn.AvgPool2d(
+            kernel_size=(s_t, s_f),
+        )
+        self.conv_2 = torch.nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=2 * c,
+            kernel_size=(1, 1),
+            padding='same'
+        )
+        self.norm_2 = torch.nn.LayerNorm(
+            (c * 2, input_width // 2, input_height // 2))
+
+    def forward(self, x):
+        # part 1
+        h = self.norm_1_1(self.conv_1_1(self.elu(x)))
+        part_1 = self.norm_1_2(self.conv_1_2(self.elu(h)))
+
+        # part 2
+        part_2 = self.norm_2(self.conv_2(self.pooling(x)))
+        return part_1 + part_2
