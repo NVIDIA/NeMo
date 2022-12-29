@@ -41,7 +41,7 @@ def get_mask_from_lengths_and_val(lengths, val):
         mask (torch.tensor): num_sequences x max_length x 1 binary tensor
     """
     max_len = val.shape[-1]
-    ids = torch.arange(0, max_len, device=lengths.device)
+    ids = torch.linspace(0, max_len - 1, max_len, device=lengths.device, dtype=lengths.dtype)
     mask = ids < lengths.unsqueeze(1)
     return mask
 
@@ -55,7 +55,7 @@ def get_mask_from_lengths(lengths):
         mask (torch.tensor): num_sequences x max_length x 1 binary tensor
     """
     max_len = torch.max(lengths)
-    ids = torch.arange(0, max_len, device=lengths.device)
+    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
     mask = ids < lengths.unsqueeze(1)
     return mask
 
@@ -145,7 +145,7 @@ class BiLSTM(nn.Module):
                 self.h_zeros[: common_size.mul(self.real_hidden_size)].view(h_shape),
                 self.h_zeros[: common_size.mul(self.bilstm.hidden_size)].view(c_shape),
             )
-            ret, _ = self.bilstm(seq, hx=hx)
+            ret, _ = self.bilstm(seq, hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
@@ -153,10 +153,10 @@ class BiLSTM(nn.Module):
         dtype = context.dtype
         # this is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
-        # return self.lstm_tensor(context, lens_sorted, enforce_sorted=True)[unsort_ids]
-        with torch.cuda.amp.autocast(enabled=False):
-            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
-        return ret[0].to(dtype=dtype)[unsort_ids]
+        return self.lstm_tensor(context, lens, enforce_sorted=True)[0][unsort_ids]
+        # with torch.cuda.amp.autocast(enabled=False):
+        #    ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
+        # return ret[0].to(dtype=dtype)[unsort_ids]
 
 
 class ConvLSTMLinear(nn.Module):
@@ -208,6 +208,7 @@ class ConvLSTMLinear(nn.Module):
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
+        context = context * mask
         context = context.transpose(1, 2)
         # Apply Bidirectional LSTM
         context = self.bilstm(context, lens)

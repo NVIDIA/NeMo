@@ -611,7 +611,6 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
-        return txt_enc, in_lens, in_lens
 
         if dur is None:
             # get token durations
@@ -619,6 +618,7 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
+        return txt_enc, in_lens, dur  # , f0, energy_avg
 
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,

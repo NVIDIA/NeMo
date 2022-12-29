@@ -16,7 +16,7 @@ from typing import List, Union
 
 import torch
 from pytorch_lightning.core.module import _jit_is_scripting
-from torch.onnx import TrainingMode
+from torch.onnx import TrainingMode, _globals
 
 from nemo.core.classes import typecheck
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
@@ -31,6 +31,9 @@ from nemo.utils.export_utils import (
     verify_torchscript,
     wrap_forward_method,
 )
+
+_globals.check_shape_inference = True
+
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -54,7 +57,7 @@ class Exportable(ABC):
         output: str,
         input_example=None,
         verbose=False,
-        do_constant_folding=False,
+        do_constant_folding=True,
         onnx_opset_version=None,
         training=TrainingMode.EVAL,
         check_trace: Union[bool, List[torch.Tensor]] = False,
@@ -116,7 +119,7 @@ class Exportable(ABC):
 
         # Pytorch's default for None is too low, can't pass None through
         if onnx_opset_version is None:
-            onnx_opset_version = 14
+            onnx_opset_version = 16
 
         try:
             # Disable typechecks
