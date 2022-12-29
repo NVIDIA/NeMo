@@ -16,19 +16,16 @@ import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.data.language_modeling.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
-
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
-
-from nemo.utils import AppState, logging
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -56,6 +53,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ['MegatronGPTSFTModel']
+
 
 class MegatronGPTSFTModel(MegatronGPTModel):
     """
@@ -107,17 +105,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
 
-
     def _build_dataset(self, data_cfg, check_implict_grad_acc=False, is_train=True):
         if (
             check_implict_grad_acc
             and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
         ):
             raise ValueError(
-                (f'You are trying to use "implicit gradient accumulation" of',
-                f'{data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())}',
-                f'in your validation/test datasets. This is not supported.',
-                f'Please set global_batch_size equal to micro_batch_size * data_parallel_world_size.')
+                (
+                    f'You are trying to use "implicit gradient accumulation" of',
+                    f'{data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())}',
+                    f'in your validation/test datasets. This is not supported.',
+                    f'Please set global_batch_size equal to micro_batch_size * data_parallel_world_size.',
+                )
             )
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
@@ -132,14 +131,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 data_cfg.concat_sampling_probabilities, ListConfig
             ):
                 raise ValueError(
-                    (f"concat_sampling_probabilities must be a ListConfig with the same number of files in file_names."
-                    f"Found: {data_cfg.concat_sampling_probabilities}")
+                    (
+                        f"concat_sampling_probabilities must be a ListConfig with the same number of files in file_names."
+                        f"Found: {data_cfg.concat_sampling_probabilities}"
+                    )
                 )
 
             if len(data_cfg.get('concat_sampling_probabilities', None)) != len(data_cfg.file_names):
                 raise ValueError(
-                    (f"concat_sampling_probabilities must be of the same size as file_names.",
-                    f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.file_names)}")
+                    (
+                        f"concat_sampling_probabilities must be of the same size as file_names.",
+                        f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.file_names)}",
+                    )
                 )
 
             data_prefix = []
@@ -167,8 +170,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 add_eos=data_cfg.get('add_eos', True),
                 add_sep=data_cfg.get('add_sep', True),
                 sep_id=self.sep_id,
-                max_num_samples= num_samples[0],
-                seed=data_cfg.get('seed', 1234)
+                max_num_samples=num_samples[0],
+                seed=data_cfg.get('seed', 1234),
             )
             datasets.append(dataset)
 
@@ -180,7 +183,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return datasets
 
-    #def training_step(self, batch, batch_idx):
+    # def training_step(self, batch, batch_idx):
     #    return super(MegatronGPTModel, self).training_step(batch, batch_idx)
 
     # Override the parent batch reconfiguring logic.
@@ -259,4 +262,3 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
             dataloaders.append(eval_dl)
         return dataloaders
-        
