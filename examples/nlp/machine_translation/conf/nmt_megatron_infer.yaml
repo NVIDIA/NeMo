@@ -15,4 +15,4 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
 beam_size: 5
-beam_alpha: 0.1
+length_penalty: 0.1

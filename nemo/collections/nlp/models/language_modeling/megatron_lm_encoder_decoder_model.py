@@ -1143,12 +1143,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
 
             log_probs = torch.nn.functional.log_softmax(output_tensor, dim=-1)
+            last_stage = True
         else:
             log_probs = torch.zeros(
                 (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
             ).cuda()
+            last_stage = False
 
-        return log_probs
+        return log_probs, last_stage
 
     def compute_len_penalty(self, lengths, alpha):
         ''' length penalty for beam search '''
@@ -1166,7 +1168,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ignore_ids=[],
         bos_id=None,
         beam_size=1,
-        beam_alpha=0.1,
+        length_penalty=0.1,
     ):
         # prepare init data
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
@@ -1225,7 +1227,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # single step forward
         dec_mask = predicted_tokens_dec != tokenizer.pad_id
-        log_probs = self._one_step_forward(
+        log_probs, _ = self._one_step_forward(
             enc_output,
             enc_output_attn_mask,
             predicted_tokens_dec,
@@ -1271,7 +1273,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         for _ in range(num_tokens_to_generate):
             # generate and score candidates for prefixes continuation
-            log_probs = self._one_step_forward(
+            log_probs, last_stage = self._one_step_forward(
                 enc_output,
                 enc_output_attn_mask,
                 prefixes,
@@ -1283,6 +1285,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
             # get top candidates for each item in batch
+            if not last_stage:
+                continue
+
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], beam_size, dim=-1)
 
             # mask all finished hypotheses to exclude them from beam
@@ -1299,7 +1304,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
 
             # choose top-k hypotheses with length penalty applied
-            len_penalties = self.compute_len_penalty(prefixes_len, beam_alpha)
+            len_penalties = self.compute_len_penalty(prefixes_len, length_penalty)
             scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, beam_size ** 2), beam_size, dim=1)
             scores = scores.view(-1, 1) * len_penalties

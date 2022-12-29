@@ -94,7 +94,7 @@ def main(cfg) -> None:
                     source_lang=cfg.source_lang,
                     target_lang=cfg.target_lang,
                     beam_size=cfg.beam_size,
-                    beam_alpha=cfg.beam_alpha,
+                    length_penalty=cfg.length_penalty,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
@@ -105,7 +105,7 @@ def main(cfg) -> None:
                 source_lang=cfg.source_lang,
                 target_lang=cfg.target_lang,
                 beam_size=cfg.beam_size,
-                beam_alpha=cfg.beam_alpha,
+                length_penalty=cfg.length_penalty,
             )
             for translation in translations:
                 tgt_f.write(translation + "\n")

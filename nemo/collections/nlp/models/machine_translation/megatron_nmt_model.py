@@ -618,7 +618,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         target_lang: str = None,
         return_beam_scores: bool = False,
         beam_size: int = 1,
-        beam_alpha: float = 0.0,
+        length_penalty: float = 0.0,
         log_timing: bool = False,
     ) -> List[str]:
         """
@@ -629,6 +629,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
             target_lang: if not "ignore", corresponding MosesDecokenizer will be run
             return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            beam_size: beam search expansion size.
+            length_penalty: length penalty for beam search.
             log_timing: if True, prints timing information.
         Returns:
             list of translated strings
@@ -680,7 +682,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
                 tokenizer=self.decoder_tokenizer,
                 beam_size=beam_size,
-                beam_alpha=beam_alpha,
+                length_penalty=length_penalty,
             )
             best_translations = self.postprocess_outputs(
                 outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
