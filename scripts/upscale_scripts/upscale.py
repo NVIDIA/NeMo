@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import pytorch_lightning as ptl
 import torch
 import torch.nn.functional as F
@@ -10,7 +11,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning.loggers import WandbLogger
-
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -85,7 +86,7 @@ class EmbeddingProjector(ptl.LightningModule):
         self.cs_wt = cfg.get("cs_loss_weight", 1.0)
         self.csn_wt = cfg.get("csn_loss_weight", 1.0)
         self.sl1_wt = cfg.get("sl1_loss_weight", 1.0)
-        self.save_pt_path = cfg.get("save_pt_path", 'upscaler.pt')
+        self.save_pt_path = cfg.save_checkpoint_path + '/upscaler.pt'
 
     def is_cuda(self,):
         return all(p.is_cuda for p in self.parameters())
@@ -118,6 +119,7 @@ class EmbeddingProjector(ptl.LightningModule):
         self.log("cs_loss", cs_loss.item(), prog_bar=True)
         self.log("csn_loss", cs_neighbors_loss.item(), prog_bar=True)
         self.log("loss", total_loss.item(), prog_bar=True)
+        self.log("global_step", self.global_step, prog_bar=True)
         return total_loss
 
     def on_validation_epoch_start(self):
@@ -162,25 +164,25 @@ class EmbeddingProjector(ptl.LightningModule):
         self.log("val_cs_loss", cs_loss, prog_bar=True, on_epoch=True)
         self.log("val_csn_loss", csn_loss, prog_bar=True, on_epoch=True)
         self.log("val_loss", self.val_loss, prog_bar=True, on_epoch=True)
-
+        self.log("global_step", self.global_step, prog_bar=True)
         if self.val_loss < self.best_val_loss:
-            self.best_val_loss = self.val_loss
             self.save_model()
-        self.log("best_val_loss", self.best_val_loss, prog_bar=True, on_epoch=True)
 
     def save_model(self):
+        dir = os.path.dirname(self.save_pt_path)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
         torch.save(self.state_dict(), self.save_pt_path)
-        print('saved new model to', self.save_pt_path)
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
 
 
 class UpscaleDataset(Dataset):
-    def __init__(self, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor) -> None:
+    def __init__(self, precision:torch.dtype, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor) -> None:
         super().__init__()
-        self.x_embs = x_embeddings
-        self.y_embs = y_embeddings
+        self.x_embs = x_embeddings.type(precision)
+        self.y_embs = y_embeddings.type(precision)
         assert self.x_embs.shape[0] == self.y_embs.shape[0]
         self.vocab = np.arange(0, self.y_embs.shape[0], dtype=int)
         x_embeddings_norm = x_embeddings / x_embeddings.norm(dim=1).unsqueeze(1)
@@ -267,9 +269,9 @@ def main(cfg) -> None:
     model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.trainer)
     word_embeddings_1_3b, tokenizer, model_1_3b = get_word_embedding(model_1_3b)
 
-    train = UpscaleDataset(word_embeddings_125m[train_tokens, :], word_embeddings_1_3b[train_tokens, :])
-    val = UpscaleDataset(word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
-    test = UpscaleDataset(word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
+    train = UpscaleDataset(torch.float32, word_embeddings_125m[train_tokens, :], word_embeddings_1_3b[train_tokens, :])
+    val = UpscaleDataset(torch.float32, word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
+    test = UpscaleDataset(torch.float32,word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
 
     train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
     val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
@@ -280,17 +282,24 @@ def main(cfg) -> None:
     )
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=10, verbose=True, mode="min")
     wblogger = WandbLogger(**cfg.upscaler.wandb)
-    trainer = ptl.Trainer(**cfg.upscaler.trainer, callbacks=[early_stop_callback], logger=wblogger)
+    # saves top-K checkpoints based on "val_loss" metric
+    checkpoint_callback = ModelCheckpoint(
+        save_top_k=1,
+        monitor="val_loss",
+        mode="min",
+        dirpath=cfg.upscaler.save_checkpoint_path,
+        filename="upscaler-{global_step}-{val_loss:.3f}_{val_cs_loss:.3f}_{val_csn_loss:.3f}_{val_sl1_loss:.4f}",
+    )
+    trainer = ptl.Trainer(**cfg.upscaler.trainer, callbacks=[early_stop_callback,checkpoint_callback], logger=wblogger)
     trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.fit(model=projector, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-    trainer.test(model=projector, dataloaders=test_dataloader)
 
     best_projector = EmbeddingProjector(
         word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
     )
-    best_projector.load_model(cfg.upscaler.save_pt_path)
-
+    best_projector.load_model(cfg.upscaler.save_checkpoint_path + '/upscaler.pt')
     best_projector.cuda()
+    trainer.test(model=best_projector, dataloaders=test_dataloader)
     y_hat = best_projector(prompt_learning_embs_125m)
 
     model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat

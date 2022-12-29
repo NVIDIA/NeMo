@@ -19,14 +19,14 @@ trainer:
   precision: 16 # 16, 32, or bf16
 
 upscaler:
-  save_pt_path: "upscaler.pt"
+  save_checkpoint_path: "upscaler_checkpoints"
   hidden_size: 16384
   cs_loss_weight: 1.0
   csn_loss_weight: 1.0
   sl1_loss_weight: 1.0
 
   trainer:
-    max_epochs: 10
+    max_epochs: 2
     num_sanity_val_steps: 0
     val_check_interval: 0.5
     devices: 1
@@ -50,5 +50,5 @@ small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/me
 small_prompt_learning_model: "/home/adithyare/exp/125m_squad_prompt_tuning/prompt_learning.nemo"
 large_model_path: "/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo"
 large_prompt_learning_model: "/home/adithyare/exp/1_3b_squad_prompt_tuning/prompt_learning.nemo"
-projected_prompt_learning_model: "/home/adithyare/tmp.foo"
-projected_pred_file_path: "/home/adithyare/tmp.foo.out"
+projected_prompt_learning_model: '${upscaler.save_checkpoint_path}/projected_prompt_learning_model.nemo'
+projected_pred_file_path: '${upscaler.save_checkpoint_path}/projected_predictions.txt'
