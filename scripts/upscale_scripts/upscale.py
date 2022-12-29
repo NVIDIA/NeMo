@@ -298,8 +298,8 @@ def main(cfg) -> None:
         word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
     )
     best_projector.load_model(cfg.upscaler.save_checkpoint_path + '/upscaler.pt')
-    best_projector.cuda()
     trainer.test(model=best_projector, dataloaders=test_dataloader)
+    best_projector = best_projector.cuda()
     y_hat = best_projector(prompt_learning_embs_125m)
 
     model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
