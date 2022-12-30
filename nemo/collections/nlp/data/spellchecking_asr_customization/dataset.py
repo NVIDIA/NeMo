@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -33,10 +33,186 @@ __all__ = ["SpellcheckingAsrCustomizationDataset",
  ]
 
 
+def collate_train_dataset(
+    batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    pad_token_id: int
+)-> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    """collate batch of training items 
+    Args:
+        batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, labels_mask, labels, spans).
+        pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
+    """
+    max_length = 0
+    max_length_for_subwords = 0
+    max_length_for_spans = 0
+    for (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+            labels_mask,
+            labels,
+            spans
+        ) in batch:
+        if len(input_ids) > max_length:
+            max_length = len(input_ids)
+        if len(input_ids_for_subwords) > max_length_for_subwords:
+            max_length_for_subwords = len(input_ids_for_subwords)
+        if len(spans) > max_length_for_spans:
+            max_length_for_spans = len(spans)
+    if max_length_for_spans == 0:  # to avoid empty tensor
+        max_length_for_spans = 1
+
+    padded_input_ids = []
+    padded_input_mask = []
+    padded_segment_ids = []
+    padded_input_ids_for_subwords = []
+    padded_input_mask_for_subwords = []
+    padded_segment_ids_for_subwords = []
+    padded_character_pos_to_subword_pos = []
+    padded_labels_mask = []
+    padded_labels = []
+    padded_spans = []
+    for (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+            labels_mask,
+            labels,
+            spans
+        ) in batch:
+        if len(input_ids) < max_length:
+            pad_length = max_length - len(input_ids)
+            padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=pad_token_id))
+            padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
+            padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
+            padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
+            padded_labels.append(np.pad(labels, pad_width=[0, pad_length], constant_values=0))
+            padded_character_pos_to_subword_pos.append(np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0))
+        else:
+            padded_input_ids.append(input_ids)
+            padded_input_mask.append(input_mask)
+            padded_segment_ids.append(segment_ids)
+            padded_labels_mask.append(labels_mask)
+            padded_labels.append(labels)
+            padded_character_pos_to_subword_pos.append(character_pos_to_subword_pos)
+
+        if len(input_ids_for_subwords) < max_length_for_subwords:
+            pad_length = max_length_for_subwords - len(input_ids_for_subwords)
+            padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=pad_token_id))
+            padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
+            padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
+        else:
+            padded_input_ids_for_subwords.append(input_ids_for_subwords)
+            padded_input_mask_for_subwords.append(input_mask_for_subwords)
+            padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
+
+        if len(spans) < max_length_for_spans:
+            pad_length = max_length_for_spans - len(spans)
+            padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)    # pad value is [-1, -1, -1]
+            if len(spans) > 0:
+                padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
+        else:
+            padded_spans.append(spans)
+
+    return (
+        torch.LongTensor(padded_input_ids),
+        torch.LongTensor(padded_input_mask),
+        torch.LongTensor(padded_segment_ids),
+        torch.LongTensor(padded_input_ids_for_subwords),
+        torch.LongTensor(padded_input_mask_for_subwords),
+        torch.LongTensor(padded_segment_ids_for_subwords),
+        torch.LongTensor(padded_character_pos_to_subword_pos),
+        torch.LongTensor(padded_labels_mask),
+        torch.LongTensor(padded_labels),
+        torch.LongTensor(padded_spans)
+    )
+
+
+def collate_test_dataset(
+    batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    pad_token_id: int
+)-> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    """collate batch of test items 
+    Args:
+        batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos).
+        pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
+    """
+    max_length = 0
+    max_length_for_subwords = 0
+    for (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+        ) in batch:
+        if len(input_ids) > max_length:
+            max_length = len(input_ids)
+        if len(input_ids_for_subwords) > max_length_for_subwords:
+            max_length_for_subwords = len(input_ids_for_subwords)
+ 
+    padded_input_ids = []
+    padded_input_mask = []
+    padded_segment_ids = []
+    padded_input_ids_for_subwords = []
+    padded_input_mask_for_subwords = []
+    padded_segment_ids_for_subwords = []
+    padded_character_pos_to_subword_pos = []
+    for (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos
+        ) in batch:
+        if len(input_ids) < max_length:
+            pad_length = max_length - len(input_ids)
+            padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=pad_token_id))
+            padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
+            padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
+            padded_character_pos_to_subword_pos.append(np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0))
+        else:
+            padded_input_ids.append(input_ids)
+            padded_input_mask.append(input_mask)
+            padded_segment_ids.append(segment_ids)
+            padded_character_pos_to_subword_pos.append(character_pos_to_subword_pos)
+
+        if len(input_ids_for_subwords) < max_length_for_subwords:
+            pad_length = max_length_for_subwords - len(input_ids_for_subwords)
+            padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=pad_token_id))
+            padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
+            padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
+        else:
+            padded_input_ids_for_subwords.append(input_ids_for_subwords)
+            padded_input_mask_for_subwords.append(input_mask_for_subwords)
+            padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
+
+    return (
+        torch.LongTensor(padded_input_ids),
+        torch.LongTensor(padded_input_mask),
+        torch.LongTensor(padded_segment_ids),
+        torch.LongTensor(padded_input_ids_for_subwords),
+        torch.LongTensor(padded_input_mask_for_subwords),
+        torch.LongTensor(padded_segment_ids_for_subwords),
+        torch.LongTensor(padded_character_pos_to_subword_pos),
+    )
+
+
 class SpellcheckingAsrCustomizationDataset(Dataset):
     """
-    Dataset as used by the SpellcheckingAsrCustomizationModel for training, validation, and inference
-    pipelines.
+    Dataset as used by the SpellcheckingAsrCustomizationModel for training and validation pipelines.
 
     Args:
         input_file (str): path to tsv-file with data
@@ -61,9 +237,9 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
         }
 
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
-        self.examples = read_input_file(example_builder, input_file, infer=False)
         self.example_builder = example_builder
-        self.pad_id = self.example_builder._pad_id
+        self.examples = self.example_builder.read_input_file(input_file, infer=False)
+        self.pad_token_id = self.example_builder._pad_id
 
     def __len__(self):
         return len(self.examples)
@@ -98,166 +274,12 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
         Args:
             batch:  A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, labels_mask, labels, spans).
         """
-        max_length = 0
-        max_length_for_subwords = 0
-        max_length_for_spans = 0
-        for (
-                input_ids,
-                input_mask,
-                segment_ids,
-                input_ids_for_subwords,
-                input_mask_for_subwords,
-                segment_ids_for_subwords,
-                character_pos_to_subword_pos,
-                labels_mask,
-                labels,
-                spans
-            ) in batch:
-            if len(input_ids) > max_length:
-                max_length = len(input_ids)
-            if len(input_ids_for_subwords) > max_length_for_subwords:
-                max_length_for_subwords = len(input_ids_for_subwords)
-            if len(spans) > max_length_for_spans:
-                max_length_for_spans = len(spans)
-        if max_length_for_spans == 0:  # to avoid empty tensor
-            max_length_for_spans = 1
-
-        padded_input_ids = []
-        padded_input_mask = []
-        padded_segment_ids = []
-        padded_input_ids_for_subwords = []
-        padded_input_mask_for_subwords = []
-        padded_segment_ids_for_subwords = []
-        padded_character_pos_to_subword_pos = []
-        padded_labels_mask = []
-        padded_labels = []
-        padded_spans = []
-        for (
-                input_ids,
-                input_mask,
-                segment_ids,
-                input_ids_for_subwords,
-                input_mask_for_subwords,
-                segment_ids_for_subwords,
-                character_pos_to_subword_pos,
-                labels_mask,
-                labels,
-                spans
-            ) in batch:
-            if len(input_ids) < max_length:
-                pad_length = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
-                padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
-                padded_labels.append(np.pad(labels, pad_width=[0, pad_length], constant_values=0))
-                padded_character_pos_to_subword_pos.append(np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0))
-            else:
-                padded_input_ids.append(input_ids)
-                padded_input_mask.append(input_mask)
-                padded_segment_ids.append(segment_ids)
-                padded_labels_mask.append(labels_mask)
-                padded_labels.append(labels)
-                padded_character_pos_to_subword_pos.append(character_pos_to_subword_pos)
-
-            if len(input_ids_for_subwords) < max_length_for_subwords:
-                pad_length = max_length_for_subwords - len(input_ids_for_subwords)
-                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.example_builder._pad_id))
-                padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
-                padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
-            else:
-                padded_input_ids_for_subwords.append(input_ids_for_subwords)
-                padded_input_mask_for_subwords.append(input_mask_for_subwords)
-                padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
-
-            if len(spans) < max_length_for_spans:
-                pad_length = max_length_for_spans - len(spans)
-                padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)    # pad value is [-1, -1, -1]
-                if len(spans) > 0:
-                    padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
-            else:
-                padded_spans.append(spans)
-
-        return (
-            torch.LongTensor(padded_input_ids),
-            torch.LongTensor(padded_input_mask),
-            torch.LongTensor(padded_segment_ids),
-            torch.LongTensor(padded_input_ids_for_subwords),
-            torch.LongTensor(padded_input_mask_for_subwords),
-            torch.LongTensor(padded_segment_ids_for_subwords),
-            torch.LongTensor(padded_character_pos_to_subword_pos),
-            torch.LongTensor(padded_labels_mask),
-            torch.LongTensor(padded_labels),
-            torch.LongTensor(padded_spans)
-        )
-
-
-class SpellcheckingAsrCustomizationTestDataset(Dataset):
-    """
-    Dataset for inference pipeline.
-
-    Args:
-        sents: list of strings
-        example_builder: instance of BertExampleBuilder
-    """
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
-        return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
-        }
-
-    def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:
-        self.example_builder = example_builder
-        self.examples = []
-        for sent in sents:
-            parts = sent.split("\t")
-            if len(parts) < 2:
-                print("Skip input with bad format: " + sent)
-                continue
-            hyp, ref = parts
-            example = self.example_builder.build_bert_example(hyp=hyp, ref=ref, infer=True)
-            if example is None:
-                raise ValueError("Cannot build example from: " + sent)
-            self.examples.append(example)
-
-    def __len__(self):
-        return len(self.examples)
-
-    def __getitem__(self, idx: int):
-        example = self.examples[idx]
-        example.pad_to_max_length(
-            self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id
-        )
-        input_ids = np.array(example.features["input_ids"])
-        input_mask = np.array(example.features["input_mask"])
-        segment_ids = np.array(example.features["segment_ids"])
-        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
-        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
-        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
-        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int64)
-        return (
-            input_ids,
-            input_mask,
-            segment_ids,
-            input_ids_for_subwords,
-            input_mask_for_subwords,
-            segment_ids_for_subwords,
-            character_pos_to_subword_pos
-        )
+        return collate_train_dataset(batch, pad_token_id=self.pad_token_id)
 
 
 class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
     """
-    This Dataset loads tarred tokenized pickle files.
+    This Dataset loads training examples from tarred tokenized pickle files.
     If using multiple processes the number of shards should be divisible by the number of workers to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     Additionally, please note that the len() of this DataLayer is assumed to be the number of tokens
@@ -334,7 +356,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
         # Load file
         pkl_file, _ = fname
         pkl_file = BytesIO(pkl_file)
-        data = pickle.load(pkl_file)  # loads np.int64 vector
+        data = pickle.load(pkl_file)
         pkl_file.close()
         input_ids = data["input_ids"]
         input_mask = data["input_mask"]
@@ -368,95 +390,62 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
         Args:
             batch:  A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, labels_mask, labels, spans).
         """
-        max_length = 0
-        max_length_for_subwords = 0
-        max_length_for_spans = 0
-        for (
-                input_ids,
-                input_mask,
-                segment_ids,
-                input_ids_for_subwords,
-                input_mask_for_subwords,
-                segment_ids_for_subwords,
-                character_pos_to_subword_pos,
-                labels_mask,
-                labels,
-                spans
-            ) in batch:
-            if len(input_ids) > max_length:
-                max_length = len(input_ids)
-            if len(input_ids_for_subwords) > max_length_for_subwords:
-                max_length_for_subwords = len(input_ids_for_subwords)
-            if len(spans) > max_length_for_spans:
-                max_length_for_spans = len(spans)
-        if max_length_for_spans == 0:  # to avoid empty tensor
-            max_length_for_spans = 1
+        return collate_train_dataset(batch, pad_token_id=self.pad_token_id)
 
-        padded_input_ids = []
-        padded_input_mask = []
-        padded_segment_ids = []
-        padded_input_ids_for_subwords = []
-        padded_input_mask_for_subwords = []
-        padded_segment_ids_for_subwords = []
-        padded_character_pos_to_subword_pos = []
-        padded_labels_mask = []
-        padded_labels = []
-        padded_spans = []
-        for (
-                input_ids,
-                input_mask,
-                segment_ids,
-                input_ids_for_subwords,
-                input_mask_for_subwords,
-                segment_ids_for_subwords,
-                character_pos_to_subword_pos,
-                labels_mask,
-                labels,
-                spans
-            ) in batch:
-            if len(input_ids) < max_length:
-                pad_length = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=self.pad_token_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
-                padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
-                padded_labels.append(np.pad(labels, pad_width=[0, pad_length], constant_values=0))
-                padded_character_pos_to_subword_pos.append(np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0))
-            else:
-                padded_input_ids.append(input_ids)
-                padded_input_mask.append(input_mask)
-                padded_segment_ids.append(segment_ids)
-                padded_labels_mask.append(labels_mask)
-                padded_labels.append(labels)
-                padded_character_pos_to_subword_pos.append(character_pos_to_subword_pos)
 
-            if len(input_ids_for_subwords) < max_length_for_subwords:
-                pad_length = max_length_for_subwords - len(input_ids_for_subwords)
-                padded_input_ids_for_subwords.append(np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=self.pad_token_id))
-                padded_input_mask_for_subwords.append(np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0))
-                padded_segment_ids_for_subwords.append(np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0))
-            else:
-                padded_input_ids_for_subwords.append(input_ids_for_subwords)
-                padded_input_mask_for_subwords.append(input_mask_for_subwords)
-                padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
+class SpellcheckingAsrCustomizationTestDataset(Dataset):
+    """
+    Dataset for inference pipeline.
 
-            if len(spans) < max_length_for_spans:
-                pad_length = max_length_for_spans - len(spans)
-                padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)    # pad value is [-1, -1, -1]
-                if len(spans) > 0:
-                    padded_spans[-1][:spans.shape[0],:spans.shape[1]] = spans   # copy actual spans to the beginning
-            else:
-                padded_spans.append(spans)
+    Args:
+        sents: list of strings
+        example_builder: instance of BertExampleBuilder
+    """
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
+        }
+
+    def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
+        self.example_builder = example_builder
+        self.examples, self.hyps_refs = self.example_builder.read_input_file(input_file, infer=True)
+        self.pad_token_id = self.example_builder._pad_id
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx: int):
+        example = self.examples[idx]
+        input_ids = np.array(example.features["input_ids"])
+        input_mask = np.array(example.features["input_mask"])
+        segment_ids = np.array(example.features["segment_ids"])
+        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
+        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
+        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
+        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int64)
         return (
-            torch.LongTensor(padded_input_ids),
-            torch.LongTensor(padded_input_mask),
-            torch.LongTensor(padded_segment_ids),
-            torch.LongTensor(padded_input_ids_for_subwords),
-            torch.LongTensor(padded_input_mask_for_subwords),
-            torch.LongTensor(padded_segment_ids_for_subwords),
-            torch.LongTensor(padded_character_pos_to_subword_pos),
-            torch.LongTensor(padded_labels_mask),
-            torch.LongTensor(padded_labels),
-            torch.LongTensor(padded_spans)
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos
         )
+
+    def _collate_fn(self, batch):
+        """collate batch of items
+        Args:
+            batch:  A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos).
+        """
+        return collate_test_dataset(batch, pad_token_id=self.pad_token_id)
