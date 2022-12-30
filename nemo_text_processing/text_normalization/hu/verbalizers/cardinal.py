@@ -31,8 +31,6 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
 
         self.optional_sign = pynini.cross("negative: \"true\"", "mínusz ")
-        if not deterministic:
-            self.optional_sign |= pynini.cross("negative: \"true\"", "negative ")
         self.optional_sign = pynini.closure(self.optional_sign + delete_space, 0, 1)
 
         integer = pynini.closure(NEMO_NOT_QUOTE)
