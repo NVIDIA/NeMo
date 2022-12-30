@@ -22,7 +22,7 @@ import webdataset as wd
 import pickle
 from io import BytesIO
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.bert_example import BertExampleBuilder, read_input_file
+from nemo.collections.nlp.data.spellchecking_asr_customization.bert_example import BertExampleBuilder
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
