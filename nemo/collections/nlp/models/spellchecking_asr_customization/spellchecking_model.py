@@ -276,7 +276,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 - labels
         """
         mode = self.training
-        device = "cuda" if isinstance(self.trainer.device_ids, list) else "cpu"
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
         all_tag_preds = []
         try:
