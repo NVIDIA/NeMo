@@ -494,11 +494,11 @@ class BertExampleBuilder(object):
                     logging.info("{} examples processed.".format(len(examples)))
                 if infer:
                     hyp, ref = line.rstrip('\n').split('\t')
-                    example = self.build_bert_example(hyp, ref, infer)
+                    example = self.build_bert_example(hyp, ref, infer=infer)
                     hyps_refs.append((hyp, ref))
                 else:
                     hyp, ref, target, semiotic_info = line.rstrip('\n').split('\t')
-                    example = self.build_bert_example(hyp, ref, target, semiotic_info, infer)
+                    example = self.build_bert_example(hyp, ref, target=target, span_info=semiotic_info, infer=infer)
                 if example is None:
                     continue
                 examples.append(example)
