@@ -48,11 +48,10 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
 @hydra_runner(config_path="conf", config_name="spellchecking_asr_customization_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
-
-    logging.info('Start creating tarred dataset...')
+    logging.info("Start creating tar file from " + cfg.data.train_ds.data_path + " ...")
     _, model = instantiate_model_and_trainer(cfg, MODEL, True)  # instantiate model like for training because we need its example_builder
     dataset = SpellcheckingAsrCustomizationDataset(input_file=cfg.data.train_ds.data_path, example_builder=model.builder)
-    archive = tarfile.open(cfg.output_tar_file, mode='w')
+    archive = tarfile.open(cfg.output_tar_file, mode="w")
     for i in range(len(dataset)):
         (
             input_ids,
@@ -66,7 +65,8 @@ def main(cfg: DictConfig) -> None:
             labels,
             spans
         ) = dataset[i]
-    
+
+        # do not store masks as they are just arrays of 1    
         content = {
             "input_ids": input_ids,
             "input_mask": input_mask,
@@ -87,7 +87,7 @@ def main(cfg: DictConfig) -> None:
         archive.addfile(tarinfo=tarinfo, fileobj=b)
 
     archive.close()
-    logging.info('Tarred dataset created!')
+    logging.info("Tar file " + cfg.output_tar_file +" created!")
 
 
 if __name__ == '__main__':

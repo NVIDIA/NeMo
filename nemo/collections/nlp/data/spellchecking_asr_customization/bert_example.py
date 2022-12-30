@@ -471,32 +471,38 @@ class BertExampleBuilder(object):
         except KeyError:
             return 0
 
+    def read_input_file(self, input_filename: str, infer: bool = False
+    ) -> Union[List['BertExample'], Tuple[List['BertExample'], Tuple[str, str]]]:
+        """Reads in Tab Separated Value file and converts to training/inference-ready examples.
 
-def read_input_file(
-    example_builder: 'BertExampleBuilder', input_filename: str, infer: bool = False
-) -> List['BertExample']:
-    """Reads in Tab Separated Value file and converts to training/inference-ready examples.
+        Args:
+            example_builder: Instance of BertExampleBuilder
+            input_filename: Path to the TSV input file.
+            infer: Whether test files or not.
 
-    Args:
-        example_builder: Instance of BertExampleBuilder
-        input_filename: Path to the TSV input file.
-        infer: Whether test files or not.
+        Returns:
+            examples: List of converted examples(features and Editing Tasks)
+        """
 
-    Returns:
-        examples: List of converted examples(features and Editing Tasks)
-    """
-
-    if not path.exists(input_filename):
-        raise ValueError("Cannot find file: " + input_filename)
-    examples = []
-    with open(input_filename, 'r') as f:
-        for line in f:
-            if len(examples) % 1000 == 0:
-                logging.info("{} examples processed.".format(len(examples)))
-            hyp, ref, target, semiotic_info = line.rstrip('\n').split('\t')
-            example = example_builder.build_bert_example(hyp, ref, target, semiotic_info, infer)
-            if example is None:
-                continue
-            examples.append(example)
-    logging.info(f"Done. {len(examples)} examples converted.")
-    return examples
+        if not path.exists(input_filename):
+            raise ValueError("Cannot find file: " + input_filename)
+        examples = []
+        hyps_refs = []
+        with open(input_filename, 'r') as f:
+            for line in f:
+                if len(examples) % 1000 == 0:
+                    logging.info("{} examples processed.".format(len(examples)))
+                if infer:
+                    hyp, ref = line.rstrip('\n').split('\t')
+                    example = self.build_bert_example(hyp, ref, infer)
+                    hyps_refs.append((hyp, ref))
+                else:
+                    hyp, ref, target, semiotic_info = line.rstrip('\n').split('\t')
+                    example = self.build_bert_example(hyp, ref, target, semiotic_info, infer)
+                if example is None:
+                    continue
+                examples.append(example)
+        logging.info(f"Done. {len(examples)} examples converted.")
+        if infer:
+            return examples, hyps_refs
+        return examples
