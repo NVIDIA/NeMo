@@ -13,16 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.inverse_text_normalization.vi.graph_utils import GraphFst, delete_space
 from nemo_text_processing.inverse_text_normalization.vi.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class TelephoneFst(GraphFst):
@@ -39,7 +33,7 @@ class TelephoneFst(GraphFst):
         last_digit = digit | pynini.cross("mốt", "1") | pynini.cross("tư", "4") | pynini.cross("lăm", "5")
 
         graph_number_part = pynini.closure(digit + delete_space, 2) + last_digit
-        number_part = pynutil.insert("number_part: \"") + graph_number_part + pynutil.insert("\"")
+        number_part = pynutil.insert('number_part: "') + graph_number_part + pynutil.insert('"')
 
         graph = number_part
         final_graph = self.add_tokens(graph)

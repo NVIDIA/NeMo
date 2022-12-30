@@ -20,12 +20,10 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
-from nemo.collections.tts.data.datalayers import MelAudioDataset
 from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.collections.tts.torch.data import VocoderDataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
@@ -41,7 +39,9 @@ except ModuleNotFoundError:
 
 
 class HifiGanModel(Vocoder, Exportable):
-    """HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram."""
+    """
+    HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -67,11 +67,7 @@ class HifiGanModel(Vocoder, Exportable):
 
         self.input_as_mel = False
         if self._train_dl:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if isinstance(self._train_dl.dataset, MelAudioDataset):
-                self.input_as_mel = True
-            elif isinstance(self._train_dl.dataset, VocoderDataset):
-                self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
+            self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
 
         self.automatic_optimization = False
 
@@ -86,7 +82,8 @@ class HifiGanModel(Vocoder, Exportable):
             drop_last=self._train_dl.drop_last,
         )
 
-    def _get_warmup_steps(self, max_steps, warmup_steps, warmup_ratio):
+    @staticmethod
+    def get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
             raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
@@ -117,7 +114,7 @@ class HifiGanModel(Vocoder, Exportable):
             if max_steps is None or max_steps < 0:
                 max_steps = self._get_max_steps()
 
-            warmup_steps = self._get_warmup_steps(
+            warmup_steps = HifiGanModel.get_warmup_steps(
                 max_steps=max_steps,
                 warmup_steps=sched_config.get("warmup_steps", None),
                 warmup_ratio=sched_config.get("warmup_ratio", None),
@@ -349,7 +346,9 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_hifigan",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English "
+            "voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
@@ -357,7 +356,8 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_hifigan_ft_mixertts",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixertts.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
@@ -365,11 +365,65 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_hifigan_ft_mixerttsx",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixerttsx.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_hifitts_hifigan_ft_fastpitch",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_multispeaker_fastpitchhifigan/versions/1.10.0/files/tts_en_hifitts_hifigan_ft_fastpitch.nemo",
+            description="This model is trained on HiFiTTS audio sampled at 44100Hz and mel spectrograms generated from"
+            " FastPitch. This model has been tested on generating male and female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, single speaker, 22050 Hz, OpenSLR Neutral German Dataset.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_slr_hifigan_ft_fastpitch_singlespeaker",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.10.0/files/tts_de_hifigan.nemo",
+            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_hifigan` "
+            "by the mel-spectrograms generated from the FastPitch checkpoint `tts_de_fastpitch_singlespeaker`. This model "
+            "has been tested on generating male German voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, multi-speaker, 5 speakers, 44100 Hz, HUI-Audio-Corpus-German Clean.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_hui_hifigan_ft_fastpitch_multispeaker_5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitch_multispeaker_5/versions/1.11.0/files/tts_de_hui_hifigan_ft_fastpitch_multispeaker_5.nemo",
+            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_en_hifitts_hifigan_ft_fastpitch` "
+            "by the mel-spectrograms generated from the FastPitch checkpoint `tts_de_fastpitch_multispeaker_5`. This model "
+            "has been tested on generating male and female German voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # Spanish, multi-speaker, 44100 Hz, Latin American Spanish OpenSLR
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_es_hifigan_ft_fastpitch_multispeaker",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_es_multispeaker_fastpitchhifigan/versions/1.14.0/files/tts_es_hifigan_ft_fastpitch_multispeaker.nemo",
+            description="This model is trained on the audio from 6 crowdsourced Latin American Spanish OpenSLR "
+            "datasets and finetuned on the mel-spectrograms generated from the FastPitch checkpoint "
+            "`tts_es_fastpitch_multispeaker`. This model has been tested on generating male and female "
+            "Spanish voices with Latin American accents.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # zh, single female speaker, 22050 Hz, SFSpeech Chinese/English Bilingual Dataset.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_zh_hifigan_sfspeech",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_zh_fastpitch_hifigan_sfspeech/versions/1.14.0/files/tts_zh_hifigan_sfspeech.nemo",
+            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_en_hifitts_hifigan_ft_fastpitch` "
+            "by the mel-spectrograms generated from the FastPitch checkpoint `tts_zh_fastpitch_sfspeech`. This model "
+            "has been tested on generating female Mandarin Chinese voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
         return list_of_models
 
     def load_state_dict(self, state_dict, strict=True):

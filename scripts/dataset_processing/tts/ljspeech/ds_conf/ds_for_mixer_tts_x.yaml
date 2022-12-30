@@ -3,7 +3,7 @@ name: "ds_for_mixer_tts_x"
 manifest_filepath: "train_manifest.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch", "lm_tokens" ]
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
 dataset:
   _target_: nemo.collections.tts.torch.data.MixerTTSXDataset
@@ -38,7 +38,7 @@ dataset:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishCharsTokenizer
     punct: true
     apostrophe: true
     pad_with_space: true

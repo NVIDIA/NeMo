@@ -8,9 +8,9 @@ Introduction
 
 .. _dummy_header:
 
-`NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_ is a toolkit for building new state-of-the-art
+`NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_, part of the NVIDIA AI platform, is a toolkit for building new state-of-the-art
 conversational AI models. NeMo has separate collections for Automatic Speech Recognition (ASR),
-Natural Language Processing (NLP), and Text-to-Speech (TTS) models. Each collection consists of
+Natural Language Processing (NLP), and Text-to-Speech (TTS) synthesis models. Each collection consists of
 prebuilt modules that include everything needed to train on your data.
 Every module can easily be customized, extended, and composed to create new conversational AI
 model architectures.
@@ -137,6 +137,7 @@ Docker containers
 To build a nemo container with Dockerfile from a branch,  please run 
 
 .. code-block:: bash
+
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest.
 
 
@@ -149,8 +150,8 @@ If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTo
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 
-FAQ
----
+`FAQ <https://github.com/NVIDIA/NeMo/discussions>`_
+---------------------------------------------------
 Have a look at our `discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.
 
 

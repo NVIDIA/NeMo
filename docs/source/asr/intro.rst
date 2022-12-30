@@ -28,6 +28,18 @@ we could integrate a language model that would improve our predictions, as well.
 
 And the entire end-to-end ASR model can be trained at once--a much easier pipeline to handle!
 
+A demo below allows evaluation of NeMo ASR models in multiple langauges from the browser:
+
+.. raw:: html
+
+    <iframe src="https://hf.space/embed/smajumdar/nemo_multilingual_language_id/+"
+    width="100%" class="gradio-asr"></iframe>
+
+    <script type="text/javascript" language="javascript">
+        $('.gradio-asr').css('height', $(window).height()+'px');
+    </script>
+
+
 The full documentation tree is as follows:
 
 .. toctree::
@@ -37,23 +49,10 @@ The full documentation tree is as follows:
    datasets
    asr_language_modeling
    results
+   scores
    configs
    api
+   resources
+   examples/kinyarwanda_asr.rst
 
-Resources and Documentation
----------------------------
-
-Hands-on speech recognition tutorial notebooks can be found under `the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/asr/>`_.
-If you are a beginner to NeMo, consider trying out the `ASR with NeMo <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/asr/ASR_with_NeMo.ipynb>`_ tutorial.
-This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
-
-If you are looking for information about a particular ASR model, or would like to find out more about the model
-architectures available in the `nemo_asr` collection, refer to the :doc:`Models <./models>` section.
-
-NeMo includes preprocessing scripts for several common ASR datasets. The :doc:`Datasets <./datasets>` section contains instructions on 
-running those scripts. It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
-
-Information about how to load model checkpoints (either local files or pretrained ones from NGC), as well as a list of the checkpoints 
-available on NGC are located on the :doc:`Checkpoints <./results>` section.
-
-Documentation regarding the configuration files specific to the ``nemo_asr`` models can be found on the :doc:`Configuration Files <./configs>` section.
+.. include:: resources.rst

@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch.utils.data as pt_data
-from torch.utils.data import IterableDataset
+from torch.utils.data import Dataset, IterableDataset
 
-__all__ = ['ConcatDataset']
+__all__ = ['ConcatDataset', 'ConcatMapDataset']
 
 
 class ConcatDataset(IterableDataset):
@@ -176,3 +176,96 @@ class ConcatDataset(IterableDataset):
         while True:
             ind = np.random.choice(np.arange(num), p=p)
             yield ind
+
+
+class ConcatMapDataset(Dataset):
+    """
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    sampling technique.
+    Args:
+        datasets (list): A list of datasets to sample from.
+        sampling_technique (str): Sampling technique to choose which dataset to draw a sample from.
+            Defaults to 'temperature'. Currently supports 'temperature', 'random' and 'round-robin'.
+        sampling_temperature (int): Temperature value for sampling. Only used when sampling_technique = 'temperature'.
+            Defaults to 5.
+        sampling_probabilities (list): Probability values for sampling. Only used when sampling_technique = 'random'.
+        seed: Optional value to seed the numpy RNG.
+    """
+
+    def __init__(
+        self,
+        datasets: List[Any],
+        sampling_technique: str = 'temperature',
+        sampling_temperature: int = 5,
+        sampling_probabilities: Optional[List[float]] = None,
+        seed: Optional[int] = None,
+    ):
+        super().__init__()
+        self.datasets = datasets
+        self.lengths = [len(x) for x in self.datasets]
+        self.sampling_technique = sampling_technique
+        self.sampling_temperature = sampling_temperature
+        self.sampling_probabilities = sampling_probabilities
+        self.np_rng = np.random.RandomState(seed)
+
+        # Build a list of size `len(self)`. Each tuple contains (dataset_id, dataset_index)
+        self.indices: List[Tuple[int, int]] = []
+        # Current position as we consume indices from each data set
+        dataset_positions = [0] * len(self.datasets)
+        # Random permutation of each dataset. Will be regenerated when exhausted.
+        shuffled_indices = [self.np_rng.permutation(len(x)) for x in self.datasets]
+        # Build the list of randomly-chosen datasets spanning the entire length, adhering to sampling technique
+        if self.sampling_technique == "round-robin":
+            # To exhaust longest dataset, need to draw `num_datasets * max_dataset_len` samples
+            total_length = max(self.lengths) * len(self.lengths)
+            # For round robin, iterate through each dataset
+            dataset_ids = np.arange(total_length) % len(self.datasets)
+            for dataset_id in dataset_ids:
+                position = dataset_positions[dataset_id]
+                index = shuffled_indices[dataset_id][position]
+                self.indices.append((dataset_id, index))
+                dataset_positions[dataset_id] += 1
+                if dataset_positions[dataset_id] == len(shuffled_indices[dataset_id]):
+                    dataset_positions[dataset_id] = 0
+                    shuffled_indices[dataset_id] = self.np_rng.permutation(len(self.datasets[dataset_id]))
+        else:
+            # Resolve probabilities of drawing from each data set
+            if self.sampling_technique == "random":
+                if sampling_probabilities is None or len(sampling_probabilities) != len(self.datasets):
+                    raise ValueError(
+                        f"Need {len(self.datasets)} probabilities; got "
+                        f"{len(sampling_probabilities) if sampling_probabilities is not None else 'None'}"
+                    )
+                p = np.array(self.sampling_probabilities)
+            elif self.sampling_technique == "temperature":
+                p = np.array([len(x) for x in self.datasets])
+                p = np.power(p, 1 / self.sampling_temperature)
+            else:
+                raise ValueError(f"Couldn't interpret sampling technique: {sampling_technique}")
+            # Normalize probabilities
+            p = p / np.sum(p)
+            # Will randomly choose from datasets
+            choices = np.arange(len(self.datasets))
+            # Keep going until largest dataset is exhausted.
+            exhausted_datasets = set()
+            while len(exhausted_datasets) < len(self.datasets):
+                # Randomly choose a dataset for each position in accordance with p
+                dataset_id = self.np_rng.choice(a=choices, p=p)
+                dataset = self.datasets[dataset_id]
+                # Pick next index from dataset
+                position = dataset_positions[dataset_id]
+                index = shuffled_indices[dataset_id][position]
+                self.indices.append((dataset_id, index))
+                # Maybe reset this dataset's permutation
+                dataset_positions[dataset_id] += 1
+                if dataset_positions[dataset_id] >= len(dataset):
+                    shuffled_indices[dataset_id] = self.np_rng.permutation(len(dataset))
+                    dataset_positions[dataset_id] = 0
+                    exhausted_datasets.add(dataset_id)
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        dataset_id, dataset_index = self.indices[idx]
+        return self.datasets[dataset_id][dataset_index]

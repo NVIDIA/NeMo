@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_NOT_SPACE,
+    NEMO_SIGMA,
     NEMO_UPPER,
     SINGULAR_TO_PLURAL,
     GraphFst,
@@ -27,14 +28,7 @@ from nemo_text_processing.text_normalization.en.utils import (
     get_abs_path,
     load_labels,
 )
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class WhiteListFst(GraphFst):
@@ -70,8 +64,11 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
-        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
-        graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_symbols.tsv"))
+        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist/tts.tsv"))
+        graph |= pynini.compose(
+            pynini.difference(NEMO_SIGMA, pynini.accep("/")).optimize(),
+            _get_whitelist_graph(input_case, get_abs_path("data/whitelist/symbol.tsv")),
+        ).optimize()
 
         if deterministic:
             names = get_names()
@@ -83,7 +80,7 @@ class WhiteListFst(GraphFst):
             )
         else:
             graph |= _get_whitelist_graph(
-                input_case, get_abs_path("data/whitelist_alternatives.tsv"), keep_punct_add_end=True
+                input_case, get_abs_path("data/whitelist/alternatives.tsv"), keep_punct_add_end=True
             )
 
         for x in [".", ". "]:
@@ -94,10 +91,12 @@ class WhiteListFst(GraphFst):
             )
 
         if not deterministic:
-            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
+            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist/alternatives_all_format.tsv"))
             graph |= multiple_forms_whitelist_graph
 
-            graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+            graph_unit = pynini.string_file(get_abs_path("data/measure/unit.tsv")) | pynini.string_file(
+                get_abs_path("data/measure/unit_alternatives.tsv")
+            )
             graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
             units_graph = pynini.compose(NEMO_CHAR ** (3, ...), convert_space(graph_unit | graph_unit_plural))
             graph |= units_graph
@@ -105,7 +104,7 @@ class WhiteListFst(GraphFst):
         # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
         # e.g. "IN", "OH", "OK"
         # TODO or only exclude above?
-        states = load_labels(get_abs_path("data/address/states.tsv"))
+        states = load_labels(get_abs_path("data/address/state.tsv"))
         additional_options = []
         for x, y in states:
             if input_case == "lower_cased":

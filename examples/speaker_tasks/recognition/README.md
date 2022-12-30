@@ -15,12 +15,12 @@ Documentation section for speaker related tasks can be found at:
 Speaker Recognition models can be trained in a similar way as other models in NeMo using train and dev manifest files. Steps on how to create manifest files for voxceleb are provided below.
 We provide three model configurations based on TitaNet, SpeakerNet and modified ECAPA_TDNN, with pretrained models provided for each of them. 
 
-For training speakernet (x-vector) model:
 For training titanet_large (channel-attention) model:
 ```bash
 python speaker_reco.py --config_path='conf' --config_name='titanet_large.yaml' 
 ```
 
+For training speakernet (x-vector) model:
 ```bash
 python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_verification_3x2x256.yaml' 
 ```
@@ -29,14 +29,14 @@ For training ecapa_tdnn (channel-attention) model:
 ```bash
 python speaker_reco.py --config_path='conf' --config_name='ecapa_tdnn.yaml' 
 ```
-For step by step tutorial see [notebook](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb).
+For step by step tutorial see [notebook](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Identification_Verification.ipynb).
 
 ### Fine Tuning
 For fine tuning on a pretrained .nemo speaker recognition model,
 ```bash
-python speaker_reco_finetune.py --pretrained_model='/path/to/.nemo_or_.ckpt/file' --finetune_config_file='/path/to/finetune/config/yaml/file' 
+python speaker_reco_finetune.py --config_path='conf' --config_name='titanet-finetune.yaml' 
 ```
-for fine tuning tips see this [tutorial](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb)
+for fine tuning tips see this [tutorial](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Identification_Verification.ipynb)
 
 ## Inference
 We provide generic scripts for manifest file creation, embedding extraction, Voxceleb evaluation and speaker ID inference. Hence most of the steps would be common and differ slightly based on your end application. 
@@ -48,8 +48,8 @@ We first generate manifest file to get embeddings. The embeddings are then used 
 
 ```bash
 # create list of files from voxceleb1 test folder (40 speaker test set)
-find <path/to/voxceleb1_test/directory/> -iname '*.wav' > voxceleb1_test_files.scp
-python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb1_test_files.scp --id -3 --out voxceleb1_test_manifest.json 
+find <path/to/voxceleb1_test/directory/> -iname '*.wav' > voxceleb1_test_files.txt
+python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb1_test_files.txt --id -3 --out voxceleb1_test_manifest.json 
 ```
 ### Embedding Extraction 
 Now using the manifest file created, we can extract embeddings to `data` folder using:
@@ -92,14 +92,14 @@ ffmpeg -v 8 -i </path/to/m4a/file> -f wav -acodec pcm_s16le <path/to/wav/file>
 
 Generate a list file that contains paths to all the dev audio files from voxceleb1 and voxceleb2 using find command as shown below:
 ```bash 
-find <path/to/voxceleb1/dev/folder/> -iname '*.wav' > voxceleb1_dev.scp
-find <path/to/voxceleb2/dev/folder/> -iname '*.wav' > voxceleb2_dev.scp
-cat voxceleb1_dev.scp voxceleb2_dev.scp > voxceleb12.scp
+find <path/to/voxceleb1/dev/folder/> -iname '*.wav' > voxceleb1_dev.txt
+find <path/to/voxceleb2/dev/folder/> -iname '*.wav' > voxceleb2_dev.txt
+cat voxceleb1_dev.txt voxceleb2_dev.txt > voxceleb12.txt
 ``` 
 
-This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller chunks for robust training (for testing, we don't need this). 
+This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller segments for robust training (for testing, we don't need this). 
 
 ```bash
-python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb12.scp --id -3 --out voxceleb12_manifest.json --split --create_chunks
+python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb12.txt --id -3 --out voxceleb12_manifest.json --split --create_segments
 ```
 This creates `train.json, dev.json` in the current working directory.

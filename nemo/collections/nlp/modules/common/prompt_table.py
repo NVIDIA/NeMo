@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import math
 
 import torch
@@ -27,7 +28,25 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['PromptTable']
+__all__ = ['PromptTable', 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
+
+
+class VirtualPromptStyle(enum.Enum):
+    P_TUNING = 'p-tuning'
+    PROMPT_TUNING = 'prompt-tuning'
+    INFERENCE = 'inference'
+    NO_PROMPT = 'no-prompts'
+
+
+class VirtualPromptSource(enum.Enum):
+    PROMPT_TABLE = 'prompt_table'
+    PROMPT_ENCODER = 'prompt_encoder'
+    NO_PROMPT = 'no-prompts'
+
+
+class VirtualPromptPlaceholderToken(enum.Enum):
+    BASE = '<prompt_'
+    END = '>'
 
 
 class PromptTable(NeuralModule, Exportable):
@@ -104,6 +123,7 @@ class PromptTable(NeuralModule, Exportable):
         init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
         init_token_ids = init_token_ids_b['text'].long()
 
+        word_embeddings = word_embeddings.to(init_token_ids.device)
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
 
@@ -160,7 +180,7 @@ class PromptEmbedding(NeuralModule, Exportable):
 
         # Set embedding weights to be embeddings from prompt tokens
         if init_from_prompt_text:
-            self.prompt_embeddings.weight = nn.Parameter(word_embedding_weights)
+            self.prompt_embeddings.weight = nn.Parameter(word_embedding_weights.float())
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))

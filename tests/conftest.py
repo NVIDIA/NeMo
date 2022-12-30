@@ -61,6 +61,9 @@ def pytest_addoption(parser):
         default=None,
         help="path to a directory with .far grammars for CPU TN/ITN tests, (DEFAULT: None, i.e. no cache)",
     )
+    parser.addoption(
+        '--run_audio_based', action='store_true', help="pass this argument to run audio-based TN tests",
+    )
 
 
 @pytest.fixture
@@ -153,6 +156,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
+    config.addinivalue_line(
+        "markers", "with_downloads: runs the test using data present in tests/.data",
+    )
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
     test_data_archive = join(dirname(__file__), __TEST_DATA_SUBDIR, __TEST_DATA_FILENAME)
@@ -224,6 +230,7 @@ def pytest_configure(config):
         numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)
 
     # Set cache directory for TN/ITN tests
-    from .nemo_text_processing.utils import set_cache_dir
+    from .nemo_text_processing.utils import set_cache_dir, set_audio_based_tests
 
     set_cache_dir(config.option.tn_cache_dir)
+    set_audio_based_tests(config.option.run_audio_based)

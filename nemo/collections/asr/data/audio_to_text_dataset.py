@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import random
 from typing import Any, List, Optional, Union
@@ -23,6 +24,7 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
+from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.utils import logging
 
 
@@ -39,7 +41,7 @@ def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: D
     """
     if key not in model_cfg:
         logging.info(
-            f"Model level config does not container `{key}`, please explicitly provide `{key}` to the dataloaders."
+            f"Model level config does not contain `{key}`, please explicitly provide `{key}` to the dataloaders."
         )
         return
 
@@ -67,6 +69,45 @@ def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: D
         # If key key doesnt even exist in dataloader_cfg, inject it explicitly
         with open_dict(dataloader_cfg):
             dataloader_cfg[key] = model_cfg[key]
+
+
+def get_concat_char_dataset(
+    config: dict, global_rank: int, world_size: int, augmentor: Optional['AudioAugmentor'] = None
+) -> ConcatDataset:
+    """
+    Instantiates an instance of ConcatDataset containing one or more intances of
+    Character Encoding based AudioToCharDataset.
+
+    Args:
+        config: Config of the AudioToCharDataset.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing one or more instances of AudioToCharDataset.
+    """
+    if 'labels' not in config:
+        logging.warning(f"dataset does not have explicitly defined labels")
+
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+
+        dataset = get_char_dataset(config=conf, augmentor=augmentor)
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
+    )
+    return dataset
 
 
 def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None) -> audio_to_text.AudioToCharDataset:
@@ -98,6 +139,46 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
         return_sample_id=config.get('return_sample_id', False),
+        channel_selector=config.get('channel_selector', None),
+    )
+    return dataset
+
+
+def get_concat_bpe_dataset(
+    config: dict,
+    tokenizer: 'TokenizerSpec',
+    global_rank: int,
+    world_size: int,
+    augmentor: Optional['AudioAugmentor'] = None,
+) -> ConcatDataset:
+    """
+    Instantiates a ContactDataset based on several Byte Pair Encoding / Word Piece Encoding based AudioToBPEDatasets.
+
+    Args:
+        config: Config of the AudioToBPEDataset.
+        tokenizer: An instance of a TokenizerSpec object.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing several instances of AudioToBPEDataset.
+    """
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        dataset = get_bpe_dataset(config=conf, tokenizer=tokenizer, augmentor=augmentor)
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
     )
     return dataset
 
@@ -128,6 +209,58 @@ def get_bpe_dataset(
         trim=config.get('trim_silence', False),
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
+        channel_selector=config.get('channel_selector', None),
+    )
+    return dataset
+
+
+def get_concat_tarred_dataset(
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
+    tokenizer: Optional['TokenizerSpec'] = None,
+    augmentor: Optional['AudioAugmentor'] = None,
+) -> ConcatDataset:
+    """
+    Instantiates a ConcatDataset containing multiple Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToCharDataset.
+
+    Args:
+        config: Config of the TarredAudioToBPEDataset or TarredAudioToCharDataset.
+        shuffle_n: How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+            Passsing None would return a char-based dataset.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing one or more TarredAudioToBPEDatasets or TarredAudioToCharDatasets.
+    """
+
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        dataset = get_tarred_dataset(
+            config=conf,
+            tokenizer=tokenizer,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+            augmentor=augmentor,
+        )
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
     )
     return dataset
 
@@ -162,6 +295,12 @@ def get_tarred_dataset(
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
+    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    if bucketing_weights:
+        for idx, weight in enumerate(bucketing_weights):
+            if not isinstance(weight, int) or weight <= 0:
+                raise ValueError(f"bucket weights must be positive integers")
+
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
             f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
@@ -169,6 +308,9 @@ def get_tarred_dataset(
 
     if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
+
+    if 'max_utts' in config:
+        raise ValueError('"max_utts" parameter is not supported for tarred datasets')
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
@@ -186,7 +328,6 @@ def get_tarred_dataset(
                 shuffle_n=shuffle_n,
                 max_duration=config.get('max_duration', None),
                 min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
                 blank_index=config.get('blank_index', -1),
                 unk_index=config.get('unk_index', -1),
                 normalize=config.get('normalize_transcripts', False),
@@ -208,7 +349,6 @@ def get_tarred_dataset(
                 shuffle_n=shuffle_n,
                 max_duration=config.get('max_duration', None),
                 min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
                 trim=config.get('trim_silence', False),
                 use_start_end_token=config.get('use_start_end_token', True),
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
@@ -216,8 +356,10 @@ def get_tarred_dataset(
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
             )
-
-        datasets.append(dataset)
+        if bucketing_weights:
+            [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
+        else:
+            datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
 
@@ -404,17 +546,31 @@ def get_chain_dataset(datasets, ds_config):
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
     bucketing_batch_size = ds_config['bucketing_batch_size']
+    bucketing_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
+
+    bucketing_batch_sizes = []
+
     if ds_config['batch_size'] != 1:
         raise ValueError(
             f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={ds_config['batch_size']}!"
         )
-    if type(bucketing_batch_size) == int:
-        bucketing_batch_sizes = []
-        for idx in range(datasets_len):
-            scale_factor = datasets_len - idx
-            bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
-    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(bucketing_batch_size, list):
-        bucketing_batch_sizes = bucketing_batch_size
+    if type(bucketing_batch_size) == int:  # linear scaling
+        if bucketing_weights:  # Want same batchsize for the same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
+                scale_factor = datasets_len - idx
+                [bucketing_batch_sizes.append(scale_factor * bucketing_batch_size) for _ in range(weight)]
+        else:
+            for idx in range(datasets_len):
+                scale_factor = datasets_len - idx
+                bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
+    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(
+        bucketing_batch_size, list
+    ):  # assigned bucket sizes
+        if bucketing_weights:  # Want same batchsize for same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
+                [bucketing_batch_sizes.append(bucketing_batch_size[idx]) for _ in range(weight)]
+        else:
+            bucketing_batch_sizes = bucketing_batch_size
     else:
         raise ValueError(
             f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={bucketing_batch_size})!"

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
@@ -21,22 +22,11 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
 )
+from pynini.lib import pynutil
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
-    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
-    ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    graph_teen = None
-    graph_digit = None
-    ties_graph = None
-
-    PYNINI_AVAILABLE = True
+graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
+graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
+ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
 
 
 def _get_month_graph():
@@ -88,6 +78,7 @@ def _get_year_graph():
     def _get_thousands_graph():
         graph_ties = _get_ties_graph()
         graph_hundred_component = (graph_digit + delete_space + pynutil.delete("hundred")) | pynutil.insert("0")
+        optional_end = pynini.closure(pynutil.delete("and "), 0, 1)
         graph = (
             graph_digit
             + delete_space
@@ -95,7 +86,7 @@ def _get_year_graph():
             + delete_space
             + graph_hundred_component
             + delete_space
-            + (graph_teen | graph_ties)
+            + (graph_teen | graph_ties | (optional_end + pynutil.insert("0") + graph_digit))
         )
         return graph
 

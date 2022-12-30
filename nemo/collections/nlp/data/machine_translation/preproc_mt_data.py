@@ -60,8 +60,8 @@ class MTDataPreproc:
         self.global_rank = 0
         self.world_size = 1
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.global_rank = (trainer.node_rank * trainer.num_devices) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         if hasattr(cfg, 'train_ds'):
             supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
@@ -178,6 +178,8 @@ class MTDataPreproc:
                 decoder_tokenizer_model=getattr(self, "decoder_tokenizer_model", None),
                 decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
                 decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
+                encoder_tokenizer_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
+                decoder_tokenizer_legacy=cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
             )
 
             # If using tarred dataset for training, automatically create it if needed
@@ -228,11 +230,13 @@ class MTDataPreproc:
                             encoder_tokenizer_model=getattr(self, "encoder_tokenizer_model", None),
                             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
                             encoder_tokenizer_r2l=cfg.encoder_tokenizer.get('r2l', False),
+                            encoder_tokenizer_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
                             decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                             decoder_model_name=cfg.decoder.get('model_name'),
                             decoder_tokenizer_model=getattr(self, "decoder_tokenizer_model", None),
                             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
                             decoder_tokenizer_r2l=cfg.decoder_tokenizer.get('r2l', False),
+                            decoder_tokenizer_legacy=cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
                             max_seq_length=cfg.train_ds.get('max_seq_length', 512),
                             tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
                             lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
@@ -305,6 +309,8 @@ class MTDataPreproc:
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
         decoder_r2l=False,
+        encoder_tokenizer_legacy=False,
+        decoder_tokenizer_legacy=False,
     ):
 
         # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
@@ -322,6 +328,7 @@ class MTDataPreproc:
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
             r2l=encoder_r2l,
+            legacy=encoder_tokenizer_legacy,
         )
         decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_name,
@@ -329,6 +336,7 @@ class MTDataPreproc:
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
             r2l=decoder_r2l,
+            legacy=decoder_tokenizer_legacy,
         )
 
         return encoder_tokenizer, decoder_tokenizer
@@ -379,6 +387,8 @@ class MTDataPreproc:
         world_size,
         n_jobs=-2,
         tar_file_prefix='parallel',
+        encoder_tokenizer_legacy=False,
+        decoder_tokenizer_legacy=False,
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -445,6 +455,8 @@ class MTDataPreproc:
                         fragment_index=fragment_index,
                         encoder_tokenizer_r2l=encoder_tokenizer_r2l,
                         decoder_tokenizer_r2l=decoder_tokenizer_r2l,
+                        encoder_tokenizer_legacy=encoder_tokenizer_legacy,
+                        decoder_tokenizer_legacy=decoder_tokenizer_legacy,
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -560,6 +572,8 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
+        encoder_tokenizer_legacy,
+        decoder_tokenizer_legacy,
     ):
         start = lines_indices[0]
         stop = lines_indices[1]
@@ -598,6 +612,8 @@ class MTDataPreproc:
             decoder_model_name=decoder_model_name,
             decoder_tokenizer_r2l=decoder_tokenizer_r2l,
             fragment_index=fragment_index,
+            encoder_tokenizer_legacy=encoder_tokenizer_legacy,
+            decoder_tokenizer_legacy=decoder_tokenizer_legacy,
         )
 
         os.remove(tmp_f_src.name)
@@ -747,6 +763,9 @@ class MTDataPreproc:
         encoder_special_tokens=None,
         decoder_special_tokens=None,
         spt_symbols=None,
+        byte_fallback=False,
+        split_digits=False,
+        split_by_whitespace=True,
     ):
         """Trains a tokenizer with requested parameters, returns None if the tokenizer is not trainable"""
 
@@ -805,6 +824,9 @@ class MTDataPreproc:
                                     pad=True,
                                     control_symbols=spt_symbols,
                                     user_defined_symbols=encoder_special_tokens,
+                                    byte_fallback=byte_fallback,
+                                    split_digits=split_digits,
+                                    split_by_whitespace=split_by_whitespace,
                                 )
                                 os.rename(
                                     os.path.join(out_dir, 'tokenizer.model'),
@@ -847,6 +869,9 @@ class MTDataPreproc:
                                 pad=True,
                                 control_symbols=spt_symbols,
                                 user_defined_symbols=encoder_special_tokens,
+                                byte_fallback=byte_fallback,
+                                split_digits=split_digits,
+                                split_by_whitespace=split_by_whitespace,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(encoder_tokenizer_model))
 
@@ -886,6 +911,9 @@ class MTDataPreproc:
                                 pad=True,
                                 control_symbols=spt_symbols,
                                 user_defined_symbols=decoder_special_tokens,
+                                byte_fallback=byte_fallback,
+                                split_digits=split_digits,
+                                split_by_whitespace=split_by_whitespace,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(decoder_tokenizer_model))
 
@@ -912,6 +940,8 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
+        encoder_tokenizer_legacy=False,
+        decoder_tokenizer_legacy=False,
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -944,7 +974,54 @@ class MTDataPreproc:
             decoder_bpe_dropout=decoder_bpe_dropout,
             decoder_model_name=decoder_model_name,
             decoder_r2l=decoder_tokenizer_r2l,
+            encoder_tokenizer_legacy=encoder_tokenizer_legacy,
+            decoder_tokenizer_legacy=decoder_tokenizer_legacy,
         )
+
+        # validate no token is negative for sentencepiece tokenizers and add missing special tokens.
+        for tok_name, tok_library, tok_model, legacy in [
+            ("encoder_tokenizer", encoder_tokenizer_name, encoder_tokenizer, encoder_tokenizer_legacy),
+            ("decoder_tokenizer", decoder_tokenizer_name, decoder_tokenizer, decoder_tokenizer_legacy),
+        ]:
+            if tok_library == 'sentencepiece':
+                negative_tokens = []
+                for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+                    v = getattr(tok_model.tokenizer, n)()
+                    if v < 0:
+                        negative_tokens.append(f"{n}={v}")
+                if negative_tokens and not legacy:
+                    raise ValueError(
+                        f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
+                    )
+                # If using the legacy sentencepiece tokenizer, we can add the missing tokens as "special" tokens.
+                else:
+                    # If using sentencepiece legacy, eos, bos and pad need to be set/added differently.
+                    if legacy:
+                        # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
+                        if not hasattr(tok_model, 'pad_token'):
+                            if hasattr(tok_model.tokenizer, 'pad_id') and tok_model.tokenizer.pad_id() > 0:
+                                tok_model.pad_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.pad_id())
+                            else:
+                                tok_model.add_special_tokens({'pad_token': '<pad>'})
+                        else:
+                            tok_model.add_special_tokens({'pad_token': '<pad>'})
+
+                        if not hasattr(tok_model, 'bos_token'):
+                            if hasattr(tok_model.tokenizer, 'bos_id') and tok_model.tokenizer.bos_id() > 0:
+                                tok_model.bos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.bos_id())
+                            else:
+                                tok_model.add_special_tokens({'bos_token': '<bos>'})
+                        else:
+                            tok_model.add_special_tokens({'bos_token': '<s>'})
+
+                        if not hasattr(tok_model, 'eos_token'):
+                            if hasattr(tok_model.tokenizer, 'eos_id') and tok_model.tokenizer.eos_id() > 0:
+                                tok_model.eos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.eos_id())
+                            else:
+                                tok_model.add_special_tokens({'eos_token': '<eos>'})
+                        else:
+                            tok_model.add_special_tokens({'eos_token': '</s>'})
+
         dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 
         tar_file_ctr = 0

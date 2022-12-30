@@ -29,11 +29,12 @@
 
 import operator
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
@@ -47,7 +48,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba, MultiblankRNNTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -86,6 +87,27 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
+    ),
+    "pytorch": RNNTLossConfig(
+        loss_name="pytorch",
+        lib_name="torch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
+    ),
+    "multiblank_rnnt": RNNTLossConfig(
+        loss_name="multiblank_rnnt",
+        lib_name="numba",
+        min_version='0.53.0',
+        is_available=NUMBA_RNNT_AVAILABLE,
+        installation_msg=NUMBA_INSTALLATION_MESSAGE,
+    ),
+    "multiblank_rnnt_pytorch": RNNTLossConfig(
+        loss_name="pytorch",
+        lib_name="torch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -165,6 +187,33 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
+    elif loss_name == 'pytorch':
+        loss_func = RNNTLossPytorch(blank=blank_idx, reduction='none')
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    elif loss_name == 'multiblank_rnnt':
+        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
+        clamp = loss_kwargs.pop('clamp', -1.0)
+        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        loss_func = MultiblankRNNTLossNumba(
+            blank=blank_idx,
+            big_blank_durations=big_blank_durations,
+            reduction='none',
+            fastemit_lambda=fastemit_lambda,
+            clamp=clamp,
+            sigma=sigma,
+        )
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    elif loss_name == 'multiblank_rnnt_pytorch':
+        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        loss_func = MultiblankRNNTLossPytorch(
+            blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', sigma=sigma
+        )
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
     else:
         raise ValueError(
             f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
@@ -232,8 +281,12 @@ class RNNTLoss(Loss):
             num_classes: Number of target classes for the joint network to predict.
                 (Excluding the RNN-T blank token).
 
-            reduction: Type of reduction to perform on loss. Possibly values are `mean`, `sum` or None.
-                None will return a torch vector comprising the individual loss values of the batch.
+            reduction: Type of reduction to perform on loss. Possible values are 
+                `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
+                `None` will return a torch vector comprising the individual loss values of the batch.
+                `mean_batch` will average the losses in the batch
+                `mean` will divide each loss by the target length and then average
+                `mean_volume` will add up all the losses and divide by sum of target lengths
 
             loss_name: String that is resolved into an RNNT loss function. Available list of losses
                 is ininitialized in `RNNT_LOSS_RESOLVER` dictionary.
@@ -243,12 +296,29 @@ class RNNTLoss(Loss):
         """
         super(RNNTLoss, self).__init__()
 
-        if reduction not in [None, 'mean', 'sum', 'mean_batch']:
-            raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
+        if reduction not in [None, 'mean', 'sum', 'mean_batch', 'mean_volume']:
+            raise ValueError('`reduction` must be one of [mean, sum, mean_batch, mean_volume]')
 
         self._blank = num_classes
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
+
+    def reduce(self, losses, target_lengths):
+
+        if isinstance(losses, List):
+            losses = torch.cat(losses, 0)
+            target_lengths = torch.cat(target_lengths, 0)
+
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, target_lengths).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
+
+        return losses
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -278,22 +348,21 @@ class RNNTLoss(Loss):
         # Reduce transcript length to correct alignment if additional padding was applied.
         # Transcript: [B, L] -> [B, L']; If L' < L
         if targets.shape[1] != max_targets_len:
-            targets = targets.narrow(dim=1, start=0, length=max_targets_len)
+            targets = targets.narrow(dim=1, start=0, length=max_targets_len).contiguous()
 
-        # Loss reduction can be dynamic, so set it prior to call
-        if self.reduction != 'mean_batch':
-            self._loss.reduction = self.reduction
+        # Temporarily override loss reduction
+        loss_reduction = self._loss.reduction
+        self._loss.reduction = None
 
         # Compute RNNT loss
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
         # Loss reduction can be dynamic, so reset it after call
-        if self.reduction != 'mean_batch':
-            self._loss.reduction = 'none'
+        self._loss.reduction = loss_reduction
 
-        # Loss reduction only for mean_batch mode
-        if self.reduction == 'mean_batch':
-            loss = torch.mean(loss)
+        # reduce here using our own reduction function
+        if self.reduction is not None:
+            loss = self.reduce(loss, target_lengths)
 
         # del new variables that may have been created
         del (
