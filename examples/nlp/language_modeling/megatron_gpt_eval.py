@@ -13,21 +13,20 @@
 # limitations under the License.
 
 import os
+import threading
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -46,7 +45,7 @@ Usage:
     Assume the model has TP=1, PP=1 in the following use cases.
     a. run greedy inference from a nemo file:
         python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.greedy=True \
             inference.add_BOS=True \
             trainer.devices=1 \
@@ -70,7 +69,7 @@ Usage:
 
     c. run top_p inference from a nemo file:
         python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.greedy=False \
             inference.top_k=0 \
             inference.top_p=0.9 \
@@ -84,7 +83,7 @@ Usage:
 
     d. If you don't need to generate tokens and need model to compute logprobs:
          python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.compute_logprob=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
@@ -94,7 +93,7 @@ Usage:
 
     e. Launch the inference server
          python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
@@ -134,46 +133,6 @@ Usage:
 
         sentences = request_data(data)
         ```
-
-    f. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
-        python megatron_gpt_eval.py \
-            virtual_prompt_model=True \
-            model_file=PATH_TO_MODEL \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
-
-        prompts in this case should be a list of dictionary examples similar to the ones used during prompt learning. They 
-        should have keys that match the fields specified in the prompt template. Fields can be dropped from the prompt dict 
-        and their corresponding section of the prompt template will be automatically removed. 
-
-        For example, say the prompt template during p-tuning/prompt-tuning looked like:
-
-        '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
-
-        but you don't want to include the answer field during inference. Just don't 
-        include the answer field in the prompt dict like below:
-
-        prompts=[
-                    {"taskname": "squad", "context": "some paragraph", "question": "question related to paragraph"},
-                    {"taskname": "squad", "context": "another paragraph", "question": "a different question related to paragraph"},
-                ]
-
-        And the dataset class will automatically format your input to have the form:
-
-        [
-            '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer: ',
-            '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
-        ]
-
-        Instead of prompt dicts, you can also pass in a list of string paths to .json files on which you want to run inference.
-
-        Similarly for all other senarios, just add virtual_prompt_model=True if you're using a 
-        p-tuned/prompt-tuned model. 
 """
 
 if not torch.cuda.is_available():
@@ -196,33 +155,53 @@ class RequestDataSet(Dataset):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    # Load prompt tuned model, model_file must be provided in config
-    if cfg.get('virtual_prompt_model', False):
-        model = MegatronGPTPromptLearningModel.restore_from(cfg.model_file, trainer=trainer)
+    if cfg.gpt_model_file:
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
 
-    # Or load regular GPT model
-    elif cfg.model_file:
-        model = MegatronGPTModel.restore_from(restore_path=cfg.model_file, trainer=trainer)
+        pretrained_cfg = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
+        )
+        OmegaConf.set_struct(pretrained_cfg, True)
+        with open_dict(pretrained_cfg):
+            pretrained_cfg.sequence_parallel = False
+            pretrained_cfg.activations_checkpoint_granularity = None
+            pretrained_cfg.activations_checkpoint_method = None
+        model = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            override_config_path=pretrained_cfg,
+            save_restore_connector=save_restore_connector,
+        )
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
             app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
                 app_state.model_parallel_size,
-                _,
+                app_state.data_parallel_size,
+                app_state.pipeline_model_parallel_split_rank,
+                app_state.virtual_pipeline_model_parallel_rank,
             ) = fake_initialize_model_parallel(
                 world_size=app_state.model_parallel_size,
                 rank=trainer.global_rank,
                 tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
+                pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
             )
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
@@ -231,7 +210,7 @@ def main(cfg) -> None:
 
     model.freeze()
 
-    # Has to turn off activations_checkpoint_method for inference
+    # Have to turn off activations_checkpoint_method for inference
     try:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
@@ -263,13 +242,8 @@ def main(cfg) -> None:
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
-    collate_fn = None
-    if cfg.get('virtual_prompt_model', False):
-        collate_fn = lambda x: list(x)
-
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
-
+    request_dl = DataLoader(dataset=ds, batch_size=2)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
@@ -281,6 +255,9 @@ def main(cfg) -> None:
     # Third method of running text generation, use inference server
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+            if cfg.web_server:
+                thread = threading.Thread(target=get_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password))
+                thread.start()
             server = MegatronServer(model.cuda())
             server.run("0.0.0.0", port=cfg.port)
 

@@ -23,20 +23,24 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import hydra
+import torch
 import wrapt
+from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
+from huggingface_hub.hf_api import ModelInfo
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
+from nemo.utils.data_utils import resolve_cache_dir
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
-__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
+__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck', 'PretrainedModelInfo']
 
 _TYPECHECK_ENABLED = True
 # TODO @blisc: Remove _HAS_HYDRA
@@ -155,6 +159,7 @@ class Typing(ABC):
     def _validate_input_types(self, input_types=None, ignore_collections=False, **kwargs):
         """
         This function does a few things.
+
         1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
         2) For each (keyword name, keyword value) passed as input to the wrapped function:
             - Check if the keyword name exists in the list of valid self.input_types names.
@@ -238,14 +243,15 @@ class Typing(ABC):
     def _attach_and_validate_output_types(self, out_objects, ignore_collections=False, output_types=None):
         """
         This function does a few things.
+
         1) It ensures that len(out_object) == len(self.output_types).
         2) If the output is a tensor (or list/tuple of list/tuple ... of tensors), it
             attaches a neural_type to it. For objects without the neural_type attribute,
             such as python objects (dictionaries and lists, primitive data types, structs),
             no neural_type is attached.
 
-            Note: tensor.neural_type is only checked during _validate_input_types which is
-            called prior to forward().
+        Note: tensor.neural_type is only checked during _validate_input_types which is
+        called prior to forward().
 
         Args:
             output_types: Either the `output_types` defined at class level, or the local function
@@ -282,7 +288,8 @@ class Typing(ABC):
 
             elif len(out_container) > len(out_types_list) or len(out_container) < len(mandatory_out_types_list):
                 raise TypeError(
-                    "Number of output arguments provided ({}) is not as expected. It should be larger than {} and less than {}.\n"
+                    "Number of output arguments provided ({}) is not as expected. "
+                    "It should be larger or equal than {} and less or equal than {}.\n"
                     "This can be either because insufficient/extra number of output NeuralTypes were provided,"
                     "or the provided NeuralTypes {} should enable container support "
                     "(add '[]' to the NeuralType definition)".format(
@@ -345,7 +352,17 @@ class Typing(ABC):
                 for ind, res in enumerate(out_objects):
                     self.__attach_neural_type(res, metadata, depth=0, name=out_types_list[ind][0])
 
-    def __check_neural_type(self, obj, metadata, depth, name=None):
+    def __check_neural_type(self, obj, metadata: TypecheckMetadata, depth: int, name: str = None):
+        """
+        Recursively tests whether the obj satisfies the semantic neural type assertion.
+        Can include shape checks if shape information is provided.
+
+        Args:
+            obj: Any python object that can be assigned a value.
+            metadata: TypecheckMetadata object.
+            depth: Current depth of recursion.
+            name: Optional name used of the source obj, used when an error occurs.
+        """
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
                 self.__check_neural_type(elem, metadata, depth + 1, name=name)
@@ -384,7 +401,16 @@ class Typing(ABC):
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, metadata, depth, name=None):
+    def __attach_neural_type(self, obj, metadata: TypecheckMetadata, depth: int, name: str = None):
+        """
+        Recursively attach neural types to a given object - as long as it can be assigned some value.
+
+        Args:
+            obj: Any python object that can be assigned a value.
+            metadata: TypecheckMetadata object.
+            depth: Current depth of recursion.
+            name: Optional name used of the source obj, used when an error occurs.
+        """
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
                 self.__attach_neural_type(elem, metadata, depth=depth + 1, name=name)
@@ -517,7 +543,13 @@ class Serialization(ABC):
 
 class FileIO(ABC):
     def save_to(self, save_path: str):
-        """Saves module/model with weights"""
+        """
+        Standardized method to save a tarfile containing the checkpoint, config, and any additional artifacts.
+        Implemented via :meth:`nemo.core.connectors.save_restore_connector.SaveRestoreConnector.save_to`.
+
+        Args:
+            save_path: str, path to where the file should be saved.
+        """
         raise NotImplementedError()
 
     @classmethod
@@ -530,9 +562,23 @@ class FileIO(ABC):
         return_config: bool = False,
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
-        megatron_legacy: Optional[bool] = False,
     ):
-        """Restores module/model with weights"""
+        """
+        Restores model instance (weights and configuration) from a .nemo file
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: An optional Trainer object, passed to the model constructor.
+            save_restore_connector: An optional SaveRestoreConnector object that defines the implementation
+                of the restore_from() method.
+        """
         raise NotImplementedError()
 
     @classmethod
@@ -613,16 +659,115 @@ class Model(Typing, Serialization, FileIO):
 
     @classmethod
     @abstractmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud.
-        Note: There is no check that requires model names and aliases to be unique. In the case of a collIsion, whatever
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collision, whatever
         model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
             A list of PretrainedModelInfo entries
         """
         pass
+
+    @classmethod
+    def search_huggingface_models(
+        cls, model_filter: Optional[Union[ModelFilter, List[ModelFilter]]] = None
+    ) -> List[ModelInfo]:
+        """
+        Should list all pre-trained models available via Hugging Face Hub.
+
+        The following metadata can be passed via the `model_filter` for additional results.
+        Metadata:
+            resolve_card_info: Bool flag, if set, returns the model card metadata. Default: False.
+            limit_results: Optional int, limits the number of results returned.
+
+        .. code-block:: python
+
+            # You can replace <DomainSubclass> with any subclass of ModelPT.
+            from nemo.core import ModelPT
+
+            # Get default ModelFilter
+            filt = <DomainSubclass>.get_hf_model_filter()
+
+            # Make any modifications to the filter as necessary
+            filt.language = [...]
+            filt.task = ...
+            filt.tags = [...]
+
+            # Add any metadata to the filter as needed
+            filt.limit_results = 5
+
+            # Obtain model info
+            model_infos = <DomainSubclass>.search_huggingface_models(model_filter=filt)
+
+            # Browse through cards and select an appropriate one
+            card = model_infos[0]
+
+            # Restore model using `modelId` of the card.
+            model = ModelPT.from_pretrained(card.modelId)
+
+        Args:
+            model_filter: Optional ModelFilter or List[ModelFilter] (from Hugging Face Hub)
+                that filters the returned list of compatible model cards, and selects all results from each filter.
+                Users can then use `model_card.modelId` in `from_pretrained()` to restore a NeMo Model.
+                If no ModelFilter is provided, uses the classes default filter as defined by `get_hf_model_filter()`.
+
+        Returns:
+            A list of ModelInfo entries.
+        """
+        # Resolve model filter if not provided as argument
+        if model_filter is None:
+            model_filter = cls.get_hf_model_filter()
+
+        # If single model filter, wrap into list
+        if not isinstance(model_filter, Iterable):
+            model_filter = [model_filter]
+
+        # Inject `nemo` library filter
+        for mfilter in model_filter:
+            if isinstance(mfilter.library, str) and mfilter.library != 'nemo':
+                logging.warning(f"Model filter's `library` tag updated be `nemo`. Original value: {mfilter.library}")
+                mfilter.library = "nemo"
+
+            elif isinstance(mfilter, Iterable) and 'nemo' not in mfilter.library:
+                logging.warning(
+                    f"Model filter's `library` list updated to include `nemo`. Original value: {mfilter.library}"
+                )
+                mfilter.library = list(mfilter)
+                mfilter.library.append('nemo')
+
+        # Check if api token exists, use if it does
+        is_token_available = HfFolder.get_token() is not None
+
+        # Search for all valid models after filtering
+        api = HfApi()
+
+        # Setup extra arguments for model filtering
+        all_results = []  # type: List[ModelInfo]
+
+        for mfilter in model_filter:
+            cardData = None
+            limit = None
+
+            if hasattr(mfilter, 'resolve_card_info') and mfilter.resolve_card_info is True:
+                cardData = True
+
+            if hasattr(mfilter, 'limit_results') and mfilter.limit_results is not None:
+                limit = mfilter.limit_results
+
+            results = api.list_models(
+                filter=mfilter,
+                use_auth_token=is_token_available,
+                sort="lastModified",
+                direction=-1,
+                cardData=cardData,
+                limit=limit,
+            )  # type: List[ModelInfo]
+
+            all_results.extend(results)
+
+        return all_results
 
     @classmethod
     def get_available_model_names(cls) -> List[str]:
@@ -636,6 +781,28 @@ class Model(Typing, Serialization, FileIO):
         if cls.list_available_models() is not None:
             model_names = [model.pretrained_model_name for model in cls.list_available_models()]
         return model_names
+
+    @classmethod
+    def get_hf_model_filter(cls) -> ModelFilter:
+        """
+        Generates a filter for HuggingFace models.
+
+        Additionally includes default values of some metadata about results returned by the Hub.
+
+        Metadata:
+            resolve_card_info: Bool flag, if set, returns the model card metadata. Default: False.
+            limit_results: Optional int, limits the number of results returned.
+
+        Returns:
+            A Hugging Face Hub ModelFilter object.
+        """
+        model_filter = ModelFilter(library='nemo')
+
+        # Attach some additional info
+        model_filter.resolve_card_info = False
+        model_filter.limit_results = None
+
+        return model_filter
 
     @classmethod
     def from_pretrained(
@@ -670,8 +837,48 @@ class Model(Typing, Serialization, FileIO):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
+        # Resolve if the pretrained model name is from NGC or other sources
+        # HF Hub source
+        if '/' in model_name:
+            class_, nemo_model_file_in_cache = cls._get_hf_hub_pretrained_model_info(
+                model_name=model_name, refresh_cache=refresh_cache
+            )
+        else:
+            # NGC source
+            class_, nemo_model_file_in_cache = cls._get_ngc_pretrained_model_info(
+                model_name=model_name, refresh_cache=refresh_cache
+            )
+
+        instance = class_.restore_from(
+            restore_path=nemo_model_file_in_cache,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+            return_config=return_config,
+            trainer=trainer,
+            save_restore_connector=save_restore_connector,
+        )
+        return instance
+
+    @classmethod
+    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
+        """
+        Resolve the NGC model pretrained information given a model name.
+        Assumes the model subclass implements the `list_available_models()` inherited method.
+
+        Args:
+            model_name: Str name of the model. Must be the original name or an alias of the model, without any '/'.
+            refresh_cache: Bool, determines whether cache must be refreshed (model is re-downloaded).
+
+        Returns:
+            A tuple of details describing :
+            -   The resolved class of the model. This requires subclass to implement PretrainedModelInfo.class_.
+                If the class cannot be resolved, default to the class that called this method.
+            -   The path to the NeMo model (.nemo file) in some cached directory.
+        """
         location_in_the_cloud = None
         description = None
+        class_ = None
         models = cls.list_available_models()
         if models is not None:
             for pretrained_model_info in cls.list_available_models():
@@ -695,29 +902,101 @@ class Model(Typing, Serialization, FileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(model_utils.resolve_cache_dir(), f'{filename[:-5]}')
+        cache_dir = Path.joinpath(resolve_cache_dir(), f'{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
         cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
         nemo_model_file_in_cache = maybe_download_from_cloud(
             url=url, filename=filename, cache_dir=cache_dir, subfolder=cache_subfolder, refresh_cache=refresh_cache
         )
+
         logging.info("Instantiating model from pre-trained checkpoint")
+
         if class_ is None:
             class_ = cls
-        instance = class_.restore_from(
-            restore_path=nemo_model_file_in_cache,
-            override_config_path=override_config_path,
-            map_location=map_location,
-            strict=strict,
-            return_config=return_config,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
+
+        return class_, nemo_model_file_in_cache
+
+    @classmethod
+    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
+        """
+        Resolve the HuggingFace Hub model pretrained information given a model name.
+        The model name must be of general syntax ``{source_repo}/{model_name}``.
+
+        Note:
+            The ``{source_repo}`` need not be ``nvidia``, it can be any public repository, even external to Nvidia.
+            This allows public, externally contributed models to be run freely using Nvidia NeMo.
+
+        Args:
+            model_name: Str name of the model. Must be the original name or an alias of the model, without any '/'.
+            refresh_cache: Bool, determines whether cache must be refreshed (model is re-downloaded).
+
+        Returns:
+            A tuple of details describing :
+            -   The resolved class of the model. Since the source is external to NeMo, always default to using
+                the calling class. Depend on target class resolution by restore_from() for calling the correct class.
+            -   The path to the NeMo model (.nemo file) in some cached directory (managed by HF Hub).
+        """
+        # Resolve the model name without origin for filename
+        resolved_model_filename = model_name.split("/")[-1] + '.nemo'
+
+        # Check if api token exists, use if it does
+        is_token_available = HfFolder.get_token() is not None
+
+        # Try to load the model from the Huggingface Hub
+        path = hf_hub_download(
+            repo_id=model_name,
+            filename=resolved_model_filename,
+            library_name="nemo",
+            library_version=nemo.__version__,
+            force_download=refresh_cache,
+            use_auth_token=is_token_available,
         )
-        return instance
+
+        # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
+        # Default to current class, and perform basic class path resolution (handled via restore_from() + target class)
+        class_ = cls
+
+        return class_, path
 
 
 class typecheck:
+    """
+    A decorator which performs input-output neural type checks, and attaches
+    neural types to the output of the function that it wraps.
+
+    Requires that the class inherit from :class:`~nemo.core.Typing` in order to perform
+    type checking, and will raise an error if that is not the case.
+
+    # Usage (Class level type support)
+
+    .. code-block:: python
+
+        @typecheck()
+        def fn(self, arg1, arg2, ...):
+            ...
+
+    # Usage (Function level type support)
+
+    .. code-block:: python
+
+        @typecheck(input_types=..., output_types=...)
+        def fn(self, arg1, arg2, ...):
+            ...
+
+    Points to be noted:
+
+    1) The brackets () in `@typecheck()` are necessary.
+
+        You will encounter a TypeError: __init__() takes 1 positional argument but X
+        were given without those brackets.
+
+    2) The function can take any number of positional arguments during definition.
+
+        When you call this function, all arguments must be passed using kwargs only.
+
+    """
+
     class TypeState(Enum):
         """
         Placeholder to denote the default value of type information provided.
@@ -733,34 +1012,6 @@ class typecheck:
         output_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
         ignore_collections: bool = False,
     ):
-        """
-        A decorator which performs input-output neural type checks, and attaches
-        neural types to the output of the function that it wraps.
-
-        Requires that the class inherit from `nemo.core.Typing` in order to perform
-        type checking, and will raise an error if that is not the case.
-
-        # Usage (Class level type support)
-        @typecheck()
-        def fn(self, arg1, arg2, ...):
-            ...
-
-        # Usage (Function level type support)
-        @typecheck(input_types=..., output_types=...)
-        def fn(self, arg1, arg2, ...):
-            ...
-
-        Points to be noted:
-        1) The brackets () in `@typecheck()` are necessary.
-
-            You will encounter a TypeError: __init__() takes 1 positional argument but X
-            were given without those brackets.
-
-        2) The function can take any number of positional arguments during definition.
-
-            When you call this function, all arguments must be passed using kwargs only.
-
-        """
         self.input_types = input_types
         self.output_types = output_types
 
@@ -778,6 +1029,19 @@ class typecheck:
 
     @wrapt.decorator(enabled=is_typecheck_enabled)
     def __call__(self, wrapped, instance: Typing, args, kwargs):
+        """
+        Wrapper method that can be used on any function of a class that implements :class:`~nemo.core.Typing`.
+        By default, it will utilize the `input_types` and `output_types` properties of the class inheriting Typing.
+
+        Local function level overrides can be provided by supplying dictionaries as arguments to the decorator.
+
+        Args:
+            input_types: Union[TypeState, Dict[str, NeuralType]]. By default, uses the global `input_types`.
+            output_types: Union[TypeState, Dict[str, NeuralType]]. By default, uses the global `output_types`.
+            ignore_collections: Bool. Determines if container types should be asserted for depth checks, or
+                if depth checks are skipped entirely.
+
+        """
         if instance is None:
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
 
@@ -830,12 +1094,21 @@ class typecheck:
 
     @staticmethod
     def set_typecheck_enabled(enabled: bool = True):
+        """
+        Global method to enable/disable typechecking.
+
+        Args:
+            enabled: bool, when True will enable typechecking.
+        """
         global _TYPECHECK_ENABLED
         _TYPECHECK_ENABLED = enabled
 
     @staticmethod
     @contextmanager
     def disable_checks():
+        """
+        Context manager that temporarily disables type checking within its context.
+        """
         typecheck.set_typecheck_enabled(enabled=False)
         try:
             yield

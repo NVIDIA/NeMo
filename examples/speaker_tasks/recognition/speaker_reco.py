@@ -15,6 +15,7 @@
 import os
 
 import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
@@ -36,7 +37,7 @@ python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognit
     exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
     exp_manager.exp_dir='./speaker_exps'
 
-See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb for notebook tutorial
+See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Identification_Verification.ipynb for notebook tutorial
 
 Optional: Use tarred dataset to speech up data loading.
    Prepare ONE manifest that contains all training data you would like to include. Validation should use non-tarred dataset.
@@ -62,10 +63,12 @@ def main(cfg):
         model_path = os.path.join(log_dir, '..', 'spkr.nemo')
         speaker_model.save_to(model_path)
 
+    torch.distributed.destroy_process_group()
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator)
-        if speaker_model.prepare_test(trainer):
-            trainer.test(speaker_model)
+        if trainer.is_global_zero:
+            trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, strategy=cfg.trainer.strategy)
+            if speaker_model.prepare_test(trainer):
+                trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

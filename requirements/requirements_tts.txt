@@ -1,2 +1,10 @@
+attrdict
+einops
+inflect
+jieba
 librosa
+matplotlib
 nltk
+pandas
+pypinyin
+pypinyin-dict

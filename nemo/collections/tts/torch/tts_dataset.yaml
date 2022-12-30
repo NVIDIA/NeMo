@@ -22,7 +22,7 @@ tts_dataset:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
     input_case: cased
-    whitelist: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+    whitelist: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
   text_normalizer_call_kwargs:
     verbose: False
@@ -30,7 +30,7 @@ tts_dataset:
     punct_post_process: True
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
     punct: True
     stresses: True
     chars: True
@@ -41,6 +41,6 @@ tts_dataset:
     add_blank_at: null
     pad_with_space: True
     g2p:
-      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
-      phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
-      heteronyms: "scripts/tts_dataset_files/heteronyms-030921"
+      _target_: nemo_text_processing.g2p.modules.EnglishG2p
+      phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+      heteronyms: "scripts/tts_dataset_files/heteronyms-052722"

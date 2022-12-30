@@ -164,7 +164,7 @@ class BeamRNNTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -223,6 +223,7 @@ class BeamRNNTInfer(Typing):
 
         self.beam_size = beam_size
         self.score_norm = score_norm
+        self.max_candidates = beam_size
 
         if self.beam_size == 1:
             logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
@@ -267,6 +268,15 @@ class BeamRNNTInfer(Typing):
 
         if self.maes_prefix_alpha < 0:
             raise ValueError("`maes_prefix_alpha` must be a positive integer.")
+
+        if self.vocab_size < beam_size + maes_expansion_beta:
+            raise ValueError(
+                f"beam_size ({beam_size}) + expansion_beta ({maes_expansion_beta}) "
+                f"should be smaller or equal to vocabulary size ({self.vocab_size})."
+            )
+
+        if search_type == 'maes':
+            self.max_candidates += maes_expansion_beta
 
         if self.maes_num_steps < 2:
             raise ValueError("`maes_num_steps` must be greater than 1.")
@@ -415,7 +425,7 @@ class BeamRNNTInfer(Typing):
             not_blank = True
             symbols_added = 0
 
-            while not_blank:
+            while not_blank and (symbols_added < self.max_candidates):
                 ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
@@ -427,8 +437,8 @@ class BeamRNNTInfer(Typing):
                 pred = pred.item()
 
                 if self.preserve_alignments:
-                    # insert logits into last timestep
-                    alignments[-1].append(pred)
+                    # insert logprobs into last timestep
+                    alignments[-1].append((ytu.to('cpu'), torch.tensor(pred, dtype=torch.int32)))
 
                 if pred == self.blank:
                     not_blank = False
@@ -519,6 +529,10 @@ class BeamRNNTInfer(Typing):
                 ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
+                # preserve alignments
+                if self.preserve_alignments:
+                    logprobs = ytu.cpu().clone()
+
                 # remove blank token before top k
                 top_k = ytu[ids].topk(beam_k, dim=-1)
 
@@ -556,9 +570,13 @@ class BeamRNNTInfer(Typing):
 
                     if self.preserve_alignments:
                         if k == self.blank:
-                            new_hyp.alignments[-1].append(self.blank)
+                            new_hyp.alignments[-1].append(
+                                (logprobs.clone(), torch.tensor(self.blank, dtype=torch.int32))
+                            )
                         else:
-                            new_hyp.alignments[-1].append(new_hyp.y_sequence[-1])
+                            new_hyp.alignments[-1].append(
+                                (logprobs.clone(), torch.tensor(new_hyp.y_sequence[-1], dtype=torch.int32))
+                            )
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
@@ -980,6 +998,7 @@ class BeamRNNTInfer(Typing):
 
             # List that contains the blank token emisions
             list_b = []
+            duplication_check = [hyp.y_sequence for hyp in hyps]
 
             # Repeat for number of mAES steps
             for n in range(self.maes_num_steps):
@@ -987,14 +1006,16 @@ class BeamRNNTInfer(Typing):
                 beam_dec_out = torch.stack([h.dec_out[-1] for h in hyps])  # [H, 1, D]
 
                 # Extract the log probabilities
-                beam_logp = torch.log_softmax(
+                beam_logp, beam_idx = torch.log_softmax(
                     self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
-                )
+                ).topk(self.max_candidates, dim=-1)
+
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
+                beam_idx = beam_idx[:, 0, 0, :]  # [B, max_candidates]
 
                 # Compute k expansions for all the current hypotheses
                 k_expansions = select_k_expansions(
-                    hyps, beam_logp, beam, self.maes_expansion_gamma, self.maes_expansion_beta
+                    hyps, beam_idx, beam_logp, self.maes_expansion_gamma, self.maes_expansion_beta
                 )
 
                 # List that contains the hypothesis after prefix expansion
@@ -1015,16 +1036,18 @@ class BeamRNNTInfer(Typing):
                             list_b.append(new_hyp)
                         else:
                             # If the expansion was a token
-                            new_hyp.y_sequence.append(int(k))
+                            # new_hyp.y_sequence.append(int(k))
+                            if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
+                                new_hyp.y_sequence.append(int(k))
 
-                            # TODO: Setup LM
-                            if self.language_model is not None:
-                                # new_hyp.score += self.lm_weight * float(
-                                #     hyp.lm_scores[k]
-                                # )
-                                pass
+                                # TODO: Setup LM
+                                if self.language_model is not None:
+                                    # new_hyp.score += self.lm_weight * float(
+                                    #     hyp.lm_scores[k]
+                                    # )
+                                    pass
 
-                            list_exp.append(new_hyp)
+                                list_exp.append(new_hyp)
 
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit

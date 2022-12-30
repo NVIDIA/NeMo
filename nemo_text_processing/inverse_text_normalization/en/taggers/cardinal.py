@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path, num_to_word
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
@@ -23,14 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_space,
 )
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class CardinalFst(GraphFst):
@@ -62,6 +56,16 @@ class CardinalFst(GraphFst):
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             graph_hundred_component_at_least_one_none_zero_digit
         )
+
+        # Transducer for eleven hundred -> 1100 or twenty one hundred eleven -> 2111
+        graph_hundred_as_thousand = pynini.union(graph_teen, graph_ties + delete_space + graph_digit)
+        graph_hundred_as_thousand += delete_space + graph_hundred
+        graph_hundred_as_thousand += delete_space + pynini.union(
+            graph_teen | pynutil.insert("00"),
+            (graph_ties | pynutil.insert("0")) + delete_space + (graph_digit | pynutil.insert("0")),
+        )
+
+        graph_hundreds = graph_hundred_component | graph_hundred_as_thousand
 
         graph_thousands = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
@@ -108,7 +112,7 @@ class CardinalFst(GraphFst):
             + delete_space
             + graph_thousands
             + delete_space
-            + graph_hundred_component,
+            + graph_hundreds,
             graph_zero,
         )
 

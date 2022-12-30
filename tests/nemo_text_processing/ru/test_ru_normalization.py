@@ -13,10 +13,16 @@
 # limitations under the License.
 
 import pytest
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, parse_test_case_file
+
+try:
+    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
 
 
 class TestRuNormalizeWithAudio:
@@ -26,7 +32,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_cardinal.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -36,7 +43,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_ordinal.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -46,7 +54,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_decimal.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -56,7 +65,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_measure.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -66,7 +76,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_date.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -76,7 +87,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_telephone.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -86,7 +98,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_money.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -96,7 +109,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_time.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -106,7 +120,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_electronic.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -116,7 +131,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_whitelist.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -126,7 +142,8 @@ class TestRuNormalizeWithAudio:
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_word.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

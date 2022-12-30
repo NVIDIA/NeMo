@@ -23,7 +23,7 @@ from pprint import pprint
 import torch
 from omegaconf import open_dict
 
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
@@ -113,7 +113,9 @@ def main():
                         module.disable()
 
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
-    wer = WER(vocabulary=asr_model.decoder.vocabulary, use_cer=args.use_cer)
+    decoding_cfg = CTCDecodingConfig()
+    char_decoding = CTCDecoding(decoding_cfg, vocabulary=labels_map)
+    wer = WER(char_decoding, use_cer=args.use_cer)
     wer_quant = evaluate(asr_model, labels_map, wer)
     logging.info(f'Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}')
 
@@ -200,7 +202,7 @@ def evaluate(asr_model, labels_map, wer):
             log_probs, encoded_len, greedy_predictions = asr_model(
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )
-        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+        hypotheses += wer.decoding.ctc_decoder_predictions_tensor(greedy_predictions)[0]
         for batch_ind in range(greedy_predictions.shape[0]):
             seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
             seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()

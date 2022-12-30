@@ -29,11 +29,15 @@ from argparse import ArgumentParser
 
 import torch
 from apex.transformer import parallel_state
+from lightning_lite.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
@@ -68,8 +72,18 @@ def get_args():
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
+    parser.add_argument(
+        "--pipeline_model_parallel_split_rank",
+        type=int,
+        required=False,
+        default=None,
+        help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
+    )
+    parser.add_argument(
+        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert", "nmt", "bart", "retro"]
+    )
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
     args = parser.parse_args()
     return args
@@ -80,15 +94,36 @@ def convert(local_rank, rank, world_size, args):
     app_state = AppState()
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
-    trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
+    if args.bcp:
+        trainer = Trainer(
+            devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=[TorchElasticEnvironment()]
+        )
+    else:
+        trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
+    # Auto set split rank for T5, BART, NMT if split rank is None.
+    if args.pipeline_model_parallel_size > 1 and args.model_type in ['t5', 'bart', 'nmt']:
+        if args.pipeline_model_parallel_split_rank is not None:
+            app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_split_rank
+        else:
+            if args.pipeline_model_parallel_size % 2 != 0:
+                raise ValueError(
+                    f"Pipeline model parallel size {args.pipeline_model_parallel_size} must be even if split rank is not specified."
+                )
+            else:
+                # If split rank is not set, then we set it to be pipeline_model_parallel_size // 2 - this is because in most cases we have the same number of enc/dec layers.
+                app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_size // 2
+    else:
+        app_state.pipeline_model_parallel_split_rank = None
+
     app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
 
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
         pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+        pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
     )
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
@@ -109,7 +144,16 @@ def convert(local_rank, rank, world_size, args):
         )
     elif args.model_type == 't5':
         model = MegatronT5Model.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
-
+    elif args.model_type == 'bart':
+        model = MegatronBARTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+    elif args.model_type == 'nmt':
+        model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    elif args.model_type == 'retro':
+        model = MegatronRetrievalModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     model._save_restore_connector = NLPSaveRestoreConnector()
 
     if torch.distributed.is_initialized():

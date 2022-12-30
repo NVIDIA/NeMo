@@ -18,7 +18,8 @@ import multiprocessing
 import os
 import shutil
 from itertools import repeat
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import IPython.display as ipd
 import librosa
@@ -29,6 +30,7 @@ import torch
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
+from tqdm import tqdm
 
 from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.utils import logging
@@ -71,15 +73,28 @@ def prepare_manifest(config: dict) -> str:
             "The input for manifest preparation would either be a string of the filepath to manifest or a list of {'audio_filepath': i, 'offset': 0, 'duration': null} "
         )
 
-    p = multiprocessing.Pool(processes=config['num_workers'])
     args_func = {
         'label': 'infer',
         'split_duration': config['split_duration'],
         'window_length_in_sec': config['window_length_in_sec'],
     }
 
-    results = p.starmap(write_vad_infer_manifest, zip(input_list, repeat(args_func)))
-    p.close()
+    if config.get('num_workers') is not None and config['num_workers'] > 1:
+        with multiprocessing.Pool(processes=config['num_workers']) as p:
+            inputs = zip(input_list, repeat(args_func))
+            results = list(
+                tqdm(
+                    p.imap(write_vad_infer_manifest_star, inputs),
+                    total=len(input_list),
+                    desc='splitting manifest',
+                    leave=True,
+                )
+            )
+    else:
+        results = [
+            write_vad_infer_manifest(input_el, args_func)
+            for input_el in tqdm(input_list, desc='splitting manifest', leave=True)
+        ]
 
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
@@ -92,6 +107,13 @@ def prepare_manifest(config: dict) -> str:
                 fout.write('\n')
                 fout.flush()
     return manifest_vad_input
+
+
+def write_vad_infer_manifest_star(args):
+    """
+    A workaround for tqdm with starmap of multiprocessing
+    """
+    return write_vad_infer_manifest(*args)
 
 
 def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
@@ -207,7 +229,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
         for line in f.readlines():
             frame.append(float(line))
 
-    name = filepath.split("/")[-1].rsplit(".", 1)[0]
+    name = Path(filepath).stem
     return torch.tensor(frame), name
 
 
@@ -236,7 +258,6 @@ def generate_overlap_vad_seq(
         overlap_out_dir(str): directory of the generated predictions.
     """
 
-    p = multiprocessing.Pool(processes=num_workers)
     frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
     if out_dir:
         overlap_out_dir = out_dir
@@ -253,12 +274,30 @@ def generate_overlap_vad_seq(
         "out_dir": overlap_out_dir,
         "smoothing_method": smoothing_method,
     }
+    if num_workers is not None and num_workers > 1:
+        with multiprocessing.Pool(processes=num_workers) as p:
+            inputs = zip(frame_filepathlist, repeat(per_args))
+            results = list(
+                tqdm(
+                    p.imap(generate_overlap_vad_seq_per_file_star, inputs),
+                    total=len(frame_filepathlist),
+                    desc='generating preds',
+                    leave=True,
+                )
+            )
 
-    p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
-    p.close()
-    p.join()
+    else:
+        for frame_filepath in tqdm(frame_filepathlist, desc='generating preds', leave=False):
+            generate_overlap_vad_seq_per_file(frame_filepath, per_args)
 
     return overlap_out_dir
+
+
+def generate_overlap_vad_seq_per_file_star(args):
+    """
+    A workaround for tqdm with starmap of multiprocessing
+    """
+    return generate_overlap_vad_seq_per_file(*args)
 
 
 @torch.jit.script
@@ -438,12 +477,12 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
             offset (float): offset threshold for detecting the end of a speech. 
             pad_onset (float): adding durations before each speech segment
             pad_offset (float): adding durations after each speech segment;
-            shift_length_in_sec (float): amount of shift of window for generating the frame.
+            frame_length_in_sec (float): length of frame.
     
     Returns:
         speech_segments(torch.Tensor): A tensor of speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
     """
-    shift_length_in_sec = per_args.get('shift_length_in_sec', 0.01)
+    frame_length_in_sec = per_args.get('frame_length_in_sec', 0.01)
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
@@ -456,30 +495,30 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
 
     speech_segments = torch.empty(0)
 
-    for i in range(1, len(sequence)):
+    for i in range(0, len(sequence)):
         # Current frame is speech
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if i * shift_length_in_sec + pad_offset > max(0, start - pad_onset):
+                if i * frame_length_in_sec + pad_offset > max(0, start - pad_onset):
                     new_seg = torch.tensor(
-                        [max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]
+                        [max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]
                     ).unsqueeze(0)
                     speech_segments = torch.cat((speech_segments, new_seg), 0)
 
-                start = i * shift_length_in_sec
+                start = i * frame_length_in_sec
                 speech = False
 
         # Current frame is non-speech
         else:
             # Switch from non-speech to speech
             if sequence[i] > onset:
-                start = i * shift_length_in_sec
+                start = i * frame_length_in_sec
                 speech = True
 
     # if it's speech at the end, add final segment
     if speech:
-        new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).unsqueeze(0)
+        new_seg = torch.tensor([max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]).unsqueeze(0)
         speech_segments = torch.cat((speech_segments, new_seg), 0)
 
     # Merge the overlapped speech segments due to padding
@@ -606,8 +645,8 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     See description in generate_overlap_vad_seq.
     Use this for single instance pipeline. 
     """
+    UNIT_FRAME_LEN = 0.01
 
-    shift_length_in_sec = per_args['shift_length_in_sec']
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
@@ -616,7 +655,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     speech_segments, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + shift_length_in_sec
+    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + UNIT_FRAME_LEN
     speech_segments = torch.column_stack((speech_segments, dur))
 
     return speech_segments
@@ -630,23 +669,29 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     out_dir, per_args_float = prepare_gen_segment_table(sequence, per_args)
 
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
-    save_name = name + ".txt"
+    ext = ".rttm" if per_args.get("use_rttm", False) else ".txt"
+    save_name = name + ext
     save_path = os.path.join(out_dir, save_name)
 
-    if preds.shape == torch.Size([0]):
+    if preds.shape[0] == 0:
         with open(save_path, "w", encoding='utf-8') as fp:
-            fp.write(f"0 0 speech\n")
-
+            if per_args.get("use_rttm", False):
+                fp.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
+            else:
+                fp.write(f"0 0 speech\n")
     else:
         with open(save_path, "w", encoding='utf-8') as fp:
             for i in preds:
-                fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
+                if per_args.get("use_rttm", False):
+                    fp.write(f"SPEAKER {name} 1 {i[0]:.4f} {i[2]:.4f} <NA> <NA> speech <NA> <NA>\n")
+                else:
+                    fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
 
     return save_path
 
 
 def generate_vad_segment_table(
-    vad_pred_dir: str, postprocessing_params: dict, shift_length_in_sec: float, num_workers: int, out_dir: str = None,
+    vad_pred_dir: str, postprocessing_params: dict, frame_length_in_sec: float, num_workers: int, out_dir: str = None,
 ) -> str:
     """
     Convert frame level prediction to speech segment in start and end times format.
@@ -656,14 +701,13 @@ def generate_vad_segment_table(
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
         postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering.
-        shift_length_in_sec (float): amount of shift of window for generating the frame.
+        frame_length_in_sec (float): frame length. 
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
     Returns:
         table_out_dir(str): directory of the generated table.
     """
 
-    p = multiprocessing.Pool(processes=num_workers)
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
@@ -680,16 +724,35 @@ def generate_vad_segment_table(
         os.mkdir(table_out_dir)
 
     per_args = {
-        "shift_length_in_sec": shift_length_in_sec,
+        "frame_length_in_sec": frame_length_in_sec,
         "out_dir": table_out_dir,
     }
     per_args = {**per_args, **postprocessing_params}
+    num_workers = None
+    if num_workers is not None and num_workers > 1:
+        with multiprocessing.Pool(num_workers) as p:
+            inputs = zip(vad_pred_filepath_list, repeat(per_args))
+            list(
+                tqdm(
+                    p.imap(generate_vad_segment_table_per_file_star, inputs),
+                    total=len(vad_pred_filepath_list),
+                    desc='creating speech segments',
+                    leave=True,
+                )
+            )
 
-    p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
-    p.close()
-    p.join()
+    else:
+        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
+            generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return table_out_dir
+
+
+def generate_vad_segment_table_per_file_star(args):
+    """
+    A workaround for tqdm with starmap of multiprocessing
+    """
+    return generate_vad_segment_table_per_file(*args)
 
 
 def vad_construct_pyannote_object_per_file(
@@ -746,7 +809,7 @@ def vad_tune_threshold_on_dev(
     result_file: str = "res",
     vad_pred_method: str = "frame",
     focus_metric: str = "DetER",
-    shift_length_in_sec: float = 0.01,
+    frame_length_in_sec: float = 0.01,
     num_workers: int = 20,
 ) -> Tuple[dict, dict]:
     """
@@ -756,6 +819,8 @@ def vad_tune_threshold_on_dev(
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
         groundtruth_RTTM_dir (str): directory of ground-truth rttm files or a file contains the paths of them.
         focus_metric (str): metrics we care most when tuning threshold. Should be either in "DetER", "FA", "MISS"
+        frame_length_in_sec (float): frame length.
+        num_workers (int): number of workers.
     Returns:
         best_threshold (float): threshold that gives lowest DetER.
     """
@@ -778,7 +843,7 @@ def vad_tune_threshold_on_dev(
             # Generate speech segments by performing binarization on the VAD prediction according to param.
             # Filter speech segments according to param and write the result to rttm-like table.
             vad_table_dir = generate_vad_segment_table(
-                vad_pred, param, shift_length_in_sec=shift_length_in_sec, num_workers=num_workers
+                vad_pred, param, frame_length_in_sec=frame_length_in_sec, num_workers=num_workers
             )
             # add reference and hypothesis to metrics
             for filename in paired_filenames:
@@ -906,14 +971,14 @@ def plot(
         per_args(dict): a dict that stores the thresholds for postprocessing.
     """
     plt.figure(figsize=[20, 2])
-    FRAME_LEN = 0.01
+    UNIT_FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
     dur = librosa.get_duration(y=audio, sr=sample_rate)
 
-    time = np.arange(offset, offset + dur, FRAME_LEN)
+    time = np.arange(offset, offset + dur, UNIT_FRAME_LEN)
     frame, _ = load_tensor_from_file(path2_vad_pred)
-    frame_snippet = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
+    frame_snippet = frame[int(offset / UNIT_FRAME_LEN) : int((offset + dur) / UNIT_FRAME_LEN)]
 
     len_pred = len(frame_snippet)
     ax1 = plt.subplot()
@@ -937,14 +1002,14 @@ def plot(
         )  # take whole frame here for calculating onset and offset
         speech_segments = generate_vad_segment_table_per_tensor(frame, per_args_float)
         pred = gen_pred_from_speech_segments(speech_segments, frame)
-        pred_snippet = pred[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
+        pred_snippet = pred[int(offset / UNIT_FRAME_LEN) : int((offset + dur) / UNIT_FRAME_LEN)]
 
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
-        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
+        ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, label, 'r', label='label')
 
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred_snippet, 'b', label='pred')
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, frame_snippet, 'g--', label='speech prob')
+    ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, pred_snippet, 'b', label='pred')
+    ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, frame_snippet, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
@@ -989,7 +1054,12 @@ def extract_labels(path2ground_truth_label: str, time: list) -> list:
 
 
 def generate_vad_frame_pred(
-    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str
+    vad_model,
+    window_length_in_sec: float,
+    shift_length_in_sec: float,
+    manifest_vad_input: str,
+    out_dir: str,
+    use_feat: bool = False,
 ) -> str:
     """
     Generate VAD frame level prediction and write to out_dir
@@ -1006,10 +1076,13 @@ def generate_vad_frame_pred(
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)
-    for i, test_batch in enumerate(vad_model.test_dataloader()):
+    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
         test_batch = [x.to(vad_model.device) for x in test_batch]
         with autocast():
-            log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+            if use_feat:
+                log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
+            else:
+                log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
             pred = probs[:, 1]
 
@@ -1158,3 +1231,77 @@ def construct_manifest_eval(
             fout.flush()
 
     return aligned_vad_asr_output_manifest
+
+
+def extract_audio_features(vad_model: EncDecClassificationModel, manifest_vad_input: str, out_dir: str) -> str:
+    """
+    Extract audio features and write to out_dir
+    """
+
+    file_list = []
+    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
+        for line in fin.readlines():
+            file_list.append(Path(json.loads(line)['audio_filepath']).stem)
+
+    logging.info(f"Extracting features on {len(file_list)} audio files/json lines!")
+
+    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
+        test_batch = [x.to(vad_model.device) for x in test_batch]
+        with autocast():
+            processed_signal, processed_signal_length = vad_model.preprocessor(
+                input_signal=test_batch[0], length=test_batch[1],
+            )
+            processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
+            processed_signal = processed_signal.cpu()
+            outpath = os.path.join(out_dir, file_list[i] + ".pt")
+            torch.save(processed_signal, outpath)
+        del test_batch
+    return out_dir
+
+
+def load_rttm_file(filepath: str) -> pd.DataFrame:
+    """
+    Load rttm file and extract speech segments
+    """
+    if not Path(filepath).exists():
+        raise ValueError(f"File not found: {filepath}")
+    data = pd.read_csv(filepath, sep=" ", delimiter=None, header=None)
+    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+    data['start'] = data['start'].astype(float)
+    data['dur'] = data['dur'].astype(float)
+    data['end'] = data['start'] + data['dur']
+
+    data = data.sort_values(by=['start'])
+    data['segment'] = list(zip(data['start'], data['end']))
+
+    return data
+
+
+def merge_intervals(intervals: List[List[float]]) -> List[List[float]]:
+    """
+    Merge speech segments into non-overlapping segments
+    """
+    intervals.sort(key=lambda x: x[0])
+    merged = []
+    for interval in intervals:
+        # if the list of merged intervals is empty or if the current
+        # interval does not overlap with the previous, simply append it.
+        if not merged or merged[-1][1] < interval[0]:
+            merged.append(interval)
+        else:
+            # otherwise, there is overlap, so we merge the current and previous
+            # intervals.
+            merged[-1][1] = max(merged[-1][1], interval[1])
+    return merged
+
+
+def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
+    """
+    load speech segments from rttm file, where each segment is represented
+    as [start, end] interval
+    """
+    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = [list(x) for x in speech_segments]
+    speech_segments = merge_intervals(speech_segments)
+    return speech_segments

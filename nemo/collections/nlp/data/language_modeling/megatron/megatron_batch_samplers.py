@@ -59,6 +59,7 @@ class BaseMegatronBatchSampler:
         data_parallel_rank: int,
         data_parallel_size: int,
         drop_last: bool,
+        pad_samples_to_global_batch_size=False,
     ) -> None:
         """Constructor of Megatron-LM style Batch Sampler.
 
@@ -74,9 +75,9 @@ class BaseMegatronBatchSampler:
         """
         # Sanity checks.
         if total_samples <= 0:
-            raise RuntimeError("no sample to consume: {}".format(self.total_samples))
+            raise RuntimeError("no sample to consume: {}".format(total_samples))
         if consumed_samples >= total_samples:
-            raise RuntimeError("no samples left to consume: {}, {}".format(self.consumed_samples, self.total_samples))
+            raise RuntimeError("no samples left to consume: {}, {}".format(consumed_samples, total_samples))
         if micro_batch_size <= 0:
             raise RuntimeError(f"micro_batch_size size must be greater than 0, but {micro_batch_size}")
         if data_parallel_size <= 0:
@@ -94,6 +95,7 @@ class BaseMegatronBatchSampler:
         self.data_parallel_rank: int = data_parallel_rank
         self.data_parallel_size: int = data_parallel_size
         self.drop_last: bool = drop_last
+        self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
 
         self.update_global_batch_size(global_batch_size)
 
@@ -161,7 +163,9 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
         if len(batch) > 0 and not self.drop_last:
             # start_idx, end_idx = self.get_start_end_idx()
             indices = [batch[i] for i in range(self.data_parallel_rank, len(batch), self.data_parallel_size)]
-            # yield batch[start_idx:end_idx]
+            if self.pad_samples_to_global_batch_size:
+                num_pad = self._global_batch_size // self.data_parallel_size - len(indices)
+                indices = indices + [-1] * num_pad
             yield indices
 
 

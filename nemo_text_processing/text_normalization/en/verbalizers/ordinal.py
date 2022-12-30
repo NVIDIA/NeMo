@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +13,10 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class OrdinalFst(GraphFst):
@@ -39,8 +32,8 @@ class OrdinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="ordinal", kind="verbalize", deterministic=deterministic)
 
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
-        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
+        graph_digit = pynini.string_file(get_abs_path("data/ordinal/digit.tsv")).invert()
+        graph_teens = pynini.string_file(get_abs_path("data/ordinal/teen.tsv")).invert()
 
         graph = (
             pynutil.delete("integer:")

@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.cloud_io import load as pl_load
@@ -119,9 +120,6 @@ class NLPModel(ModelPT, Exportable):
             # Required to pull up the config for MegatronBert models
             self.pretrained_model_name = cfg.language_model.pretrained_model_name
 
-            # register encoder config
-            self.register_bert_model()
-
             if (
                 cfg.tokenizer is not None
                 and cfg.tokenizer.get("tokenizer_name", "") is not None
@@ -133,6 +131,8 @@ class NLPModel(ModelPT, Exportable):
 
         if cfg.get('language_model') and not no_lm_init:
             self.bert_model = bert_model
+            # register encoder config
+            self.register_bert_model()
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
@@ -350,16 +350,35 @@ class NLPModel(ModelPT, Exportable):
                 checkpoint['state_dict'] = new_state_dict
 
             if 'cfg' in kwargs:
-                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+                model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
             else:
-                model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
+                model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
                 # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
-            if cfg.tokenizer.model is not None:
-                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
-            if cfg.tokenizer.vocab_file is not None:
-                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
-            if cfg.tokenizer.merge_file is not None:
-                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
+
+            # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
+            if hasattr(cfg, "tokenizer"):
+                if cfg.tokenizer.get("tokenizer_model") is not None:
+                    model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.tokenizer_model)
+                if cfg.tokenizer.get("vocab_file") is not None:
+                    model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+                if cfg.tokenizer.get("merge_file") is not None:
+                    model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
+
+            if hasattr(cfg, "encoder_tokenizer"):
+                if cfg.encoder_tokenizer.get("tokenizer_model") is not None:
+                    model.register_artifact("encoder_tokenizer.tokenizer_model", cfg.encoder_tokenizer.tokenizer_model)
+                if cfg.encoder_tokenizer.get("vocab_file") is not None:
+                    model.register_artifact("encoder_tokenizer.vocab_file", cfg.encoder_tokenizer.vocab_file)
+                if cfg.encoder_tokenizer.get("merge_file") is not None:
+                    model.register_artifact("encoder_tokenizer.merge_file", cfg.encoder_tokenizer.merge_file)
+
+            if hasattr(cfg, "decoder_tokenizer"):
+                if cfg.decoder_tokenizer.get("tokenizer_model") is not None:
+                    model.register_artifact("decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model)
+                if cfg.decoder_tokenizer.get("vocab_file") is not None:
+                    model.register_artifact("decoder_tokenizer.vocab_file", cfg.decoder_tokenizer.vocab_file)
+                if cfg.decoder_tokenizer.get("merge_file") is not None:
+                    model.register_artifact("decoder_tokenizer.merge_file", cfg.decoder_tokenizer.merge_file)
 
             checkpoint = model
 

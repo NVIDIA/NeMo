@@ -15,8 +15,100 @@
 from typing import Tuple
 
 import torch
+from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
+
+
+def masked_instance_norm(
+    input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
+) -> Tensor:
+    r"""Applies Masked Instance Normalization for each channel in each data sample in a batch.
+
+    See :class:`~MaskedInstanceNorm1d` for details.
+    """
+    lengths = mask.sum((-1,))
+    mean = (input * mask).sum((-1,)) / lengths  # (N, C)
+    var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
+    out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
+    out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
+
+    return out
+
+
+class MaskedInstanceNorm1d(torch.nn.InstanceNorm1d):
+    r"""Applies Instance Normalization over a masked 3D input
+    (a mini-batch of 1D inputs with additional channel dimension)..
+
+    See documentation of :class:`~torch.nn.InstanceNorm1d` for details.
+
+    Shape:
+        - Input: :math:`(N, C, L)`
+        - Mask: :math:`(N, 1, L)`
+        - Output: :math:`(N, C, L)` (same shape as input)
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        eps: float = 1e-5,
+        momentum: float = 0.1,
+        affine: bool = False,
+        track_running_stats: bool = False,
+    ) -> None:
+        super(MaskedInstanceNorm1d, self).__init__(num_features, eps, momentum, affine, track_running_stats)
+
+    def forward(self, input: Tensor, mask: Tensor) -> Tensor:
+        return masked_instance_norm(input, mask, self.weight, self.bias, self.momentum, self.eps,)
+
+
+class PartialConv1d(torch.nn.Conv1d):
+    """
+    Zero padding creates a unique identifier for where the edge of the data is, such that the model can almost always identify
+    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove 
+    this affect.
+    """
+
+    __constants__ = ['slide_winsize']
+    slide_winsize: float
+
+    def __init__(self, *args, **kwargs):
+        super(PartialConv1d, self).__init__(*args, **kwargs)
+        weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
+        self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
+        self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
+
+    def forward(self, input, mask_in):
+        if mask_in is None:
+            mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
+        else:
+            mask = mask_in
+            input = torch.mul(input, mask)
+        with torch.no_grad():
+            update_mask = F.conv1d(
+                mask,
+                self.weight_maskUpdater,
+                bias=None,
+                stride=self.stride,
+                padding=self.padding,
+                dilation=self.dilation,
+                groups=1,
+            )
+            update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+            mask_ratio = self.slide_winsize / update_mask_filled
+            update_mask = torch.clamp(update_mask, 0, 1)
+            mask_ratio = torch.mul(mask_ratio, update_mask)
+
+        raw_out = self._conv_forward(input, self.weight, self.bias)
+
+        if self.bias is not None:
+            bias_view = self.bias.view(1, self.out_channels, 1)
+            output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
+            output = torch.mul(output, update_mask)
+        else:
+            output = torch.mul(raw_out, mask_ratio)
+
+        return output
 
 
 class LinearNorm(torch.nn.Module):
@@ -31,6 +123,9 @@ class LinearNorm(torch.nn.Module):
 
 
 class ConvNorm(torch.nn.Module):
+    __constants__ = ['use_partial_padding']
+    use_partial_padding: bool
+
     def __init__(
         self,
         in_channels,
@@ -41,13 +136,19 @@ class ConvNorm(torch.nn.Module):
         dilation=1,
         bias=True,
         w_init_gain='linear',
+        use_partial_padding=False,
+        use_weight_norm=False,
+        norm_fn=None,
     ):
-        super().__init__()
+        super(ConvNorm, self).__init__()
         if padding is None:
             assert kernel_size % 2 == 1
             padding = int(dilation * (kernel_size - 1) / 2)
-
-        self.conv = torch.nn.Conv1d(
+        self.use_partial_padding = use_partial_padding
+        conv_fn = torch.nn.Conv1d
+        if use_partial_padding:
+            conv_fn = PartialConv1d
+        self.conv = conv_fn(
             in_channels,
             out_channels,
             kernel_size=kernel_size,
@@ -56,12 +157,26 @@ class ConvNorm(torch.nn.Module):
             dilation=dilation,
             bias=bias,
         )
-
         torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+        if use_weight_norm:
+            self.conv = torch.nn.utils.weight_norm(self.conv)
+        if norm_fn is not None:
+            self.norm = norm_fn(out_channels, affine=True)
+        else:
+            self.norm = None
 
-    def forward(self, signal):
-        conv_signal = self.conv(signal)
-        return conv_signal
+    def forward(self, signal, mask=None):
+        if self.use_partial_padding:
+            ret = self.conv(signal, mask)
+            if self.norm is not None:
+                ret = self.norm(ret, mask)
+        else:
+            if mask is not None:
+                signal = signal * mask
+            ret = self.conv(signal)
+            if self.norm is not None:
+                ret = self.norm(ret)
+        return ret
 
 
 class LocationLayer(torch.nn.Module):
@@ -190,7 +305,7 @@ class Invertible1x1Conv(torch.nn.Module):
         self.conv = torch.nn.Conv1d(c, c, kernel_size=1, stride=1, padding=0, bias=False)
 
         # Sample a random orthonormal matrix to initialize weights
-        W = torch.qr(torch.FloatTensor(c, c).normal_())[0]
+        W = torch.linalg.qr(torch.FloatTensor(c, c).normal_())[0]
 
         # Ensure determinant is 1.0 not -1.0
         if torch.det(W) < 0:
