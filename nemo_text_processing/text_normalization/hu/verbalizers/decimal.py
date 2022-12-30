@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
-        decimal { negative: "true" integer_part: "twelve" fractional_part: "five o o six" quantity: "billion" } -> minus twelve point five o o six billion
+        decimal { negative: "true" integer_part: "tizenkét" fractional_part: "ötvenhatszázad" quantity: "milliárd" } -> mínusz tizenkét egész ötvenhatszázad milliárd
 
     Args:
         deterministic: if True will provide a single transduction option,
