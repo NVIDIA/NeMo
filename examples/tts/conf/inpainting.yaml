@@ -8,6 +8,7 @@ train_dataset:  data/LibriTTS/dev_clean.json
 validation_datasets: data/LibriTTS/dev_clean.json
 sup_data_path: data/LibriTTS/data_cache
 sup_data_types: [ "align_prior_matrix", "pitch" ]
+batch_size: 16
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -103,7 +104,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 32
+      batch_size: 16
       # num_workers: 0
       num_workers: 12
       pin_memory: true
@@ -136,7 +137,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 32
+      batch_size: 16
       num_workers: 0
       pin_memory: true
 
