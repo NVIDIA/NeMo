@@ -1,3 +1,5 @@
+name: 'wts${upscaler.cs_loss_weight}_${upscaler.csn_loss_weight}_${upscaler.sl1_loss_weight}_hs${upscaler.hidden_size}_bs${upscaler.data.batch_size}_co${upscaler.data.high_freq_cutoff}_nx${upscaler.data.num_examples}'
+
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
@@ -11,16 +13,18 @@ inference:
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   batch_size: 1
 
-trainer:
+nemo_trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
+
 upscaler:
-  save_checkpoint_path: "upscaler_checkpoints"
-  hidden_size: 16384
+  save_checkpoint_prefix: "upscaler_checkpoints"
+  save_checkpoint_path: '${upscaler.save_checkpoint_prefix}/${name}/'
+  hidden_size: 164
   cs_loss_weight: 1.0
   csn_loss_weight: 1.0
   sl1_loss_weight: 1.0
@@ -42,7 +46,7 @@ upscaler:
     eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_test_10.jsonl"
   
   wandb:
-    name: 'wts${upscaler.cs_loss_weight}-${upscaler.csn_loss_weight}-${upscaler.sl1_loss_weight}_hs${upscaler.hidden_size}_bs${upscaler.data.batch_size}_cutoff${upscaler.data.high_freq_cutoff}_ex${upscaler.data.num_examples}'
+    name: ${name}
     project: 'upscaler'
 
 taskname: "squad"

@@ -202,8 +202,8 @@ class UpscaleDataset(Dataset):
         return self.x_embs[idx], self.y_embs[idx], self.y_embs[k_neighbors[0]]
 
 
-def do_inference(model, cfg):
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_file_path):
+    trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
     if parallel_state.is_unitialized():
 
         def placeholder():
@@ -215,25 +215,25 @@ def do_inference(model, cfg):
 
     # model_1_3b.save_to(cfg.projected_prompt_learning_path)
     length_params: LengthParam = {
-        "max_length": cfg.inference.tokens_to_generate,
-        "min_length": cfg.inference.min_tokens_to_generate,
+        "max_length": inference_cfg.tokens_to_generate,
+        "min_length": inference_cfg.min_tokens_to_generate,
     }
 
     sampling_params: SamplingParam = {
-        "use_greedy": cfg.inference.greedy,
-        "temperature": cfg.inference.temperature,
-        "top_k": cfg.inference.top_k,
-        "top_p": cfg.inference.top_p,
-        "repetition_penalty": cfg.inference.repetition_penalty,
-        "add_BOS": cfg.inference.add_BOS,
-        "all_probs": cfg.inference.all_probs,
-        "compute_logprob": cfg.inference.compute_logprob,
+        "use_greedy": inference_cfg.greedy,
+        "temperature": inference_cfg.temperature,
+        "top_k": inference_cfg.top_k,
+        "top_p": inference_cfg.top_p,
+        "repetition_penalty": inference_cfg.repetition_penalty,
+        "add_BOS": inference_cfg.add_BOS,
+        "all_probs": inference_cfg.all_probs,
+        "compute_logprob": inference_cfg.compute_logprob,
     }
 
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
     _, dataloader = model.build_virtual_prompt_dataset(
-        data=[cfg.upscaler.data.eval_dataset],
-        batch_size=cfg.inference.get("batch_size", 1),
+        data=[eval_dataset],
+        batch_size=inference_cfg.get("batch_size", 1),
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
@@ -244,11 +244,11 @@ def do_inference(model, cfg):
         shuffle=False,
     )
 
-    config = OmegaConf.to_container(cfg.inference)
+    config = OmegaConf.to_container(inference_cfg)
     model.set_inference_config(config)
     response = trainer.predict(model, dataloader)
 
-    with open(cfg.projected_pred_file_path, "w", encoding="utf-8") as pred_file:
+    with open(projected_pred_file_path, "w", encoding="utf-8") as pred_file:
         for i in range(len(response)):
             for sent in response[i]["sentences"]:
                 sent = sent.strip()
@@ -261,12 +261,12 @@ def do_inference(model, cfg):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.trainer)
+    model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.nemo_trainer)
     word_embeddings_125m, tokenizer, model_125m = get_word_embedding(model_125m)
     prompt_learning_embs_125m = model_125m.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
     train_tokens, val_tokens = get_dataset(model_125m, cfg.upscaler.data)
 
-    model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.trainer)
+    model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.nemo_trainer)
     word_embeddings_1_3b, tokenizer, model_1_3b = get_word_embedding(model_1_3b)
 
     train = UpscaleDataset(torch.float32, word_embeddings_125m[train_tokens, :], word_embeddings_1_3b[train_tokens, :])
@@ -303,7 +303,7 @@ def main(cfg) -> None:
     y_hat = best_projector(prompt_learning_embs_125m)
 
     model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
-    do_inference(model_1_3b, cfg)
+    do_inference(model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path)
     model_1_3b.save_to(cfg.projected_prompt_learning_model)
 
 
