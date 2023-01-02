@@ -42,7 +42,7 @@ class SequenceToSequenceDataset(Dataset):
         max_tgt_seq_length: int,
         add_bos_to_input: bool = True,
         add_eos_to_input: bool = True,
-        replace_bos_with_pad: bool = False
+        replace_bos_with_pad: bool = False,
     ):
         super().__init__()
         self.src_file_name = src_file_name
@@ -86,7 +86,7 @@ class SequenceToSequenceDataset(Dataset):
                     src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
                 if self.add_eos_to_input:
                     src = src + [self.src_tokenizer.eos_id]
-                
+
                 tgt = (
                     [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
                     + self.tgt_tokenizer.text_to_ids(tgt.strip())
