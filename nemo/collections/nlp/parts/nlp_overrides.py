@@ -135,7 +135,7 @@ class MegatronTorchCheckpointIO(TorchCheckpointIO):
         sharded_state_dict = None  # will need this once we add sharded tensors
         checkpoint_dir = self._get_checkpoint_dir(path)
 
-        return dist_checkpointing.load(sharded_state_dict=None, checkpoint_dir=checkpoint_dir)
+        return dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=checkpoint_dir)
 
     def _get_checkpoint_dir(self, path: _PATH) -> _PATH:
         """
