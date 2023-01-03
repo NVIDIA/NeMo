@@ -19,7 +19,6 @@ import subprocess
 import tarfile
 from typing import Optional
 
-import librosa
 import wget
 
 
@@ -44,8 +43,10 @@ def build_manifest(transcripts_path, manifest_path, data_dir, mount_dir, wav_pat
                 mounted_audio_path = os.path.join(
                     mount_dir, wav_path, file_id[file_id.find('-') + 1 : file_id.rfind('-')], file_id + '.wav'
                 )
+                # import sox here to not require sox to be available for importing all utils.
+                import sox
 
-                duration = librosa.core.get_duration(filename=audio_path)
+                duration = sox.file_info.duration(audio_path)
 
                 # Write the metadata to the manifest
                 metadata = {"audio_filepath": mounted_audio_path, "duration": duration, "text": transcript}
@@ -54,7 +55,16 @@ def build_manifest(transcripts_path, manifest_path, data_dir, mount_dir, wav_pat
 
 
 def download_an4(data_dir: str = "./", train_mount_dir: Optional[str] = None, test_mount_dir: Optional[str] = None):
-    # Download the dataset. This will take a few moments...
+    """
+    Function to download the AN4 dataset. This hides pre-processing boilerplate for notebook ASR examples.
+
+    Args:
+        data_dir: Path to store the data.
+        train_mount_dir: If you plan to mount the dataset, use this to prepend the mount directory to the
+            audio filepath in the train manifest.
+        test_mount_dir: If you plan to mount the dataset, use this to prepend the mount directory to the
+            audio filepath in the test manifest.
+    """
     print("******")
     os.makedirs(data_dir, exist_ok=True)
     if not os.path.exists(data_dir + '/an4_sphere.tar.gz'):
