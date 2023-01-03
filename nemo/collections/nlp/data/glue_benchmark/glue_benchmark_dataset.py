@@ -86,8 +86,7 @@ GLUE_TASKS_NUM_LABELS = {
 class GLUEDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -215,9 +214,9 @@ class GLUEDataset(Dataset):
             * True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
 
         The `cls_token_segment_id` defines the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
-        
+
         The convention in BERT is:
-        
+
             a. For sequence pairs:
                 * tokens:   [CLS] is this jack ##ville ? [SEP] no it is not . [SEP]
                 * type_ids:   0   0  0    0    0       0   0   1  1  1  1   1   1
@@ -235,9 +234,9 @@ class GLUEDataset(Dataset):
         For classification tasks, the first vector (corresponding to [CLS])
         is used as as the "sentence vector". Note that this only makes sense
         because the entire model is fine-tuned.
-        
+
         The convention for NMT is:
-        
+
             a. For sequence pairs:
                 * tokens:<BOS> is this jack ##ville ? <EOS> <BOS> no it is not . <EOS>
                 * type_ids:0   0  0    0    0       0   0     1   1  1  1  1   1   1

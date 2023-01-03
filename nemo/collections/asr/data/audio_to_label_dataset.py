@@ -126,7 +126,11 @@ def get_tarred_classification_label_dataset(
 
 
 def get_tarred_speech_label_dataset(
-    featurizer, config: dict, shuffle_n: int, global_rank: int, world_size: int,
+    featurizer,
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
 ) -> audio_to_label.TarredAudioToSpeechLabelDataset:
     """
     InInstantiates a Speech Label (e.g. VAD, speaker recognition) TarredAudioLabelDataset.

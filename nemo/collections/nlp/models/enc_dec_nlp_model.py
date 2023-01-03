@@ -35,8 +35,7 @@ class EncDecNLPModelConfig(ModelConfig):
 
 
 class EncDecNLPModel(NLPModel):
-    """Base class for encoder-decoder NLP models.
-    """
+    """Base class for encoder-decoder NLP models."""
 
     def __init__(self, cfg: EncDecNLPModelConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)

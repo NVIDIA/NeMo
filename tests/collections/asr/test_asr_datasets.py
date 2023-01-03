@@ -406,7 +406,9 @@ class TestASRDatasets:
                 world_size=1,
                 preprocessor_cfg=preprocessor_cfg,
             )
-            ref_dataset = audio_to_text_dataset.get_char_dataset(config=dataset_cfg,)
+            ref_dataset = audio_to_text_dataset.get_char_dataset(
+                config=dataset_cfg,
+            )
             ref_dataloader = DataLoader(
                 dataset=ref_dataset,
                 batch_size=batch_size,
@@ -765,8 +767,7 @@ class TestAudioDatasets:
     @pytest.mark.parametrize('num_channels', [1, 2])
     @pytest.mark.parametrize('num_targets', [1, 3])
     def test_list_to_multichannel(self, num_channels, num_targets):
-        """Test conversion of a list of arrays into 
-        """
+        """Test conversion of a list of arrays into"""
         random_seed = 42
         num_samples = 1000
 
@@ -786,8 +787,7 @@ class TestAudioDatasets:
 
     @pytest.mark.unit
     def test_audio_collate_fn(self):
-        """Test `_audio_collate_fn`
-        """
+        """Test `_audio_collate_fn`"""
         batch_size = 16
         random_seed = 42
         atol = 1e-5
@@ -1728,8 +1728,7 @@ class TestUtilityFunctions:
     # TEMP WORKAROUND: Skip `True`, multiprocessing failing in CI (#5607)
     @pytest.mark.parametrize('cache_audio', [False])
     def test_cache_datastore_manifests(self, cache_audio: bool):
-        """Test caching of manifest and audio files.
-        """
+        """Test caching of manifest and audio files."""
         # Data setup
         random_seed = 42
         sample_rate = 16000

@@ -20,8 +20,7 @@ from nemo.collections.common.parts.utils import flatten
 class TestListUtils:
     @pytest.mark.unit
     def test_flatten(self):
-        """Test flattening an iterable with different values: str, bool, int, float, complex.
-        """
+        """Test flattening an iterable with different values: str, bool, int, float, complex."""
         test_cases = []
         test_cases.append({'input': ['aa', 'bb', 'cc'], 'golden': ['aa', 'bb', 'cc']})
         test_cases.append({'input': ['aa', ['bb', 'cc']], 'golden': ['aa', 'bb', 'cc']})

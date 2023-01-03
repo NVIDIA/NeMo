@@ -40,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -52,7 +52,9 @@ class AdapterName(str, enum.Enum):
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
-        self, in_features: int, adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        self,
+        in_features: int,
+        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
     ) -> None:
         super().__init__()
         self.scalers = nn.Parameter(torch.ones(in_features))
@@ -67,7 +69,7 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass

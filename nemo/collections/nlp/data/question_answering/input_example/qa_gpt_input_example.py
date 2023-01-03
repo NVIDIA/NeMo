@@ -18,7 +18,7 @@ from typing import List, Optional
 
 @dataclass
 class GPTQAInputExample(object):
-    """ A single set of features of a QA example for GPT-like model """
+    """A single set of features of a QA example for GPT-like model"""
 
     unique_id: int
     input_ids: List[int]

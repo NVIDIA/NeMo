@@ -235,7 +235,10 @@ class ASRAudioText(AudioText):
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='SpeechLabelEntity',
+        field_names='audio_file duration label offset',
+    )
 
     def __init__(
         self,
@@ -296,7 +299,8 @@ class SpeechLabel(_Collection):
                 data.sort(key=lambda entity: entity.duration)
 
         logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
         )
         logging.info(f"Dataset loaded with {len(data)} items, total duration of {total_duration / 3600: .2f} hours.")
         self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
@@ -385,7 +389,10 @@ class ASRSpeechLabel(SpeechLabel):
 class FeatureSequenceLabel(_Collection):
     """List of feature sequence of label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureSequenceLabelEntity', field_names='feature_file seq_label',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='FeatureSequenceLabelEntity',
+        field_names='feature_file seq_label',
+    )
 
     def __init__(
         self,
@@ -467,7 +474,10 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
     """`FeatureSequenceLabel` collector from asr structured json files."""
 
     def __init__(
-        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+        self,
+        manifests_files: Union[str, List[str]],
+        max_number: Optional[int] = None,
+        index_by_file_id: bool = False,
     ):
 
         """Parse lists of feature files and sequences of labels.
@@ -508,7 +518,10 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key."
             )
 
-        item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
+        item = dict(
+            feature_file=item['feature_file'],
+            seq_label=item['seq_label'],
+        )
 
         return item
 
@@ -612,7 +625,8 @@ class DiarizationLabel(_Collection):
                 data.sort(key=lambda entity: entity.duration)
 
         logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
         )
         logging.info(f"Total {len(data)} session files loaded accounting to # {len(audio_files)} audio clips")
 
@@ -790,8 +804,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
 
 class Audio(_Collection):
-    """Prepare a list of all audio items, filtered by duration.
-    """
+    """Prepare a list of all audio items, filtered by duration."""
 
     OUTPUT_TYPE = collections.namedtuple(typename='Audio', field_names='audio_files duration offset text')
 
@@ -852,11 +865,14 @@ class Audio(_Collection):
 
 
 class AudioCollection(Audio):
-    """List of audio files from a manifest file. 
-    """
+    """List of audio files from a manifest file."""
 
     def __init__(
-        self, manifest_files: Union[str, List[str]], audio_to_manifest_key: Dict[str, str], *args, **kwargs,
+        self,
+        manifest_files: Union[str, List[str]],
+        audio_to_manifest_key: Dict[str, str],
+        *args,
+        **kwargs,
     ):
         """Instantiates a list of audio files loaded from a manifest file.
 
@@ -970,7 +986,10 @@ class AudioCollection(Audio):
 class FeatureLabel(_Collection):
     """List of feature sequence and their label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureLabelEntity', field_names='feature_file label',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='FeatureLabelEntity',
+        field_names='feature_file label',
+    )
 
     def __init__(
         self,
@@ -1017,7 +1036,10 @@ class ASRFeatureLabel(FeatureLabel):
     """`FeatureLabel` collector from asr structured json files."""
 
     def __init__(
-        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+        self,
+        manifests_files: Union[str, List[str]],
+        max_number: Optional[int] = None,
+        index_by_file_id: bool = False,
     ):
 
         """Parse lists of feature files and sequences of labels.
@@ -1056,7 +1078,10 @@ class ASRFeatureLabel(FeatureLabel):
         else:
             raise ValueError(f"Manifest file has invalid json line structure: {line} without proper 'label' key.")
 
-        item = dict(feature_file=item['feature_file'], label=item['label'],)
+        item = dict(
+            feature_file=item['feature_file'],
+            label=item['label'],
+        )
 
         return item
 

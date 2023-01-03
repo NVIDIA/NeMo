@@ -57,18 +57,32 @@ def get_tokenizer(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="build Faiss index",)
-    parser.add_argument(
-        '--input_data_prefix', type=str, required=True, help='Input data prefix',
+    parser = argparse.ArgumentParser(
+        description="build Faiss index",
     )
     parser.add_argument(
-        '--input_retrieval_prefix', type=str, required=True, help='Input retrieval data prefix',
+        '--input_data_prefix',
+        type=str,
+        required=True,
+        help='Input data prefix',
     )
     parser.add_argument(
-        '--knn_index', type=str, required=True, help='Input knn map index file',
+        '--input_retrieval_prefix',
+        type=str,
+        required=True,
+        help='Input retrieval data prefix',
     )
     parser.add_argument(
-        '--neighbors', type=int, default=None, help='number of neighbors',
+        '--knn_index',
+        type=str,
+        required=True,
+        help='Input knn map index file',
+    )
+    parser.add_argument(
+        '--neighbors',
+        type=int,
+        default=None,
+        help='number of neighbors',
     )
     parser.add_argument(
         '--chunk_ids',
@@ -86,10 +100,16 @@ if __name__ == "__main__":
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')

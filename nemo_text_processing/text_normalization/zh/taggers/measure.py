@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class Measure(GraphFst):
     '''
-        1kg  -> tokens { measure { cardinal { integer: "一" } units: "千克" } }
+    1kg  -> tokens { measure { cardinal { integer: "一" } units: "千克" } }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

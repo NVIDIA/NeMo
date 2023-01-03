@@ -161,7 +161,11 @@ def get_retro_demo(share, username, password):
                 weights = gr.Slider(
                     minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02
                 )
-                add_retrival_doc = gr.Textbox(label="Add New Retrieval Doc", value="", lines=5,)
+                add_retrival_doc = gr.Textbox(
+                    label="Add New Retrieval Doc",
+                    value="",
+                    lines=5,
+                )
                 add_EOS = gr.Checkbox(label="Add EOS token to Retrieval Doc", value=True)
                 with gr.Row():
                     add_btn = gr.Button(value="Add")

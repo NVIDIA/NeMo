@@ -154,7 +154,13 @@ def kmeans_plusplus_torch(
 
     centers = torch.zeros(n_clusters, n_features, dtype=X.dtype)
     center_id = torch.randint(0, n_samples, (1,)).long()
-    indices = torch.full([n_clusters,], -1, dtype=torch.int)
+    indices = torch.full(
+        [
+            n_clusters,
+        ],
+        -1,
+        dtype=torch.int,
+    )
 
     centers[0] = X[center_id].squeeze(0)
     indices[0] = center_id.squeeze(0)
@@ -979,8 +985,12 @@ class NMESC:
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
         p_volume = self.p_value_list.shape[0]
-        eig_ratio_list = torch.zeros(p_volume,)
-        est_num_of_spk_list = torch.zeros(p_volume,)
+        eig_ratio_list = torch.zeros(
+            p_volume,
+        )
+        est_num_of_spk_list = torch.zeros(
+            p_volume,
+        )
 
         if self.parallelism:
             futures: List[torch.jit.Future[torch.Tensor]] = []

@@ -52,21 +52,21 @@ __all__ = ['MegatronT5PromptLearningModel']
 
 class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained T5 model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After p-tuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
@@ -80,7 +80,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return False
 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self,
+        input_ids,
+        dec_input,
+        enc_mask,
+        dec_mask,
+        position_ids,
+        taskname_ids,
+        labels=None,
+        inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -165,7 +173,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Only want virtual prompt params to be passed to the optimizer.
         """
         ## Freeze frozen model
@@ -184,8 +192,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
@@ -250,15 +258,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return fwd_output_and_loss_func
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 

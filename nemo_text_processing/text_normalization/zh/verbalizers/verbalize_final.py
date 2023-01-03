@@ -23,9 +23,7 @@ from pynini.lib import pynutil
 
 
 class VerbalizeFinalFst(GraphFst):
-    """
-
-    """
+    """ """
 
     def __init__(self, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = False):
         super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
@@ -42,7 +40,12 @@ class VerbalizeFinalFst(GraphFst):
             )
             verbalizer = pynini.closure(delete_space + token_verbalizer + delete_space)
 
-            postprocessor = PostProcessor(remove_puncts=False, to_upper=False, to_lower=False, tag_oov=False,)
+            postprocessor = PostProcessor(
+                remove_puncts=False,
+                to_upper=False,
+                to_lower=False,
+                tag_oov=False,
+            )
 
             self.fst = (verbalizer @ postprocessor.fst).optimize()
             if far_file:

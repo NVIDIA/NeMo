@@ -50,7 +50,7 @@ def request_data(data, port=PORT_NUM):
 
 class RetrievalService:
     """
-    Abstract class for Retrieval Service. 
+    Abstract class for Retrieval Service.
     """
 
     @abc.abstractmethod
@@ -99,7 +99,11 @@ class SentenceBertResource(Resource):
     """
 
     def __init__(
-        self, bert_model, tokenizer, pool, sentence_bert_batch,
+        self,
+        bert_model,
+        tokenizer,
+        pool,
+        sentence_bert_batch,
     ):
         # server
         self.bert_model = bert_model
@@ -159,7 +163,12 @@ class SentenceBertServer(object):
         api.add_resource(
             SentenceBertResource,
             '/knn',
-            resource_class_args=[self.bert_model, self.tokenizer, self.pool, self.sentence_bert_batch,],
+            resource_class_args=[
+                self.bert_model,
+                self.tokenizer,
+                self.pool,
+                self.sentence_bert_batch,
+            ],
         )
 
     def run(self, url, port=PORT_NUM_BERT):
@@ -176,7 +185,12 @@ def start_sentence_bert_server(
     """
 
     if torch.distributed.get_rank() == 0:
-        server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
+        server = SentenceBertServer(
+            devices,
+            tokenizer,
+            sentence_bert,
+            sentence_bert_batch,
+        )
         server.run("0.0.0.0")
     torch.distributed.barrier()
 
@@ -188,7 +202,10 @@ class FaissRetrievalResource(Resource):
     """
 
     def __init__(
-        self, index, tokenizer, ds,
+        self,
+        index,
+        tokenizer,
+        ds,
     ):
         # server
         self.index = index
@@ -239,7 +256,12 @@ class RetrievalServer(object):
     """
 
     def __init__(
-        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
+        self,
+        faiss_index: str,
+        faiss_devices: str,
+        nprobe: int,
+        retrieval_index: str,
+        tokenizer: TokenizerSpec,
     ):
         self.app = Flask(__name__, static_url_path='')
         # server
@@ -265,7 +287,13 @@ class RetrievalServer(object):
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
         api = Api(self.app)
         api.add_resource(
-            FaissRetrievalResource, '/knn', resource_class_args=[self.index, self.tokenizer, self.ds,],
+            FaissRetrievalResource,
+            '/knn',
+            resource_class_args=[
+                self.index,
+                self.tokenizer,
+                self.ds,
+            ],
         )
 
     def run(self, url, port=PORT_NUM):
@@ -279,7 +307,12 @@ class DynamicRetrievalResource(FaissRetrievalResource):
     """
 
     def __init__(
-        self, index, tokenizer, chunk_size, stride, store,
+        self,
+        index,
+        tokenizer,
+        chunk_size,
+        stride,
+        store,
     ):
         self.index = index
         self.tokenizer = tokenizer
@@ -348,7 +381,11 @@ class DynamicRetrievalServer(object):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32,
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int = 64,
+        stride: int = 32,
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
@@ -380,7 +417,13 @@ class DynamicRetrievalServer(object):
         api.add_resource(
             DynamicRetrievalResource,
             '/knn',
-            resource_class_args=[self.index, self.tokenizer, self.chunk_size, self.stride, self.store,],
+            resource_class_args=[
+                self.index,
+                self.tokenizer,
+                self.chunk_size,
+                self.stride,
+                self.store,
+            ],
         )
 
     def run(self, url, port=PORT_NUM_DYN):
@@ -395,7 +438,12 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
+        self,
+        faiss_index: str,
+        faiss_devices: str,
+        nprobe: int,
+        retrieval_index: str,
+        tokenizer: TokenizerSpec,
     ):
         self.updatable = False
         self.tokenizer = tokenizer
@@ -435,7 +483,11 @@ class DynamicFaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int,
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int,
+        stride: int,
     ):
         self.updatable = True
         self.tokenizer = tokenizer

@@ -19,16 +19,16 @@ from pynini.lib import pynutil
 
 class Cardinal(GraphFst):
     '''
-        self.graph_cardinal:
-        5       -> 五
-        12      -> 十二
-        213     -> 二百一十三
-        3123    -> 三千一百二十三
-        51234   -> 五万一千二百三十四
-        51,234  -> 五万一千二百三十四
-        0.125   -> 零点一二五
-        self.fst:
-        123     -> cardinal{ integer: "一二三" }
+    self.graph_cardinal:
+    5       -> 五
+    12      -> 十二
+    213     -> 二百一十三
+    3123    -> 三千一百二十三
+    51234   -> 五万一千二百三十四
+    51,234  -> 五万一千二百三十四
+    0.125   -> 零点一二五
+    self.fst:
+    123     -> cardinal{ integer: "一二三" }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):
@@ -51,7 +51,7 @@ class Cardinal(GraphFst):
         graph_ten = (graph_teen + pynutil.insert(UNIT_1e01) + graph_digit_no_zero) | (graph_zero + graph_digit)
         # 215 or 200
         graph_hundred = (graph_digit + pynutil.insert(UNIT_1e02) + graph_ten_u) | (
-            graph_digit + pynutil.insert(UNIT_1e02) + graph_no_zero ** 2
+            graph_digit + pynutil.insert(UNIT_1e02) + graph_no_zero**2
         )
         # 3000 or 3002 or 3012 or 3123
         # both with 3,000 or 3,002 or 3,012 or 3,123
@@ -67,7 +67,7 @@ class Cardinal(GraphFst):
                 + graph_digit_no_zero
             )
             | (graph_digit + pynutil.insert(UNIT_1e03) + delete_punct.ques + graph_zero + graph_no_zero + graph_digit)
-            | (graph_digit + pynutil.insert(UNIT_1e03) + delete_punct.ques + graph_no_zero ** 3)
+            | (graph_digit + pynutil.insert(UNIT_1e03) + delete_punct.ques + graph_no_zero**3)
         )
         # 20001234 or 2001234 or 201234 or 21234 or 20234 or 20023 or 20002 or 20000
         # 8 digits max supported,for 9 digits cardinal,often write with unit instead of read it in only cardinalform
@@ -84,8 +84,8 @@ class Cardinal(GraphFst):
                     + insert_zero
                     + (graph_digit + pynutil.insert(UNIT_1e01) + graph_digit_no_zero)
                 )
-                | (graph_no_zero + delete_punct.ques + graph_no_zero ** 2 + insert_zero + graph_digit)
-                | (graph_no_zero ** 4)
+                | (graph_no_zero + delete_punct.ques + graph_no_zero**2 + insert_zero + graph_digit)
+                | (graph_no_zero**4)
             )
         )
 

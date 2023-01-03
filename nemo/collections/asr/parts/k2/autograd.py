@@ -55,7 +55,11 @@ class _AbsFunction(torch.autograd.Function):
         values_abs = values.abs()
 
         ans = torch.sparse_coo_tensor(
-            indices=indices, values=values_abs, size=size, dtype=sparse_tensor.dtype, device=sparse_tensor.device,
+            indices=indices,
+            values=values_abs,
+            size=size,
+            dtype=sparse_tensor.dtype,
+            device=sparse_tensor.device,
         )
 
         ctx.save_for_backward(sparse_tensor)

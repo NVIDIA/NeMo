@@ -19,14 +19,12 @@ from sklearn.metrics import average_precision_score, log_loss, roc_auc_score
 
 
 def auc_roc(y_true, y_score):
-    """Compute Area Under the Receiver Operating Characteristic Curve (ROC AUC) from prediction scores.
-    """
+    """Compute Area Under the Receiver Operating Characteristic Curve (ROC AUC) from prediction scores."""
     return roc_auc_score(y_true, y_score)
 
 
 def auc_pr(y_true, y_score):
-    """Compute Area Under the Precision-Recall Curve (PR AUC) from prediction scores.
-    """
+    """Compute Area Under the Precision-Recall Curve (PR AUC) from prediction scores."""
     return average_precision_score(y_true, y_score)
 
 

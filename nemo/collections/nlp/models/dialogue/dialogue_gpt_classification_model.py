@@ -51,7 +51,9 @@ __all__ = ['DialogueGPTClassificationModel']
 
 class DialogueGPTClassificationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
 
         self.cfg = cfg
@@ -101,14 +103,14 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override for prompt learning. 
-        Optimizer will get self._optimizer_param_groups. 
+        ModelPT override for prompt learning.
+        Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         if not self.prompt_learning:
             super().setup_optimizer_param_groups()
@@ -322,7 +324,10 @@ class DialogueGPTClassificationModel(NLPModel):
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
             )
             position_ids = torch.arange(
-                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
+                start=0,
+                end=num_prompt_tokens + input_ids.size(1),
+                dtype=torch.long,
+                device=input_ids.device,
             )
 
             prompt_ids = self.get_virtual_prompt_ids_for_megatron_gpt(input_ids)
@@ -702,7 +707,9 @@ class DialogueGPTClassificationModel(NLPModel):
             )
         elif self._cfg.dataset.task == 'design':
             self.dialogues_processor = DialogueDesignDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset,
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         else:
             raise ValueError("Only sgd, assistant, zero_shot, design supported for Dialogue GPT Classification Model")

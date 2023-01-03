@@ -111,11 +111,21 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
-        self._wer = WERBPE(decoding=self.decoding, use_cer=False, log_prediction=False, dist_sync_on_step=True,)
-        self._per = WERBPE(decoding=self.decoding, use_cer=True, log_prediction=False, dist_sync_on_step=True,)
+        self._wer = WERBPE(
+            decoding=self.decoding,
+            use_cer=False,
+            log_prediction=False,
+            dist_sync_on_step=True,
+        )
+        self._per = WERBPE(
+            decoding=self.decoding,
+            use_cer=True,
+            log_prediction=False,
+            dist_sync_on_step=True,
+        )
 
     def setup_grapheme_tokenizer(self, cfg):
-        """ Initialized grapheme tokenizer """
+        """Initialized grapheme tokenizer"""
 
         if self.mode == "byt5":
             # Load appropriate tokenizer from HuggingFace
@@ -312,7 +322,10 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
         )
 
     @torch.no_grad()
-    def _infer(self, config: DictConfig,) -> List[int]:
+    def _infer(
+        self,
+        config: DictConfig,
+    ) -> List[int]:
         """
         Runs model inference.
 

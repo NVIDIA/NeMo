@@ -69,7 +69,12 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
         if word != "":
             # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
             align1 = float(round(alignments[i - 1], output_precision))
-            align2 = float(round(alignments[i] - alignments[i - 1], output_precision,))
+            align2 = float(
+                round(
+                    alignments[i] - alignments[i - 1],
+                    output_precision,
+                )
+            )
             text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
             arr.append((align1, text))
     return arr
@@ -77,7 +82,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
 
 def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_directory, dataset):
     """
-    Create new CTM alignments using input LibriSpeech word alignments. 
+    Create new CTM alignments using input LibriSpeech word alignments.
 
     Args:
         input_manifest_filepath (str): Path to the input LibriSpeech manifest file

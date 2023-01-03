@@ -163,13 +163,13 @@ def get_transformer(
                                  config_dict={
                                      '_target_': 'transformers.BertConfig',
                                      'hidden_size': 1536
-                                 }) 
+                                 })
 
 
     Args:
         library (str, optional): Can be 'nemo', 'huggingface', or 'megatron'. Defaults to 'nemo'.
         model_name (Optional[str], optional): Named model architecture from the chosen library. Defaults to None.
-        pretrained (bool, optional): Use True to get pretrained weights. 
+        pretrained (bool, optional): Use True to get pretrained weights.
                                      False will use the same architecture but with randomly initialized weights.
                                      Defaults to False.
         config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.

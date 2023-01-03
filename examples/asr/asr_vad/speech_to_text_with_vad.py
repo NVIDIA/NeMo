@@ -253,7 +253,9 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             'vad_stream': False,
             'sample_rate': cfg.sample_rate,
             'manifest_filepath': manifest_filepath,
-            'labels': ['infer',],
+            'labels': [
+                'infer',
+            ],
             'num_workers': cfg.num_workers,
             'shuffle': False,
         }
@@ -266,7 +268,8 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             with autocast():
                 with record_fn("feat_extract_infer"):
                     processed_signal, processed_signal_length = vad_model.preprocessor(
-                        input_signal=test_batch[0], length=test_batch[1],
+                        input_signal=test_batch[0],
+                        length=test_batch[1],
                     )
                 with record_fn("feat_extract_other"):
                     processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
@@ -300,7 +303,9 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
     test_data_config = {
         'vad_stream': True,
         'manifest_filepath': manifest_filepath,
-        'labels': ['infer',],
+        'labels': [
+            'infer',
+        ],
         'num_workers': cfg.num_workers,
         'shuffle': False,
         'window_length_in_sec': vad_cfg.vad.parameters.window_length_in_sec,
@@ -545,7 +550,11 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                     with record_fn("asr_infer_other"):
                         logits, logits_len = outputs[0], outputs[1]
 
-                        current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=False,)
+                        current_hypotheses, all_hyp = decode_function(
+                            logits,
+                            logits_len,
+                            return_hypotheses=False,
+                        )
 
                         hypotheses += current_hypotheses
                         if all_hyp is not None:

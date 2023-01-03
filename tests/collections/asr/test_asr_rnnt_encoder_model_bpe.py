@@ -65,12 +65,18 @@ def asr_model(test_data_dir):
 
     decoder = {
         '_target_': 'nemo.collections.asr.modules.RNNTDecoder',
-        'prednet': {'pred_hidden': model_defaults['pred_hidden'], 'pred_rnn_layers': 1,},
+        'prednet': {
+            'pred_hidden': model_defaults['pred_hidden'],
+            'pred_rnn_layers': 1,
+        },
     }
 
     joint = {
         '_target_': 'nemo.collections.asr.modules.RNNTJoint',
-        'jointnet': {'joint_hidden': 32, 'activation': 'relu',},
+        'jointnet': {
+            'joint_hidden': 32,
+            'activation': 'relu',
+        },
     }
 
     decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 30}}
@@ -145,7 +151,8 @@ class NestedRNNTModel(ASRModel):
 
 class TestEncDecRNNTBPEModel:
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -159,7 +166,8 @@ class TestEncDecRNNTBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_forward(self, asr_model):
@@ -194,7 +202,8 @@ class TestEncDecRNNTBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
@@ -212,7 +221,8 @@ class TestEncDecRNNTBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
@@ -258,7 +268,8 @@ class TestEncDecRNNTBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
@@ -288,7 +299,8 @@ class TestEncDecRNNTBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):
@@ -331,7 +343,8 @@ class TestEncDecRNNTBPEModel:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     def test_save_restore_nested_model(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -362,10 +375,10 @@ class TestEncDecRNNTBPEModel:
 
             # Check size of inner and outer checkpoint, that it prevents duplication of parameters.
             fp = os.path.join(tmp_dir, inner_nemo_file)
-            assert os.path.getsize(fp) > 5 * (2 ** 20)  # Assert the base nemo file is greater than 50 MB
+            assert os.path.getsize(fp) > 5 * (2**20)  # Assert the base nemo file is greater than 50 MB
 
             fp_outer = os.path.join(tmp_dir, 'model_weights.ckpt')
-            assert os.path.getsize(fp_outer) < 5 * (2 ** 20)  # Assert the inner weights are less than 5 MB
+            assert os.path.getsize(fp_outer) < 5 * (2**20)  # Assert the inner weights are less than 5 MB
 
             # Check if param after restoration is exact match
             original_state_dict = model.inner_model.state_dict()

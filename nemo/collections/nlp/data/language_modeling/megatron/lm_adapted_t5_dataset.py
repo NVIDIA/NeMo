@@ -81,7 +81,11 @@ class T5LMAdaptedDataset(GPTDataset):
             split_idx = np_rng.randint(0, max_split_idx)
         elif pivot_distribution == LengthDistribution.truncated_normal:
             loc = pivot_mean * max_split_idx
-            split_idx = np.clip(int(np_rng.normal(loc=loc, scale=loc)), 0, max_split_idx,)
+            split_idx = np.clip(
+                int(np_rng.normal(loc=loc, scale=loc)),
+                0,
+                max_split_idx,
+            )
         else:
             raise ValueError(f"Invalid pivot_distribution: {pivot_distribution}")
 

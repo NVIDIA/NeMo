@@ -41,7 +41,7 @@ import k2 # isort:skip
 class BaseDecoder(object):
     """Base graph decoder with topology for decoding graph.
     Typically uses the same parameters as for the corresponding loss function.
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -151,7 +151,8 @@ class BaseDecoder(object):
             return lats
         else:
             shortest_path_fsas = k2.index_fsa(
-                k2.shortest_path(lats, True), invert_permutation(order).to(device=log_probs.device),
+                k2.shortest_path(lats, True),
+                invert_permutation(order).to(device=log_probs.device),
             )
             shortest_paths = []
             probs = []
@@ -198,7 +199,7 @@ class BaseDecoder(object):
 
 class TokenLMDecoder(BaseDecoder):
     """Graph decoder with token_lm-based decoding graph.
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """

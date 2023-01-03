@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
+    Finite state transducer for classifying cardinals, e.g.
        "тысяча один" ->  cardinal { integer: "1 001" }
 
     Args:

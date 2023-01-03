@@ -51,7 +51,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         #   git clone https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git
 
     ***Data format***
-    SGD data comes with a JSON schema file and dialogue files for each dataset split. 
+    SGD data comes with a JSON schema file and dialogue files for each dataset split.
 
     In the following we will show an example for a service entry in the schema file.
     * service_name
@@ -70,7 +70,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         * result_slots (not used)
 
 
-    In the following we will show an example for a dialogue. 
+    In the following we will show an example for a dialogue.
     * dialogue_id
     * services
     * turns
@@ -87,14 +87,18 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             * state
                 * active_intent
                 * requeste_slots
-                * slot_values 
+                * slot_values
         * speaker - [USER, SYSTEM]
         * utterance
 
     """
 
     def __init__(
-        self, data_dir: str, dialogues_example_dir: str, tokenizer: object, cfg=None,
+        self,
+        data_dir: str,
+        dialogues_example_dir: str,
+        tokenizer: object,
+        cfg=None,
     ):
         """
         Constructs DialogueSGDDataProcessor
@@ -213,7 +217,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
 
     def get_dialog_examples(self, dataset_split: str) -> List[object]:
         """
-        Loads preprocessed dialogue examples from disk. 
+        Loads preprocessed dialogue examples from disk.
         Args:
             dataset_split: dataset split
         Returns:
@@ -260,7 +264,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         Returns a list of `InputExample`s of the data splits' dialogues.
         Args:
             dataset_split: data split, can be "train", "dev", or "test".
-            schemas: schema for all services of all datasets 
+            schemas: schema for all services of all datasets
             subsample: whether to balance postive and negative samples in the dataset
         Returns:
             examples: a list of `InputExample`s.

@@ -21,16 +21,14 @@ import numpy as np
 
 
 def read_manifest(manifest_path: Path) -> List[dict]:
-    """Read manifest file at the given path and convert it to a list of dictionary entries.
-    """
+    """Read manifest file at the given path and convert it to a list of dictionary entries."""
     with open(manifest_path, "r", encoding="utf-8") as manifest_f:
         entries = [json.loads(line) for line in manifest_f]
     return entries
 
 
 def write_manifest(manifest_path: Path, entries: List[dict]) -> None:
-    """Convert input entries to JSON format and write them as a manifest at the given path.
-    """
+    """Convert input entries to JSON format and write them as a manifest at the given path."""
     output_lines = [f"{json.dumps(entry, ensure_ascii=False)}\n" for entry in entries]
     with open(manifest_path, "w", encoding="utf-8") as output_f:
         output_f.writelines(output_lines)
@@ -48,8 +46,7 @@ def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Pa
 
 
 def normalize_volume(audio: np.array, volume_level: float) -> np.array:
-    """Apply peak normalization to the input audio.
-    """
+    """Apply peak normalization to the input audio."""
     if not (0.0 <= volume_level <= 1.0):
         raise ValueError(f"Volume must be in range [0.0, 1.0], received {volume_level}")
 

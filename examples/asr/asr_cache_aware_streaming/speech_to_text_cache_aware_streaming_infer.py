@@ -88,8 +88,8 @@ from nemo.utils import logging
 
 def extract_transcriptions(hyps):
     """
-        The transcribed_texts returned by CTC and RNNT models are different.
-        This method would extract and return the text section of the hypothesis.
+    The transcribed_texts returned by CTC and RNNT models are different.
+    This method would extract and return the text section of the hypothesis.
     """
     if isinstance(hyps[0], Hypothesis):
         transcriptions = []
@@ -190,7 +190,10 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file or name of a pretrained model.",
+        "--asr_model",
+        type=str,
+        required=True,
+        help="Path to an ASR model .nemo file or name of a pretrained model.",
     )
     parser.add_argument(
         "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"

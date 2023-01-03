@@ -43,7 +43,9 @@ NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 
 class DialogueGPTGenerationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
 
         self.cfg = cfg
@@ -104,7 +106,10 @@ class DialogueGPTGenerationModel(NLPModel):
         )
 
         DialogueGenerationMetrics.save_predictions(
-            filename, generated_field, ground_truth_field, inputs,
+            filename,
+            generated_field,
+            ground_truth_field,
+            inputs,
         )
 
         label_acc = np.mean([int(generated_field[i] == ground_truth_field[i]) for i in range(len(generated_field))])
@@ -149,7 +154,10 @@ class DialogueGPTGenerationModel(NLPModel):
             )
 
             position_ids = torch.arange(
-                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
+                start=0,
+                end=num_prompt_tokens + input_ids.size(1),
+                dtype=torch.long,
+                device=input_ids.device,
             )
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
@@ -222,7 +230,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None

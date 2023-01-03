@@ -214,7 +214,12 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
     @typecheck()
     def forward(
-        self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None,
+        self,
+        input_ids,
+        decoder_mask,
+        encoder_embeddings,
+        encoder_mask,
+        decoder_mems=None,
     ):
         start_pos = 0
         if decoder_mems is not None:

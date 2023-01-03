@@ -1058,8 +1058,7 @@ def generate_speaker_timestamps(
 
 
 def get_uniq_id_list_from_manifest(manifest_file: str):
-    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list.
-    """
+    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list."""
     uniq_id_list = []
     with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):

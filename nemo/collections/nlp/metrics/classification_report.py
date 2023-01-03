@@ -90,7 +90,7 @@ class ClassificationReport(Metric):
         Updates attributes needed for new classification report (true positive, false negative, false postive, examples per class)
 
         Args:
-            predictions: predicted labels 
+            predictions: predicted labels
             labels: actual labels
 
         Return:
@@ -190,7 +190,7 @@ class MultiLabelClassificationReport(ClassificationReport):
     """
     This metric computes the number of True Positive, False Negative, and False Positive examples per class for
     a multi-label dataset.
-    
+
     When doing distributed training/evaluation the result of res=ClassificationReport(predictions, labels) calls
     will be all-reduced between all workers using SUM operations.
 
@@ -232,7 +232,7 @@ class MultiLabelClassificationReport(ClassificationReport):
         Updates attributes needed for new classification report (true positive, false negative, false postive, examples per class)
 
         Args:
-            predictions: predicted labels 
+            predictions: predicted labels
             labels: actual labels
 
         Return:

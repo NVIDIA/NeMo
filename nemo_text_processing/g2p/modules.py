@@ -443,8 +443,7 @@ class IPAG2P(BaseG2p):
         return len(self.phoneme_dict[word]) == 1
 
     def parse_one_word(self, word: str) -> Tuple[List[str], bool]:
-        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
-        """
+        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise)."""
         if self.set_graphemes_upper:
             word = word.upper()
 

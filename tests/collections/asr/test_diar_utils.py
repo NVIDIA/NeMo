@@ -62,8 +62,7 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
 
 
 def generate_orthogonal_embs(total_spks, perturb_sigma, emb_dim):
-    """Generate a set of artificial orthogonal embedding vectors from random numbers
-    """
+    """Generate a set of artificial orthogonal embedding vectors from random numbers"""
     gaus = torch.randn(emb_dim, emb_dim)
     _svd = torch.linalg.svd(gaus)
     orth = _svd[0] @ _svd[2]
@@ -110,8 +109,7 @@ def generate_toy_data(
 
 
 class TestDiarizationUtilFunctions:
-    """Tests diarization and speaker-task related utils.
-    """
+    """Tests diarization and speaker-task related utils."""
 
     @pytest.mark.unit
     @pytest.mark.parametrize("Y", [[3, 3, 3, 4, 4, 5], [100, 100, 100, 104, 104, 1005]])
@@ -258,7 +256,10 @@ class TestDiarizationUtilFunctions:
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=10)
         em_s, ts_s = split_input_data(em, ts, mc)
         merged_embs, merged_clus_labels, _ = run_reducer(
-            pre_embs=em_s[-1], target_spk_idx=target_speaker_index, merge_quantity=merge_quantity, pre_clus_labels=gt,
+            pre_embs=em_s[-1],
+            target_spk_idx=target_speaker_index,
+            merge_quantity=merge_quantity,
+            pre_clus_labels=gt,
         )
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
 
@@ -267,7 +268,11 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 70 + [1] * 32)])
     @pytest.mark.parametrize("mspb", [25])
     def test_merge_scheduler_2clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([3, 0]))
 
     @pytest.mark.unit
@@ -275,7 +280,11 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 80 + [1] * 35 + [2] * 32)])
     @pytest.mark.parametrize("mspb", [0, 25])
     def test_merge_scheduler_3clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([3, 0, 0]))
 
     @pytest.mark.unit
@@ -283,7 +292,11 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([2] * 70 + [0] * 32 + [1] * 27 + [3] * 3)])
     @pytest.mark.parametrize("mspb", [3, 10])
     def test_merge_scheduler_4clus_shuff(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([18, 13, 56, 0]))
 
     @pytest.mark.unit
@@ -291,7 +304,11 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 5 + [1] * 4 + [2] * 3)])
     @pytest.mark.parametrize("mspb", [0, 2])
     def test_merge_scheduler_3clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([2, 1, 0]))
 
     @pytest.mark.unit
@@ -299,7 +316,11 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 7 + [1] * 5 + [2] * 3 + [3] * 5)])
     @pytest.mark.parametrize("mspb", [2])
     def test_merge_scheduler_3clus_repeat(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([2, 0, 0, 0]))
 
 
@@ -453,7 +474,13 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("min_samples_for_nmesc", [6])
     @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
     def test_offline_speaker_clustering_very_short_cpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed,
+        self,
+        n_spks,
+        spk_dur,
+        SSV,
+        enhanced_count_thres,
+        min_samples_for_nmesc,
+        seed,
     ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed

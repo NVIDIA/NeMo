@@ -184,8 +184,7 @@ class SDRLoss(Loss, Typing):
 
     @property
     def input_types(self):
-        """Input types definitions for SDRLoss.
-        """
+        """Input types definitions for SDRLoss."""
         signal_shape = ('B', 'C', 'T')
         return {
             "estimate": NeuralType(signal_shape, AudioSignal()),

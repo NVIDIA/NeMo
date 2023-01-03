@@ -48,8 +48,8 @@ class PromptEncoderType(enum.Enum):
 
 class BIGLSTMPromptEncoder(NeuralModule, Exportable):
     """
-    The LSTM prompt encoder network that is used to generate the virtual 
-    token embeddings for p-tuning.  It is specially used to work with large language model. 
+    The LSTM prompt encoder network that is used to generate the virtual
+    token embeddings for p-tuning.  It is specially used to work with large language model.
 
     To handle large language model, the LSTM only uses hidden_size as its hidden internal dimension, which is independent of LM hidden dimension.
     """
@@ -120,7 +120,7 @@ class BIGLSTMPromptEncoder(NeuralModule, Exportable):
 
 class PromptEncoderMLP(NeuralModule, Exportable):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     """
 
@@ -141,7 +141,7 @@ class PromptEncoderMLP(NeuralModule, Exportable):
             total_virtual_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.hidden_size = hidden_size
@@ -200,7 +200,7 @@ class PromptEncoderMLP(NeuralModule, Exportable):
 
 class PromptEncoder(NeuralModule, Exportable):
     """
-    The prompt encoder network that is used to generate the virtual 
+    The prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning.
     """
 

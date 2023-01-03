@@ -107,12 +107,12 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             )
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
-            total_norm = grad_norm ** norm_type
+            total_norm = grad_norm**norm_type
 
         else:
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
-                total_norm += grad_norm ** norm_type
+                total_norm += grad_norm**norm_type
 
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(
@@ -191,7 +191,8 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
     # Note: Compute norm of local grads and sum over all procs
     grad_norm_sq = optimizer._local_grad_norm(parameters=params_for_norm, norm_type=norm_type)
     torch.distributed.all_reduce(
-        grad_norm_sq, op=torch.distributed.ReduceOp.SUM,
+        grad_norm_sq,
+        op=torch.distributed.ReduceOp.SUM,
     )
     grad_norm = grad_norm_sq.sqrt()
 

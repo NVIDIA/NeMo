@@ -55,11 +55,11 @@ import k2 # isort:skip
 class MAPLoss(torch.nn.Module):
     """
     Maximum a Posteriori Probability criterion.
-    It is implemented as Lattice-Free Maximum Mutual Information (LF-MMI) 
+    It is implemented as Lattice-Free Maximum Mutual Information (LF-MMI)
     and LF-boosted-MMI (LF-bMMI) losses.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -133,7 +133,11 @@ class MAPLoss(torch.nn.Module):
         self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph)
 
     def _intersect_calc_scores_mmi_exact(
-        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
+        self,
+        dense_fsa_vec: k2.DenseFsaVec,
+        num_graphs: 'k2.Fsa',
+        den_graph: 'k2.Fsa',
+        return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -190,7 +194,11 @@ class MAPLoss(torch.nn.Module):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores_mmi_pruned(
-        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
+        self,
+        dense_fsa_vec: k2.DenseFsaVec,
+        num_graphs: 'k2.Fsa',
+        den_graph: 'k2.Fsa',
+        return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -272,13 +280,21 @@ class MAPLoss(torch.nn.Module):
             )
             row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, num_lats.seqframe_idx),
+                    num_lats.seqframe_idx,
+                    num_lats.phones,
+                ],
                 values=num_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             den_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, den_lats.seqframe_idx), den_lats.seqframe_idx, den_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, den_lats.seqframe_idx),
+                    den_lats.seqframe_idx,
+                    den_lats.phones,
+                ],
                 values=den_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,

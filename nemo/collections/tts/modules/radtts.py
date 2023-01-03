@@ -214,7 +214,9 @@ class RadTTSModule(NeuralModule, Exportable):
                     n_flowstep_cond_dims = self.n_speaker_dim + n_text_dim * n_group_size
 
                 self.context_lstm = BiLSTM(
-                    input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
+                    input_size=n_in_context_lstm,
+                    hidden_size=n_context_lstm_hidden,
+                    num_layers=1,
                 )
 
             if self.n_group_size > 1:
@@ -359,11 +361,11 @@ class RadTTSModule(NeuralModule, Exportable):
 
     def fold(self, mel):
         """Inverse of the self.unfold(mel.unsqueeze(-1)) operation used for the
-         grouping or "squeeze" operation on input
+        grouping or "squeeze" operation on input
 
-         Args:
-             mel: B x C x T tensor of temporal data
-         """
+        Args:
+            mel: B x C x T tensor of temporal data
+        """
 
         mel = nn.functional.fold(mel, output_size=(mel.shape[2] * self.n_group_size, 1), **self.unfold_params).squeeze(
             -1
@@ -667,7 +669,13 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
-        remaining_residual, mel = torch.tensor_split(residual, [num_steps_to_exit * self.n_early_size,], dim=1)
+        remaining_residual, mel = torch.tensor_split(
+            residual,
+            [
+                num_steps_to_exit * self.n_early_size,
+            ],
+            dim=1,
+        )
 
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
@@ -676,7 +684,11 @@ class RadTTSModule(NeuralModule, Exportable):
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
                 remaining_residual, residual_to_add = torch.tensor_split(
-                    remaining_residual, [num_steps_to_exit * self.n_early_size,], dim=1
+                    remaining_residual,
+                    [
+                        num_steps_to_exit * self.n_early_size,
+                    ],
+                    dim=1,
                 )
                 mel = torch.cat((residual_to_add, mel), 1)
 
@@ -725,8 +737,7 @@ class RadTTSModule(NeuralModule, Exportable):
         return energy
 
     def remove_norms(self):
-        """Removes spectral and weightnorms from model. Call before inference
-        """
+        """Removes spectral and weightnorms from model. Call before inference"""
         dev = next(self.parameters()).device
         for name, module in self.named_modules():
             try:

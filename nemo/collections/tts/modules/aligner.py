@@ -20,10 +20,14 @@ from nemo.collections.tts.modules.submodules import ConvNorm
 
 
 class AlignmentEncoder(torch.nn.Module):
-    """Module for alignment text and mel spectrogram. """
+    """Module for alignment text and mel spectrogram."""
 
     def __init__(
-        self, n_mel_channels=80, n_text_channels=512, n_att_channels=80, temperature=0.0005,
+        self,
+        n_mel_channels=80,
+        n_text_channels=512,
+        n_att_channels=80,
+        temperature=0.0005,
     ):
         super().__init__()
         self.temperature = temperature

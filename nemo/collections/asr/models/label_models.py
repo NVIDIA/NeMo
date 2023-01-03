@@ -330,7 +330,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         if self.spec_augmentation is not None and self.training:
@@ -450,12 +451,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     def get_label(self, path2audio_file):
         """
-        Returns label of path2audio_file from classes the model was trained on. 
+        Returns label of path2audio_file from classes the model was trained on.
         Args:
             path2audio_file: path to audio wav file
 
         Returns:
-            label: label corresponding to the trained model        
+            label: label corresponding to the trained model
         """
         _, logits = self.infer_file(path2audio_file=path2audio_file)
         mapped_labels = list(self._cfg['train_ds']['labels'])
@@ -515,10 +516,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def batch_inference(self, manifest_filepath, batch_size=32, sample_rate=16000, device='cuda'):
         """
-        Perform batch inference on EncDecSpeakerLabelModel. 
+        Perform batch inference on EncDecSpeakerLabelModel.
         To perform inference on single audio file, once can use infer_model, get_label or get_embedding
 
-        To map predicted labels, one can do 
+        To map predicted labels, one can do
             `arg_values = logits.argmax(axis=1)`
             `pred_labels = list(map(lambda t : pred_labels[t], arg_values))`
 
@@ -548,7 +549,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
 
         dataloader = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=dataset.fixed_seq_collate_fn,
         )
 
         logits = []

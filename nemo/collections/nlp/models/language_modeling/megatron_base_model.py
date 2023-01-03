@@ -218,7 +218,7 @@ class MegatronBaseModel(NLPModel):
 
     def configure_gradient_clipping(self, *args, **kwargs):
         """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
+        We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
         if clip_val is None:
@@ -246,7 +246,7 @@ class MegatronBaseModel(NLPModel):
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
-           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
         """
         # Bucketize and all-reduce
         buckets = {}
@@ -321,7 +321,9 @@ class MegatronBaseModel(NLPModel):
                     grad_scaler.optimizer_update_skipped = None
 
     def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
@@ -428,8 +430,8 @@ class MegatronBaseModel(NLPModel):
         return init_consumed_samples
 
     def _validate_and_override_config(self):
-        """ Certain configurations might be incompatible or discouraged. 
-            We can check for them here and override if necessary.
+        """Certain configurations might be incompatible or discouraged.
+        We can check for them here and override if necessary.
         """
         app_state = AppState()
 

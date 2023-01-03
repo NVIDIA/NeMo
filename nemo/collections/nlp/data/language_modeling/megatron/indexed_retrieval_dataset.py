@@ -101,7 +101,12 @@ class KNNIndex(object):
             def __exit__(self, exc_type, exc_val, exc_tb):
                 self._file.close()
                 # Update the chunk size, Since total number of chunks is determined in the end
-                _bin_buffer_mmap = np.memmap(self.path, mode='r+', order='C', shape=(9 + 8 + 8 + 8),)
+                _bin_buffer_mmap = np.memmap(
+                    self.path,
+                    mode='r+',
+                    order='C',
+                    shape=(9 + 8 + 8 + 8),
+                )
                 buffer = memoryview(_bin_buffer_mmap)
                 len_array = np.frombuffer(buffer, dtype=np.int64, count=1, offset=9 + 8 + 8)
                 len_array[0] = self.count_chunks
@@ -135,8 +140,7 @@ class KNNIndex(object):
         )
 
     def get_KNN_chunk_ids(self, chunk_id):
-        """ get the chunk address (in bytes) from chunk id
-        """
+        """get the chunk address (in bytes) from chunk id"""
         if not (self.chunk_start_id <= chunk_id < self.chunk_end_id):
             raise ValueError(f'chunk {chunk_id} is out side the range [{self.chunk_start_id}, {self.chunk_end_id})')
         return self.knn_map[chunk_id - self.chunk_start_id]
@@ -317,13 +321,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             )
 
         def get_chunk_address(self, chunk_id):
-            """ get the chunk address from chunk id
-            """
+            """get the chunk address from chunk id"""
             return self._chunk_address[chunk_id]
 
         def get_chunk_id(self, sentence_id, position):
-            """ get the chunk id from sentence idx and offset position.
-            """
+            """get the chunk id from sentence idx and offset position."""
             chunk_offset = position // self.chunk_size
             size = self._sizes[sentence_id]
             if chunk_offset * self.chunk_size >= size:
@@ -331,8 +333,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             return (self._chunk_id_start[sentence_id] + chunk_offset).item()
 
         def from_chunk_id_to_doc_id(self, chunk_id):
-            """ from chunk_id, calculate the document id
-            """
+            """from chunk_id, calculate the document id"""
             if chunk_id >= self.num_chunks:
                 raise ValueError('chunk_id is out of bound')
             doc_id = np.searchsorted(self._chunk_id_start, chunk_id, side='right')
@@ -435,7 +436,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             return sents
 
     def get(self, idx, offset=0, length=None):
-        """ Retrieves a single item from the dataset with the option to only
+        """Retrieves a single item from the dataset with the option to only
         return a portion of the item.
 
         get(idx) is the same as [idx] but get() does not support slicing.
@@ -449,19 +450,17 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         return np_array
 
     def get_chunk_id(self, idx, offset=0):
-        """ get the chunk id from document idx and offset position.
-        """
+        """get the chunk id from document idx and offset position."""
         # make sure offset is a multiple of chunk_size
         assert offset % self._index.chunk_size == 0
         return self._index.get_chunk_id(idx, offset)
 
     def from_chunk_id_to_doc_id(self, chunk_id):
-        """ from chunk_id, calculate the document id
-        """
+        """from chunk_id, calculate the document id"""
         return self._index.from_chunk_id_to_doc_id(chunk_id)
 
     def get_chunk(self, chunk_id, force_no_cont_ids=False):
-        """ Retrieves a single chunk item from the dataset.
+        """Retrieves a single chunk item from the dataset.
         It will get chunk_size tokens for training data
         or 2*chunk_size tokens for retrieval data.
         If force_no_cont_ids=True, it will always get chunk_size tokens

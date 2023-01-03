@@ -148,7 +148,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         # Crop or pad is always applied
         if self.crop_or_pad is not None:

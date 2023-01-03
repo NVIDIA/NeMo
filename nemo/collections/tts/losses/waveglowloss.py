@@ -19,8 +19,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class WaveGlowLoss(Loss):
-    """ A Loss module that computes loss for WaveGlow
-    """
+    """A Loss module that computes loss for WaveGlow"""
 
     @property
     def input_types(self):

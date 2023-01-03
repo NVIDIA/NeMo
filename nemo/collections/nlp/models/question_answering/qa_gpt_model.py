@@ -88,7 +88,11 @@ class GPTQAModel(BaseQAModel):
 
         eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
         eval_results, _, _ = self.evaluate(
-            eval_dataset.features, eval_dataset.examples, unique_ids, per_sample_perplexity, generated_answers,
+            eval_dataset.features,
+            eval_dataset.examples,
+            unique_ids,
+            per_sample_perplexity,
+            generated_answers,
         )
 
         self.log(f'{prefix}_loss', avg_loss)
@@ -171,10 +175,19 @@ class GPTQAModel(BaseQAModel):
         return all_predictions, all_nbest_perdictions
 
     def evaluate(
-        self, features, examples, unique_ids, per_sample_perplexity, generated_texts,
+        self,
+        features,
+        examples,
+        unique_ids,
+        per_sample_perplexity,
+        generated_texts,
     ):
         all_predictions, all_nbest_predictions = self._get_predictions(
-            features, examples, unique_ids, per_sample_perplexity, generated_texts,
+            features,
+            examples,
+            unique_ids,
+            per_sample_perplexity,
+            generated_texts,
         )
 
         eval_results = QAMetrics.evaluate_predictions(examples, all_predictions)
@@ -212,7 +225,12 @@ class GPTQAModel(BaseQAModel):
         return data_loader
 
     def _get_predictions(
-        self, features, examples: List, unique_ids: List[int], per_sample_perplexity: List, generated_texts: List,
+        self,
+        features,
+        examples: List,
+        unique_ids: List[int],
+        per_sample_perplexity: List,
+        generated_texts: List,
     ):
         unique_id_to_pos = {}
         for index, unique_id in enumerate(unique_ids):

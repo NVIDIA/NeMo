@@ -160,8 +160,7 @@ class TestAudioSpectrogram:
     @pytest.mark.parametrize('fft_length', [128, 1024])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_audio_to_spectrogram_reconstruction(self, fft_length: int, num_channels: int):
-        """Test analysis and synthesis transform result in a perfect reconstruction.
-        """
+        """Test analysis and synthesis transform result in a perfect reconstruction."""
         batch_size = 4
         num_samples = fft_length * 50
         num_examples = 25

@@ -159,7 +159,7 @@ def compare_slot_values(slot_values_ref, slot_values_hyp, service, use_fuzzy_mat
           an active ground-truth slot.
       slot_cat: list indicating whether the element in list_cor corresponds to a
           categorical slot.
-      list_cor_status: list of correct slot statuses 
+      list_cor_status: list of correct slot statuses
       list_cor_value: list of correctness score only for active slots. Monactive slots are assigned -1.
     """
     list_cor = []

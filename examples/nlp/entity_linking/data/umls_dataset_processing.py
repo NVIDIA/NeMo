@@ -47,17 +47,17 @@ HEADERS = [
 
 def process_umls_training_dataset(data_path, train_save_name, val_save_name, max_pairs, train_split, headers):
     """
-    Generates and saves UMLS self alignment pretraining train and validation data. Takes the raw .RRF UMLS 
+    Generates and saves UMLS self alignment pretraining train and validation data. Takes the raw .RRF UMLS
     data file and creates different pair combinations for entities with the same CUI. Each row in the output
     will be formatted as 'CUI EntitySynonym1 EntitySynonym2' with each item in a row separated by tabs.
     Saves two .tsv output files, one for the train split and one for the validation split.
-    Only data marked as English is added to the train and val splits. 
+    Only data marked as English is added to the train and val splits.
 
     Arguments:
         data_path (str): path to MRCONSO.RRF UMLS data file
         train_save_name (str): path to where training data will be saved
         val_save_name (str): path to where validation data will be saved
-        max_pairs (int): max number of pairs for any one CUI added to the train 
+        max_pairs (int): max number of pairs for any one CUI added to the train
                    or validation splits
         train_split (float): precentage of raw data to be added to train set split
         headers (list): column lables within MRCONSO.RRF
@@ -119,9 +119,9 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
 def process_umls_index_dataset(data_path, data_savename, id2string_savename, headers):
     """
     Generates data file needed to build a UMLS index and a hash table mapping each
-    CUI to one canonical concept string. Takes the raw .RRF data file and saves 
-    a .tsv indec concept file as well as the a .pkl file of cui to concept string 
-    mappings. Only data marked as English is added to the index data file. 
+    CUI to one canonical concept string. Takes the raw .RRF data file and saves
+    a .tsv indec concept file as well as the a .pkl file of cui to concept string
+    mappings. Only data marked as English is added to the index data file.
 
     Arguments:
         data_path (str): path to MRCONSO.RRF UMLS data file

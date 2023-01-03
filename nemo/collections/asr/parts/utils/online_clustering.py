@@ -184,9 +184,9 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
             >>> removable_counts_mat = [5, 3, 1]
             >>> remain_count = 6
             >>> num_clus = 3
-        
+
         Interim results:
-            >>> diff_counts 
+            >>> diff_counts
             [1, 2, 2]
             >>> gradual_counts
             [3, 4, 2]
@@ -194,7 +194,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
             [3, 7, 9]
 
         Return:
-            >>> removable_counts_mat 
+            >>> removable_counts_mat
             [2, 1, 0]
 
     Args:
@@ -244,7 +244,9 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
 
 @torch.jit.script
 def get_merge_quantity(
-    num_to_be_removed: int, pre_clus_labels: torch.Tensor, min_count_per_cluster: int,
+    num_to_be_removed: int,
+    pre_clus_labels: torch.Tensor,
+    min_count_per_cluster: int,
 ) -> torch.Tensor:
     """
     Determine which embeddings we need to reduce or merge in history buffer.
@@ -262,8 +264,8 @@ def get_merge_quantity(
         >>> pre_clus_labels = [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]
         >>> min_count_per_cluster = 2
         >>> get_merge_quantity(num_to_be_removed, pre_clus_labels, min_count_per_cluster)
-        Return:   
-            torch.tensor([2, 1, 0]) 
+        Return:
+            torch.tensor([2, 1, 0])
         >>> # Sum should be equal to `num_to_be_removed` which is 3
 
     Args:
@@ -359,7 +361,7 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
         >>> affinity_mat = [[1.0, 0.2, 0.8],
                             [0.2, 1.0, 0.4],
                             [0.8, 0.4, 1.0]]
-        >>> affinity_mat.sum(0) 
+        >>> affinity_mat.sum(0)
         [2.0, 1.6, 2.2]
 
         # The closest two embedding vectors are at index 0 and 2.
@@ -398,7 +400,10 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
 
 @torch.jit.script
 def run_reducer(
-    pre_embs: torch.Tensor, target_spk_idx: int, merge_quantity: int, pre_clus_labels: torch.Tensor,
+    pre_embs: torch.Tensor,
+    target_spk_idx: int,
+    merge_quantity: int,
+    pre_clus_labels: torch.Tensor,
 ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
@@ -414,12 +419,12 @@ def run_reducer(
         >>> affinity_mat = [[1.0, 0.2, 0.8],
                             [0.2, 1.0, 0.4],
                             [0.8, 0.4, 1.0]]
-        >>> affinity_mat.sum(0) 
+        >>> affinity_mat.sum(0)
         [2.0, 1.6, 2.2]
 
         The first and the third embedding vectors are merged into one embedding vector.
         >>> index_mapping # (bypassed indices, merged indices)
-        ([1], [0, 2]) 
+        ([1], [0, 2])
 
     Args:
         pre_embs (Tensor):
@@ -1051,7 +1056,11 @@ class OnlineSpeakerClustering:
         return Y_out
 
     def forward_infer(
-        self, emb: torch.Tensor, frame_index: int, enhanced_count_thres: int = 40, cuda: bool = False,
+        self,
+        emb: torch.Tensor,
+        frame_index: int,
+        enhanced_count_thres: int = 40,
+        cuda: bool = False,
     ) -> torch.Tensor:
         """
         Perform speaker clustering in online mode. Embedding vector set `emb` is expected to be containing

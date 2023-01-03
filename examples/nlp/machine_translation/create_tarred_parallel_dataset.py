@@ -90,7 +90,10 @@ if __name__ == '__main__':
         help='Number of batches (pickle files) within each tarfile',
     )
     parser.add_argument(
-        '--n_preproc_jobs', type=int, default=-2, help='Number of processes to use for creating the tarred dataset.',
+        '--n_preproc_jobs',
+        type=int,
+        default=-2,
+        help='Number of processes to use for creating the tarred dataset.',
     )
     parser.add_argument(
         '--byte_fallback',

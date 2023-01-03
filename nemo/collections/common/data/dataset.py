@@ -23,11 +23,11 @@ __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
 class ConcatDataset(IterableDataset):
     """
-    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified
     sampling technique.
     Args:
         datasets (list): A list of datasets to sample from.
-        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
+        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets.
             Defaults to True.
         sampling_technique (str): Sampling technique to choose which dataset to draw a sample from.
             Defaults to 'temperature'. Currently supports 'temperature', 'random' and 'round-robin'.
@@ -180,7 +180,7 @@ class ConcatDataset(IterableDataset):
 
 class ConcatMapDataset(Dataset):
     """
-    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified
     sampling technique.
     Args:
         datasets (list): A list of datasets to sample from.

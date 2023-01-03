@@ -25,7 +25,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class SpectrogramGenerator(ModelPT, ABC):
-    """ Base class for all TTS models that turn text into a spectrogram """
+    """Base class for all TTS models that turn text into a spectrogram"""
 
     @abstractmethod
     def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
@@ -98,7 +98,7 @@ class Vocoder(ModelPT, ABC):
 
 
 class GlowVocoder(Vocoder):
-    """ Base class for all Vocoders that use a Glow or reversible Flow-based setup. All child class are expected
+    """Base class for all Vocoders that use a Glow or reversible Flow-based setup. All child class are expected
     to have a parameter called audio_to_melspec_precessor that is an instance of
     nemo.collections.asr.parts.FilterbankFeatures"""
 
@@ -152,7 +152,11 @@ class GlowVocoder(Vocoder):
                 return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
 
             self.stft = lambda x: yet_another_patch(
-                x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window,
+                x,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                win_length=win_length,
+                window=window,
             )
             self.istft = lambda x, y: torch.istft(
                 torch.complex(x * torch.cos(y), x * torch.sin(y)),

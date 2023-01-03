@@ -34,7 +34,7 @@ class TokenParser:
 
         Args:
             text: text to be parsed
-        
+
         """
         self.text = text
         self.len_text = len(text)
@@ -107,11 +107,11 @@ class TokenParser:
 
     def parse_char(self, exp) -> bool:
         """
-        Parses character 
+        Parses character
 
         Args:
             exp: character to read in
-        
+
         Returns true if successful
         """
         assert self.char == exp
@@ -124,7 +124,7 @@ class TokenParser:
 
         Args:
             exp: characters to read in
-        
+
         Returns true if successful
         """
         ok = False
@@ -181,8 +181,8 @@ class TokenParser:
 
     def read(self):
         """
-        Reads in next char. 
-        
+        Reads in next char.
+
         Returns true if not EOS
         """
         if self.index < self.len_text - 1:  # should be unique

@@ -48,8 +48,7 @@ class MultiLabelIntentSlotClassificationDataset(IntentSlotClassificationDataset)
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),

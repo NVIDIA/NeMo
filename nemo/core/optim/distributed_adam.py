@@ -34,7 +34,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     self._grad_copy(param)
                     if self.overlap_grad_sync and not getattr(param, '_disable_overlap_grad_sync', False):
                         self._try_start_bucket_grad_sync(
-                            params=[param], ignore_last_bucket=need_to_initialize,
+                            params=[param],
+                            ignore_last_bucket=need_to_initialize,
                         )
 
         return hook

@@ -96,7 +96,7 @@ class TransformerLMModel(ModelPT):
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.encoder.embedding.token_embedding.weight
 
-        std_init_range = 1 / self.encoder.hidden_size ** 0.5
+        std_init_range = 1 / self.encoder.hidden_size**0.5
 
         # initialize weights if not using pretrained encoder
         if not self._cfg.encoder.get('pretrained', False):
@@ -192,7 +192,11 @@ class TransformerLMModel(ModelPT):
         self.eval_epoch_end(outputs, 'test')
 
     def setup_tokenizer(
-        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,
+        self,
+        tokenizer_name=None,
+        tokenizer_model=None,
+        vocab_file=None,
+        bpe_dropout=0.0,
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'word']

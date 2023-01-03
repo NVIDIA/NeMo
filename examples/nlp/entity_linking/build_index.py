@@ -38,7 +38,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def build_index(cfg: DictConfig, model: object):
     """
     Builds faiss index from index dataset specified in the config.
-        
+
     Args:
         cfg (DictConfig): Config file specifying index parameters
         model (object): Encoder model
@@ -141,7 +141,7 @@ def load_model(cfg: DictConfig, restore: bool):
         cfg: Config file specifying model parameters
         restore: Whether to restore model weights trained
                  by the user. Otherwise will load weights
-                 used before self alignment pretraining. 
+                 used before self alignment pretraining.
     """
 
     if restore:

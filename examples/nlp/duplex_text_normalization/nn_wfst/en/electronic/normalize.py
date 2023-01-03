@@ -21,7 +21,7 @@ from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 class ElectronicNormalizer(Normalizer):
     """
     Normalizer for ELECTRONIC.
-    
+
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
         lang: language

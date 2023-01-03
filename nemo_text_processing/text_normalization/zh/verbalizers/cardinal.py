@@ -18,7 +18,7 @@ from pynini.lib import pynutil
 
 class Cardinal(GraphFst):
     '''
-        tokens { cardinal { integer: "一二三" } } -> 一二三
+    tokens { cardinal { integer: "一二三" } } -> 一二三
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

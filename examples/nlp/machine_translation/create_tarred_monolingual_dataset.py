@@ -20,7 +20,10 @@ from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTData
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
     parser.add_argument(
-        '--tokenizer_name', type=str, default='yttm', help='Supports yttm, sentencepiece and HuggingFace tokenizers',
+        '--tokenizer_name',
+        type=str,
+        default='yttm',
+        help='Supports yttm, sentencepiece and HuggingFace tokenizers',
     )
     parser.add_argument('--tokenizer_model', type=str, default=None, help='Path to tokenizer model')
     parser.add_argument('--bpe_droput', type=float, default=0.0, help='BPE dropout to use')

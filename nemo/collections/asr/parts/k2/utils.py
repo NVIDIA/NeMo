@@ -48,7 +48,12 @@ def create_supervision(input_lengths: torch.Tensor) -> Tuple[torch.Tensor, torch
     These supervisions are required for some k2 methods.
     """
     supervisions = torch.stack(
-        (torch.tensor(range(input_lengths.shape[0])), torch.zeros(input_lengths.shape[0]), input_lengths.cpu(),), 1,
+        (
+            torch.tensor(range(input_lengths.shape[0])),
+            torch.zeros(input_lengths.shape[0]),
+            input_lengths.cpu(),
+        ),
+        1,
     ).to(dtype=torch.int32)
     # the duration column has to be sorted in decreasing order
     order = torch.argsort(supervisions[:, -1], descending=True).to(dtype=torch.int32)
@@ -57,7 +62,7 @@ def create_supervision(input_lengths: torch.Tensor) -> Tuple[torch.Tensor, torch
 
 def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
     """Produces a tensor of reverse permutation for a given indices.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/common.py
     """
     ans = torch.zeros(indices.shape, device=indices.device, dtype=indices.dtype)
@@ -68,8 +73,7 @@ def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
 def make_blank_first(
     blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Puts blank logits at the first place in input log_probs tensor.
-    """
+    """Puts blank logits at the first place in input log_probs tensor."""
     index = list(range(log_probs.shape[-1]))
     del index[blank_idx]
     index = torch.tensor([blank_idx] + index).to(log_probs.device)
@@ -79,8 +83,7 @@ def make_blank_first(
 
 
 def load_graph(graph_path: str) -> 'k2.Fsa':
-    """Fsa graph loading helper function. Loads graphs stored in different formats.
-    """
+    """Fsa graph loading helper function. Loads graphs stored in different formats."""
     if os.path.exists(graph_path):
         errors = []
         try:
@@ -105,21 +108,28 @@ def load_graph(graph_path: str) -> 'k2.Fsa':
 
 
 def intersect_with_self_loops(base_graph: 'k2.Fsa', aux_graph: 'k2.Fsa') -> 'k2.Fsa':
-    """Intersection helper function.
-    """
+    """Intersection helper function."""
     assert hasattr(base_graph, "aux_labels")
     assert not hasattr(aux_graph, "aux_labels")
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
-    result = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False,)
+    result = k2.intersect(
+        k2.arc_sort(base_graph),
+        aux_graph_with_self_loops,
+        treat_epsilons_specially=False,
+    )
     setattr(result, "phones", result.labels)
     return result
 
 
 def compose_with_self_loops(base_graph: 'k2.Fsa', aux_graph: 'k2.Fsa') -> 'k2.Fsa':
-    """Composition helper function.
-    """
+    """Composition helper function."""
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
-    return k2.compose(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, inner_labels="phones",)
+    return k2.compose(
+        base_graph,
+        aux_graph_with_self_loops,
+        treat_epsilons_specially=False,
+        inner_labels="phones",
+    )
 
 
 def create_sparse_wrapped(
@@ -128,13 +138,16 @@ def create_sparse_wrapped(
     size: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None,
     min_col_index: Optional[int] = None,
 ) -> torch.Tensor:
-    """Wraps up k2.create_sparse to create 2- or 3-dimensional sparse tensors.
-    """
+    """Wraps up k2.create_sparse to create 2- or 3-dimensional sparse tensors."""
     assert size is None or len(indices) == len(size)
 
     if len(indices) == 2:
         return k2.create_sparse(
-            rows=indices[0], cols=indices[1], values=values, size=size, min_col_index=min_col_index,
+            rows=indices[0],
+            cols=indices[1],
+            values=values,
+            size=size,
+            min_col_index=min_col_index,
         )
     elif len(indices) == 3:
         assert indices[0].ndim == indices[1].ndim == indices[2].ndim == 1
@@ -147,28 +160,42 @@ def create_sparse_wrapped(
             values = values[kept_indices]
         if size is not None:
             return torch.sparse_coo_tensor(
-                torch.stack(indices), values, size=size, device=values.device, requires_grad=values.requires_grad,
+                torch.stack(indices),
+                values,
+                size=size,
+                device=values.device,
+                requires_grad=values.requires_grad,
             )
         else:
             return torch.sparse_coo_tensor(
-                torch.stack(indices), values, device=values.device, requires_grad=values.requires_grad,
+                torch.stack(indices),
+                values,
+                device=values.device,
+                requires_grad=values.requires_grad,
             )
     else:
         raise ValueError(f"len(indices) = {len(indices)}")
 
 
 def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
-    """Performs special epsilon-padding required for composition with some of the topologies.
-    """
+    """Performs special epsilon-padding required for composition with some of the topologies."""
     log_softmax_shifted = torch.cat(
         [
-            torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device,),
+            torch.full(
+                (log_softmax.shape[0], log_softmax.shape[1], 1),
+                -float("inf"),
+                device=log_softmax.device,
+            ),
             log_softmax,
         ],
         axis=-1,
     )
     log_softmax_padded = torch.zeros(
-        (log_softmax_shifted.shape[0], log_softmax_shifted.shape[1] * 2, log_softmax_shifted.shape[2],),
+        (
+            log_softmax_shifted.shape[0],
+            log_softmax_shifted.shape[1] * 2,
+            log_softmax_shifted.shape[2],
+        ),
         device=log_softmax.device,
     )
     log_softmax_padded[:, ::2] = log_softmax_shifted
@@ -179,8 +206,7 @@ def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tenso
 
 
 def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
-    """Shifts lattice labels and aux_labels by a given number. This is an in-place operation.
-    """
+    """Shifts lattice labels and aux_labels by a given number. This is an in-place operation."""
     for lattice in lattices:
         mask = lattice.labels > 0
         lattice.labels[mask] += shift
@@ -191,8 +217,7 @@ def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
 
 
 def get_arc_weights(graph: 'k2.Fsa') -> torch.Tensor:
-    """Returns 1d torch.Tensor with arc weights of a given graph.
-    """
+    """Returns 1d torch.Tensor with arc weights of a given graph."""
     if len(graph.shape) > 2:
         raise NotImplementedError("FsaVec is not supported at the moment.")
     weights_int = graph.arcs_as_tensor()[:, -1].tolist()
@@ -210,7 +235,7 @@ def get_tot_objf_and_finite_mask(tot_scores: torch.Tensor, reduction: str) -> Tu
         Returns:
              Returns a tuple of 2 scalar tensors: (tot_score, finite_mask)
         where finite_mask is a tensor containing successful segment mask.
-    
+
     Based on get_tot_objf_and_num_frames
     from https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/common.py
     """

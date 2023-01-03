@@ -88,7 +88,7 @@ classes_to_upsample = defaultdict(int)
 
 def include_sentence(sentence_patterns) -> bool:
     """
-    Determines whether to use a sentence for upsampling whose patterns are provided as input. This will check the global pattern tables 
+    Determines whether to use a sentence for upsampling whose patterns are provided as input. This will check the global pattern tables
     if this sentence includes any patterns that are still needed.
 
     Args:
@@ -143,7 +143,7 @@ def include_sentence(sentence_patterns) -> bool:
 
 
 def read_data_file(fp: str, upsample_file: bool = False):
-    """ Reading the raw data from a file of NeMo format
+    """Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
@@ -204,7 +204,7 @@ def update_patterns(patterns: dict, new_patterns: dict):
 
     Args:
         patterns: main table
-        new_patterns: new table to update the main table with 
+        new_patterns: new table to update the main table with
     """
     for k, v in new_patterns.items():
         patterns[k] += v
@@ -254,7 +254,7 @@ def lookup_patterns(cls: str, input_str: str) -> dict:
 
 def create_pattern(templates: List[str], input_str: str, pretty: bool = False):
     """
-    create all patterns based on list of input templates using the input string. 
+    create all patterns based on list of input templates using the input string.
 
     Args:
         templates: list of templates/stencils

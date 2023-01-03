@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for classifying date, 
+    Finite state transducer for classifying date,
         e.g. primero de enero -> date { day: "1" month: "enero" }
         e.g. uno de enero -> date { day: "1" month: "enero" }
     """

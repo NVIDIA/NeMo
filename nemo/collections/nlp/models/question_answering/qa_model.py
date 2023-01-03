@@ -181,7 +181,7 @@ class QAModel(NLPModel):
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
-            
+
         Returns:
             model predictions, model nbest list
         """

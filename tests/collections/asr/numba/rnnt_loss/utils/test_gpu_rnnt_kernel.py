@@ -89,7 +89,18 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -157,7 +168,18 @@ class TestRNNTCUDAKernels:
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -245,12 +267,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
@@ -355,12 +399,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
@@ -465,12 +531,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel

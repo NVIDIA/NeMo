@@ -92,7 +92,7 @@ def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
 
 class MultiSpeakerSimulator(object):
     """
-    Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and 
+    Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and
     corresponding word alignments.
 
     Args:
@@ -107,32 +107,32 @@ class MultiSpeakerSimulator(object):
       num_sessions (int): Number of sessions to simulate
       session_length (int): Length of each simulated multispeaker audio session (seconds)
     session_params:
-      sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the 
+      sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the
                                      sentence length (in number of words)
-      dominance_var (float): Variance in speaker dominance (where each speaker's dominance is sampled from a normal 
-                             distribution centered on 1/`num_speakers`, and then the dominance values are together 
+      dominance_var (float): Variance in speaker dominance (where each speaker's dominance is sampled from a normal
+                             distribution centered on 1/`num_speakers`, and then the dominance values are together
                              normalized to 1)
-      min_dominance (float): Minimum percentage of speaking time per speaker (note that this can cause the dominance of 
+      min_dominance (float): Minimum percentage of speaking time per speaker (note that this can cause the dominance of
                              the other speakers to be slightly reduced)
       turn_prob (float): Probability of switching speakers after each utterance
-      mean_overlap (float): Mean proportion of overlap in the overall speaking time (overlap lengths are sampled from 
+      mean_overlap (float): Mean proportion of overlap in the overall speaking time (overlap lengths are sampled from
                             half normal distribution)
-      mean_silence (float): Mean proportion of silence to speaking time in the audio session (overlap lengths are 
+      mean_silence (float): Mean proportion of silence to speaking time in the audio session (overlap lengths are
                             sampled from half normal distribution)
-      overlap_prob (float): Proportion of overlap occurrences versus silence between utterances (used to balance the 
-                            length of silence gaps and overlapping segments, so a value close to 
+      overlap_prob (float): Proportion of overlap occurrences versus silence between utterances (used to balance the
+                            length of silence gaps and overlapping segments, so a value close to
                             `mean_overlap`/(`mean_silence`+`mean_overlap`) is suggested)
-      start_window (bool): Whether to window the start of sentences to smooth the audio signal (and remove silence at 
+      start_window (bool): Whether to window the start of sentences to smooth the audio signal (and remove silence at
                             the start of the clip)
       window_type (str): Type of windowing used when segmenting utterances ("hamming", "hann", "cosine")
       window_size (float): Length of window at the start or the end of segmented utterance (seconds)
-      start_buffer (float): Buffer of silence before the start of the sentence (to avoid cutting off speech or starting 
+      start_buffer (float): Buffer of silence before the start of the sentence (to avoid cutting off speech or starting
                             abruptly)
-      split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between 
+      split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between
                             utterances as being labelled as speech)
       release_buffer (float): Buffer before window at end of sentence (to avoid cutting off speech or ending abruptly)
       normalize (bool): Normalize speaker volumes
-      normalization_type (str): Normalizing speakers ("equal" - same volume per speaker, "var" - variable volume per 
+      normalization_type (str): Normalizing speakers ("equal" - same volume per speaker, "var" - variable volume per
                                 speaker)
       normalization_var (str): Variance in speaker volume (sample from standard deviation centered at 1)
       min_volume (float): Minimum speaker volume (only used when variable normalization is used)
@@ -143,17 +143,17 @@ class MultiSpeakerSimulator(object):
       output_filename (str): Output filename for the wav and rttm files
       overwrite_output (bool): If true, delete the output directory if it exists
       output_precision (int): Number of decimal places in output files
-    background_noise: 
+    background_noise:
       add_bg (bool): Add ambient background noise if true
       background_manifest (str): Path to background noise manifest file
       snr (int): SNR for background noise (using average speaker power)
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
-      enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled 
+      enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled
                            between time 1 and 2)
     segment_manifest: (parameters for regenerating the segment manifest file)
       window (float): Window length for segmentation
-      shift (float): Shift length for segmentation 
+      shift (float): Shift length for segmentation
       step_count (int): Number of the unit segments you want to create per utterance
       deci (int): Rounding decimals for segment manifest file
     """
@@ -498,7 +498,7 @@ class MultiSpeakerSimulator(object):
         max_sentence_duration_sr: int,
     ) -> Tuple[int, torch.Tensor]:
         """
-        Add audio file to current sentence (up to the desired number of words). 
+        Add audio file to current sentence (up to the desired number of words).
         Uses the alignments to segment the audio file.
 
         Args:
@@ -603,7 +603,7 @@ class MultiSpeakerSimulator(object):
         self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int
     ):
         """
-        Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
+        Build a new sentence by attaching utterance samples together until the sentence has reached a desired length.
         While generating the sentence, alignment information is used to segment the audio.
 
         Args:
@@ -1116,7 +1116,7 @@ class MultiSpeakerSimulator(object):
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
-    RIR Augmented Multispeaker Audio Session Simulator - simulates multispeaker audio sessions using single-speaker 
+    RIR Augmented Multispeaker Audio Session Simulator - simulates multispeaker audio sessions using single-speaker
     audio files and corresponding word alignments, as well as simulated RIRs for augmentation.
 
     Args:
@@ -1127,17 +1127,17 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
       use_rir (bool): Whether to generate synthetic RIR
       toolkit (str): Which toolkit to use ("pyroomacoustics", "gpuRIR")
       room_config:
-        room_sz (list): Size of the shoebox room environment (1d array for specific, 2d array for random range to be 
+        room_sz (list): Size of the shoebox room environment (1d array for specific, 2d array for random range to be
                         sampled from)
-        pos_src (list): Positions of the speakers in the simulated room environment (2d array for specific, 3d array 
+        pos_src (list): Positions of the speakers in the simulated room environment (2d array for specific, 3d array
                         for random ranges to be sampled from)
         noise_src_pos (list): Position in room for the ambient background noise source
       mic_config:
         num_channels (int): Number of output audio channels
-        pos_rcv (list): Microphone positions in the simulated room environment (1d/2d array for specific, 2d/3d array 
+        pos_rcv (list): Microphone positions in the simulated room environment (1d/2d array for specific, 2d/3d array
                         for range assuming num_channels is 1/2+)
         orV_rcv (list or null): Microphone orientations (needed for non-omnidirectional microphones)
-        mic_pattern (str): Microphone type ("omni" - omnidirectional) - currently only omnidirectional microphones are 
+        mic_pattern (str): Microphone type ("omni" - omnidirectional) - currently only omnidirectional microphones are
                            supported for pyroomacoustics
       absorbtion_params: (Note that only `T60` is used for pyroomacoustics simulations)
         abs_weights (list): Absorption coefficient ratios for each surface
@@ -1302,7 +1302,10 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         if self._params.data_simulator.rir_generation.mic_config.mic_pattern == 'omni':
             mic_pattern = DirectivityPattern.OMNI
             dir_vec = DirectionVector(azimuth=0, colatitude=90, degrees=True)
-        dir_obj = CardioidFamily(orientation=dir_vec, pattern_enum=mic_pattern,)
+        dir_obj = CardioidFamily(
+            orientation=dir_vec,
+            pattern_enum=mic_pattern,
+        )
 
         mic_pos_tmp = np.array(self._params.data_simulator.rir_generation.mic_config.pos_rcv)
         if mic_pos_tmp.ndim == 3:  # randomize
@@ -1528,7 +1531,7 @@ def wrap_to_180(angle: float) -> float:
 
 class ArrayGeometry(object):
     """A class to simplify handling of array geometry.
-    
+
     Supports translation and rotation of the array and calculation of
     spherical coordinates of a given point relative to the internal
     coordinate system of the array.
@@ -1570,26 +1573,22 @@ class ArrayGeometry(object):
 
     @property
     def num_mics(self):
-        """Return the number of microphones for the current array.
-        """
+        """Return the number of microphones for the current array."""
         return self.centered_positions.shape[0]
 
     @property
     def positions(self):
-        """Absolute positions of the microphones.
-        """
+        """Absolute positions of the microphones."""
         return self.centered_positions + self.center
 
     @property
     def internal_positions(self):
-        """Positions in the internal coordinate system.
-        """
+        """Positions in the internal coordinate system."""
         return np.matmul(self.centered_positions, self.internal_cs.T)
 
     @property
     def radius(self):
-        """Radius of the array, relative to the center.
-        """
+        """Radius of the array, relative to the center."""
         return max(np.linalg.norm(self.centered_positions, axis=1))
 
     @staticmethod
@@ -2053,7 +2052,7 @@ class RIRCorpusGenerator(object):
 
     def generate(self):
         """Generate RIR corpus.
-        
+
         This method will prepare randomized examples based on the current configuration,
         run room simulations and save results to output_dir.
         """
@@ -2149,7 +2148,7 @@ class RIRCorpusGenerator(object):
 
 def simulate_room_kwargs(kwargs: dict) -> dict:
     """Wrapper around `simulate_room` to handle kwargs.
-    
+
     `pool.map(simulate_room_kwargs, examples)` would be
     equivalent to `pool.starstarmap(simulate_room, examples)`
     if `starstarmap` would exist.
@@ -2164,7 +2163,10 @@ def simulate_room_kwargs(kwargs: dict) -> dict:
 
 
 def simulate_room(
-    room_params: dict, mic_array: ArrayGeometry, source_position: Iterable[Iterable[float]], room_filepath: str,
+    room_params: dict,
+    mic_array: ArrayGeometry,
+    source_position: Iterable[Iterable[float]],
+    room_filepath: str,
 ) -> dict:
     """Simulate room
 
@@ -2639,7 +2641,7 @@ class RIRMixGenerator(object):
             duration_eps: A small extra duration selected from each file. This is to make
                           sure that the signal will be long enough even if it needs to be
                           resampled, etc.
-        
+
         Returns:
             List of audio files with some metadata (offset, duration).
         """
@@ -2705,7 +2707,7 @@ class RIRMixGenerator(object):
         Args:
             subset: string denoting a subset which will be used to selected target
                     audio and room parameters.
-        
+
         Returns:
             Dictionary with target configuration, including room, source index, and audio information.
         """
@@ -2780,7 +2782,7 @@ class RIRMixGenerator(object):
             subset: string denoting a subset which will be used to select noise audio.
             target_cfg: dictionary with target configuration. This is used determine
                         the minimal required duration for the noise signal.
-        
+
         Returns:
             List of dictionary with noise configuration, including audio information
             for one or more noise files.
@@ -2802,7 +2804,7 @@ class RIRMixGenerator(object):
             subset: string denoting a subset which will be used to select interference audio.
             target_cfg: dictionary with target configuration. This is used to determine
                         the minimal required duration for the noise signal.
-        
+
         Returns:
             List of dictionary with interference configuration, including source index and audio information
             for one or more interference sources.
@@ -3060,7 +3062,7 @@ def convolve_rir(signal: np.ndarray, rir: np.ndarray) -> np.ndarray:
 
 def calculate_drr(rir: np.ndarray, sample_rate: float, n_direct: List[int], n_0_ms=2.5) -> List[float]:
     """Calculate direct-to-reverberant ratio (DRR) from the measured RIR.
-    
+
     Calculation is done as in eq. (3) from [1].
 
     Args:
@@ -3107,7 +3109,7 @@ def normalize_max(x: np.ndarray, max_db: float = 0, eps: float = 1e-16) -> np.nd
         eps: small regularization constant
 
     Returns:
-        Normalized signal with max absolute value max_db. 
+        Normalized signal with max absolute value max_db.
     """
     max_val = db2mag(max_db)
     return max_val * x / (np.max(np.abs(x)) + eps)
@@ -3122,7 +3124,7 @@ def simultaneously_active_rms(
     min_active_duration: float = 0.5,
 ) -> Tuple[float, float]:
     """Calculate RMS over segments where both input signals are active.
-    
+
     Args:
         x: first input signal
         y: second input signal
@@ -3226,7 +3228,10 @@ def load_audio_from_multiple_files(items: List[Dict], sample_rate: int, total_le
         check_min_sample_rate(item['audio_filepath'], sample_rate)
         # load the pre-defined segment
         segment = AudioSegment.from_file(
-            item['audio_filepath'], target_sr=sample_rate, offset=item['offset'], duration=item['duration'],
+            item['audio_filepath'],
+            target_sr=sample_rate,
+            offset=item['offset'],
+            duration=item['duration'],
         )
         # not perfect, since different files may have different distributions
         segment_samples = normalize_max(segment.samples)
@@ -3279,7 +3284,7 @@ def simulate_room_mix(
         noise_cfg: List of dictionaries, where each item includes audio_filepath,
                    offset and duration.
         interference_cfg: List of dictionaries, where each item contains source
-                          index 
+                          index
         mix_cfg: Dictionary with the mixture configuration. Includes RSNR, RSIR,
                  ref_mic and ref_mic_rms.
         base_output_filepath: All output audio files will be saved with this prefix by
@@ -3453,7 +3458,7 @@ def simulate_room_mix(
 
 def simulate_room_mix_kwargs(kwargs: dict) -> dict:
     """Wrapper around `simulate_room_mix` to handle kwargs.
-    
+
     `pool.map(simulate_room_kwargs, examples)` would be
     equivalent to `pool.starstarmap(simulate_room_mix, examples)`
     if `starstarmap` would exist.

@@ -1041,7 +1041,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary,
+        self,
+        decoding_cfg,
+        decoder,
+        joint,
+        vocabulary,
     ):
         blank_id = (
             len(vocabulary) + joint.num_extra_outputs
@@ -1049,7 +1053,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
+            decoding_cfg=decoding_cfg,
+            decoder=decoder,
+            joint=joint,
+            blank_id=blank_id,
         )
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:

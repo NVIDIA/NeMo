@@ -70,7 +70,7 @@ def get_masked_score(text, model, do_lower=True):
 
 def _get_ambiguous_positions(sentences: List[str]):
     """returns None or index list of ambigous semiotic tokens for list of sentences.
-    E.g. if sentences = ["< street > < three > A", "< saint > < three > A"], it returns [1, 0] since only 
+    E.g. if sentences = ["< street > < three > A", "< saint > < three > A"], it returns [1, 0] since only
     the first semiotic span <street>/<saint> is ambiguous."""
     l_sets = [set([x]) for x in re.findall("<\s.+?\s>", sentences[0])]
     for sentence in sentences[1:]:

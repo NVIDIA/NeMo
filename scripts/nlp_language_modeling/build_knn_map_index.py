@@ -185,7 +185,7 @@ def process_sentence_chunks(
 ):
     """
     This function takes chunked tokens from the retrieval dataset and map it back to text.
-    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.  
+    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.
     If the stage is None, it process all the chunks.
     """
     total_chunks = ds.chunks
@@ -238,9 +238,14 @@ def get_emb():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="build Faiss index",)
+    parser = argparse.ArgumentParser(
+        description="build Faiss index",
+    )
     parser.add_argument(
-        '--input_file', type=str, required=False, help='Input file',
+        '--input_file',
+        type=str,
+        required=False,
+        help='Input file',
     )
     parser.add_argument("--faiss_index", type=str, required=False, help='faiss index file for retrieval dataset')
     parser.add_argument(
@@ -255,7 +260,10 @@ if __name__ == "__main__":
         help='Remove the knn neighbors that is from the same document as the data.',
     )
     parser.add_argument(
-        '--K_neighbors', type=int, default=16, help='The number of neighbors to query',
+        '--K_neighbors',
+        type=int,
+        default=16,
+        help='The number of neighbors to query',
     )
     parser.add_argument(
         '--dedup_margin',
@@ -272,7 +280,10 @@ if __name__ == "__main__":
     parser.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     parser.add_argument('--total_shards', type=int, default=None, help='total number of knn index shards')
     parser.add_argument(
-        '--output_file', type=str, required=True, help='Output KNN Map index file',
+        '--output_file',
+        type=str,
+        required=True,
+        help='Output KNN Map index file',
     )
     parser.add_argument(
         '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
@@ -289,10 +300,16 @@ if __name__ == "__main__":
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')

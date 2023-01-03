@@ -23,13 +23,13 @@ from pynini.lib import pynutil
 
 class CardinalFst(GraphFst):
     """
-	Finite state transducer for verbalizing cardinals
-		e.g. cardinal { integer: "dos" } -> "dos"
+    Finite state transducer for verbalizing cardinals
+            e.g. cardinal { integer: "dos" } -> "dos"
 
-	Args:
-		deterministic: if True will provide a single transduction option,
-			for False multiple transduction are generated (used for audio-based normalization)
-	"""
+    Args:
+            deterministic: if True will provide a single transduction option,
+                    for False multiple transduction are generated (used for audio-based normalization)
+    """
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)

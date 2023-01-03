@@ -39,8 +39,7 @@ from nemo.utils import logging
 
 class IntentSlotClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ Initializes BERT Joint Intent and Slot model.
-        """
+        """Initializes BERT Joint Intent and Slot model."""
         self.max_seq_length = cfg.dataset.max_seq_length
         self.cfg = cfg
         # Check the presence of data_dir.
@@ -78,7 +77,7 @@ class IntentSlotClassificationModel(NLPModel):
             OmegaConf.set_struct(cfg, True)
 
     def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
-        """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
+        """Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc."""
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
@@ -112,7 +111,7 @@ class IntentSlotClassificationModel(NLPModel):
         OmegaConf.set_struct(cfg, True)
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
-        """ Saves label ids map to a file """
+        """Saves label ids map to a file"""
         with open(filename, 'w') as out:
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
             out.write('\n'.join(labels))
@@ -120,7 +119,7 @@ class IntentSlotClassificationModel(NLPModel):
             logging.info(f'Labels mapping saved to : {out.name}')
 
     def _reconfigure_classifier(self):
-        """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
+        """Method reconfigures the classifier depending on the settings of model cfg.data_desc"""
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.hidden_size,
@@ -308,7 +307,7 @@ class IntentSlotClassificationModel(NLPModel):
         Args:
             token_ids: IntTensor of size (max_seq_len, )
             token_masks: BoolTensor of size (max_seq_len, )
-        
+
         Returns
             token_list: List of Str (list of tokens with len <= max_seq_len)
         """

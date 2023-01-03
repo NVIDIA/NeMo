@@ -77,7 +77,12 @@ def convert_msmarco_to_squad_format(msmarco_data, args):
             {
                 "context": context,
                 "qas": [
-                    {"id": index, "question": query, "answers": answers, "is_impossible": False if answers else True,}
+                    {
+                        "id": index,
+                        "question": query,
+                        "answers": answers,
+                        "is_impossible": False if answers else True,
+                    }
                 ],
             }
         )

@@ -221,15 +221,26 @@ def get_emb():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="build Faiss index",)
-    parser.add_argument(
-        '--input_file', type=str, required=False, help='Input file',
+    parser = argparse.ArgumentParser(
+        description="build Faiss index",
     )
     parser.add_argument(
-        '--train_index_size', type=int, required=False, help='The number of sentences that is used to train the index',
+        '--input_file',
+        type=str,
+        required=False,
+        help='Input file',
     )
     parser.add_argument(
-        '--train_chunk_size', type=int, default=10000, help='The sentences in chunks that is added to the index',
+        '--train_index_size',
+        type=int,
+        required=False,
+        help='The number of sentences that is used to train the index',
+    )
+    parser.add_argument(
+        '--train_chunk_size',
+        type=int,
+        default=10000,
+        help='The sentences in chunks that is added to the index',
     )
     parser.add_argument(
         '--sentence_transformer_model',
@@ -238,10 +249,16 @@ if __name__ == "__main__":
         help='sentence transformer to load',
     )
     parser.add_argument(
-        '--output_file', type=str, required=True, help='Output Faiss index file',
+        '--output_file',
+        type=str,
+        required=True,
+        help='Output Faiss index file',
     )
     parser.add_argument(
-        '--percent', type=float, default=1.0, help='percent of documents used for building the search index',
+        '--percent',
+        type=float,
+        default=1.0,
+        help='percent of documents used for building the search index',
     )
     parser.add_argument(
         '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
@@ -259,10 +276,16 @@ if __name__ == "__main__":
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')

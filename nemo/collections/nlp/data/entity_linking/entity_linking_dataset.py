@@ -32,8 +32,8 @@ class EntityLinkingDataset(Dataset):
 
     Args:
         tokenizer (obj): huggingface tokenizer,
-        data_file (str): path to tab separated column file where data 
-            pairs apear in the format 
+        data_file (str): path to tab separated column file where data
+            pairs apear in the format
             concept_ID\tconcept_synonym1\tconcept_synonym2\n
         newline_idx_file (str): path to pickle file containing location
             of data_file newline characters

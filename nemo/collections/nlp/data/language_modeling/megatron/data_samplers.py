@@ -43,9 +43,10 @@ class MegatronPretrainingSampler:
         )
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, (
-            'data_parallel_rank should be smaller than data size: {}, '
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        assert (
+            self.data_parallel_rank < data_parallel_size
+        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+            self.data_parallel_rank, data_parallel_size
         )
 
     def __len__(self):
@@ -87,9 +88,10 @@ class MegatronPretrainingRandomSampler:
         assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, (
-            'data_parallel_rank should be smaller than data size: {}, '
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        assert (
+            self.data_parallel_rank < data_parallel_size
+        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+            self.data_parallel_rank, data_parallel_size
         )
 
     def __len__(self):

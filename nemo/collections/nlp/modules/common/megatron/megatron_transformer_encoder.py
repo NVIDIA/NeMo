@@ -149,7 +149,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def forward(
@@ -162,7 +162,9 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
     ):
         # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=self.model_attn_mask_type,
         )
 
         # transformer encoder

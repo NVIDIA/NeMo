@@ -446,7 +446,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int,
+        self,
+        input_tensor: torch.Tensor,
+        w: int,
     ):
         """
         Mask locations invalid for the sliding window attention

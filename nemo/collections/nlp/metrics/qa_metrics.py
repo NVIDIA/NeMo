@@ -40,20 +40,20 @@ class QAMetrics(object):
 
     @staticmethod
     def normalize_answer(s: str):
-        """ Lower text and remove punctuation, articles and extra whitespace """
+        """Lower text and remove punctuation, articles and extra whitespace"""
 
         return QAMetrics.white_space_fix(QAMetrics.remove_articles(QAMetrics.remove_punc(s.lower())))
 
     @staticmethod
     def _get_normalized_tokens(s: str):
-        """ Get normalized tokens """
+        """Get normalized tokens"""
         if not s:
             return []
         return QAMetrics.normalize_answer(s).split()
 
     @staticmethod
     def get_one_f1(prediction: str, ground_truth: str):
-        """ Computes f1 score between prediction and ground truth """
+        """Computes f1 score between prediction and ground truth"""
 
         prediction_tokens = QAMetrics._get_normalized_tokens(prediction)
         ground_truth_tokens = QAMetrics._get_normalized_tokens(ground_truth)
@@ -74,7 +74,7 @@ class QAMetrics(object):
 
     @staticmethod
     def get_one_exact_match(prediction: str, ground_truth: str):
-        """ Computes exact match between prediction and ground truth """
+        """Computes exact match between prediction and ground truth"""
 
         return int(QAMetrics.normalize_answer(prediction) == QAMetrics.normalize_answer(ground_truth))
 
@@ -118,7 +118,7 @@ class QAMetrics(object):
 
     @staticmethod
     def make_eval_dict(exact_scores, f1_scores, prefix=""):
-        """ Returns dictionary with formatted evaluation scores """
+        """Returns dictionary with formatted evaluation scores"""
 
         total = len(exact_scores)
         return collections.OrderedDict(
@@ -145,8 +145,8 @@ class QAMetrics(object):
 
     @staticmethod
     def evaluate_predictions(examples, all_predictions):
-        """ 
-        Calculates exact match and f1 scores for all predictions, 
+        """
+        Calculates exact match and f1 scores for all predictions,
             questions with answers, and no answer questions
         """
 

@@ -18,7 +18,7 @@ from pynini.lib import pynutil
 
 class Measure(GraphFst):
     '''
-        tokens { measure { cardinal: "一" } units: "千克" } } ->  一千克
+    tokens { measure { cardinal: "一" } units: "千克" } } ->  一千克
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

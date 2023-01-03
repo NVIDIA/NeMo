@@ -22,7 +22,9 @@ from nemo.collections.common.metrics.classification_accuracy import TopKClassifi
 
 
 class TestCommonMetrics:
-    top_k_logits = torch.tensor([[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]],)  # 1  # 0  # 2
+    top_k_logits = torch.tensor(
+        [[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]],
+    )  # 1  # 0  # 2
 
     @pytest.mark.unit
     def test_top_1_accuracy(self):
@@ -124,7 +126,10 @@ class TestCommonMetrics:
 class TestPerplexity(PerplexityTester):
     def test_perplexity(self, ddp, dist_sync_on_step, probs, logits):
         self.run_class_perplexity_test(
-            ddp=ddp, probs=probs, logits=logits, dist_sync_on_step=dist_sync_on_step,
+            ddp=ddp,
+            probs=probs,
+            logits=logits,
+            dist_sync_on_step=dist_sync_on_step,
         )
 
 

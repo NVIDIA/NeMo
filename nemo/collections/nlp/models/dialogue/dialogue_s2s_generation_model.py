@@ -46,7 +46,9 @@ __all__ = ['DialogueS2SGenerationModel']
 
 class DialogueS2SGenerationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
 
         self.cfg = cfg
@@ -116,7 +118,10 @@ class DialogueS2SGenerationModel(NLPModel):
         )
 
         DialogueGenerationMetrics.save_predictions(
-            filename, generated_field, ground_truth_field, inputs,
+            filename,
+            generated_field,
+            ground_truth_field,
+            inputs,
         )
 
         label_acc = np.mean([int(generated_field[i] == ground_truth_field[i]) for i in range(len(generated_field))])
@@ -166,7 +171,7 @@ class DialogueS2SGenerationModel(NLPModel):
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_tags else None

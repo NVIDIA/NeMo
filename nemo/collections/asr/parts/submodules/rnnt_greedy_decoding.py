@@ -42,7 +42,10 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, H
 from nemo.utils import logging
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
 
     if hasattr(logitlen, 'cpu'):
         logitlen_cpu = logitlen.to('cpu')
@@ -134,8 +137,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -144,8 +146,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(

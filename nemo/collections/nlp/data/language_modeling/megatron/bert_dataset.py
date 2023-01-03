@@ -98,7 +98,7 @@ class BertDataset(torch.utils.data.Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         # We % 2**32 since numpy requres the seed to be between 0 and 2**32 - 1
-        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2 ** 32))
+        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2**32))
         return build_training_sample(
             sample,
             seq_length,

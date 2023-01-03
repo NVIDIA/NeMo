@@ -115,7 +115,13 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,
+    lm_output,
+    pooled_output,
+    lm_head,
+    binary_head,
+    lm_labels,
+    logit_weights,
+    fp16_lm_cross_entropy,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)

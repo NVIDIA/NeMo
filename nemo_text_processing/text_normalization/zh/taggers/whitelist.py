@@ -19,7 +19,7 @@ from pynini.lib import pynutil
 
 class Whitelist(GraphFst):
     '''
-        ATM  -> tokens { whitelist: "ATM" } 
+    ATM  -> tokens { whitelist: "ATM" }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

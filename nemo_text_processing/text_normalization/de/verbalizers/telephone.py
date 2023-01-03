@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for verbalizing telephone, e.g.
-        telephone { country_code: "plus neun und vierzig" number_part: "null eins eins eins null null null" } 
+        telephone { country_code: "plus neun und vierzig" number_part: "null eins eins eins null null null" }
             -> "plus neun und vierzig null eins eins eins null null null"
 
     Args:

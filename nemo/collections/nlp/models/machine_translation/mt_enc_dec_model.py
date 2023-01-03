@@ -238,7 +238,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
 
         # TODO: encoder and decoder with different hidden size?
-        std_init_range = 1 / self.encoder.hidden_size ** 0.5
+        std_init_range = 1 / self.encoder.hidden_size**0.5
 
         # initialize weights if not using pretrained encoder/decoder
         if not self._cfg.encoder.get('pretrained', False):
@@ -301,7 +301,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
-        invalid_ids = torch.logical_or((ids >= self.encoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
+        invalid_ids = torch.logical_or(
+            (ids >= self.encoder_tokenizer.vocab_size).any(),
+            (ids < 0).any(),
+        )
 
         if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
@@ -309,7 +312,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         return not invalid_ids
 
     def test_decoder_ids(self, ids, raise_error=False):
-        invalid_ids = torch.logical_or((ids >= self.decoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
+        invalid_ids = torch.logical_or(
+            (ids >= self.decoder_tokenizer.vocab_size).any(),
+            (ids < 0).any(),
+        )
 
         if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
@@ -604,7 +610,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             multilingual=self.multilingual,
             multilingual_ids=self.multilingual_ids,
         )
-        self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds,)
+        self._train_dl = MTEncDecModel._setup_dataloader_from_config(
+            cfg=train_data_config,
+            dataset=self._train_ds,
+        )
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
@@ -663,7 +672,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             for dataloader_idx in range(len(self._validation_dl)):
                 if dataloader_idx == 0:
                     setattr(
-                        self, f'val_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        self,
+                        f'val_loss',
+                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
                     )
                 else:
                     setattr(
@@ -686,7 +697,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             for dataloader_idx in range(len(self._test_dl)):
                 if dataloader_idx == 0:
                     setattr(
-                        self, f'test_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        self,
+                        f'test_loss',
+                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
                     )
                 else:
                     setattr(
@@ -1129,7 +1142,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             )
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
-                    src, src_mask, return_beam_scores=True, cache=cache,
+                    src,
+                    src_mask,
+                    return_beam_scores=True,
+                    cache=cache,
                 )
                 return_val = all_translations, scores, best_translations
             else:

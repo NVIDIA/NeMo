@@ -186,7 +186,13 @@ def process_raw_annotations(anno_dir: str, text_key: str = "semantics", suffix: 
                     id += 1
 
         df = pd.DataFrame(
-            {"ID": IDs, "slurp_id": slurp_id, "audio": audio, "semantics": semantics, "transcript": transcript,}
+            {
+                "ID": IDs,
+                "slurp_id": slurp_id,
+                "audio": audio,
+                "semantics": semantics,
+                "transcript": transcript,
+            }
         )
 
         if text_key not in ["transcript", "semantics"]:

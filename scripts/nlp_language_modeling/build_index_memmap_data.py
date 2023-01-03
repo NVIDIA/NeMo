@@ -22,12 +22,20 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import buil
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Builds index files for a list of text files",)
-    parser.add_argument(
-        'dataset_paths', type=str, nargs='+', help='Input text files (support glob)',
+    parser = argparse.ArgumentParser(
+        description="Builds index files for a list of text files",
     )
     parser.add_argument(
-        '--newline_int', type=int, default=10, help='Int value to split text (default: newline "\\n"',
+        'dataset_paths',
+        type=str,
+        nargs='+',
+        help='Input text files (support glob)',
+    )
+    parser.add_argument(
+        '--newline_int',
+        type=int,
+        default=10,
+        help='Int value to split text (default: newline "\\n"',
     )
     parser.add_argument(
         '--workers',
@@ -44,7 +52,9 @@ def main():
 
     # build index files in parallel
     build_index_files(
-        dataset_paths=dataset_paths, newline_int=args.newline_int, workers=args.workers,
+        dataset_paths=dataset_paths,
+        newline_int=args.newline_int,
+        workers=args.workers,
     )
 
 

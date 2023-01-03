@@ -49,17 +49,21 @@ class SequenceRegression(Classifier):
         use_transformer_init: bool = True,
         idx_conditioned_on: int = 0,
     ):
-        """ Initializes the SequenceRegression module. """
+        """Initializes the SequenceRegression module."""
         super().__init__(hidden_size=hidden_size, dropout=dropout)
         self._idx_conditioned_on = idx_conditioned_on
         self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes=1, num_layers=num_layers, activation=activation, log_softmax=False,
+            hidden_size,
+            num_classes=1,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=False,
         )
         self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states: Tensor) -> Tensor:
-        """ Forward pass through the module.
+        """Forward pass through the module.
 
         Args:
             hidden_states: hidden states for each token in a sequence, for example, BERT module output

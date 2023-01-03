@@ -27,7 +27,7 @@ from nemo_text_processing.text_normalization.zh.verbalizers.whitelist import Whi
 class VerbalizeFst(GraphFst):
     """
     Composes other verbalizer grammars.
-    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File.
     More details to deployment at NeMo/tools/text_processing_deployment.
     Args:
         deterministic: if True will provide a single transduction option,

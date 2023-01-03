@@ -29,7 +29,7 @@ from nemo.utils import logging
 
 
 class ASRBPEMixin(ABC):
-    """ ASR BPE Mixin class that sets up a Tokenizer via a config
+    """ASR BPE Mixin class that sets up a Tokenizer via a config
 
     This mixin class adds the method `_setup_tokenizer(...)`, which can be used by ASR models
     which depend on subword tokenization.
@@ -202,7 +202,12 @@ class ASRBPEMixin(ABC):
         tokenizers_dict = {}
         # init each of the monolingual tokenizers found in the config and assemble into  AggregateTokenizer
         for lang, tokenizer_config in self.tokenizer_cfg[self.AGGREGATE_TOKENIZERS_DICT_PREFIX].items():
-            (tokenizer, model_path, vocab_path, spe_vocab_path,) = self._make_tokenizer(tokenizer_config, lang)
+            (
+                tokenizer,
+                model_path,
+                vocab_path,
+                spe_vocab_path,
+            ) = self._make_tokenizer(tokenizer_config, lang)
 
             tokenizers_dict[lang] = tokenizer
             if hasattr(self, 'cfg'):

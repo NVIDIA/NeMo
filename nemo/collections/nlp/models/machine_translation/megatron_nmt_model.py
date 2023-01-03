@@ -171,7 +171,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library,
+                self.src_language,
+                self.tgt_language,
+                self.encoder_tokenizer_library,
+                self.decoder_tokenizer_library,
             )
             self.multilingual_ids = [None]
 
@@ -226,13 +229,19 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         # Post-process the translations and inputs to log.
         preds = self.postprocess_outputs(
-            outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
+            outputs=predicted_tokens_ids,
+            tokenizer=self.decoder_tokenizer,
+            processor=target_processor,
         )
         labels = self.postprocess_outputs(
-            outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
+            outputs=labels,
+            tokenizer=self.decoder_tokenizer,
+            processor=target_processor,
         )
         encoder_inputs = self.postprocess_outputs(
-            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
+            outputs=tokens_enc,
+            tokenizer=self.encoder_tokenizer,
+            processor=source_processor,
         )
 
         return {

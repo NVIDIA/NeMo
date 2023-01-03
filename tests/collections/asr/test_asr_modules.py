@@ -120,7 +120,8 @@ class TestASRModulesBasicTests:
     def test_SpectrogramAugmentationr_config(self):
         # Test that dataclass matches signature of module
         result = config_utils.assert_dataclass_signature_match(
-            modules.SpectrogramAugmentation, modules.audio_preprocessing.SpectrogramAugmentationConfig,
+            modules.SpectrogramAugmentation,
+            modules.audio_preprocessing.SpectrogramAugmentationConfig,
         )
         signatures_match, cls_subset, dataclass_subset = result
 
@@ -178,7 +179,8 @@ class TestASRModulesBasicTests:
     def test_MaskedPatchAugmentation_config(self):
         # Test that dataclass matches signature of module
         result = config_utils.assert_dataclass_signature_match(
-            modules.MaskedPatchAugmentation, modules.audio_preprocessing.MaskedPatchAugmentationConfig,
+            modules.MaskedPatchAugmentation,
+            modules.audio_preprocessing.MaskedPatchAugmentationConfig,
         )
         signatures_match, cls_subset, dataclass_subset = result
 
@@ -195,7 +197,10 @@ class TestASRModulesBasicTests:
         pred_config = OmegaConf.create(
             {
                 '_target_': 'nemo.collections.asr.modules.RNNTDecoder',
-                'prednet': {'pred_hidden': 32, 'pred_rnn_layers': 1,},
+                'prednet': {
+                    'pred_hidden': 32,
+                    'pred_rnn_layers': 1,
+                },
                 'vocab_size': vocab_size,
                 'blank_as_pad': True,
             }

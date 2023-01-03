@@ -45,7 +45,7 @@ class QAProcessor(DataProcessor):
         self.doc_id_to_context_text = {}
 
     def get_examples(self):
-        """ Get examples from raw json file """
+        """Get examples from raw json file"""
 
         if self.data_file is None:
             raise ValueError(f"{self.mode} data file is None.")

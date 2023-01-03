@@ -71,7 +71,7 @@ def download_text2sparql(infold: str):
 
 
 def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
-    """ Process and convert MeetKai's text2sparql datasets to NeMo's neural machine translation format.
+    """Process and convert MeetKai's text2sparql datasets to NeMo's neural machine translation format.
 
     Args:
         infold: directory path to raw text2sparql data containing

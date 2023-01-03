@@ -93,7 +93,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    tokenizer = get_nmt_tokenizer(library=args.tokenizer_library, tokenizer_model=args.tokenizer_model,)
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        tokenizer_model=args.tokenizer_model,
+    )
 
     all_len = []
 

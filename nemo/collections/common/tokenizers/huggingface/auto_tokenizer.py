@@ -26,7 +26,7 @@ __all__ = [
 
 class AutoTokenizer(TokenizerSpec):
     '''
-        Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
+    Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
     '''
 
     def __init__(
@@ -46,12 +46,12 @@ class AutoTokenizer(TokenizerSpec):
 
         """
         Args:
-            pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument. 
-                For more details please refer to https://huggingface.co/transformers/_modules/transformers/tokenization_auto.html#AutoTokenizer.from_pretrained. 
+            pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument.
+                For more details please refer to https://huggingface.co/transformers/_modules/transformers/tokenization_auto.html#AutoTokenizer.from_pretrained.
                 The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
             vocab_file: path to file with vocabulary which consists
                 of characters separated by '\n'.
-            mask_token: mask token 
+            mask_token: mask token
             bos_token: the beginning of sequence token
             eos_token: the end of sequence token. Usually equal to sep_token
             pad_token: token to use for padding
@@ -64,11 +64,14 @@ class AutoTokenizer(TokenizerSpec):
             # this logic deals with different huggingface tokenizers having different positional args
             if vocab_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast,
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    use_fast=use_fast,
                 )
             elif merges_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=use_fast,
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    vocab_file=vocab_file,
+                    use_fast=use_fast,
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -122,24 +125,24 @@ class AutoTokenizer(TokenizerSpec):
 
         if len(new_tokens_in_vocab) > 0:
             """
-            Special tokens that were not previously included in the tokenizer's vocabulary file will be added to 
+            Special tokens that were not previously included in the tokenizer's vocabulary file will be added to
             the vocabulary and, as a result, the model should be resized, for example:
-            
+
             # define your model
             pretrained_model_name = 'roberta-base'
             model = nemo_nlp.modules.get_lm_model(pretrained_model_name=pretrained_model_name)
-            
+
             # define pretrained tokenizer
             tokenizer_default = nemo_nlp.modules.get_tokenizer(tokenizer_name=pretrained_model_name)
-            
+
             special_tokens = {'bos_token': '<BOS>',
                               'cls_token': '<CSL>',
                               'additional_special_tokens': ['<MY_NER_TOKEN>', '<ANOTHER_TOKEN>']}
             tokenizer_default.add_special_tokens(special_tokens_dict=special_tokens)
-            
+
             # resize your model so that the embeddings for newly added tokens are updated during training/finetuning
             model.resize_token_embeddings(tokenizer_default.vocab_size)
-            
+
             See NLP_Tokenizers.ipynb for more details.
             """
             logging.warning(

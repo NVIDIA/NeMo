@@ -288,7 +288,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
 class SwitchMLP(MegatronModule):
     """Top-1 MoE
-    
+
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(
@@ -416,9 +416,9 @@ class SwitchMLP(MegatronModule):
 
 
 class CoreAttention(MegatronModule):
-    """ Region where selective activation recomputation is applied.
-        See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
-        https://arxiv.org/pdf/2205.05198.pdf for more details.
+    """Region where selective activation recomputation is applied.
+    See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
+    https://arxiv.org/pdf/2205.05198.pdf for more details.
 
     """
 
@@ -842,7 +842,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             """[s, b, num_splits * np * hn]
             -->(view) [s, b, num_splits, np, hn]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 num_splits,
@@ -856,7 +856,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             """[s, b, np * hn * num_splits]
             -->(view) [s, b, np, hn, num_splits]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 self.num_attention_heads_per_partition,

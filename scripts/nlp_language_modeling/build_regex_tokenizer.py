@@ -44,10 +44,16 @@ if __name__ == "__main__":
         description="Builds vocabulary from regex tokenizer. Outputs .model (regular expression) and .vocab (learned vocabualry)",
     )
     parser.add_argument(
-        'input_files', type=str, nargs='+', help='Input text/csv file',
+        'input_files',
+        type=str,
+        nargs='+',
+        help='Input text/csv file',
     )
     parser.add_argument(
-        '--regex', type=str, required=True, help='Regular expression to split text',
+        '--regex',
+        type=str,
+        required=True,
+        help='Regular expression to split text',
     )
     parser.add_argument(
         '--output_file',
@@ -64,7 +70,11 @@ if __name__ == "__main__":
         help='Type of input file: text, csv',
     )
     parser.add_argument(
-        '--input_csv_col', type=str, required=False, default="smiles", help='Column of data in CSV file',
+        '--input_csv_col',
+        type=str,
+        required=False,
+        default="smiles",
+        help='Column of data in CSV file',
     )
     args = parser.parse_args()
 

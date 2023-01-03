@@ -156,13 +156,12 @@ def get_confidence_aggregation_bank():
 
 class ConfidenceMeasureMixin(ABC):
     """Confidence Measure Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
     def _init_confidence_measure(self, confidence_method_cfg: Optional[DictConfig] = None):
-        """Initialize per-frame confidence measure from config.
-        """
+        """Initialize per-frame confidence measure from config."""
         if confidence_method_cfg is None:
             confidence_method_cfg = OmegaConf.structured(ConfidenceMethodConfig())
 
@@ -193,13 +192,12 @@ class ConfidenceMeasureMixin(ABC):
 
 class ConfidenceMixin(ABC):
     """Confidence Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
     def _init_confidence(self, confidence_cfg: Optional[DictConfig] = None):
-        """Initialize confidence-related fields and confidence aggregation function from config.
-        """
+        """Initialize confidence-related fields and confidence aggregation function from config."""
         if confidence_cfg is None:
             confidence_cfg = OmegaConf.structured(ConfidenceConfig())
 

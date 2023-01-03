@@ -37,8 +37,7 @@ class TestSpectrogramToMultichannelFeatures:
     @pytest.mark.parametrize('num_channels', [1, 4])
     @pytest.mark.parametrize('mag_reduction', [None, 'rms', 'abs_mean', 'mean_abs'])
     def test_magnitude(self, fft_length: int, num_channels: int, mag_reduction: Optional[str]):
-        """Test calculation of spatial features for multi-channel audio.
-        """
+        """Test calculation of spatial features for multi-channel audio."""
         atol = 1e-6
         batch_size = 8
         num_samples = fft_length * 50
@@ -51,7 +50,10 @@ class TestSpectrogramToMultichannelFeatures:
         audio2spec = AudioToSpectrogram(fft_length=fft_length, hop_length=hop_length)
 
         spec2feat = SpectrogramToMultichannelFeatures(
-            num_subbands=audio2spec.num_subbands, mag_reduction=mag_reduction, use_ipd=False, mag_normalization=None,
+            num_subbands=audio2spec.num_subbands,
+            mag_reduction=mag_reduction,
+            use_ipd=False,
+            mag_normalization=None,
         )
 
         for n in range(num_examples):
@@ -87,8 +89,7 @@ class TestSpectrogramToMultichannelFeatures:
     @pytest.mark.parametrize('fft_length', [256])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_ipd(self, fft_length: int, num_channels: int):
-        """Test calculation of IPD spatial features for multi-channel audio.
-        """
+        """Test calculation of IPD spatial features for multi-channel audio."""
         atol = 1e-5
         batch_size = 8
         num_samples = fft_length * 50
@@ -138,8 +139,7 @@ class TestMaskBasedProcessor:
     @pytest.mark.parametrize('num_channels', [1, 4])
     @pytest.mark.parametrize('num_masks', [1, 2])
     def test_mask_reference_channel(self, fft_length: int, num_channels: int, num_masks: int):
-        """Test masking of the reference channel.
-        """
+        """Test masking of the reference channel."""
         if num_channels == 1:
             # Only one channel available
             ref_channels = [0]

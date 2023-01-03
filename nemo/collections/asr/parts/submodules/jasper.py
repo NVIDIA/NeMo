@@ -510,8 +510,8 @@ class SqueezeExcite(nn.Module):
         return y
 
     def set_max_len(self, max_len, seq_range=None):
-        """ Sets maximum input length.
-            Pre-calculates internal seq_range mask.
+        """Sets maximum input length.
+        Pre-calculates internal seq_range mask.
         """
         self.max_len = max_len
         if seq_range is None:

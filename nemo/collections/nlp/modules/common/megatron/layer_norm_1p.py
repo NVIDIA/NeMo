@@ -40,7 +40,6 @@ if HAVE_APEX:
         def forward(self, x):
             return _fast_layer_norm(x, self.weight + 1, self.bias, self.epsilon)
 
-
 else:
 
     class LayerNorm1P(nn.Module):

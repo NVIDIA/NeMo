@@ -25,8 +25,7 @@ __all__ = ["ContrastiveLoss"]
 class ContrastiveLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for Contrastive.
-        """
+        """Input types definitions for Contrastive."""
         return {
             "spectrograms": NeuralType(("B", "D", "T"), SpectrogramType()),
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType()),
@@ -198,7 +197,8 @@ class ContrastiveLoss(Loss):
             if self.sample_from_non_masked:
                 # sample from all steps in utterance
                 negatives, _ = self.sample_negatives(
-                    targets.transpose(0, 1), targets_masked_only.size(0),  # TxBxC  # T'
+                    targets.transpose(0, 1),
+                    targets_masked_only.size(0),  # TxBxC  # T'
                 )
             else:
                 # only sample from masked steps in utterance
@@ -239,7 +239,8 @@ class ContrastiveLoss(Loss):
             elif self.sample_from_non_masked:
                 # sample from all steps in batch
                 negatives, _ = self.sample_negatives(
-                    targets.reshape(targets.shape[0] * targets.shape[1], -1), targets_masked_only.size(0),  # BTxC
+                    targets.reshape(targets.shape[0] * targets.shape[1], -1),
+                    targets_masked_only.size(0),  # BTxC
                 )  # T'
             else:
                 # only sample from masked steps

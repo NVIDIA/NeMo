@@ -30,12 +30,12 @@ _PRINTED_WARNING = {}
 
 def deprecated(wrapped=None, version=None, explanation=None):
     """
-        Decorator which can be used for indicating that a function/class is deprecated and going to be removed.
-        Tracks down which function/class printed the warning and will print it only once per call.
+    Decorator which can be used for indicating that a function/class is deprecated and going to be removed.
+    Tracks down which function/class printed the warning and will print it only once per call.
 
-        Args:
-          version: Version in which the function/class will be removed (optional).
-          explanation: Additional explanation, e.g. "Please, ``use another_function`` instead." (optional).
+    Args:
+      version: Version in which the function/class will be removed (optional).
+      explanation: Additional explanation, e.g. "Please, ``use another_function`` instead." (optional).
     """
 
     if wrapped is None:

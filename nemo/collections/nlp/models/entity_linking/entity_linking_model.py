@@ -121,7 +121,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         Args:
             outputs: list of individual outputs of each validation step.
         Returns:
-            
+
         """
         if outputs:
             avg_loss = torch.stack([x["val_loss"] for x in outputs if x["val_loss"] != None]).mean()

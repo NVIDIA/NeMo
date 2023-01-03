@@ -53,7 +53,7 @@ class DuplexTextNormalizationModel(nn.Module):
     def evaluate(
         self, dataset: TextNormalizationTestDataset, batch_size: int, errors_log_fp: str, verbose: bool = True
     ):
-        """ Function for evaluating the performance of the model on a dataset
+        """Function for evaluating the performance of the model on a dataset
 
         Args:
             dataset: The dataset to be used for evaluation.

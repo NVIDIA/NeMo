@@ -26,14 +26,18 @@ from pynini.lib import pynutil, utf8
 
 class PostProcessor(GraphFst):
     '''
-        Postprocessing of TN, now contains:
-            1. punctuation removal
-            2. letter case conversion
-            3. oov tagger
+    Postprocessing of TN, now contains:
+        1. punctuation removal
+        2. letter case conversion
+        3. oov tagger
     '''
 
     def __init__(
-        self, remove_puncts: bool = False, to_upper: bool = False, to_lower: bool = False, tag_oov: bool = False,
+        self,
+        remove_puncts: bool = False,
+        to_upper: bool = False,
+        to_lower: bool = False,
+        tag_oov: bool = False,
     ):
         super().__init__(name="PostProcessor", kind="processor")
 

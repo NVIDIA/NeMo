@@ -387,7 +387,11 @@ class GPTDataset(Dataset):
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            tokens,
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss,
         )
         loss_mask[labels == -1] = 0.0
         tokens[tokens == -1] = 0
@@ -410,7 +414,11 @@ class GPTDataset(Dataset):
 
 @torch.no_grad()
 def _create_ltor_masks_and_position_ids(
-    tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
+    tokens: torch.Tensor,
+    eod_token: int,
+    reset_position_ids: bool,
+    reset_attention_mask: bool,
+    eod_mask_loss: bool,
 ):
     """Create `attention_mask`, `loss_mask`, and `position_ids`.
 

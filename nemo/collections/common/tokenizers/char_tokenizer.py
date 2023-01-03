@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 __all__ = ['CharTokenizer']
 
 
-NUMBER_OF_CHARACTERS_READ_BUFFER_SIZE = 10 ** 7
+NUMBER_OF_CHARACTERS_READ_BUFFER_SIZE = 10**7
 
 
 class SpecialTokenString(Enum):
@@ -48,25 +48,25 @@ class CharTokenizer(TokenizerSpec):
     rf"""
     Each character is a token.
     Args:
-        vocab_file: path to file with vocabulary for a tokenizer. The file consists of valid Python string literals 
-            separated by the new line character. Such literals must contain 1 character. Examples of valid Python 
+        vocab_file: path to file with vocabulary for a tokenizer. The file consists of valid Python string literals
+            separated by the new line character. Such literals must contain 1 character. Examples of valid Python
             literals: ``'a'``, ``'\n'``, ``"'"``, ``'ж'``, ``'\u8976'``. Optionally the first line in the file can be a
             JSON dictionary of special tokens. The keys of the special tokens dictionary are ``'mask_token'``,
             ``'bos_token'`` and so on. Some special tokens names can be omitted in the special tokens dictionary line.
             A file ``vocab_file`` has to be in ``'utf-8'`` encoding.
         mask_token: mask token. The following is applicable to all special tokens. Parameter ``mask_token`` is used
             for adding mask token to vocabulary or for modification of mask token present in special tokens dictionary
-            in the first line of file ``vocab_file``. Parameter ``mask_token`` can be either of type ``bool`` or a 
-            ``str`` of length 1. 
-            
+            in the first line of file ``vocab_file``. Parameter ``mask_token`` can be either of type ``bool`` or a
+            ``str`` of length 1.
+
             If ``mask_token`` is ``bool`` it has to be ``False``. If ``mask_token`` is ``True`` an exception is raised.
             If ``mask_token`` is ``False`` and ``mask_token`` is present in special tokens dictionary in vocabulary
             file ``vocab_file``, then ``mask_token`` is remove from special tokens dictionary.
-            
+
             If the parameter ``mask_token`` is a string, then such strings in the input sequence are interpreted as
             mask tokens.
         bos_token: the beginning of sequence token. See more in ``mask_token`` parameter description.
-        eos_token: the end of sequence token. Usually equal to sep_token. See more in ``mask_token`` parameter 
+        eos_token: the end of sequence token. Usually equal to sep_token. See more in ``mask_token`` parameter
             description.
         pad_token: token to use for padding. See more in ``mask_token`` parameter description.
         sep_token: token used for separating sequences. See more in ``mask_token`` parameter description.

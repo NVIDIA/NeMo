@@ -55,12 +55,18 @@ def get_query_embedding(query, model):
 
 
 def query_index(
-    query: str, cfg: DictConfig, model: object, index: object, pca: object, idx2id: dict, id2string: dict,
+    query: str,
+    cfg: DictConfig,
+    model: object,
+    index: object,
+    pca: object,
+    idx2id: dict,
+    id2string: dict,
 ) -> Dict:
 
     """
-    Query the nearest neighbor index of entities to find the 
-    concepts in the index dataset that are most similar to the 
+    Query the nearest neighbor index of entities to find the
+    concepts in the index dataset that are most similar to the
     query.
 
     Args:
@@ -68,17 +74,17 @@ def query_index(
         cfg (DictConfig): config object to specifiy query parameters
         model (EntityLinkingModel): entity linking encoder model
         index (object): faiss index
-        pca (object): sklearn pca transformation to be applied to queries 
-        idx2id (dict): dictionary mapping unique concept dataset index to 
+        pca (object): sklearn pca transformation to be applied to queries
+        idx2id (dict): dictionary mapping unique concept dataset index to
                        its CUI
-        id2string (dict): dictionary mapping each unqiue CUI to a 
+        id2string (dict): dictionary mapping each unqiue CUI to a
                           representative english description of
                           the concept
     Returns:
-        A dictionary with the concept ids of the index's most similar 
-        entities as the keys and a tuple containing the string 
-        representation of that concept and its cosine similarity to 
-        the query as the values. 
+        A dictionary with the concept ids of the index's most similar
+        entities as the keys and a tuple containing the string
+        representation of that concept and its cosine similarity to
+        the query as the values.
     """
     query_emb = get_query_embedding(query, model).detach().cpu().numpy()
 
@@ -109,7 +115,7 @@ def query_index(
 
 def main(cfg: DictConfig, restore: bool):
     """
-    Loads faiss index and allows commandline queries 
+    Loads faiss index and allows commandline queries
     to the index. Builds new index if one hasn't been built yet.
 
     Args:

@@ -18,7 +18,7 @@ from pynini.lib import pynutil
 
 class Fraction(GraphFst):
     '''
-        1/5  -> tokens { fraction { numerator: "1" denominator: "5" } }
+    1/5  -> tokens { fraction { numerator: "1" denominator: "5" } }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):
