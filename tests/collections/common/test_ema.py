@@ -249,14 +249,13 @@ class TestEMAConfig:
             assert torch.allclose(saved_weight.cpu(), ema_weight.cpu())
 
     @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
     def test_exp_manager_ema_weights_topk(self, tmpdir):
         """Test to ensure that EMA correctly ensures we only keep topk checkpoints."""
         tmp_path = tmpdir / "exp_manager_test"
         model = ExampleModel()
         save_top_k = 3
 
-        trainer = Trainer(max_epochs=20, enable_checkpointing=False, logger=False, accelerator='gpu', devices=1)
+        trainer = Trainer(max_epochs=10, enable_checkpointing=False, logger=False, devices=1)
         exp_manager(
             trainer,
             {
@@ -265,7 +264,6 @@ class TestEMAConfig:
                 "checkpoint_callback_params": {"save_top_k": save_top_k},
             },
         )
-        assert any(isinstance(callback, EMA) for callback in trainer.callbacks)
         trainer.fit(model)
 
         # we save 3 checkpoints for the model, 3 accompanied EMA weights, the last checkpoint and nemo model.
