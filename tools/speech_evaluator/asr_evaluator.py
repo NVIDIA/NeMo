@@ -38,7 +38,8 @@ def main(cfg):
     report = {}
     # """
     # engine
-    cfg.asr_eval = run_asr_inference(cfg.asr_eval)
+    ## comment this to use generated manifest
+    # cfg.asr_eval = run_asr_inference(cfg.asr_eval)
     # """
     # analyst
      
