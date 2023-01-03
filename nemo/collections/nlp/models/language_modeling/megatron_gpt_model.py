@@ -20,11 +20,11 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingSampler,
     MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -417,11 +417,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.log('loss_scale', loss_scale, batch_size=self.cfg.micro_batch_size)
 
         self.log(
-            'reduced_train_loss',
-            loss_mean,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=self.cfg.micro_batch_size
+            'reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=self.cfg.micro_batch_size
         )
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=self.cfg.micro_batch_size)
@@ -430,7 +426,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.trainer.global_step,
             prog_bar=True,
             rank_zero_only=True,
-            batch_size=self.cfg.micro_batch_size
+            batch_size=self.cfg.micro_batch_size,
         )
 
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
@@ -540,14 +536,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
                 else:
                     # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k:None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
+                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
 
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
                 batch['attention_mask'],
                 batch['labels'],
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
 
             def loss_func(output_tensor):

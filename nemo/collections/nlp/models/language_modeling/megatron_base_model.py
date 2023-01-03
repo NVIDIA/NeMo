@@ -126,9 +126,7 @@ class MegatronBaseModel(NLPModel):
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // mp_size
-            grad_accum_steps = (
-                cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
-            )
+            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 

@@ -110,7 +110,9 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
         # Check the last partial batch and see drop_last is set
         if len(batch) > 0 and not self.drop_last:
             if self.pad_samples_to_global_batch_size:
-                for i in range(self.data_parallel_rank, self.global_batch_size, self.micro_batch_times_data_parallel_size):
+                for i in range(
+                    self.data_parallel_rank, self.global_batch_size, self.micro_batch_times_data_parallel_size
+                ):
                     indices = [batch[j] for j in range(i, max(len(batch), i + self.micro_batch_size))]
                     num_pad = self.micro_batch_size - len(indices)
                     indices = indices + [-1] * num_pad
@@ -142,8 +144,9 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             global_batch_size=global_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
-        assert self.pad_samples_to_global_batch_size == False, \
-            "`MegatronPretrainingRandomSampler` does not support sample padding"
+        assert (
+            self.pad_samples_to_global_batch_size == False
+        ), "`MegatronPretrainingRandomSampler` does not support sample padding"
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
 
     def __iter__(self):
