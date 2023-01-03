@@ -127,12 +127,12 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         f"dataset_manifest={cfg.test_ds.manifest_filepath} "
         f"output_filename={cfg.output_filename} "
         f"batch_size={cfg.test_ds.batch_size} "
-        "rnnt_decoding.strategy=greedy_batch ", 
+        "rnnt_decoding.strategy=greedy_batch ",
         shell=True,
         check=True,
     )
-        # f"test_ds={cfg.test_ds} "
-            # f"dataset_manifest={cfg.test_ds.manifest_filepath} "
+    # f"test_ds={cfg.test_ds} "
+    # f"dataset_manifest={cfg.test_ds.manifest_filepath} "
 
     return cfg
 
@@ -180,7 +180,7 @@ def convert_num_to_words(_str):
     num_word = []
     for word in words:
         if word.isdigit():
-        # if word.isnumeric():
+            # if word.isnumeric():
             num = int(word)
             while num:
                 digit = num % 10
@@ -200,7 +200,7 @@ def convert_num_to_words(_str):
     return out_str
 
 
-def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[DictConfig, dict ]:
+def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[DictConfig, dict]:
 
     samples = []
     hyps = []
@@ -224,7 +224,9 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
             print("clean label")
             ref = clean_label(ref)
 
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer)
+        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(
+            hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
+        )
         sample['wer'] = wer
         sample['num_ref_words'] = words
         sample['ins_rate'] = ins_rate
@@ -236,7 +238,9 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         refs.append(ref)
 
     # wer = word_error_rate(hypotheses=hyps, references=refs)
-    total_wer, total_ref_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(hypotheses=hyps, references=refs,use_cer=cfg.analyst.metric_calculator.use_cer)
+    total_wer, total_ref_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
+        hypotheses=hyps, references=refs, use_cer=cfg.analyst.metric_calculator.use_cer
+    )
 
     if "output_filename" not in cfg.analyst.metric_calculator or not cfg.analyst.metric_calculator.output_filename:
         # overwrite the current manifest
@@ -256,9 +260,9 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         "wer": total_wer,
         "ins_rate": total_ins_rate,
         "del_rate": total_del_rate,
-        "sub_rate": total_sub_rate
+        "sub_rate": total_sub_rate,
     }
-    return  cfg, total_res
+    return cfg, total_res
 
 
 def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
@@ -269,27 +273,42 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
         if target in sample:
             target_class = sample[target]
             if target_class not in wer_each_class:
-                wer_each_class[target_class] = {'samples': 0, 'num_ref_words': 0, "errors": 0, "inss": 0, "dels": 0, "subs":0}
+                wer_each_class[target_class] = {
+                    'samples': 0,
+                    'num_ref_words': 0,
+                    "errors": 0,
+                    "inss": 0,
+                    "dels": 0,
+                    "subs": 0,
+                }
 
             wer_each_class[target_class]['samples'] += 1
 
             words = sample["num_ref_words"]
             wer_each_class[target_class]["num_ref_words"] += words
-            wer_each_class[target_class]["errors"] += words * sample[eval_metric] 
-            wer_each_class[target_class]["inss"] += words * sample["ins_rate"] 
-            wer_each_class[target_class]["dels"] += words * sample["del_rate"] 
-            wer_each_class[target_class]["subs"] += words * sample["sub_rate"] 
-            
+            wer_each_class[target_class]["errors"] += words * sample[eval_metric]
+            wer_each_class[target_class]["inss"] += words * sample["ins_rate"]
+            wer_each_class[target_class]["dels"] += words * sample["del_rate"]
+            wer_each_class[target_class]["subs"] += words * sample["sub_rate"]
+
     if len(wer_each_class) > 0:
         ret_wer_each_class = {}
         for target_class in wer_each_class:
             ret_wer_each_class[target_class] = {}
             ret_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
-            ret_wer_each_class[target_class]["wer"] = wer_each_class[target_class]["errors"] / wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["wer"] = (
+                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["num_ref_words"]
+            )
             ret_wer_each_class[target_class]["num_ref_words"] = wer_each_class[target_class]["num_ref_words"]
-            ret_wer_each_class[target_class]["ins_rate"] = wer_each_class[target_class]["inss"] / wer_each_class[target_class]["num_ref_words"]
-            ret_wer_each_class[target_class]["del_rate"] = wer_each_class[target_class]["dels"] / wer_each_class[target_class]["num_ref_words"]
-            ret_wer_each_class[target_class]["sub_rate"] = wer_each_class[target_class]["subs"] / wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["ins_rate"] = (
+                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["num_ref_words"]
+            )
+            ret_wer_each_class[target_class]["del_rate"] = (
+                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["num_ref_words"]
+            )
+            ret_wer_each_class[target_class]["sub_rate"] = (
+                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["num_ref_words"]
+            )
     else:
         logging.info(f"metadata '{target}' does not present in manifest. Skipping! ")
         return None
@@ -303,9 +322,16 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                     if s[0] <= target_class < s[1]:
                         slot_key = "slot-" + ",".join(str(i) for i in s)
                         if slot_key not in slot_wer:
-                            slot_wer[slot_key] = {'samples': 0, 'num_ref_words': 0, "errors": 0, "inss": 0, "dels": 0, "subs":0}
-                        
-                        for v in values: 
+                            slot_wer[slot_key] = {
+                                'samples': 0,
+                                'num_ref_words': 0,
+                                "errors": 0,
+                                "inss": 0,
+                                "dels": 0,
+                                "subs": 0,
+                            }
+
+                        for v in values:
                             slot_wer[slot_key][v] += wer_each_class[target_class][v]
                         break
 
@@ -313,9 +339,16 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                     if target_class in s:
                         slot_key = "slot-" + ",".join(s)
                         if slot_key not in slot_wer:
-                            slot_wer[slot_key] = {'samples': 0, 'num_ref_words': 0, "errors": 0, "inss": 0, "dels": 0, "subs":0}
+                            slot_wer[slot_key] = {
+                                'samples': 0,
+                                'num_ref_words': 0,
+                                "errors": 0,
+                                "inss": 0,
+                                "dels": 0,
+                                "subs": 0,
+                            }
 
-                        for v in values: 
+                        for v in values:
                             slot_wer[slot_key][v] += wer_each_class[target_class][v]
                         break
                 else:

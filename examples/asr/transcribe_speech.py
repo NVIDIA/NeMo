@@ -16,11 +16,10 @@ import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
-from omegaconf import DictConfig
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
