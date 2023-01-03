@@ -19,7 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy, process_batch
@@ -219,11 +219,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             if self.logger is None and self.logger.experiment is None:
                 return None
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             self._tb_logger = tb_logger
         return self._tb_logger
 
@@ -607,6 +606,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             pretrained_model_name="tts_es_fastpitch_multispeaker",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_es_multispeaker_fastpitchhifigan/versions/1.14.0/files/tts_es_fastpitch_multispeaker.nemo",
             description="This model is trained on 174 speakers in 6 crowdsourced Latin American Spanish OpenSLR datasets sampled at 44100Hz and can be used to generate male and female Spanish voices with Latin American accents.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # zh, single speaker, 22050Hz, SFSpeech Bilingual Chinese/English dataset
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_zh_fastpitch_sfspeech",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_zh_fastpitch_hifigan_sfspeech/versions/1.14.0/files/tts_zh_fastpitch_sfspeech.nemo",
+            description="This model is trained on a single female speaker in SFSpeech Bilingual Chinese/English dataset sampled at 22050Hz and can be used to generate female Mandarin Chinese voices.",
             class_=cls,
         )
         list_of_models.append(model)

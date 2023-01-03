@@ -16,15 +16,19 @@ import math
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 from packaging import version
 
 from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
-from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.preprocessing.features import (
+    FilterbankFeatures,
+    FilterbankFeaturesTA,
+    make_seq_mask_like,
+)
 from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
     LengthsType,
@@ -51,6 +55,8 @@ except ModuleNotFoundError:
 
 __all__ = [
     'AudioToMelSpectrogramPreprocessor',
+    'AudioToSpectrogram',
+    'SpectrogramToAudio',
     'AudioToMFCCPreprocessor',
     'SpectrogramAugmentation',
     'MaskedPatchAugmentation',
@@ -92,11 +98,8 @@ class AudioPreprocessor(NeuralModule, ABC):
         pass
 
 
-class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
+class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
     """Featurizer module that converts wavs to mel spectrograms.
-        We don't use torchaudio's implementation here because the original
-        implementation is not the same, so for the sake of backwards-compatibility
-        this will use the old FilterbankFeatures for now.
 
         Args:
             sample_rate (int): Sample rate of the input audio data.
@@ -158,6 +161,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
                 Defaults to 0.0
             nb_max_freq (int) : Frequency above which all frequencies will be masked for narrowband augmentation.
                 Defaults to 4000
+            use_torchaudio: Whether to use the `torchaudio` implementation.
             stft_exact_pad: Deprecated argument, kept for compatibility with older checkpoints.
             stft_conv: Deprecated argument, kept for compatibility with older checkpoints.
         """
@@ -222,6 +226,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         rng=None,
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
+        use_torchaudio: bool = False,
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
     ):
@@ -239,7 +244,12 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         if window_stride:
             n_window_stride = int(window_stride * self._sample_rate)
 
-        self.featurizer = FilterbankFeatures(
+        # Given the long and similar argument list, point to the class and instantiate it by reference
+        if not use_torchaudio:
+            featurizer_class = FilterbankFeatures
+        else:
+            featurizer_class = FilterbankFeaturesTA
+        self.featurizer = featurizer_class(
             sample_rate=self._sample_rate,
             n_window_size=n_window_size,
             n_window_stride=n_window_stride,
@@ -265,6 +275,14 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_exact_pad=stft_exact_pad,  # Deprecated arguments; kept for config compatibility
             stft_conv=stft_conv,  # Deprecated arguments; kept for config compatibility
         )
+
+    def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
+        batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
+        max_length = torch.randint(low=min_length, high=max_dim, size=[1]).item()
+        signals = torch.rand(size=[batch_size, max_length]) * 2 - 1
+        lengths = torch.randint(low=min_length, high=max_dim, size=[batch_size])
+        lengths[0] = max_length
+        return signals, lengths
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal, length)
@@ -672,6 +690,200 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
         pass
 
 
+class AudioToSpectrogram(NeuralModule):
+    """Transform a batch of input multi-channel signals into a batch of
+    STFT-based spectrograms.
+
+    Args:
+        fft_length: length of FFT
+        hop_length: length of hops/shifts of the sliding window
+        power: exponent for magnitude spectrogram. Default `None` will
+               return a complex-valued spectrogram
+    """
+
+    def __init__(self, fft_length: int, hop_length: int, power: Optional[float] = None):
+        if not HAVE_TORCHAUDIO:
+            logging.error('Could not import torchaudio. Some features might not work.')
+
+            raise ModuleNotFoundError(
+                "torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
+            )
+
+        super().__init__()
+
+        # For now, assume FFT length is divisible by two
+        if fft_length % 2 != 0:
+            raise ValueError(f'fft_length = {fft_length} must be divisible by 2')
+
+        self.stft = torchaudio.transforms.Spectrogram(
+            n_fft=fft_length, hop_length=hop_length, power=power, pad_mode='constant'
+        )
+
+        # number of subbands
+        self.F = fft_length // 2 + 1
+
+    @property
+    def num_subbands(self) -> int:
+        return self.F
+
+    @property
+    def input_types(self) -> Dict[str, NeuralType]:
+        """Returns definitions of module output ports.
+        """
+        return {
+            "input": NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "input_length": NeuralType(('B',), LengthsType()),
+        }
+
+    @property
+    def output_types(self) -> Dict[str, NeuralType]:
+        """Returns definitions of module output ports.
+        """
+        return {
+            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "output_length": NeuralType(('B',), LengthsType()),
+        }
+
+    @typecheck()
+    def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Convert a batch of C-channel input signals
+        into a batch of complex-valued spectrograms.
+
+        Args:
+            input: Time-domain input signal with C channels, shape (B, C, T)
+            input_length: Length of valid entries along the time dimension, shape (B,)
+
+        Returns:
+            Output spectrogram with F subbands and N time frames, shape (B, C, F, N)
+            and output length with shape (B,).
+        """
+        output_length = self.get_output_length(input_length=input_length)
+
+        B, T = input.size(0), input.size(-1)
+        input = input.view(B, -1, T)
+
+        # STFT output (B, C, F, N)
+        with torch.cuda.amp.autocast(enabled=False):
+            output = self.stft(input.float())
+
+        # Mask padded frames
+        length_mask: torch.Tensor = make_seq_mask_like(
+            lengths=output_length, like=output, time_dim=-1, valid_ones=False
+        )
+        output = output.masked_fill(length_mask, 0.0)
+
+        return output, output_length
+
+    def get_output_length(self, input_length: torch.Tensor) -> torch.Tensor:
+        """Get length of valid frames for the output.
+
+        Args:
+            input_length: number of valid samples, shape (B,)
+
+        Returns:
+            Number of valid frames, shape (B,)
+        """
+        output_length = input_length.div(self.stft.hop_length, rounding_mode='floor').add(1).long()
+        return output_length
+
+
+class SpectrogramToAudio(NeuralModule):
+    """Transform a batch of input multi-channel spectrograms into a batch of
+    time-domain multi-channel signals.
+
+    Args:
+        fft_length: length of FFT
+        hop_length: length of hops/shifts of the sliding window
+        power: exponent for magnitude spectrogram. Default `None` will
+               return a complex-valued spectrogram
+    """
+
+    def __init__(self, fft_length: int, hop_length: int):
+        if not HAVE_TORCHAUDIO:
+            logging.error('Could not import torchaudio. Some features might not work.')
+
+            raise ModuleNotFoundError(
+                "torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
+            )
+
+        super().__init__()
+
+        # For now, assume FFT length is divisible by two
+        if fft_length % 2 != 0:
+            raise ValueError(f'fft_length = {fft_length} must be divisible by 2')
+
+        self.istft = torchaudio.transforms.InverseSpectrogram(
+            n_fft=fft_length, hop_length=hop_length, pad_mode='constant'
+        )
+
+        self.F = fft_length // 2 + 1
+
+    @property
+    def num_subbands(self) -> int:
+        return self.F
+
+    @property
+    def input_types(self) -> Dict[str, NeuralType]:
+        """Returns definitions of module output ports.
+        """
+        return {
+            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "input_length": NeuralType(('B',), LengthsType()),
+        }
+
+    @property
+    def output_types(self) -> Dict[str, NeuralType]:
+        """Returns definitions of module output ports.
+        """
+        return {
+            "output": NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "output_length": NeuralType(('B',), LengthsType()),
+        }
+
+    @typecheck()
+    def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> torch.Tensor:
+        """Convert input complex-valued spectrogram to a time-domain
+        signal. Multi-channel IO is supported.
+
+        Args:
+            input: Input spectrogram for C channels, shape (B, C, F, N)
+            input_length: Length of valid entries along the time dimension, shape (B,)
+
+        Returns:
+            Time-domain signal with T time-domain samples and C channels, (B, C, T)
+            and output length with shape (B,).
+        """
+        output_length = self.get_output_length(input_length=input_length)
+
+        B, F, N = input.size(0), input.size(-2), input.size(-1)
+        assert F == self.F, f'Number of subbands F={F} not matching self.F={self.F}'
+        input = input.view(B, -1, F, N)
+
+        # iSTFT output (B, C, T)
+        with torch.cuda.amp.autocast(enabled=False):
+            output = self.istft(input.cfloat())
+
+        # Mask padded samples
+        length_mask: torch.Tensor = make_seq_mask_like(
+            lengths=output_length, like=output, time_dim=-1, valid_ones=False
+        )
+        output = output.masked_fill(length_mask, 0.0)
+
+        return output, output_length
+
+    def get_output_length(self, input_length: torch.Tensor) -> torch.Tensor:
+        """Get length of valid samples for the output.
+
+        Args:
+            input_length: number of valid frames, shape (B,)
+
+        Returns:
+            Number of valid samples, shape (B,)
+        """
+        output_length = input_length.sub(1).mul(self.istft.hop_length).long()
+        return output_length
+
+
 @dataclass
 class AudioToMelSpectrogramPreprocessorConfig:
     _target_: str = "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
@@ -699,6 +911,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     rng: Optional[str] = None
     nb_augmentation_prob: float = 0.0
     nb_max_freq: int = 4000
+    use_torchaudio: bool = False
     stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
     stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
 

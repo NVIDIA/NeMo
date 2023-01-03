@@ -22,9 +22,11 @@ import pytest
 
 from nemo.collections.asr.parts.utils.audio_utils import SOUND_VELOCITY as sound_velocity
 from nemo.collections.asr.parts.utils.audio_utils import (
+    calculate_sdr_numpy,
     db2mag,
     estimated_coherence,
     generate_approximate_noise_field,
+    get_segment_start,
     mag2db,
     pow2db,
     rms,
@@ -268,3 +270,97 @@ class TestAudioUtilsElements:
         assert all(np.abs(mag - 10 ** (mag_db / 20)) < abs_threshold)
         assert all(np.abs(db2mag(mag_db) - 10 ** (mag_db / 20)) < abs_threshold)
         assert all(np.abs(pow2db(mag ** 2) - mag_db) < abs_threshold)
+
+    @pytest.mark.unit
+    def test_get_segment_start(self):
+        random_seed = 42
+        num_examples = 50
+        num_samples = 2000
+
+        _rng = np.random.default_rng(seed=random_seed)
+
+        for n in range(num_examples):
+            # Generate signal
+            signal = _rng.normal(size=num_samples)
+            # Random start in the first half
+            start = _rng.integers(low=0, high=num_samples // 2)
+            # Random length
+            end = _rng.integers(low=start, high=num_samples)
+            # Selected segment
+            segment = signal[start:end]
+
+            # UUT
+            estimated_start = get_segment_start(signal=signal, segment=segment)
+
+            assert (
+                estimated_start == start
+            ), f'Example {n}: estimated start ({estimated_start}) not matching the actual start ({start})'
+
+    @pytest.mark.unit
+    def test_calculate_sdr_numpy(self):
+        atol = 1e-6
+        random_seed = 42
+        num_examples = 50
+        num_samples = 2000
+
+        _rng = np.random.default_rng(seed=random_seed)
+
+        for n in range(num_examples):
+            # Generate signal
+            target = _rng.normal(size=num_samples)
+            # Adjust the estimate
+            golden_sdr = _rng.integers(low=-10, high=10)
+            estimate = target * (1 + 10 ** (-golden_sdr / 20))
+
+            # UUT
+            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=False)
+
+            assert np.isclose(
+                estimated_sdr, golden_sdr, atol=atol
+            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
+
+            # Add random mean and use remove_mean=True
+            # SDR should not change
+            target += _rng.uniform(low=-10, high=10)
+            estimate += _rng.uniform(low=-10, high=10)
+
+            # UUT
+            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=True)
+
+            assert np.isclose(
+                estimated_sdr, golden_sdr, atol=atol
+            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
+
+    @pytest.mark.unit
+    def test_calculate_sdr_numpy_scale_invariant(self):
+        atol = 1e-6
+        random_seed = 42
+        num_examples = 50
+        num_samples = 2000
+
+        _rng = np.random.default_rng(seed=random_seed)
+
+        for n in range(num_examples):
+            # Generate signal
+            target = _rng.normal(size=num_samples)
+            # Adjust the estimate
+            estimate = target + _rng.uniform(low=0.01, high=1) * _rng.normal(size=target.size)
+
+            # scaled target
+            target_scaled = target / (np.linalg.norm(target) + 1e-16)
+            target_scaled = np.sum(estimate * target_scaled) * target_scaled
+
+            golden_sdr = calculate_sdr_numpy(
+                estimate=estimate, target=target_scaled, scale_invariant=False, remove_mean=False
+            )
+
+            # UUT
+            estimated_sdr = calculate_sdr_numpy(
+                estimate=estimate, target=target, scale_invariant=True, remove_mean=False
+            )
+
+            print(golden_sdr, estimated_sdr)
+
+            assert np.isclose(
+                estimated_sdr, golden_sdr, atol=atol
+            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'

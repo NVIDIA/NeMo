@@ -15,7 +15,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig
@@ -184,13 +184,18 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location
+            restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
+        if hasattr(cfg, "model_change"):
+            asr_model.change_attention_model(
+                self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
+                att_context_size=cfg.model_change.conformer.get("att_context_size", None),
+            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location
+            model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -220,7 +225,8 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                     has_two_fields.append(True)
                 else:
                     has_two_fields.append(False)
-                audio_file = Path(item['audio_filepath'])
+                audio_key = cfg.get('audio_key', 'audio_filepath')
+                audio_file = Path(item[audio_key])
                 if not audio_file.is_file() and not audio_file.is_absolute():
                     audio_file = manifest_dir / audio_file
                 filepaths.append(str(audio_file.absolute()))
@@ -243,12 +249,34 @@ def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
     return cfg
 
 
+def normalize_timestamp_output(timestamps: dict):
+    """
+    Normalize the dictionary of timestamp values to JSON serializable values.
+    Expects the following keys to exist -
+        "start_offset": int-like object that represents the starting index of the token
+            in the full audio after downsampling.
+        "end_offset": int-like object that represents the ending index of the token
+            in the full audio after downsampling.
+
+    Args:
+        timestamps: Nested dict.
+
+    Returns:
+        Normalized `timestamps` dictionary (in-place normalized)
+    """
+    for val_idx in range(len(timestamps)):
+        timestamps[val_idx]['start_offset'] = int(timestamps[val_idx]['start_offset'])
+        timestamps[val_idx]['end_offset'] = int(timestamps[val_idx]['end_offset'])
+    return timestamps
+
+
 def write_transcription(
-    transcriptions: List[str],
+    transcriptions: List[rnnt_utils.Hypothesis],
     cfg: DictConfig,
     model_name: str,
     filepaths: List[str] = None,
     compute_langs: bool = False,
+    compute_timestamps: bool = False,
 ) -> str:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
@@ -263,11 +291,21 @@ def write_transcription(
 
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
-            for idx, transcription in enumerate(transcriptions):
+            for idx, transcription in enumerate(transcriptions):  # type: rnnt_utils.Hypothesis
                 item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
+
+                if compute_timestamps:
+                    timestamps = transcription.timestep
+                    if timestamps is not None and isinstance(timestamps, dict):
+                        timestamps.pop('timestep', None)  # Pytorch tensor calculating index of each token, not needed.
+                        for key in timestamps.keys():
+                            values = normalize_timestamp_output(timestamps[key])
+                            item[f'timestamps_{key}'] = values
+
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
+
                 f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r') as fr:
@@ -275,9 +313,20 @@ def write_transcription(
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx].text
 
+                    if compute_timestamps:
+                        timestamps = transcriptions[idx].timestep
+                        if timestamps is not None and isinstance(timestamps, dict):
+                            timestamps.pop(
+                                'timestep', None
+                            )  # Pytorch tensor calculating index of each token, not needed.
+                            for key in timestamps.keys():
+                                values = normalize_timestamp_output(timestamps[key])
+                                item[f'timestamps_{key}'] = values
+
                     if compute_langs:
                         item['pred_lang'] = transcriptions[idx].langs
                         item['pred_lang_chars'] = transcriptions[idx].langs_chars
+
                     f.write(json.dumps(item) + "\n")
 
     return cfg.output_filename
@@ -291,6 +340,7 @@ def transcribe_partial_audio(
     logprobs: bool = False,
     return_hypotheses: bool = False,
     num_workers: int = 0,
+    channel_selector: Optional[int] = None,
 ) -> List[str]:
 
     # if test_ds:
@@ -337,6 +387,7 @@ def transcribe_partial_audio(
             'manifest_filepath': path2manifest,
             'batch_size': batch_size,
             'num_workers': num_workers,
+            'channel_selector': channel_selector,
         }
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
 
