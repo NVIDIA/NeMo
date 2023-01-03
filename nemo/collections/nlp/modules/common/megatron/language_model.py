@@ -59,6 +59,7 @@ def get_language_model(
     init_method_std=0.02,
     use_cpu_initialization=False,
     hidden_dropout=0.1,
+    attention_dropout=0.1,
     precision=16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
@@ -84,6 +85,7 @@ def get_language_model(
     fp8_interval=1,
     fp8_amax_history_len=1,
     fp8_amax_compute_algo='most_recent',
+    reduce_amax=True,
     use_emha=False,
 ):
     """Build language model and return along with the key to save."""
@@ -121,6 +123,7 @@ def get_language_model(
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
         hidden_dropout=hidden_dropout,
+        attention_dropout=attention_dropout,
         precision=precision,
         fp32_residual_connection=fp32_residual_connection,
         activations_checkpoint_method=activations_checkpoint_method,
@@ -146,6 +149,7 @@ def get_language_model(
         fp8_interval=fp8_interval,
         fp8_amax_history_len=fp8_amax_history_len,
         fp8_amax_compute_algo=fp8_amax_compute_algo,
+        reduce_amax=reduce_amax,
         use_emha=use_emha,
     )
     # key used for checkpoints.
@@ -408,6 +412,7 @@ class TransformerLanguageModel(MegatronModule):
         post_process=True,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -433,6 +438,7 @@ class TransformerLanguageModel(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        reduce_amax=True,
         use_emha=False,
     ):
         super(TransformerLanguageModel, self).__init__()
@@ -494,6 +500,7 @@ class TransformerLanguageModel(MegatronModule):
             normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
@@ -514,6 +521,7 @@ class TransformerLanguageModel(MegatronModule):
             fp8_interval=fp8_interval,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
+            reduce_amax=reduce_amax,
             use_emha=use_emha,
         )
         self._encoder_key = 'encoder'
@@ -540,6 +548,7 @@ class TransformerLanguageModel(MegatronModule):
                 normalization=normalization,
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
