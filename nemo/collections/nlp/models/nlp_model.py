@@ -36,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_pretrained_bert_models,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import MegatronTorchCheckpointIO, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
@@ -307,15 +307,16 @@ class NLPModel(ModelPT, Exportable):
         Loads ModelPT from checkpoint, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
+        ckpt_io = MegatronTorchCheckpointIO()
         checkpoint = None
         try:
             cls._set_model_restore_state(is_being_restored=True)
             # TODO: replace with proper PTL API
             with pl_legacy_patch():
                 if map_location is not None:
-                    checkpoint = pl_load(checkpoint_path, map_location=map_location)
+                    checkpoint = ckpt_io.load_checkpoint(checkpoint_path, map_location=map_location)
                 else:
-                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+                    checkpoint = ckpt_io.load_checkpoint(checkpoint_path, map_location=lambda storage, loc: storage)
 
             if hparams_file is not None:
                 extension = hparams_file.split(".")[-1]

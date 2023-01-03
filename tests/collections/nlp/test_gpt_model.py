@@ -244,5 +244,10 @@ class TestGPTModel:
         trainer.fit(gpt_model)
         ckpt_path = tmp_path / "test_gpt.ckpt"
         trainer.save_checkpoint(ckpt_path)
-        gpt_model_from_checkpoint = MegatronGPTModel.load_from_checkpoint(checkpoint_path=ckpt_path)
+        gpt_model_from_checkpoint = MegatronGPTModel.load_from_checkpoint(checkpoint_path=ckpt_path, trainer=trainer)
+
+        gpt_model_sum = sum([p.sum() for p in gpt_model.parameters()])
+        gpt_model_from_checkpoint_sum = sum([p.sum() for p in gpt_model_from_checkpoint.parameters()])
+
+        assert gpt_model_sum == gpt_model_from_checkpoint_sum
 

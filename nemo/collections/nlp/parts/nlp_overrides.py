@@ -98,12 +98,7 @@ class MegatronTorchCheckpointIO(TorchCheckpointIO):
                 " to define how you'd like to use `storage_options`."
             )
 
-        # dist_checkpointing expects a directory so we will name the directory
-        # using the path with the file extension removed
-        dirname = os.path.dirname(path)
-        basename = os.path.basename(path)
-        root, _ = os.path.splitext(basename)
-        checkpoint_dir = os.path.join(dirname, root)
+        checkpoint_dir = self._get_checkpoint_dir(path)
 
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
@@ -131,11 +126,28 @@ class MegatronTorchCheckpointIO(TorchCheckpointIO):
         """
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(path)
-        if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
+        # fs = get_filesystem(path)
+        # if not fs.exists(path):
+        #     raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
 
-        return pl_load(path, map_location=map_location)
+        # return pl_load(path, map_location=map_location)
+
+        sharded_state_dict = None  # will need this once we add sharded tensors
+        checkpoint_dir = self._get_checkpoint_dir(path)
+
+        return dist_checkpointing.load(sharded_state_dict=None, checkpoint_dir=checkpoint_dir)
+
+    def _get_checkpoint_dir(self, path: _PATH) -> _PATH:
+        """
+            dist_checkpointing expects a directory but PTL checkpoints are filepaths,
+            so we will name the directory using the filepath with the file extension removed
+        """
+
+        dirname = os.path.dirname(path)
+        basename = os.path.basename(path)
+        root, _ = os.path.splitext(basename)
+        checkpoint_dir = os.path.join(dirname, root)
+        return checkpoint_dir
 
 
 class NLPDDPStrategy(DDPStrategy):
