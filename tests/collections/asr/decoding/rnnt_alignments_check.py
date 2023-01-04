@@ -67,6 +67,7 @@ def cleanup_local_folder():
     return
 
 
+# TODO: add the same tests for multi-blank RNNT decoding
 def test_rnnt_alignments():
     # using greedy as baseline and comparing all other configurations to it
     ref_transcriptions = get_rnnt_alignments("greedy")
