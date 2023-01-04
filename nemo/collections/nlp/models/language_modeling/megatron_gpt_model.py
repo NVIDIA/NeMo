@@ -573,17 +573,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
-            total_num_samples = 0
-            total_loss = 0
-            for loss_with_batch_size in outputs:
-                loss_with_batch_size_array = np.array(loss_with_batch_size).flatten()
-                batch_losses = loss_with_batch_size_array[0::2]
-                batch_sizes = loss_with_batch_size_array[1::2]
-                total_num_samples += sum(batch_sizes)
-                total_loss += np.dot(batch_losses, batch_sizes)
-
-            avg_loss = total_loss / total_num_samples
-            averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
+            if self.cfg.data.get('validation_drop_last', True):
+                averaged_loss = torch.stack(outputs).mean()
+            else:
+                # Compute the avg loss by total_loss across all samples / total number of samples
+                total_loss_and_total_samples = torch.vstack(outputs).sum(axis=0)
+                avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                averaged_loss = avg_loss.type(torch.float32).cuda()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
