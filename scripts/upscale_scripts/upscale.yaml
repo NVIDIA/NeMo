@@ -11,7 +11,7 @@ inference:
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
-  batch_size: 1
+  batch_size: 10
 
 nemo_trainer:
   devices: 1
@@ -40,14 +40,15 @@ upscaler:
 
   data:
     batch_size: 256
-    high_freq_cutoff: 30
-    num_examples: 20000
+    high_freq_cutoff: 0
+    num_examples: 40000
     train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_1k.jsonl"
-    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_test_10.jsonl"
+    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_test_100.jsonl"
   
   wandb:
     name: ${name}
     project: 'upscaler'
+    group: 'test'
 
 taskname: "squad"
 small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo"

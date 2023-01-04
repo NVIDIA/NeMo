@@ -132,17 +132,19 @@ def main(cfg) -> None:
 
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
 
+    zero_shot_mode = cfg.inference.get("zero_shot_mode", False)
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
         batch_size=cfg.inference.get("batch_size", 1),
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
-        add_bos=sampling_params["add_BOS"],
+        add_bos=False if zero_shot_mode else sampling_params["add_BOS"],
         add_eos=False,
         for_train=False,
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
+        zero_shot_baseline=zero_shot_mode,
     )
 
     config = OmegaConf.to_container(cfg.inference)

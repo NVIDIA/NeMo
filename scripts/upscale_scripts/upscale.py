@@ -75,7 +75,6 @@ class EmbeddingProjector(ptl.LightningModule):
             nn.GELU(),
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.GELU(),
-            nn.Dropout(0.1),
             nn.Linear(self.hidden_size, self.output_size),
         )
         self.val_loss = float('inf')
@@ -242,12 +241,13 @@ def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
+        zero_shot_baseline=False,
     )
 
     config = OmegaConf.to_container(inference_cfg)
     model.set_inference_config(config)
     response = trainer.predict(model, dataloader)
-
+    projected_pred_file_path += ('.zs' if zero_shot_mode else '')
     with open(projected_pred_file_path, "w", encoding="utf-8") as pred_file:
         for i in range(len(response)):
             for sent in response[i]["sentences"]:
@@ -268,10 +268,11 @@ def main(cfg) -> None:
 
     model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.nemo_trainer)
     word_embeddings_1_3b, tokenizer, model_1_3b = get_word_embedding(model_1_3b)
+    prompt_learning_embs_1_3b = model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
 
-    train = UpscaleDataset(torch.float32, word_embeddings_125m[train_tokens, :], word_embeddings_1_3b[train_tokens, :])
-    val = UpscaleDataset(torch.float32, word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
-    test = UpscaleDataset(torch.float32,word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
+    train = UpscaleDataset(torch.float16, word_embeddings_125m[train_tokens, :], word_embeddings_1_3b[train_tokens, :])
+    val = UpscaleDataset(torch.float16, word_embeddings_125m[val_tokens, :], word_embeddings_1_3b[val_tokens, :])
+    test = UpscaleDataset(torch.float16, prompt_learning_embs_125m, prompt_learning_embs_1_3b)
 
     train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
     val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
@@ -280,7 +281,7 @@ def main(cfg) -> None:
     projector = EmbeddingProjector(
         word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
     )
-    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=10, verbose=True, mode="min")
+    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=10, verbose=True, mode="min")
     wblogger = WandbLogger(**cfg.upscaler.wandb)
     # saves top-K checkpoints based on "val_loss" metric
     checkpoint_callback = ModelCheckpoint(
@@ -298,7 +299,7 @@ def main(cfg) -> None:
         word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
     )
     best_projector.load_model(cfg.upscaler.save_checkpoint_path + '/upscaler.pt')
-    trainer.test(model=best_projector, dataloaders=test_dataloader)
+    trainer.test(model=projector, dataloaders=test_dataloader)
     best_projector = best_projector.cuda()
     y_hat = best_projector(prompt_learning_embs_125m)
 
