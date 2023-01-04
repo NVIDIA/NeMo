@@ -1,4 +1,7 @@
+import json
 import math
+from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -8,7 +11,6 @@ from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_
 from nemo.collections.asr.data.deep_diarize.utils import ContextWindow, assign_frame_level_spk_vector
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
-from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core import Dataset
 
 
@@ -37,12 +39,11 @@ class RTTMDataset(Dataset):
         window_stride: float,
         subsampling: int,
         segment_seconds: int,
-        max_speakers: int,
+        min_val_speakers: int,
         max_val_speakers: int,
+        max_speakers: int,
     ):
-        self.collection = DiarizationSpeechLabel(
-            manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
-        )
+        self.collection = self._load_manifest(manifest_filepath)
         self.preprocessor = preprocessor
         self.featurizer = featurizer
         self.context_window = context_window
@@ -50,8 +51,9 @@ class RTTMDataset(Dataset):
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.subsampling = subsampling
         self.segment_seconds = segment_seconds
-        self.max_speakers = max_speakers
+        self.min_val_speakers = min_val_speakers
         self.max_val_speakers = max_val_speakers
+        self.max_speakers = max_speakers
         self._prune_collection_max_speakers()
 
     def _pyannote_annotations(self, rttm_timestamps):
@@ -141,9 +143,30 @@ class RTTMDataset(Dataset):
             rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
             stt_list, end_list, speaker_list = rttm_timestamps
             speakers = sorted(list(set(speaker_list)))
-            if len(speakers) <= self.max_val_speakers:
+            if self.min_val_speakers <= len(speakers) <= self.max_val_speakers:
                 pruned_collection.append(sample)
         print(
             f"validation:  dropped {len(self.collection) - len(pruned_collection)} calls out of {len(self.collection)}"
         )
         self.collection = pruned_collection
+
+    def _load_manifest(self, manifest_filepath: str):
+        lines = Path(manifest_filepath).read_text().splitlines()
+        lines = [json.loads(x) for x in lines]
+        return [
+            Sample(
+                audio_file=x['audio_filepath'],
+                duration=x['duration'],
+                rttm_file=x['rttm_filepath'],
+                offset=x.get('offset', None),
+            )
+            for x in lines
+        ]
+
+
+@dataclass
+class Sample:
+    rttm_file: str
+    audio_file: str
+    duration: int
+    offset: int = 0

@@ -25,7 +25,7 @@ from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.combined_data import CombinedSegmentDataset
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
-from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
+from nemo.collections.asr.data.deep_diarize.train_data import MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.utils import ContextWindow
 from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -186,7 +186,8 @@ class DeepDiarizeModel(ModelPT):
 
         self.segment_metrics = self._create_der_metrics('segment')
         self.call_metrics = self._create_der_metrics('call')
-        self.permutations = None
+        self.val_permutations = None
+        self.train_permutations = None
         self.permutations_indices = None
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.train_attractors = None
@@ -215,10 +216,7 @@ class DeepDiarizeModel(ModelPT):
             for mem in self.mems:
                 mem[mask, :, :] = 0
 
-    def _permutation_mask(self, preds, y):
-        if self.permutations is None:
-            self.permutations = torch.empty(preds.size(0), self.num_speakers, dtype=torch.int).to(self.device)
-
+    def _permutation_mask(self, permutations, preds, y):
         for x in range(preds.size(0)):
             with torch.no_grad():
                 calc_loss, permutation = permutation_invariant_training(
@@ -227,10 +225,10 @@ class DeepDiarizeModel(ModelPT):
                     metric_func=self._calculate_train_loss,
                     eval_func='min',
                 )
-            self.permutations[x] = permutation
+            permutations[x] = permutation
 
         for x, labels in enumerate(y):
-            y[x] = torch.index_select(y[x], 1, self.permutations[x])
+            y[x] = torch.index_select(y[x], 1, permutations[x])
         return y
 
     def _shuffle(self, tensor: torch.Tensor, dim: int):
@@ -272,7 +270,12 @@ class DeepDiarizeModel(ModelPT):
         speaker_outputs = self._apply_mask(attractors_speaker_exists, speaker_outputs)
 
         if self.cfg.permute:
-            y = self._permutation_mask(speaker_outputs, y)
+            if self.train_permutations is None:
+                self.train_permutations = torch.empty(speaker_outputs.size(0), self.num_speakers, dtype=torch.int).to(
+                    self.device
+                )
+
+            y = self._permutation_mask(self.train_permutations, speaker_outputs, y)
         loss = self._calculate_train_loss(speaker_outputs, y)
         existence_loss = self._calculate_attractor_loss(attractors_speaker_exists, y)
 
@@ -316,13 +319,20 @@ class DeepDiarizeModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations, files = batch
-        segment_loss = 0
+        segment_loss, existence_loss = 0, 0
         if self.cfg.mem_enabled:
             mems = [
                 torch.zeros(1, self.sub_sample_length, self.cfg.encoder.hidden_dim, device=self.device)
                 for x in range(self.cfg.encoder.n_layers)
             ]
         speech_activity, attractors = None, None
+
+        if self.cfg.global_attractors:
+            total_inputs = torch.cat(inputs, dim=1)
+            chunk = self.sub_sample_layer(total_inputs)
+            seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
+            chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
+
         for x, (chunk, fr_level_y, segment_annotation, length) in enumerate(
             zip(inputs, fr_level_ys, segment_annotations, input_lengths)
         ):
@@ -335,12 +345,14 @@ class DeepDiarizeModel(ModelPT):
                 encoded_xl_features, mems = self.transformer_feature_encoder(chunk, mems=mems)
             else:
                 encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
-            seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
-            chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
+
+            if not self.cfg.global_attractors:
+                seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
+                chunk_attractors, _ = self.eda_module(chunk, seq_mask)
 
             # if attractors is None:
             #     attractors = chunk_attractors
-            if self.cfg.average_attractors:
+            if self.cfg.average_attractors and not self.cfg.global_attractors:
                 attractors = self._process_attractors(chunk_attractors, attractors)
             else:
                 attractors = chunk_attractors
@@ -354,13 +366,21 @@ class DeepDiarizeModel(ModelPT):
             speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
 
             for k, metric in self.segment_metrics.items():
-                metric(speaker_outputs.squeeze(0), segment_annotation)
+                metric(speaker_outputs.squeeze(0), segment_annotation, files)
             segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )
+            if self.cfg.permute:
+                if self.val_permutations is None:
+                    self.val_permutations = torch.empty(
+                        speaker_outputs.size(0), self.num_speakers, dtype=torch.int
+                    ).to(self.device)
+
+                fr_level_y = self._permutation_mask(self.val_permutations, speaker_outputs, fr_level_y.unsqueeze(0))
+            existence_loss += self._calculate_attractor_loss(attractors_speaker_exists.unsqueeze(0), fr_level_y)
         for name, metric in self.call_metrics.items():
-            metric(speech_activity.squeeze(0), annotations)
+            metric(speech_activity.squeeze(0), annotations, files)
             self.log(name, metric, sync_dist=True)
 
         for name, metric in self.segment_metrics.items():
@@ -369,6 +389,7 @@ class DeepDiarizeModel(ModelPT):
         call_loss = self._calculate_val_loss(speech_activity, y)
         self.log('val_loss', call_loss, sync_dist=True)
         self.log('segment_val_loss', segment_loss / len(inputs), sync_dist=True)
+        self.log('existence_val_loss', existence_loss / len(inputs), sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
         loss = self.valid_loss(logits, y.unsqueeze(0))
@@ -448,8 +469,9 @@ class DeepDiarizeModel(ModelPT):
             window_stride=self.cfg.preprocessor.window_stride,
             subsampling=self.cfg.subsampling,
             segment_seconds=self.cfg.chunk_seconds,
-            max_speakers=self.cfg.num_speakers,
             max_val_speakers=self.cfg.max_val_speakers,
+            min_val_speakers=self.cfg.min_val_speakers,
+            max_speakers=self.cfg.num_speakers,
         )
         self._validation_dl = DataLoader(
             dataset, num_workers=cfg.num_workers, collate_fn=dataset.collate_fn, shuffle=False

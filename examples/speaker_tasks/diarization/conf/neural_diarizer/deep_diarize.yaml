@@ -40,6 +40,7 @@ model:
   warmup_ratio: 0.1
   mem_enabled: False
   average_attractors: False
+  global_attractors: False
   permute: False
 
   existence_alpha: 0.1
@@ -52,6 +53,7 @@ model:
   combine_segments_seconds: 0.3
   threshold: 0.5
   max_val_speakers: ${num_speakers}
+  min_val_speakers: 2
 
   train_ds:
     manifest_filepaths: ???

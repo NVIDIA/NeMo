@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import math
 import random
+from dataclasses import dataclass
 from itertools import chain, cycle
+from pathlib import Path
 from typing import List
 
 import torch
@@ -181,9 +183,7 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
 
     @staticmethod
     def data_setup(manifest_filepath: str, min_speakers: int, max_speakers: int):
-        collection = DiarizationSpeechLabel(
-            manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
-        )
+        collection = _load_manifest(manifest_filepath)
         samples = []
         for sample_id, sample in enumerate(collection):
             if sample.offset is None:
@@ -203,6 +203,28 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                 pruned_samples.append(sample)
         print(f"pruned {len(samples) - len(pruned_samples)} out of {len(samples)} calls")
         return pruned_samples
+
+
+def _load_manifest(manifest_filepath: str):
+    lines = Path(manifest_filepath).read_text().splitlines()
+    lines = [json.loads(x) for x in lines]
+    return [
+        Sample(
+            audio_file=x['audio_filepath'],
+            duration=x['duration'],
+            rttm_file=x['rttm_filepath'],
+            offset=x.get('offset', None),
+        )
+        for x in lines
+    ]
+
+
+@dataclass
+class Sample:
+    rttm_file: str
+    audio_file: str
+    duration: int
+    offset: int = 0
 
 
 class MultiStreamDataLoader:
