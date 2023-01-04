@@ -17,6 +17,7 @@
 #       these tests outside of the CI machines environment, where test data is
 #       stored
 
+import pytest
 from examples.asr.transcribe_speech import TranscriptionConfig
 from omegaconf import OmegaConf
 
@@ -36,6 +37,7 @@ def get_rnnt_alignments(strategy: str):
 
     model = setup_model(cfg, map_location="cuda")[0]
     model.change_decoding_strategy(cfg.rnnt_decoding)
+
     transcriptions = model.transcribe(
         paths2audio_files=filepaths,
         batch_size=cfg.batch_size,
@@ -54,6 +56,15 @@ def get_rnnt_alignments(strategy: str):
                 else:
                     assert pred[1].item() == model.decoder.blank_idx  # last one has to be blank
     return transcriptions
+
+
+@pytest.fixture(autouse=True)
+def cleanup_local_folder():
+    """Overriding global fixture to make sure it's not applied for this test.
+
+    Otherwise, there will be errors in the CI in github.
+    """
+    return
 
 
 def test_rnnt_alignments():
