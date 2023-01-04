@@ -366,7 +366,7 @@ class DeepDiarizeModel(ModelPT):
             speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
 
             for k, metric in self.segment_metrics.items():
-                metric(speaker_outputs.squeeze(0), segment_annotation, files)
+                metric(speaker_outputs.squeeze(0), segment_annotation)
             segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
@@ -380,7 +380,7 @@ class DeepDiarizeModel(ModelPT):
                 fr_level_y = self._permutation_mask(self.val_permutations, speaker_outputs, fr_level_y.unsqueeze(0))
             existence_loss += self._calculate_attractor_loss(attractors_speaker_exists.unsqueeze(0), fr_level_y)
         for name, metric in self.call_metrics.items():
-            metric(speech_activity.squeeze(0), annotations, files)
+            metric(speech_activity.squeeze(0), annotations)
             self.log(name, metric, sync_dist=True)
 
         for name, metric in self.segment_metrics.items():
