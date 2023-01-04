@@ -135,7 +135,7 @@ class EMA(Callback):
                 # we could enforce that if you trained with EMA and want to continue training
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
                 del ema_state_dict
-                logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
+                logging.info("EMA state has been restored.")
             else:
                 raise MisconfigurationException(
                     "Unable to find the associated EMA weights when re-loading, "
@@ -327,7 +327,6 @@ class EMAOptimizer(torch.optim.Optimizer):
             'current_step': self.current_step,
             'decay': self.decay,
             'every_n_steps': self.every_n_steps,
-            'device': self.device,
         }
         return state_dict
 
@@ -338,7 +337,6 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.ema_params = tuple(param.to(self.device) for param in copy.deepcopy(state_dict['ema']))
         self.current_step = state_dict['current_step']
         self.decay = state_dict['decay']
-        self.device = state_dict['device']
         self.every_n_steps = state_dict['every_n_steps']
         self.rebuild_ema_params = False
 
