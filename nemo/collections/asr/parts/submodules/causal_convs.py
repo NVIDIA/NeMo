@@ -150,7 +150,7 @@ class CausalConv1D(nn.Conv1d):
         if cache_next is not None:
             input_x_size = torch.tensor(input_x.size(-1) - self.cache_drop_size, dtype=torch.int64)
             input_x_size = input_x_size.clip(min=1, max=input_x.size(-1))
-            input_x_kept = input_x[:, :, : input_x_size]
+            input_x_kept = input_x[:, :, :input_x_size]
 
             cache_keep_size = torch.tensor(input_x.size(-1) - self.cache_drop_size, dtype=torch.int64)
             cache_keep_size = cache_keep_size.clip(min=1, max=cache_next.size(-1))
