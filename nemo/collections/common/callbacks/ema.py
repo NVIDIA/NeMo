@@ -117,16 +117,20 @@ class EMA(Callback):
     ) -> None:
         checkpoint_callback = trainer.checkpoint_callback
 
-        if trainer.ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
+        # use the connector as NeMo calls the connector directly in the exp_manager when restoring.
+        connector = trainer._checkpoint_connector
+        ckpt_path = connector.resume_checkpoint_path
+
+        if ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
             ext = checkpoint_callback.FILE_EXTENSION
-            if trainer.ckpt_path.endswith(f'-EMA{ext}'):
+            if ckpt_path.endswith(f'-EMA{ext}'):
                 logging.info(
                     "loading EMA based weights. "
                     "The callback will treat the loaded EMA weights as the main weights"
                     " and create a new EMA copy when training."
                 )
                 return
-            ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
+            ema_path = ckpt_path.replace(ext, f'-EMA{ext}')
             if os.path.exists(ema_path):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
 
