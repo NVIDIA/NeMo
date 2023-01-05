@@ -571,6 +571,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_with_batch_size_list
 
     def validation_epoch_end(self, outputs):
+        # TODO: this is a bug workaround, need to figure out what is going on
+        if not outputs:
+            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
