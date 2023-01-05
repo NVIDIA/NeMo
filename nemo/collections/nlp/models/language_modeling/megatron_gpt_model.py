@@ -526,7 +526,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
+        batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
@@ -534,7 +534,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         fwd_bwd_function = self._get_fwd_bwd_function()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+            forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
             batch=batch_for_pipeline,
             model=self.model,
             forward_only=True,
@@ -546,34 +546,31 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # only the last stage of the pipeline returns losses
         if losses_reduced_per_micro_batch:
-            actual_batch_size = batch['tokens'].shape[0]  # Might be lesser than global_batch_size if drop_last=False
-            expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
-            if actual_batch_size == expected_batch_size:
-                loss_with_batch_size_list = [
-                    [loss_reduced['avg'].item(), self.cfg.micro_batch_size]
-                    for loss_reduced in losses_reduced_per_micro_batch
-                ]
+            if self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                return torch.concat(loss_tensors_list).mean()
             else:
-                loss_with_batch_size_list = []
-                total_samples_remaining = actual_batch_size
-                for loss_reduced in losses_reduced_per_micro_batch:
-                    if total_samples_remaining <= 0:
-                        break
-                    if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                        loss_with_batch_size_list.append([loss_reduced['avg'].item(), self.cfg.micro_batch_size])
-                    else:
-                        loss_with_batch_size_list.append([loss_reduced['avg'].item(), total_samples_remaining])
-                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum_and_mb_size']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if loss_sum['loss_sum_and_mb_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                return loss_sum
         else:
             # we're not on the last pipeline stage so no losses
-            loss_with_batch_size_list = []
-
-        return loss_with_batch_size_list
+            return []
 
     def validation_epoch_end(self, outputs):
-        # TODO: this is a bug workaround, need to figure out what is going on
-        if not outputs:
+        if not outputs or len(outputs) == 0:
             return
+
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
