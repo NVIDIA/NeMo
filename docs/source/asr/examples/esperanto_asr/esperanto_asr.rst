@@ -2,7 +2,7 @@
 Example: Training Esperanto ASR model using Mozilla Common Voice Dataset
 ########################################################################
 
-Training an ASR model for a new language can be challenging, especially for low-resource languages ( see  `example <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/examples/kinyarwanda_asr.rst>`_ for Kinyarwanda ASR model). 
+Training an ASR model for a new language can be challenging, especially for low-resource languages (see  `example <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/examples/kinyarwanda_asr.rst>`_ for Kinyarwanda ASR model). 
 This example describes all basic steps required to build  ASR model for Esperanto:
 
 * Data preparation
@@ -21,7 +21,7 @@ Mozilla Common Voice provides 1400 hours of validated Esperanto speech (see `her
 Download data
 #################################
 
-You can use the NeMo `script <https://github.com/andrusenkoau/NeMo/blob/esperanto_example/docs/source/asr/examples/esperanto_asr/scripts/get_commonvoice_data_v2.py>`_ to get data manifests for Esperanto.
+You can use the NeMo script to get data manifests for Esperanto:
 
 .. code-block:: bash
 
@@ -358,6 +358,7 @@ We can also monitor  test WER behavior during training process using wandb plots
     :width: 800px
 
 As you can see, the best way to get the Esperanto ASR model is finetuning from the pretrained SSL model for English.
+The best Esperanto model (finetuning Conformer-CTC-large from English) can be found on `NGC <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_eo_conformer_ctc_large>`_ and `Hugging Face <https://huggingface.co/nvidia/stt_eo_conformer_ctc_large>`_.
 
 
 **************************
