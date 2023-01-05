@@ -165,6 +165,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+            attention_dropout=self.cfg.get('attention_dropout', 0.1),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
@@ -190,6 +191,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8_interval=self.cfg.get('fp8_interval', 1),
             fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
             fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
+            reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
         )
 
@@ -715,33 +717,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-
-        # log number of parameters
-        if isinstance(self.model, list):
-            num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
-            )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last virtual stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
-                num_parameters_on_device -= num_word_embedding_parameters
-        else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
-
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
-
-                num_parameters_on_device -= num_word_embedding_parameters
-
-        # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
-
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
+            self.model
+        )
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
