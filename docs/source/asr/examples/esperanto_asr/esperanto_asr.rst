@@ -265,23 +265,24 @@ For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nem
     TEST_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json.clean
 
     python ${NEMO_ROOT}/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
-    --config-path=../conf/conformer/ \
-    --config-name=conformer_ctc_bpe \
-    exp_manager.name="Name of our experiment" \
-    exp_manager.resume_if_exists=true \
-    exp_manager.resume_ignore_no_checkpoint=true \
-    exp_manager.exp_dir=results/ \
-    model.tokenizer.dir=$TOKENIZER \
-    model.train_ds.is_tarred=true \
-    model.train_ds.tarred_audio_filepaths=$TARRED_AUDIO_FILEPATHS \
-    model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
-    model.validation_ds.manifest_filepath=$DEV_MANIFEST \
-    model.test_ds.manifest_filepath=$TEST_MANIFEST
+      --config-path=../conf/conformer/ \
+      --config-name=conformer_ctc_bpe \
+      exp_manager.name="Name of our experiment" \
+      exp_manager.resume_if_exists=true \
+      exp_manager.resume_ignore_no_checkpoint=true \
+      exp_manager.exp_dir=results/ \
+      ++model.encoder.conv_norm_type=layer_norm \
+      model.tokenizer.dir=$TOKENIZER \
+      model.train_ds.is_tarred=true \
+      model.train_ds.tarred_audio_filepaths=$TARRED_AUDIO_FILEPATHS \
+      model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
+      model.validation_ds.manifest_filepath=$DEV_MANIFEST \
+      model.test_ds.manifest_filepath=$TEST_MANIFEST
 
 Main training parameters:
 
 * Tokenization: BPE 128/512/1024
-* Model: Conformer-CTC-large
+* Model: Conformer-CTC-large with Layer Normalization
 * Optimizer: AdamW, weight_decay 1e-3, LR 1e-3
 * Scheduler: CosineAnnealing, warmup_steps 10000, min_lr 1e-6
 * Batch: 32 local, 1024 global (2 grad accumulation)
