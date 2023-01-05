@@ -829,8 +829,7 @@ class MTDataPreproc:
                                     split_by_whitespace=split_by_whitespace,
                                 )
                                 os.rename(
-                                    os.path.join(out_dir, 'tokenizer.model'),
-                                    os.path.join(encoder_tokenizer_model),
+                                    os.path.join(out_dir, 'tokenizer.model'), os.path.join(encoder_tokenizer_model),
                                 )
         else:
             if encoder_tokenizer_name in supported_train_tokenizers:
