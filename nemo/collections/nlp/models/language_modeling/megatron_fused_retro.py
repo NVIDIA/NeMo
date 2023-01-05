@@ -29,6 +29,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
 from nemo.core import adapter_mixins
 
 try:
@@ -56,6 +58,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         if adapter_mixins.get_registered_adapter(MegatronRetrievalModel) is None:
             adapter_mixins.register_adapter(MegatronRetrievalModel, MegatronFusedRetrievalAdapterModel)
 
+        self.trainer = trainer
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
@@ -97,24 +100,23 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
             raise ValueError(
                 f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
             )
+    # def forward(
+    #     self,
+    #     input_ids,
+    #     input_attn_mask,
+    #     position_ids,
+    #     retrieved_ids,
+    #     retrieved_attn_mask=None,
+    #     token_type_ids=None,
+    #     labels=None,
+    #     input_emb=None,
+    #     set_inference_key_value_memory=False,
+    #     inference_max_sequence_len=None,
+    #     neighbors=None,
+    #     encoder_input=None,
+    # ):
 
-    def forward(
-        self,
-        input_ids,
-        input_attn_mask,
-        position_ids,
-        retrieved_ids,
-        retrieved_attn_mask=None,
-        token_type_ids=None,
-        labels=None,
-        input_emb=None,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
-        neighbors=None,
-        encoder_input=None,
-    ):
-
-        self.forward_enabled_adapters(input_ids)
+    #     self.forward_enabled_adapters(input_ids)
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
@@ -127,6 +129,33 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
 
         self.setup_training_data()
         self.setup_validation_data()
+
+        # Setup Retro Data
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = self.trainer.limit_test_batches
+
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
+        self.retro_train_ds, self.retro_validation_ds, self.retro_test_ds = build_train_valid_test_datasets(
+            cfg=self.cfg,
+            trainer=self.trainer,
+            data_prefix=self.cfg.retro_data.data_prefix,
+            data_impl=self.cfg.retro_data.data_impl,
+            splits_string=self.cfg.retro_data.splits_string,
+            train_valid_test_num_samples=train_valid_test_num_samples,
+            seq_length=self.cfg.retro_data.seq_length,
+            seed=self.cfg.seed,
+            skip_warmup=self.cfg.retro_data.get('skip_warmup', True),
+            tokenizer=self.tokenizer,
+            retrieval_prefix=self.cfg.retro_data.retrieval_prefix,
+            knn_map_path=self.cfg.retro_data.knn_index,
+        )
         logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
 
     def setup_training_data(self, training_data_config=None):
@@ -299,7 +328,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         position_ids = build_position_ids(input_ids)
 
         tokens = pad_sequence(input_ids, batch_first=True, padding_value=50256)
-        tokens_mask = masked_select(tokens, padding_value=50256)
+        # tokens_mask = masked_select(tokens, padding_value=50256)
+        tokens_mask = (tokens != 50256).long()
 
 
         # Got to return something like
@@ -309,8 +339,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         # retrieved_ids = batch['retrieved_ids']
         # retrieved_attn_mask = batch['retrieved_emb_mask']
         # labels = batch['labels']
-        retrieved_ids = torch.zeros([2, 4], dtype=torch.int32)
-        retrieved_emb_mask = torch.zeros([2, 4], dtype=torch.int32)
+        retrieved_ids = torch.randint(10, 100, (2, 2, 2, 64), dtype=torch.int32)
+        retrieved_emb_mask = torch.zeros([2, 2, 8, 64], dtype=torch.int32)
         return tokens, tokens_mask, loss_mask, retrieved_ids, retrieved_emb_mask, labels
         # return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 
@@ -344,7 +374,24 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         return padded_input_ids, batch_loss_masks
 
 
-    def build_virtual_prompt_dataset2(self, data):
+    def validation_step(self, batch, batch_idx):
+        input_tokens_id = batch[0]
+        input_attn_mask = batch[1]
+        loss_mask = batch[2]
+        retrieved_ids = batch[3]
+        retrieved_attn_mask = batch[4]
+        labels = batch[5]
+
+
+        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        loss_mask = loss_mask.float()
+        lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+        reduced_loss = average_losses_across_data_parallel_group([lm_loss])
+        return reduced_loss
+
+    def build_virtual_retro_dataset(self, data):
+
+        # Initialize retro dataset
         for i in data:
             print(i)
 
