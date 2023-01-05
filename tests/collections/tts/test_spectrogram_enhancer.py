@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-
 import pytest
 import torch
 from einops import rearrange
 from omegaconf import DictConfig
 
-from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.collections.tts.models import SpectrogramEnhancerModel
 from nemo.collections.tts.modules.spectrogram_enhancer import mask
 
 
@@ -65,72 +63,6 @@ def enhancer_config():
     }
 
     return DictConfig(config)
-
-
-@pytest.fixture
-def enhancer_config_with_fastpitch(fastpitch_model_path, test_data_dir):
-    test_data_dir = Path(test_data_dir)
-
-    n_bands = 80
-    latent_dim = 192
-    style_depth = 4
-    network_capacity = 16
-    fmap_max = 192
-
-    config = {
-        "model": {
-            "n_bands": n_bands,
-            "latent_dim": latent_dim,
-            "style_depth": style_depth,
-            "network_capacity": network_capacity,
-            "mixed_prob": 0.9,
-            "fmap_max": fmap_max,
-            "generator": {
-                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Generator",
-                "n_bands": n_bands,
-                "latent_dim": latent_dim,
-                "network_capacity": network_capacity,
-                "style_depth": style_depth,
-                "fmap_max": fmap_max,
-            },
-            "discriminator": {
-                "_target_": "nemo.collections.tts.modules.spectrogram_enhancer.Discriminator",
-                "n_bands": n_bands,
-                "network_capacity": network_capacity,
-                "fmap_max": fmap_max,
-            },
-            "spectrogram_min_value": -13.18,
-            "spectrogram_max_value": 4.78,
-            "consistency_loss_weight": 10.0,
-            "gradient_penalty_loss_weight": 10.0,
-            "gradient_penalty_loss_every_n_steps": 4,
-            "spectrogram_model_path": fastpitch_model_path,
-            "train_ds": {
-                "dataset": {
-                    "manifest_filepath": str(test_data_dir / "tts/mini_ljspeech/manifest.json"),
-                    "sup_data_path": str(test_data_dir / "tts/mini_ljspeech/sup"),
-                },
-                "dataloader_params": {"batch_size": 3},
-            },
-        },
-        "generator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
-        "discriminator_opt": {"_target_": "torch.optim.Adam", "lr": 2e-4, "betas": [0.5, 0.9]},
-    }
-
-    return DictConfig(config)
-
-
-@pytest.fixture
-def fastpitch_model():
-    model = FastPitchModel.from_pretrained(model_name="tts_en_fastpitch")
-    return model
-
-
-@pytest.fixture
-def fastpitch_model_path(fastpitch_model, tmp_path_factory):
-    path = tmp_path_factory.mktemp("spectrogram-enhancer") / "fastpitch-for-tests.nemo"
-    fastpitch_model.save_to(path)
-    return path
 
 
 @pytest.fixture
@@ -225,42 +157,3 @@ def test_nemo_save_load(enhancer: SpectrogramEnhancerModel, tmp_path):
 
     enhancer.save_to(path)
     return SpectrogramEnhancerModel.restore_from(path)
-
-
-@pytest.mark.with_downloads
-@pytest.mark.unit
-def test_nemo_save_load_enhancer_with_fastpitch(enhancer_with_fastpitch: SpectrogramEnhancerModel, tmp_path):
-    path = tmp_path / "test-enhancer-save-load.nemo"
-
-    enhancer_with_fastpitch.save_to(path)
-    restored_enhancer = SpectrogramEnhancerModel.restore_from(path)
-    assert restored_enhancer.spectrogram_model is None
-
-
-# @pytest.mark.with_downloads
-# @pytest.mark.unit
-def fastpitch_loads_data_inside_enhancer(enhancer_with_fastpitch: SpectrogramEnhancerModel):
-    assert len(enhancer_with_fastpitch._train_dl.dataset) > 0
-
-
-# @pytest.mark.with_downloads
-# @pytest.mark.unit
-def enhancer_with_fastpitch_training_step_discriminator(enhancer_with_fastpitch: SpectrogramEnhancerModel):
-    batch = next(iter(enhancer_with_fastpitch._train_dl))
-    enhancer_with_fastpitch.training_step(batch, batch_idx=0, optimizer_idx=0)
-
-
-# @pytest.mark.with_downloads
-# @pytest.mark.unit
-def enhancer_with_fastpitch_training_step_generator(enhancer_with_fastpitch: SpectrogramEnhancerModel):
-    batch = next(iter(enhancer_with_fastpitch._train_dl))
-    enhancer_with_fastpitch.training_step(batch, batch_idx=0, optimizer_idx=1)
-
-
-@pytest.mark.with_downloads
-@pytest.mark.unit
-def test_enhancer_with_fastpitch(enhancer_with_fastpitch: SpectrogramEnhancerModel):
-    # long setup for enhancer_with_fastpitch, around 1 min
-    fastpitch_loads_data_inside_enhancer(enhancer_with_fastpitch)
-    enhancer_with_fastpitch_training_step_discriminator(enhancer_with_fastpitch)
-    enhancer_with_fastpitch_training_step_generator(enhancer_with_fastpitch)

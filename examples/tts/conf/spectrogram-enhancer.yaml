@@ -32,19 +32,15 @@ model:
   spectrogram_min_value: ???
   spectrogram_max_value: ???
 
-  # train_ds config is taken from the fastpitch config
-  #   and is merged with this one.
-  # You might need to specify dataloader params and manifest/sup data path.
-  spectrogram_model_path: ""
   train_ds:
     dataset:
-      manifest_filepath: ""
-      sup_data_path: ""
+      _target_: "nemo.collections.tts.torch.data.PairedRealFakeSpectrogramsDataset"
+      manifest_filepath: "/home/user/train-clean-100.manifest_mel.json"
     dataloader_params:
       drop_last: true
       shuffle: true
       batch_size: 8
-      num_workers: 8
+      num_workers: 2
 
   generator_opt:
     _target_: torch.optim.Adam

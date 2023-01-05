@@ -44,20 +44,18 @@ import torch.nn.functional as F
 import torchvision
 from einops import rearrange
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
+from nemo.collections.tts.helpers.helpers import to_device_recursive
 from nemo.collections.tts.losses.spectrogram_enhancer_losses import (
     ConsistencyLoss,
     GeneratorLoss,
     GradientPenaltyLoss,
     HingeLoss,
 )
-from nemo.collections.tts.models import FastPitchModel
-from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.spectrogram_enhancer import mask
 from nemo.core import Exportable, ModelPT, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
@@ -75,8 +73,6 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         self.spectrogram_model = None
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.init_spectrogram_model()
-
         self.generator = instantiate(cfg.generator)
         self.discriminator = instantiate(cfg.discriminator)
 
@@ -84,14 +80,6 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         self.discriminator_loss = HingeLoss()
         self.consistency_loss = ConsistencyLoss(cfg.consistency_loss_weight)
         self.gradient_penalty_loss = GradientPenaltyLoss(cfg.gradient_penalty_loss_weight)
-
-    def init_spectrogram_model(self):
-        if (path := self._cfg.get("spectrogram_model_path")) :
-            self.spectrogram_model = SpectrogramGenerator.restore_from(path, map_location=torch.device("cpu"))
-            self.spectrogram_model.freeze()
-
-            self._cfg.train_ds = OmegaConf.merge(self.spectrogram_model._cfg.train_ds, self._cfg.train_ds)
-            self.setup_training_data(self._cfg.train_ds)
 
     def move_to_correct_device(self, e):
         return to_device_recursive(e, next(iter(self.generator.parameters())).device)
@@ -221,36 +209,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         return enhanced_spectrograms
 
-    @torch.no_grad()
-    def prepare_batch(self, batch):
-        if not isinstance(self.spectrogram_model, FastPitchModel):
-            raise NotImplementedError(
-                f"{type(self.spectrogram_model)} is not supported, please implement batch preparation for this model."
-            )
-
-        batch = process_batch(batch, self._train_dl.dataset.sup_data_types)
-        mels, mel_lens = self.spectrogram_model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
-
-        mels_pred, *_ = self.spectrogram_model(
-            text=batch["text"],
-            durs=None,
-            pitch=batch["pitch"],
-            speaker=batch.get("speaker"),
-            pace=1.0,
-            spec=mels if self.spectrogram_model.learn_alignment else None,
-            attn_prior=batch.get("attn_prior"),
-            mel_lens=mel_lens,
-            input_lens=batch["text_lens"],
-        )
-
-        max_len = mel_lens.max().item()
-        input_spectrograms = mels_pred[:, :, :max_len]
-        target_spectrograms = mels[:, :, :max_len]
-
-        return input_spectrograms, target_spectrograms, mel_lens
-
     def training_step(self, batch, batch_idx, optimizer_idx):
-        input_spectrograms, target_spectrograms, lengths = self.prepare_batch(batch)
+        input_spectrograms, target_spectrograms, lengths = batch
 
         with torch.no_grad():
             input_spectrograms = self.normalize_spectrograms(input_spectrograms, lengths)
@@ -303,34 +263,20 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):
-        if self.spectrogram_model:
-            self.spectrogram_model.setup_training_data(train_data_config)
-            self._train_dl = self.spectrogram_model._train_dl
+        dataset = instantiate(train_data_config.dataset)
+        self._train_dl = torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **train_data_config.dataloader_params
+        )
 
     def setup_validation_data(self, val_data_config):
-        if self.spectrogram_model and val_data_config:
-            self.spectrogram_model.setup_validation_data(val_data_config)
-            self._validation_dl = self.spectrogram_model._validation_dl
+        dataset = instantiate(val_data_config.dataset)
+        self._valid_dl = torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **val_data_config.dataloader_params
+        )
 
     @classmethod
     def list_available_models(cls):
         return []
-
-    def save_to(self, save_path: str):
-        # when saving this model for further use in a .nemo file, we do not care about TTS model used to train it
-        if self.spectrogram_model:
-            spectrogram_model = self._modules.pop("spectrogram_model")
-            cfg = DictConfig.copy(self._cfg)
-            OmegaConf.set_struct(self._cfg, False)
-            self._cfg.pop("spectrogram_model_path")
-            OmegaConf.set_struct(self._cfg, True)
-
-            super().save_to(save_path)
-
-            self.spectrogram_model = spectrogram_model
-            self._cfg = cfg
-        else:
-            super().save_to(save_path)
 
     def log_illustration(self, target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths):
         if self.global_rank != 0:
