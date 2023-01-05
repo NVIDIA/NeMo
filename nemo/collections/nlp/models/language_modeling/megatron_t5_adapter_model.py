@@ -129,7 +129,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                 pred = pred[:idx]
 
             additional_special_tokens_ids = []
-            # (@adithyare)patch because some tokenizers don't have this attribute
             if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
                 additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
 
