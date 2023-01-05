@@ -130,9 +130,6 @@ class EMA(Callback):
             if os.path.exists(ema_path):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
 
-                # this is wrong, basically when we save the EMA weights, optimizer_states actually contains the model parameters
-                # as we swapped the model parameters with the state dict parameters.
-                # we could enforce that if you trained with EMA and want to continue training
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
                 del ema_state_dict
                 logging.info("EMA state has been restored.")
