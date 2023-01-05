@@ -91,7 +91,10 @@ def create_manifest(data: List[tuple], output_name: str, manifest_path: str):
             if wav_path != '':
                 # skip invalid input files that could not be converted
                 f.write(
-                    json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text}, ensure_ascii=False)
+                    json.dumps(
+                        {'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text},
+                        ensure_ascii=False,
+                    )
                     + '\n'
                 )
 
