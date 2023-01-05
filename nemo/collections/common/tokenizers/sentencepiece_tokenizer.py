@@ -57,6 +57,7 @@ class SentencePieceTokenizer(TokenizerSpec):
             self.add_special_tokens(special_tokens)
 
     def text_to_tokens(self, text):
+        text = text.rstrip("\n")
         if self.legacy:
             tokens = []
             idx = 0
@@ -87,6 +88,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         return self.tokenizer.encode_as_pieces(text)
 
     def text_to_ids(self, text):
+        text = text.rstrip("\n")
         if self.legacy:
             ids = []
             idx = 0
