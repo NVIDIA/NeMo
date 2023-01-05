@@ -133,9 +133,13 @@ model:
   
   retro_data:
     data_prefix: 
-      - /workspaces/research/downloaded/rte/rte_train.jsonl
-    knn_index: /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+      - /workspaces/research/downloaded/rte/rte_text_document
+    knn_index: 
+      - /workspaces/research/downloaded/rte/rte_knn_shard0.save
+      # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+      # - /dataset/pile/pile_index_final.index
     retrieval_prefix: /dataset/retro_mc4_text_document/retro_mc4_text_document   # a singe path to retrieval data
+    # retrieval_prefix: /dataset/pile_retrieval_text_document/pile_retrieval_text_document   # a singe path to retrieval data
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 900,50,50
@@ -159,3 +163,41 @@ model:
       min_lr: 0.0 # min_lr must be 0.0 for prompt learning
       monitor: val_loss
       reduce_on_plateau: false
+
+
+# python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
+#     --input=/workspaces/research/downloaded/rte/rte_retro_train.jsonl \
+#     --json-keys=text \
+#     --tokenizer-library=megatron \
+#     --apply-ftfy \
+#     --dataset-impl=retmmap \
+#     --merge-file=/workspaces/research/downloaded/formatted/gpt2-merges.txt \
+#     --vocab-file=/workspaces/research/downloaded/formatted/gpt2-vocab.json \
+#     --tokenizer-type=GPT2BPETokenizer \
+#     --output-prefix=/workspaces/research/downloaded/rte \
+#     --need-pad-id \
+#     --append-eod \
+#     --retrieval-db \
+#     --chunk_size=64 \
+#     --workers=48
+
+# python scripts/nlp_language_modeling/build_knn_map_index.py \
+#     --input_file=/workspaces/research/downloaded/rte/rte_text_document  \
+#     --tokenizer-library=megatron \
+#     --tokenizer-type=GPT2BPETokenizer \
+#     --merge-file=/workspaces/research/downloaded/formatted/gpt2-merges.txt \
+#     --vocab-file=/workspaces/research/downloaded/formatted/gpt2-vocab.json \
+#     --process_chunk_size=10000 \
+#     --sentence_transformer_model=all-mpnet-base-v2 \
+#     --batch_size=1024 \
+#     --K_neighbors=50 \
+#     --workers=2 \
+#     --devices=0,1,2,3 \
+#     --remove_duplicate \
+#     --dedup_margin=70 \
+#     --nprobe=100 \
+#     --shard_id=0 \
+#     --total_shards=10 \
+#     --stage=1 \
+#     --output_file=/workspaces/research/downloaded/rte/rte_knn_shard0.save \
+#     --faiss_index=/dataset/mc4/c4_faiss_index.index

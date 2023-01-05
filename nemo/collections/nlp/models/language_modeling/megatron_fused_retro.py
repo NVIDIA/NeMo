@@ -88,23 +88,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
                 f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
             )
 
-    def forward(
-        self,
-        input_ids,
-        input_attn_mask,
-        position_ids,
-        retrieved_ids,
-        retrieved_attn_mask=None,
-        token_type_ids=None,
-        labels=None,
-        input_emb=None,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
-        neighbors=None,
-        encoder_input=None,
-    ):
-
-        self.forward_enabled_adapters(input_ids)
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
@@ -317,16 +300,26 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         tokens_mask = (tokens != 50256).long()
 
         # Got to return something like
-        # input_tokens_id = batch['tokens']
-        # input_attn_mask = batch['tokens_mask']
-        # loss_mask = batch['loss_mask']
-        # retrieved_ids = batch['retrieved_ids']
-        # retrieved_attn_mask = batch['retrieved_emb_mask']
-        # labels = batch['labels']
-        retrieved_ids = torch.randint(10, 100, (2, 2, 2, 64), dtype=torch.int32)
-        retrieved_emb_mask = torch.zeros([2, 2, 8, 64], dtype=torch.int32)
+        retrieved_ids = retro_train_ds.
+
+        # retrieved_ids = torch.randint(10, 100, (2, 2, 2, 64), dtype=torch.int32)
+        # retrieved_emb_mask = torch.zeros([2, 2, 8, 64], dtype=torch.int32)
         return tokens, tokens_mask, loss_mask, retrieved_ids, retrieved_emb_mask, labels
         # return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
+
+    def validation_step(self, batch, batch_idx):
+        input_tokens_id = batch[0]
+        input_attn_mask = batch[1]
+        loss_mask = batch[2]
+        retrieved_ids = batch[3]
+        retrieved_attn_mask = batch[4]
+        labels = batch[5]
+        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        loss_mask = loss_mask.float()
+        lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+        reduced_loss = average_losses_across_data_parallel_group([lm_loss])
+        return reduced_loss
+
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
