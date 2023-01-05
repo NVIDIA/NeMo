@@ -67,7 +67,6 @@ from tqdm import tqdm
 from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.utils import logging
 
 
 def chunks(iterable: Iterable, size: int) -> Iterator[List]:
