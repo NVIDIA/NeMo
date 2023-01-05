@@ -1,33 +1,20 @@
-
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
-
-
+import logging
 import re
+from functools import partial
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
-from torch import masked_select
-from functools import partial
-
-from nemo.core import adapter_mixins
-import logging
-from typing import List, Optional
 from omegaconf import DictConfig, OmegaConf
-from nemo.collections.nlp.modules.common import (
-    VirtualPromptStyle,
-    VirtualPromptSource,
-    VirtualPromptPlaceholderToken,
-)
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import masked_select
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
@@ -100,23 +87,24 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
             raise ValueError(
                 f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
             )
-    # def forward(
-    #     self,
-    #     input_ids,
-    #     input_attn_mask,
-    #     position_ids,
-    #     retrieved_ids,
-    #     retrieved_attn_mask=None,
-    #     token_type_ids=None,
-    #     labels=None,
-    #     input_emb=None,
-    #     set_inference_key_value_memory=False,
-    #     inference_max_sequence_len=None,
-    #     neighbors=None,
-    #     encoder_input=None,
-    # ):
 
-    #     self.forward_enabled_adapters(input_ids)
+    def forward(
+        self,
+        input_ids,
+        input_attn_mask,
+        position_ids,
+        retrieved_ids,
+        retrieved_attn_mask=None,
+        token_type_ids=None,
+        labels=None,
+        input_emb=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        neighbors=None,
+        encoder_input=None,
+    ):
+
+        self.forward_enabled_adapters(input_ids)
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
@@ -259,14 +247,11 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
 
-
         # Will need to adjust dataset to add retrieval_ids here
 
         if for_train:
             if self.cfg.get("sequence_parallel", False):
-                collate_fn = partial(
-                    self.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
-                )
+                collate_fn = partial(self.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size())
             else:
                 collate_fn = partial(self.collate_fn, tp_workers=0)
         else:
@@ -331,7 +316,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         # tokens_mask = masked_select(tokens, padding_value=50256)
         tokens_mask = (tokens != 50256).long()
 
-
         # Got to return something like
         # input_tokens_id = batch['tokens']
         # input_attn_mask = batch['tokens_mask']
@@ -374,24 +358,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         return padded_input_ids, batch_loss_masks
 
 
-    def validation_step(self, batch, batch_idx):
-        input_tokens_id = batch[0]
-        input_attn_mask = batch[1]
-        loss_mask = batch[2]
-        retrieved_ids = batch[3]
-        retrieved_attn_mask = batch[4]
-        labels = batch[5]
-
-
-        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
-        loss_mask = loss_mask.float()
-        lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
-        reduced_loss = average_losses_across_data_parallel_group([lm_loss])
-        return reduced_loss
-
-    def build_virtual_retro_dataset(self, data):
-
-        # Initialize retro dataset
+    def build_virtual_prompt_dataset2(self, data):
         for i in data:
             print(i)
 
