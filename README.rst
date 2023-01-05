@@ -94,6 +94,7 @@ Key Features
     * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_   
     * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
+    * `Synthetic Tabular Data Generation <https://developer.nvidia.com/blog/generating-synthetic-data-with-transformers-a-solution-for-enterprise-data-challenges/>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN, UnivNet
@@ -257,13 +258,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.11-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.12-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.11-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.12-py3
 
 Examples
 --------
