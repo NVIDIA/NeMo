@@ -49,10 +49,13 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     logging.info("Start creating tar file from " + cfg.data.train_ds.data_path + " ...")
-    _, model = instantiate_model_and_trainer(cfg, MODEL, True)  # instantiate model like for training because we need its example_builder
-    dataset = SpellcheckingAsrCustomizationDataset(input_file=cfg.data.train_ds.data_path, example_builder=model.builder)
+    _, model = instantiate_model_and_trainer(cfg, MODEL, True)  # instantiate model like for training because we may not have pretrained model
+    dataset = model._train_dl.dataset
     archive = tarfile.open(cfg.output_tar_file, mode="w")
     for i in range(len(dataset)):
+        if i >= 100000:
+            logging.info("Reached 100000 examples")
+            break
         (
             input_ids,
             input_mask,

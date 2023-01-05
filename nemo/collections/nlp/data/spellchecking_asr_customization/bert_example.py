@@ -494,14 +494,31 @@ class BertExampleBuilder(object):
                     logging.info("{} examples processed.".format(len(examples)))
                 if infer:
                     hyp, ref = line.rstrip('\n').split('\t')
-                    example = self.build_bert_example(hyp, ref, infer=infer)
+                    try:
+                        example = self.build_bert_example(hyp, ref, infer=infer)
+                    except Exception:
+                        logging.warning(str(e))
+                        logging.warning(line)
+                        continue
+                    if example is None:
+                        logging.info("cannot create example: ")
+                        logging.info(line)
+                        continue
                     hyps_refs.append((hyp, ref))
+                    examples.append(example)
                 else:
                     hyp, ref, target, semiotic_info = line.rstrip('\n').split('\t')
-                    example = self.build_bert_example(hyp, ref, target=target, span_info=semiotic_info, infer=infer)
-                if example is None:
-                    continue
-                examples.append(example)
+                    try:
+                        example = self.build_bert_example(hyp, ref, target=target, span_info=semiotic_info, infer=infer)
+                    except Exception as e:
+                        logging.warning(str(e))
+                        logging.warning(line)
+                        continue
+                    if example is None:
+                        logging.info("cannot create example: ")
+                        logging.info(line)
+                        continue
+                    examples.append(example)
         logging.info(f"Done. {len(examples)} examples converted.")
         if infer:
             return examples, hyps_refs
