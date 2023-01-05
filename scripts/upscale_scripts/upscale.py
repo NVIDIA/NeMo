@@ -247,7 +247,6 @@ def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred
     config = OmegaConf.to_container(inference_cfg)
     model.set_inference_config(config)
     response = trainer.predict(model, dataloader)
-    projected_pred_file_path += ('.zs' if zero_shot_mode else '')
     with open(projected_pred_file_path, "w", encoding="utf-8") as pred_file:
         for i in range(len(response)):
             for sent in response[i]["sentences"]:
@@ -259,6 +258,7 @@ def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred
 
 @hydra_runner(config_path="./", config_name="upscale")
 def main(cfg) -> None:
+
 
     # trainer required for restoring model parallel models
     model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.nemo_trainer)
