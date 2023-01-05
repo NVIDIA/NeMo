@@ -357,8 +357,7 @@ We can also monitor  test WER behavior during training process using wandb plots
     :alt: Test WER.
     :width: 800px
 
-As you can see, the best way to get the Esperanto ASR model is finetuning from the pretrained SSL model for English.
-The best Esperanto model (finetuning Conformer-CTC-large from English) can be found on `NGC <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_eo_conformer_ctc_large>`_ and `Hugging Face <https://huggingface.co/nvidia/stt_eo_conformer_ctc_large>`_.
+As you can see, the best way to get the Esperanto ASR model (the model can be found on `NGC <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_eo_conformer_ctc_large>`_ and `Hugging Face <https://huggingface.co/nvidia/stt_eo_conformer_ctc_large>`_) is finetuning from the pretrained SSL model for English.
 
 
 **************************
