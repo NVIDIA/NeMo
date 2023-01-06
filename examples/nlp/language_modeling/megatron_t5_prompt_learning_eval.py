@@ -110,7 +110,7 @@ def main(cfg) -> None:
         shuffle=False,
         num_workers=cfg.data.num_workers,
         pin_memory=True,
-        zero_shot_mode=cfg.get("zero_shot_mode", False)
+        zero_shot_mode=cfg.get("zero_shot_mode", False),
     )
 
     outputs = trainer.predict(model, test_dl)
