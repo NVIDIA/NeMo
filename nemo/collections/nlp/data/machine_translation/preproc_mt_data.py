@@ -829,7 +829,7 @@ class MTDataPreproc:
                                     split_by_whitespace=split_by_whitespace,
                                 )
                                 os.rename(
-                                    os.path.join(out_dir, 'tokenizer.model'), os.path.join(encoder_tokenizer_model),
+                                    os.path.join(out_dir, 'tokenizer.model'), encoder_tokenizer_model,
                                 )
         else:
             if encoder_tokenizer_name in supported_train_tokenizers:
@@ -872,7 +872,7 @@ class MTDataPreproc:
                                 split_digits=split_digits,
                                 split_by_whitespace=split_by_whitespace,
                             )
-                            os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(encoder_tokenizer_model))
+                            os.rename(os.path.join(dir_name, 'tokenizer.model'), encoder_tokenizer_model)
 
             if decoder_tokenizer_name in supported_train_tokenizers:
                 decoder_tokenizer_model = os.path.join(
@@ -914,7 +914,7 @@ class MTDataPreproc:
                                 split_digits=split_digits,
                                 split_by_whitespace=split_by_whitespace,
                             )
-                            os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(decoder_tokenizer_model))
+                            os.rename(os.path.join(dir_name, 'tokenizer.model'), decoder_tokenizer_model)
 
         return encoder_tokenizer_model, decoder_tokenizer_model
 
