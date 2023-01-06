@@ -146,7 +146,7 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
-        zero_shot_mode=cfg.inference.get("zero_shot_mode", False)
+        zero_shot_mode=cfg.inference.get("zero_shot_mode", False),
     )
 
     config = OmegaConf.to_container(cfg.inference)
