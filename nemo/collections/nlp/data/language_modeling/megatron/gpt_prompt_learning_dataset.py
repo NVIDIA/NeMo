@@ -62,6 +62,7 @@ class GPTPromptLearningDataset(Dataset):
         tokens_to_generate=None,
         cache_data_path: str = None,  # the cache file
         load_cache: bool = True,  # whether to load from the cache if it is available
+        zero_shot_mode=False,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -75,6 +76,7 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
+        self.zero_shot_mode = zero_shot_mode
 
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
@@ -154,7 +156,10 @@ class GPTPromptLearningDataset(Dataset):
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
+            if self.zero_shot_mode:
+                input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
+            else:
+                input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default

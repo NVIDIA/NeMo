@@ -139,13 +139,14 @@ def main(cfg) -> None:
         batch_size=64,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
-        add_bos=sampling_params["add_BOS"],
+        add_bos=False if cfg.inference.get("zero_shot_mode", False) else sampling_params["add_BOS"],
         add_eos=False,
         for_train=False,
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
+        zero_shot_mode=cfg.inference.get("zero_shot_mode", False)
     )
 
     config = OmegaConf.to_container(cfg.inference)
