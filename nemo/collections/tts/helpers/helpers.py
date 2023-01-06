@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence, Tuple
 
 import librosa
 import matplotlib.pylab as plt
@@ -133,12 +133,30 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.device)
 
 
-def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
+def get_mask_from_lengths(lengths, max_len=None):
+    """Constructs binary mask from a 1D torch tensor of input lengths
+
+    Args:
+        lengths (torch.tensor): 1D tensor
+        max_len: Optional[int] = None : 
+    Returns:
+        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
+    """
     if max_len is None:
-        max_len = lengths.max()
-    ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
-    mask = (ids < lengths.unsqueeze(1)).bool()
+        max_len = torch.max(lengths)
+    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
+    mask = ids < lengths.unsqueeze(1)
     return mask
+
+
+@torch.jit.script
+def sort_tensor(context: torch.Tensor, lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+    unsort_ids = torch.zeros_like(ids_sorted)
+    for i in range(ids_sorted.shape[0]):
+        unsort_ids[ids_sorted[i]] = i
+    context = context[ids_sorted]
+    return context, lens_sorted, unsort_ids
 
 
 @jit(nopython=True)

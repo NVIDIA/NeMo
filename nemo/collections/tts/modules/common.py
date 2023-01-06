@@ -24,40 +24,13 @@ from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
 from torch.nn.utils.rnn import PackedSequence
 
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, sort_tensor
 from nemo.collections.tts.helpers.splines import (
     piecewise_linear_inverse_transform,
     piecewise_linear_transform,
     unbounded_piecewise_quadratic_transform,
 )
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm, MaskedInstanceNorm1d
-
-
-def get_mask_from_lengths_and_val(lengths, val):
-    """Constructs binary mask from a 1D torch tensor of input lengths
-
-    Args:
-        lengths (torch.tensor): 1D tensor
-    Returns:
-        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
-    """
-    max_len = val.shape[-1]
-    ids = torch.linspace(0, max_len - 1, max_len, device=lengths.device, dtype=lengths.dtype)
-    mask = ids < lengths.unsqueeze(1)
-    return mask
-
-
-def get_mask_from_lengths(lengths):
-    """Constructs binary mask from a 1D torch tensor of input lengths
-
-    Args:
-        lengths (torch.tensor): 1D tensor
-    Returns:
-        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
-    """
-    max_len = torch.max(lengths)
-    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
-    mask = ids < lengths.unsqueeze(1)
-    return mask
 
 
 @torch.jit.script
@@ -90,16 +63,6 @@ class DenseLayer(nn.Module):
         return x
 
 
-@torch.jit.script
-def sort_tensor(context: Tensor, lens: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-    unsort_ids = torch.zeros_like(ids_sorted)
-    for i in range(ids_sorted.shape[0]):
-        unsort_ids[ids_sorted[i]] = i
-    context = context[ids_sorted]
-    return context, lens_sorted, unsort_ids
-
-
 class BiLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral", max_batch_size=64):
         super().__init__()
@@ -115,11 +78,7 @@ class BiLSTM(nn.Module):
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
 
-        # Create a buffer of zeroes to be passed as hx parameter to LSTM()
         self.real_hidden_size: int = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
-        self.n_dir: int = int(self.bilstm.num_layers * 2)
-        h_zeros = torch.zeros(self.n_dir * max_batch_size * max(self.real_hidden_size, self.bilstm.hidden_size))
-        self.register_buffer('h_zeros', h_zeros, persistent=False)
 
         self.bilstm.flatten_parameters()
 
@@ -136,14 +95,14 @@ class BiLSTM(nn.Module):
         else:
             # Calculate sizes and prepare views to our zero buffer to pass as hx
             max_batch_size = seq.batch_sizes[0]
-            common_shape = (self.n_dir, max_batch_size)
-            # borisf: ONNX inssists on having self.n_dir float
-            common_size = max_batch_size.float().mul(self.n_dir).long()
+            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+            # borisf: ONNX insists on having self.n_dir float
+            common_size = max_batch_size * (self.bilstm.num_layers * 2)
             h_shape = (*common_shape, self.real_hidden_size)
             c_shape = (*common_shape, self.bilstm.hidden_size)
             hx = (
-                self.h_zeros[: common_size.mul(self.real_hidden_size)].view(h_shape),
-                self.h_zeros[: common_size.mul(self.bilstm.hidden_size)].view(c_shape),
+                seq.data.new_zeros(h_shape),
+                seq.data.new_zeros(c_shape),
             )
             ret, _ = self.bilstm(seq, hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
@@ -151,12 +110,7 @@ class BiLSTM(nn.Module):
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
         context, lens, unsort_ids = sort_tensor(context, lens)
         dtype = context.dtype
-        # this is only needed for Torchscript to run in Triton
-        # (https://github.com/pytorch/pytorch/issues/89241)
         return self.lstm_tensor(context, lens, enforce_sorted=True)[0][unsort_ids]
-        # with torch.cuda.amp.autocast(enabled=False):
-        #    ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
-        # return ret[0].to(dtype=dtype)[unsort_ids]
 
 
 class ConvLSTMLinear(nn.Module):
@@ -204,7 +158,7 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        mask = get_mask_from_lengths_and_val(lens, context)
+        mask = get_mask_from_lengths(lens, context.shape[-1])
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
@@ -362,7 +316,7 @@ class SimpleConvNet(torch.nn.Module):
         # output should be b x n_mel_channels x z_w_context.shape(2)
 
         if seq_lens is not None:
-            mask = get_mask_from_lengths_and_val(seq_lens, z_w_context).unsqueeze(1).float()
+            mask = get_mask_from_lengths(seq_lens, z_w_context.shape[-1]).unsqueeze(1).float()
         else:
             mask = torch.ones_like(z_w_context)
         for i in range(self.n_layers):

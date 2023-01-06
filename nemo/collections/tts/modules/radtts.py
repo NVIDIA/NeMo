@@ -18,6 +18,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.helpers.helpers import mas_width1 as mas
 from nemo.collections.tts.helpers.helpers import regulate_len
 from nemo.collections.tts.modules.attribute_prediction_model import get_attribute_prediction_model
@@ -29,7 +30,6 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1Conv,
     Invertible1x1ConvLUS,
     LinearNorm,
-    get_mask_from_lengths,
     get_radtts_encoder,
 )
 from nemo.core.classes import Exportable, NeuralModule
@@ -217,14 +217,14 @@ class RadTTSModule(NeuralModule, Exportable):
                     input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
                 )
 
-                if self.n_group_size > 1:
-                    self.unfold_params = {
-                        'kernel_size': (n_group_size, 1),
-                        'stride': n_group_size,
-                        'padding': 0,
-                        'dilation': 1,
-                    }
-                    self.unfold_mod = nn.Unfold(**self.unfold_params)
+            if self.n_group_size > 1:
+                self.unfold_params = {
+                    'kernel_size': (n_group_size, 1),
+                    'stride': n_group_size,
+                    'padding': 0,
+                    'dilation': 1,
+                }
+                self.unfold_mod = nn.Unfold(**self.unfold_params)
 
             self.exit_steps = []
             self.n_early_size = n_early_size
@@ -618,7 +618,6 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
-        return txt_enc, in_lens, dur  # , f0, energy_avg
 
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
