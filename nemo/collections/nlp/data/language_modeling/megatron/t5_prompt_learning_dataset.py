@@ -48,12 +48,14 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         add_eos_to_decoder_output: bool = True,
         add_sentinel_to_input: bool = True,
         ul2_prompt_token: str = None,
+        zero_shot_mode: False,
     ):
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
         self.decoder_starts_with_pad = decoder_starts_with_pad
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
         self.add_sentinel_to_input = add_sentinel_to_input
         self.ul2_prompt_token = ul2_prompt_token
+        self.zero_shot_mode = zero_shot_mode
         super().__init__(
             datasets=datasets,
             tokenizer=tokenizer,
@@ -110,7 +112,10 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc, answer_field)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
+            if self.zero_shot_mode:
+                input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
+            else:
+                input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
             input_ids = self.tokenizer.text_to_ids(input_example)

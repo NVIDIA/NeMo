@@ -406,7 +406,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.validation_epoch_end(outputs)
 
     def build_virtual_prompt_dataset(
-        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory, zero_shot_mode=False,
     ):
         dataset = T5PromptLearningDataset(
             datasets=dataset_paths,
@@ -424,6 +424,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
             ul2_prompt_token=self.cfg.data.get('ul2_prompt_token', None),
             for_train=for_train,
+            zero_shot_mode=zero_shot_mode,
         )
 
         rank = parallel_state.get_data_parallel_rank()
