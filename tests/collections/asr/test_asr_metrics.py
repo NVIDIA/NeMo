@@ -115,6 +115,7 @@ class TestWordErrorRate:
         assert word_error_rate_detail(hypotheses=['ducati motorcycle'], references=['motorcycle'])[0] == 1.0
         assert word_error_rate_detail(hypotheses=['ducati motorcycle'], references=['ducuti motorcycle'])[0] == 0.5
         assert word_error_rate_detail(hypotheses=['a B c'], references=['a b c'])[0] == 1.0 / 3.0
+
         assert word_error_rate_detail(hypotheses=['cat'], references=['']) == (
             float("inf"),
             0,

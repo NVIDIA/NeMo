@@ -40,7 +40,6 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
       hypotheses: list of hypotheses
       references: list of references
       use_cer: bool, set True to enable cer
-      return_words_scores: bool, set True to return calculated words and scores
     Returns:
       (float) average word error rate
     """
@@ -133,7 +132,6 @@ def word_error_rate_detail(
         ins_rate = 1.0 * ops_count['insertions'] / words
         del_rate = 1.0 * ops_count['deletions'] / words
         sub_rate = 1.0 * ops_count['substitutions'] / words
-
     else:
         wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
 

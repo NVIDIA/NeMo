@@ -205,35 +205,36 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
     hyps = []
     refs = []
 
-    for line in open(cfg.engine.output_filename, 'r'):
-        sample = json.loads(line)
+    with open(cfg.engine.output_filename, 'r') as fp:
+        for line in fp:
+            sample = json.loads(line)
 
-        if 'text' not in sample:
-            raise ValueError(
-                "ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!"
+            if 'text' not in sample:
+                raise ValueError(
+                    "ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!"
+                )
+
+            if not pred_text_attr_name:
+                pred_text_attr_name = "pred_text"
+
+            hyp = sample[pred_text_attr_name]
+            ref = sample['text']
+
+            if cfg.analyst.metric_calculator.clean_groundtruth_text:
+                ref = clean_label(ref)
+
+            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(
+                hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
             )
+            sample['wer'] = wer
+            sample['words'] = words
+            sample['ins_rate'] = ins_rate
+            sample['del_rate'] = del_rate
+            sample['sub_rate'] = sub_rate
 
-        if not pred_text_attr_name:
-            pred_text_attr_name = "pred_text"
-
-        hyp = sample[pred_text_attr_name]
-        ref = sample['text']
-
-        if cfg.analyst.metric_calculator.clean_groundtruth_text:
-            ref = clean_label(ref)
-
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(
-            hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
-        )
-        sample['wer'] = wer
-        sample['words'] = words
-        sample['ins_rate'] = ins_rate
-        sample['del_rate'] = del_rate
-        sample['sub_rate'] = sub_rate
-
-        samples.append(sample)
-        hyps.append(hyp)
-        refs.append(ref)
+            samples.append(sample)
+            hyps.append(hyp)
+            refs.append(ref)
 
     total_wer, total_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
         hypotheses=hyps, references=refs, use_cer=cfg.analyst.metric_calculator.use_cer
@@ -268,44 +269,45 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
     such as wer for female/male or slot group wer for 0-2s, 2-5s, >5s audios 
     """
     wer_each_class = {}
-    for line in open(manifest, 'r'):
-        sample = json.loads(line)
-        if target in sample:
-            target_class = sample[target]
-            if target_class not in wer_each_class:
-                wer_each_class[target_class] = {
-                    'samples': 0,
-                    'words': 0,
-                    "errors": 0,
-                    "inss": 0,
-                    "dels": 0,
-                    "subs": 0,
-                }
-            wer_each_class[target_class]['samples'] += 1
+    with open(manifest, 'r') as fp:
+        for line in fp:
+            sample = json.loads(line)
+            if target in sample:
+                target_class = sample[target]
+                if target_class not in wer_each_class:
+                    wer_each_class[target_class] = {
+                        'samples': 0,
+                        'words': 0,
+                        "errors": 0,
+                        "inss": 0,
+                        "dels": 0,
+                        "subs": 0,
+                    }
+                wer_each_class[target_class]['samples'] += 1
 
-            words = sample["words"]
-            wer_each_class[target_class]["words"] += words
-            wer_each_class[target_class]["errors"] += words * sample[eval_metric]
-            wer_each_class[target_class]["inss"] += words * sample["ins_rate"]
-            wer_each_class[target_class]["dels"] += words * sample["del_rate"]
-            wer_each_class[target_class]["subs"] += words * sample["sub_rate"]
+                words = sample["words"]
+                wer_each_class[target_class]["words"] += words
+                wer_each_class[target_class]["errors"] += words * sample[eval_metric]
+                wer_each_class[target_class]["inss"] += words * sample["ins_rate"]
+                wer_each_class[target_class]["dels"] += words * sample["del_rate"]
+                wer_each_class[target_class]["subs"] += words * sample["sub_rate"]
 
     if len(wer_each_class) > 0:
-        ret_wer_each_class = {}
+        res_wer_each_class = {}
         for target_class in wer_each_class:
-            ret_wer_each_class[target_class] = {}
-            ret_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
-            ret_wer_each_class[target_class]["wer"] = (
+            res_wer_each_class[target_class] = {}
+            res_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
+            res_wer_each_class[target_class]["wer"] = (
                 wer_each_class[target_class]["errors"] / wer_each_class[target_class]["words"]
             )
-            ret_wer_each_class[target_class]["words"] = wer_each_class[target_class]["words"]
-            ret_wer_each_class[target_class]["ins_rate"] = (
+            res_wer_each_class[target_class]["words"] = wer_each_class[target_class]["words"]
+            res_wer_each_class[target_class]["ins_rate"] = (
                 wer_each_class[target_class]["inss"] / wer_each_class[target_class]["words"]
             )
-            ret_wer_each_class[target_class]["del_rate"] = (
+            res_wer_each_class[target_class]["del_rate"] = (
                 wer_each_class[target_class]["dels"] / wer_each_class[target_class]["words"]
             )
-            ret_wer_each_class[target_class]["sub_rate"] = (
+            res_wer_each_class[target_class]["sub_rate"] = (
                 wer_each_class[target_class]["subs"] / wer_each_class[target_class]["words"]
             )
     else:
@@ -362,10 +364,12 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
             slot_wer[slot_key].pop('inss')
             slot_wer[slot_key].pop('dels')
             slot_wer[slot_key].pop('subs')
-        ret_wer_each_class.update(slot_wer)
+        res_wer_each_class.update(slot_wer)
 
     if meta_cfg.wer_each_class:
-        return ret_wer_each_class
+        ret = res_wer_each_class
 
     if (not meta_cfg.wer_each_class) and ('slot' in meta_cfg and meta_cfg.slot):
-        return slot_wer
+        ret = slot_wer
+
+    return ret

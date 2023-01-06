@@ -334,7 +334,6 @@ def write_transcription(
 
 def transcribe_partial_audio(
     asr_model,
-    test_ds: dict = None,
     path2manifest: str = None,
     batch_size: int = 4,
     logprobs: bool = False,
@@ -385,7 +384,6 @@ def transcribe_partial_audio(
             config['augmentor_config'] = augmentor_config
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
             logits, logits_len, greedy_predictions = asr_model.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)

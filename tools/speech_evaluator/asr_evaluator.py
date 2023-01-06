@@ -46,8 +46,7 @@ def main(cfg):
 
     if cfg.env.save_git_hash:
         repo = git.Repo(search_parent_directories=True)
-        sha = repo.head.object.hexsha
-    report['git_hash'] = sha
+        report['git_hash'] = repo.head.object.hexsha
 
     ## Engine
     # Could skip next line to use generated manifest
