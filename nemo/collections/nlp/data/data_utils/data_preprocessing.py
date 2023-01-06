@@ -460,7 +460,13 @@ def remove_punctuation_from_sentence(sentence):
 
 
 def dataset_to_ids(
-    dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_data_per_node=False, use_cache=False, remove_trailing_newline=False,
+    dataset,
+    tokenizer,
+    cache_ids=False,
+    add_bos_eos=True,
+    cache_data_per_node=False,
+    use_cache=False,
+    remove_trailing_newline=False,
 ):
     """
     Reads dataset from file line by line, tokenizes each line with tokenizer,
