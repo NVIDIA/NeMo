@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import copy
+import filecmp
 import json
 import os
+import shutil
 import tempfile
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -32,7 +34,12 @@ from nemo.collections.asr.data.audio_to_audio import (
     AudioToTargetWithReferenceDataset,
     _audio_collate_fn,
 )
-from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
+from nemo.collections.asr.data.audio_to_text import (
+    DataStoreObject,
+    TarredAudioToBPEDataset,
+    TarredAudioToCharDataset,
+    cache_datastore_manifests,
+)
 from nemo.collections.asr.data.audio_to_text_dali import (
     __DALI_MINIMUM_VERSION__,
     AudioToBPEDALIDataset,
@@ -40,6 +47,7 @@ from nemo.collections.asr.data.audio_to_text_dali import (
     is_dali_supported,
 )
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
+from nemo.collections.asr.data.feature_to_text import FeatureToBPEDataset, FeatureToCharDataset
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.audio_utils import get_segment_start
 from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
@@ -585,6 +593,172 @@ class TestASRDatasets:
                 assert np.mean(err) < 0.0001
                 assert np.max(err) < 0.01
 
+    @pytest.mark.unit
+    def test_feature_to_text_char_dataset(self):
+        num_samples = 5
+        golden_feat_shape = (80, 5)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
+            with open(manifest_path, 'w', encoding='utf-8') as fp:
+                for i in range(num_samples):
+                    feat_file = os.path.join(tmpdir, f"feat_{i}.pt")
+                    torch.save(torch.randn(80, 5), feat_file)
+                    entry = {'audio_filepath': "", 'feature_file': feat_file, 'duration': 100000, "text": "a b c"}
+                    fp.write(json.dumps(entry) + '\n')
+
+            dataset = FeatureToCharDataset(manifest_path, labels=self.labels)
+            cnt = 0
+            for item in dataset:
+                cnt += 1
+                feat = item[0]
+                token_len = item[3]
+                assert feat.shape == golden_feat_shape
+                assert torch.equal(token_len, torch.tensor(5))
+            assert cnt == num_samples
+
+    @pytest.mark.unit
+    def test_feature_to_text_bpe_dataset(self, test_data_dir):
+        num_samples = 5
+        golden_feat_shape = (80, 5)
+        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
+        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
+            with open(manifest_path, 'w', encoding='utf-8') as fp:
+                for i in range(num_samples):
+                    feat_file = os.path.join(tmpdir, f"feat_{i}.pt")
+                    torch.save(torch.randn(80, 5), feat_file)
+                    entry = {'audio_filepath': "", 'feature_file': feat_file, 'duration': 100000, "text": "a b c"}
+                    fp.write(json.dumps(entry) + '\n')
+
+            dataset = FeatureToBPEDataset(manifest_path, tokenizer=tokenizer)
+            cnt = 0
+            for item in dataset:
+                cnt += 1
+                feat = item[0]
+                token_len = item[3]
+                assert feat.shape == golden_feat_shape
+                assert torch.equal(token_len, torch.tensor(5))
+            assert cnt == num_samples
+
+    @pytest.mark.unit
+    def test_feature_with_rttm_to_text_char_dataset(self):
+        num_samples = 2
+        golden_feat_shape = (80, 10)
+        sample = torch.ones(80, 10)
+        masked_sample = sample * FeatureToCharDataset.ZERO_LEVEL_SPEC_DB_VAL
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
+            with open(manifest_path, 'w', encoding='utf-8') as fp:
+                feat_file = os.path.join(tmpdir, f"feat_0.pt")
+                torch.save(sample, feat_file)
+
+                rttm_file = os.path.join(tmpdir, f"rttm_0.rttm")
+                with open(rttm_file, "w") as fout:
+                    fout.write(f"SPEAKER <NA> 1 0 1 <NA> <NA> speech <NA> <NA>\n")
+
+                entry = {
+                    'audio_filepath': "",
+                    'feature_file': feat_file,
+                    'rttm_file': rttm_file,
+                    'duration': 100000,
+                    "text": "a b c",
+                }
+                fp.write(json.dumps(entry) + '\n')
+
+                # second sample where all frames are not masked
+                feat_file = os.path.join(tmpdir, f"feat_1.pt")
+                torch.save(sample, feat_file)
+
+                rttm_file = os.path.join(tmpdir, f"rttm_1.rttm")
+                with open(rttm_file, "w") as fout:
+                    fout.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
+
+                entry = {
+                    'audio_filepath': "",
+                    'feature_file': feat_file,
+                    'rttm_file': rttm_file,
+                    'duration': 100000,
+                    "text": "a b c",
+                }
+                fp.write(json.dumps(entry) + '\n')
+
+            dataset = FeatureToCharDataset(manifest_path, labels=self.labels, normalize=None, use_rttm=True)
+            cnt = 0
+            for item in dataset:
+                cnt += 1
+                feat = item[0]
+                token_len = item[3]
+                assert feat.shape == golden_feat_shape
+                assert torch.equal(token_len, torch.tensor(5))
+
+                if cnt == 1:
+                    assert torch.equal(feat, sample)
+                else:
+                    assert torch.equal(feat, masked_sample)
+
+            assert cnt == num_samples
+
+    @pytest.mark.unit
+    def test_feature_with_rttm_to_text_bpe_dataset(self, test_data_dir):
+        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
+        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        num_samples = 2
+        golden_feat_shape = (80, 10)
+        sample = torch.ones(80, 10)
+        masked_sample = sample * FeatureToCharDataset.ZERO_LEVEL_SPEC_DB_VAL
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
+            with open(manifest_path, 'w', encoding='utf-8') as fp:
+                feat_file = os.path.join(tmpdir, f"feat_0.pt")
+                torch.save(sample, feat_file)
+
+                rttm_file = os.path.join(tmpdir, f"rttm_0.rttm")
+                with open(rttm_file, "w") as fout:
+                    fout.write(f"SPEAKER <NA> 1 0 1 <NA> <NA> speech <NA> <NA>\n")
+
+                entry = {
+                    'audio_filepath': "",
+                    'feature_file': feat_file,
+                    'rttm_file': rttm_file,
+                    'duration': 100000,
+                    "text": "a b c",
+                }
+                fp.write(json.dumps(entry) + '\n')
+
+                # second sample where all frames are not masked
+                feat_file = os.path.join(tmpdir, f"feat_1.pt")
+                torch.save(sample, feat_file)
+
+                rttm_file = os.path.join(tmpdir, f"rttm_1.rttm")
+                with open(rttm_file, "w") as fout:
+                    fout.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
+
+                entry = {
+                    'audio_filepath': "",
+                    'feature_file': feat_file,
+                    'rttm_file': rttm_file,
+                    'duration': 100000,
+                    "text": "a b c",
+                }
+                fp.write(json.dumps(entry) + '\n')
+
+            dataset = FeatureToBPEDataset(manifest_path, tokenizer=tokenizer, normalize=None, use_rttm=True)
+            cnt = 0
+            for item in dataset:
+                cnt += 1
+                feat = item[0]
+                token_len = item[3]
+                assert feat.shape == golden_feat_shape
+                assert torch.equal(token_len, torch.tensor(5))
+
+                if cnt == 1:
+                    assert torch.equal(feat, sample)
+                else:
+                    assert torch.equal(feat, masked_sample)
+
+            assert cnt == num_samples
+
 
 class TestAudioDatasets:
     @pytest.mark.unit
@@ -600,10 +774,10 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Multi-channel signal
-        golden_target = _rng.normal(size=(num_samples, num_channels * num_targets))
+        golden_target = _rng.normal(size=(num_channels * num_targets, num_samples))
 
         # Create a list of num_targets signals with num_channels channels
-        target_list = [golden_target[:, n * num_channels : (n + 1) * num_channels] for n in range(num_targets)]
+        target_list = [golden_target[n * num_channels : (n + 1) * num_channels, :] for n in range(num_targets)]
 
         # Check the original signal is not modified
         assert (ASRAudioProcessor.list_to_multichannel(golden_target) == golden_target).all()
@@ -638,7 +812,7 @@ class TestAudioDatasets:
         for n in range(batch_size):
             item = dict()
             for signal, num_channels in signal_to_channels.items():
-                random_signal = _rng.normal(size=(signal_to_length[signal][n], num_channels))
+                random_signal = _rng.normal(size=(num_channels, signal_to_length[signal][n]))
                 random_signal = np.squeeze(random_signal)  # get rid of channel dimention for single-channel
                 item[signal] = torch.tensor(random_signal)
             batch.append(item)
@@ -670,9 +844,9 @@ class TestAudioDatasets:
 
                 uut_signal = b_signal[n][:uut_length, ...]
                 golden_signal = batch[n][signal][:uut_length, ...].cpu().detach().numpy()
-                assert np.isclose(
+                assert np.allclose(
                     uut_signal, golden_signal, atol=atol
-                ).all(), f'Example {n} signal {signal} value mismatch.'
+                ), f'Example {n} signal {signal} value mismatch.'
 
     @pytest.mark.unit
     def test_audio_to_target_dataset(self):
@@ -726,7 +900,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -743,7 +917,7 @@ class TestAudioDatasets:
                     signal_filename = f'{signal}_{n:02d}.wav'
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -793,14 +967,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # - Filtering based on signal duration
@@ -827,9 +1001,9 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 3
             # - Use channel selector
@@ -853,13 +1027,13 @@ class TestAudioDatasets:
                 for signal in data:
                     cs = channel_selector[signal]
                     item_signal = item[signal].cpu().detach().numpy()
-                    golden_signal = data[signal][n][..., cs]
+                    golden_signal = data[signal][n][cs, ...]
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 4
             # - Use fixed duration (random segment selection)
@@ -893,7 +1067,7 @@ class TestAudioDatasets:
                         # of the first signal, and then use it fixed for other signals
                         if golden_start is None:
                             golden_start = get_segment_start(
-                                signal=full_golden_signal[:, 0], segment=item_signal[:, 0]
+                                signal=full_golden_signal[0, :], segment=item_signal[0, :]
                             )
                             if not random_offset:
                                 assert (
@@ -901,20 +1075,20 @@ class TestAudioDatasets:
                                 ), f'Expecting the signal to start at 0 when random_offset is False'
 
                             golden_end = golden_start + audio_duration_samples
-                        golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                        golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                         # Test length is correct
                         assert (
-                            len(item_signal) == audio_duration_samples
-                        ), f'Test 4: Signal length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                            item_signal.shape[-1] == audio_duration_samples
+                        ), f'Test 4: Signal length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
 
                         assert (
                             item_signal.shape == golden_signal.shape
                         ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
                         # Test signal values
-                        assert np.isclose(
+                        assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ).all(), f'Test 4: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f'Test 4: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 5:
             # - Test collate_fn
@@ -928,8 +1102,8 @@ class TestAudioDatasets:
 
                 assert signal_shape == (
                     batch_size,
-                    audio_duration_samples,
                     data_num_channels[signal],
+                    audio_duration_samples,
                 ), f'Test 5: Unexpected signal {signal} shape {signal_shape}'
                 assert len(signal_len) == batch_size, f'Test 5: Unexpected length of signal_len ({len(signal_len)})'
                 assert all(signal_len == audio_duration_samples), f'Test 5: Unexpected signal_len {signal_len}'
@@ -980,7 +1154,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1002,7 +1176,7 @@ class TestAudioDatasets:
                             # write audio file
                             sf.write(
                                 os.path.join(test_dir, signal_filename[-1]),
-                                data[signal][n][:, ch],
+                                data[signal][n][ch, :],
                                 sample_rate,
                                 'float',
                             )
@@ -1011,7 +1185,7 @@ class TestAudioDatasets:
                         signal_filename = f'{signal}_{n:02d}.wav'
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1050,14 +1224,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # Set target as the first channel of input_filepath and all files listed in target_filepath.
@@ -1078,13 +1252,13 @@ class TestAudioDatasets:
                     golden_signal = data[signal][n]
                     if signal == 'target_signal':
                         # add the first channel of the input
-                        golden_signal = np.concatenate([data['input_signal'][n][..., 0:1], golden_signal], axis=1)
+                        golden_signal = np.concatenate([data['input_signal'][n][0:1, ...], golden_signal], axis=0)
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
     @pytest.mark.unit
     def test_audio_to_target_dataset_for_inference(self):
@@ -1130,7 +1304,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1142,7 +1316,7 @@ class TestAudioDatasets:
                     # filenames
                     signal_filename = f'{signal}_{n:02d}.wav'
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
                     # update metadata
                     meta[data_key[signal]] = signal_filename
                 meta['duration'] = data_duration[n]
@@ -1185,14 +1359,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
     @pytest.mark.unit
     def test_audio_to_target_with_reference_dataset(self):
@@ -1245,7 +1419,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n], num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1262,7 +1436,7 @@ class TestAudioDatasets:
                     signal_filename = f'{signal}_{n:02d}.wav'
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1307,14 +1481,14 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 2
             # - Use fixed duration (random segment selection)
@@ -1346,19 +1520,19 @@ class TestAudioDatasets:
                     # Find random segment using correlation on the first channel
                     # of the first signal, and then use it fixed for other signals
                     if golden_start is None:
-                        golden_start = get_segment_start(signal=full_golden_signal[:, 0], segment=item_signal[:, 0])
+                        golden_start = get_segment_start(signal=full_golden_signal[0, :], segment=item_signal[0, :])
                         golden_end = golden_start + audio_duration_samples
-                    golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                    golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                     # Test length is correct
                     assert (
-                        len(item_signal) == audio_duration_samples
-                    ), f'Test 2: Signal {signal} length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                        item_signal.shape[-1] == audio_duration_samples
+                    ), f'Test 2: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
 
                     # Test signal values
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
             # Test 3
             # - Use fixed duration (random segment selection)
@@ -1395,22 +1569,28 @@ class TestAudioDatasets:
                         # of the first signal, and then use it fixed for other signals
                         if golden_start is None:
                             golden_start = get_segment_start(
-                                signal=full_golden_signal[:, 0], segment=item_signal[:, 0]
+                                signal=full_golden_signal[0, :], segment=item_signal[0, :]
                             )
                             golden_end = golden_start + audio_duration_samples
-                        golden_signal = full_golden_signal[golden_start:golden_end, ...]
+                        golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                         # Test length is correct
                         assert (
-                            len(item_signal) == audio_duration_samples
-                        ), f'Test 3: Signal {signal} length ({len(item_signal)}) not matching the expected length ({audio_duration_samples})'
+                            item_signal.shape[-1] == audio_duration_samples
+                        ), f'Test 3: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
                     # Test signal values
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+
+            # Test 4:
+            # - Test collate_fn
+            batch_size = 16
+            batch = [dataset.__getitem__(n) for n in range(batch_size)]
+            _ = dataset.collate_fn(batch)
 
     @pytest.mark.unit
     def test_audio_to_target_with_embedding_dataset(self):
@@ -1463,7 +1643,7 @@ class TestAudioDatasets:
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_length))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_length, num_channels))
+                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_length))
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1485,7 +1665,7 @@ class TestAudioDatasets:
                         signal_filename = f'{signal}_{n:02d}.wav'
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n], sample_rate, 'float')
+                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
@@ -1527,11 +1707,102 @@ class TestAudioDatasets:
                     assert (
                         item_signal.shape == golden_signal.shape
                     ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.isclose(
+                    assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
-                    assert np.isclose(
+                    assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+
+            # Test 2:
+            # - Test collate_fn
+            batch_size = 16
+            batch = [dataset.__getitem__(n) for n in range(batch_size)]
+            _ = dataset.collate_fn(batch)
+
+
+class TestUtilityFunctions:
+    @pytest.mark.unit
+    # TEMP WORKAROUND: Skip `True`, multiprocessing failing in CI (#5607)
+    @pytest.mark.parametrize('cache_audio', [False])
+    def test_cache_datastore_manifests(self, cache_audio: bool):
+        """Test caching of manifest and audio files.
+        """
+        # Data setup
+        random_seed = 42
+        sample_rate = 16000
+        num_examples = 10
+        num_manifests = 2
+        data_duration = 1.0
+
+        # Generate random signals
+        _rng = np.random.default_rng(seed=random_seed)
+
+        # Input and target signals have the same duration
+        data_duration_samples = int(data_duration * sample_rate)
+
+        with tempfile.TemporaryDirectory() as test_dir:
+            test_store_dir = os.path.join(test_dir, 'store')
+            os.mkdir(test_store_dir)
+
+            # Prepare metadata and audio files
+            manifest_filepaths = []
+            audio_files = []
+            for m in range(num_manifests):
+                manifest_dir = os.path.join(test_store_dir, f'manifest_{m}')
+                os.mkdir(manifest_dir)
+                manifest_filepath = os.path.join(manifest_dir, 'manifest.json')
+
+                metadata = []
+                data = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples, num_examples))
+                for n in range(num_examples):
+                    audio_filepath = f'manifest_{m}_audio_{n:02d}.wav'
+                    audio_file = os.path.join(manifest_dir, audio_filepath)
+                    # Write audio file
+                    sf.write(audio_file, data[:, n], sample_rate, 'float')
+                    # Update metadata
+                    metadata.append(
+                        {
+                            'audio_filepath': audio_filepath,
+                            'duration': data_duration,
+                            'text': f'text for example {n:02d}',
+                        }
+                    )
+                    # Update audio files
+                    audio_files.append(audio_file)
+
+                # Save manifest
+                write_manifest(manifest_filepath, metadata)
+                manifest_filepaths.append(manifest_filepath)
+
+            # Cache location
+            test_cache_dir = os.path.join(test_dir, 'cache')
+
+            # Instead of using AIS, copy object from store dir to cache dir
+            def fake_get(self):
+                # Object path relative to store path
+                object_path = os.path.relpath(self.store_path, start=test_store_dir)
+                # Copy to fake local path
+                self._local_path = os.path.join(test_cache_dir, object_path)
+                os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+                shutil.copy(self.store_path, self.local_path)
+                # Return path as in the original get
+                return self.local_path
+
+            with mock.patch(
+                'nemo.collections.asr.data.audio_to_text.is_datastore_path', lambda x: True
+            ), mock.patch.object(DataStoreObject, 'get', fake_get):
+                cache_datastore_manifests(manifest_filepaths, cache_audio=cache_audio)
+
+            # Manifests need to be compared
+            store_files_to_compare = manifest_filepaths
+            if cache_audio:
+                # Audio needs to be compared
+                store_files_to_compare += audio_files
+
+            # Compare files
+            for f_store in store_files_to_compare:
+                f_cache = os.path.join(test_cache_dir, os.path.relpath(f_store, test_store_dir))
+                assert filecmp.cmp(f_store, f_cache, shallow=False), f'Files {f_store} and {f_cache} do not match.'
