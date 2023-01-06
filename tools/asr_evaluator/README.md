@@ -5,7 +5,7 @@ A tool for thoroughly evaluating the performance of ASR models and other feature
 
 Features:
    - Simple step to evaluate a model in all three modes currently supported by NeMo: offline, chunked, and offline_by_chunked.
-   - On-the-fly data augmentation (silence, noise, etc.,) for ASR robustness evaluation. 
+   - On-the-fly data augmentation (such as silence, noise, etc.,) for ASR robustness evaluation. 
    - Investigate the model's performance by detailed insertion, deletion, and substitution error rates for each and all samples.
    - Evaluate models' reliability on different target groups such as gender, and audio length if metadata is presented.
 

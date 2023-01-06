@@ -266,7 +266,7 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
 def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
     """ 
     Calculate group eval_metric (wer) for target metadata, 
-    such as wer for female/male or slot group wer for 0-2s, 2-5s, >5s audios 
+    such as WER for female/male or slot group wer for 0-2s, 2-5s, >5s audios 
     """
     wer_each_class = {}
     with open(manifest, 'r') as fp:
@@ -366,10 +366,9 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
             slot_wer[slot_key].pop('subs')
         res_wer_each_class.update(slot_wer)
 
+    ret = None
     if meta_cfg.wer_each_class:
         ret = res_wer_each_class
-
     if (not meta_cfg.wer_each_class) and ('slot' in meta_cfg and meta_cfg.slot):
         ret = slot_wer
-
     return ret
