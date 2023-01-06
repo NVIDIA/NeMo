@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Tuple
@@ -31,16 +32,19 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
     elif cfg.inference_mode.mode == "offline_by_chunked":
         # Specify default total_buffer_in_secs=22 and chunk_len_in_secs=20 for offline conformer
         # to avoid problem of long audio sample.
-        # OmegaConf.set_struct(cfg, True)
-        # if (cfg.model_path and 'conformer' in cfg.model_path.lower()) or (
-        #     cfg.pretrained_name and 'conformer' in cfg.pretrained_name.lower()
-        # ):
+        OmegaConf.set_struct(cfg, True)
         if 'total_buffer_in_secs' not in cfg.inference_mode or not cfg.inference_mode.total_buffer_in_secs:
             with open_dict(cfg):
                 cfg.inference_mode.total_buffer_in_secs = 22
+                logging.info(
+                    f"Does not provide total_buffer_in_secs required by {cfg.inference_mode.mode} mode. Using default value {cfg.inference_mode.total_buffer_in_secs}"
+                )
         if 'chunk_len_in_secs' not in cfg.inference_mode or not cfg.inference_mode.chunk_len_in_secs:
             with open_dict(cfg):
                 cfg.inference_mode.chunk_len_in_secs = 20
+                logging.info(
+                    f"Does not provide total_buffer_in_secs required by {cfg.inference_mode.mode} mode. Using default value {cfg.inference_mode.chunk_len_in_secs}"
+                )
         cfg = run_chunked_inference(cfg)
 
     else:
@@ -118,8 +122,15 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         with open_dict(cfg):
             cfg.output_filename = model_name + "-" + dataset_name + "-" + mode_name + ".json"
 
+    temp_eval_config_yaml_file = "temp_eval_config.yaml"
+    with open(temp_eval_config_yaml_file, "w") as f:
+        OmegaConf.save(cfg, f)
+
     script_path = Path(__file__).parents[5] / "examples" / "asr" / "transcribe_speech.py"
 
+    # If need to move other config such as decoding strategy, could either:
+    # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
+    # 2)  Add command as "rnnt_decoding.strategy=greedy_batch " to below script
     subprocess.run(
         f"python {script_path} "
         f"model_path={cfg.model_path} "
@@ -127,25 +138,18 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         f"dataset_manifest={cfg.test_ds.manifest_filepath} "
         f"output_filename={cfg.output_filename} "
         f"batch_size={cfg.test_ds.batch_size} "
-        "rnnt_decoding.strategy=greedy_batch ",
+        f"eval_config_yaml={temp_eval_config_yaml_file} ",
         shell=True,
         check=True,
     )
-    # f"test_ds={cfg.test_ds} "
-    # f"dataset_manifest={cfg.test_ds.manifest_filepath} "
 
+    os.remove(temp_eval_config_yaml_file)
     return cfg
 
 
-def clean_label(_str, num_to_words=True):
+def clean_label(_str: str, num_to_words: bool = True) -> str:
     """
     Remove unauthorized characters in a string, lower it and remove unneeded spaces
-    Parameters
-    ----------
-    _str : the original string
-    Returns
-    -------
-    string
     """
     replace_with_space = [char for char in '/?*\",.:=?_{|}~¨«·»¡¿„…‧‹›≪≫!:;ː→']
     replace_with_blank = [char for char in '`¨´‘’“”`ʻ‘’“"‘”']
@@ -160,18 +164,14 @@ def clean_label(_str, num_to_words=True):
         _str = _str.replace(i, "'")
     if num_to_words:
         _str = convert_num_to_words(_str)
-    return " ".join(_str.split())
+
+    ret = " ".join(_str.split())
+    return ret
 
 
-def convert_num_to_words(_str):
+def convert_num_to_words(_str: str) -> str:
     """
-    Convert digits to corresponding words
-    Parameters
-    ----------
-    _str : the original string
-    Returns
-    -------
-    string
+    Convert digits to corresponding words. Note this is a naive approach and could be replaced with text normalization.
     """
     num_to_words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
     _str = _str.strip()
@@ -180,7 +180,6 @@ def convert_num_to_words(_str):
     num_word = []
     for word in words:
         if word.isdigit():
-            # if word.isnumeric():
             num = int(word)
             while num:
                 digit = num % 10
@@ -201,12 +200,12 @@ def convert_num_to_words(_str):
 
 
 def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[DictConfig, dict]:
-
+    """ Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) """
     samples = []
     hyps = []
     refs = []
 
-    for line in open(cfg.asr_eval.output_filename, 'r'):
+    for line in open(cfg.engine.output_filename, 'r'):
         sample = json.loads(line)
 
         if 'text' not in sample:
@@ -221,14 +220,13 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         ref = sample['text']
 
         if cfg.analyst.metric_calculator.clean_groundtruth_text:
-            print("clean label")
             ref = clean_label(ref)
 
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(
             hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
         )
         sample['wer'] = wer
-        sample['num_ref_words'] = words
+        sample['words'] = words
         sample['ins_rate'] = ins_rate
         sample['del_rate'] = del_rate
         sample['sub_rate'] = sub_rate
@@ -237,16 +235,15 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
         hyps.append(hyp)
         refs.append(ref)
 
-    # wer = word_error_rate(hypotheses=hyps, references=refs)
-    total_wer, total_ref_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
+    total_wer, total_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
         hypotheses=hyps, references=refs, use_cer=cfg.analyst.metric_calculator.use_cer
     )
 
     if "output_filename" not in cfg.analyst.metric_calculator or not cfg.analyst.metric_calculator.output_filename:
-        # overwrite the current manifest
+        # overwrite the current generated manifest
         OmegaConf.set_struct(cfg, True)
         with open_dict(cfg):
-            cfg.analyst.metric_calculator.output_filename = cfg.asr_eval.output_filename
+            cfg.analyst.metric_calculator.output_filename = cfg.engine.output_filename
 
     with open(cfg.analyst.metric_calculator.output_filename, 'w') as fout:
         for sample in samples:
@@ -256,7 +253,7 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
 
     total_res = {
         "samples": len(samples),
-        "num_ref_words": total_ref_words,
+        "words": total_words,
         "wer": total_wer,
         "ins_rate": total_ins_rate,
         "del_rate": total_del_rate,
@@ -266,7 +263,10 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
 
 
 def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
-
+    """ 
+    Calculate group eval_metric (wer) for target metadata, 
+    such as wer for female/male or slot group wer for 0-2s, 2-5s, >5s audios 
+    """
     wer_each_class = {}
     for line in open(manifest, 'r'):
         sample = json.loads(line)
@@ -275,17 +275,16 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
             if target_class not in wer_each_class:
                 wer_each_class[target_class] = {
                     'samples': 0,
-                    'num_ref_words': 0,
+                    'words': 0,
                     "errors": 0,
                     "inss": 0,
                     "dels": 0,
                     "subs": 0,
                 }
-
             wer_each_class[target_class]['samples'] += 1
 
-            words = sample["num_ref_words"]
-            wer_each_class[target_class]["num_ref_words"] += words
+            words = sample["words"]
+            wer_each_class[target_class]["words"] += words
             wer_each_class[target_class]["errors"] += words * sample[eval_metric]
             wer_each_class[target_class]["inss"] += words * sample["ins_rate"]
             wer_each_class[target_class]["dels"] += words * sample["del_rate"]
@@ -297,23 +296,23 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
             ret_wer_each_class[target_class] = {}
             ret_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
             ret_wer_each_class[target_class]["wer"] = (
-                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["num_ref_words"]
+                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["words"]
             )
-            ret_wer_each_class[target_class]["num_ref_words"] = wer_each_class[target_class]["num_ref_words"]
+            ret_wer_each_class[target_class]["words"] = wer_each_class[target_class]["words"]
             ret_wer_each_class[target_class]["ins_rate"] = (
-                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["num_ref_words"]
+                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["words"]
             )
             ret_wer_each_class[target_class]["del_rate"] = (
-                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["num_ref_words"]
+                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["words"]
             )
             ret_wer_each_class[target_class]["sub_rate"] = (
-                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["num_ref_words"]
+                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["words"]
             )
     else:
         logging.info(f"metadata '{target}' does not present in manifest. Skipping! ")
         return None
 
-    values = ['samples', 'num_ref_words', 'errors', 'inss', 'dels', 'subs']
+    values = ['samples', 'words', 'errors', 'inss', 'dels', 'subs']
     slot_wer = {}
     if 'slot' in meta_cfg and meta_cfg.slot:
         for target_class in wer_each_class:
@@ -324,7 +323,7 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                         if slot_key not in slot_wer:
                             slot_wer[slot_key] = {
                                 'samples': 0,
-                                'num_ref_words': 0,
+                                'words': 0,
                                 "errors": 0,
                                 "inss": 0,
                                 "dels": 0,
@@ -341,7 +340,7 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                         if slot_key not in slot_wer:
                             slot_wer[slot_key] = {
                                 'samples': 0,
-                                'num_ref_words': 0,
+                                'words': 0,
                                 "errors": 0,
                                 "inss": 0,
                                 "dels": 0,
@@ -355,10 +354,10 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                     raise ValueError("Current only support target metadata belongs to numeric or string ")
 
         for slot_key in slot_wer:
-            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['num_ref_words']
-            slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['num_ref_words']
-            slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['num_ref_words']
-            slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['num_ref_words']
+            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['words']
+            slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['words']
+            slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['words']
+            slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['words']
             slot_wer[slot_key].pop('errors')
             slot_wer[slot_key].pop('inss')
             slot_wer[slot_key].pop('dels')

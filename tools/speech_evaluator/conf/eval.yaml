@@ -1,11 +1,10 @@
 env:
-    cuda: null
     random_seed: 42
-#     commit: 
+    save_git_hash: True
 
-asr_eval:    
+engine:    
     model_path: null  
-    pretrained_name: "stt_en_citrinet_1024_gamma_0_25" #??? 
+    pretrained_name: null
 
     inference_mode: 
         mode: offline # choose from offline, chunked or offline_by_chunked
@@ -14,45 +13,36 @@ asr_eval:
         model_stride: 4 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models
     
     test_ds:
-        manifest_filepath: "/data/english/librispeech/librivox-test-clean.json" 
-#         manifest_filepath: "/home/fjia/data/chris.json" #"/home/fjia/code/5_syn/english_test_single-sample.json"
+        manifest_filepath: null
         sample_rate: 16000
         batch_size: 32
-#         shuffle: False
-#         num_workers: 8
-#         pin_memory: true
-#         test_loss_idx: 0
         
         augmentor:
           silence:
-            prob: 1.0
+            prob: 0.8
             min_start_silence_secs: 0
             max_start_silence_secs: 5
             min_end_silence_secs: 0
             max_end_silence_secs: 5
+            
+          noise:
+            manifest_path: null
+            prob: 0.8
+            min_snr_db: 0
+            max_snr_db: 15
 
     output_filename: null
-    
-    
-#     neural_vad_options: 
-#         vad_model: null
 
-
-    #     P&C:
 analyst:
     metric_calculator:
         clean_groundtruth_text: True
-        output_filename: null
+        output_filename: null # specify it if wanna skip engine and use previously generated manifest
         use_cer: False
-        
-    #     output_filename: "stt_en_conformer_transducer_large-chris-offlineB4C1.6.json" #null
-#         output_filename: "/home/fjia/data/fake.json"
 
     metadata:
         duration: 
             exec: True
             slot: [[0,2],[2,5],[5,10],[10,20],[20,100000]]
-#             slot: [[0,61],[61,63],[63,100000]]
             wer_each_class: False #True # whether to save wer for each class.
             
         gender:
@@ -76,8 +66,4 @@ analyst:
                  
 writer:
     report_filename: null
-    
-    
-       
-       
     

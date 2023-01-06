@@ -938,6 +938,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             'pin_memory': True,
         }
 
+        if config.get("augmentor_config"):
+            dl_config['augmentor'] = config.get("augmentor_config")
+
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 

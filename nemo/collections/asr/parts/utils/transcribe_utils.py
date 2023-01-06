@@ -341,14 +341,11 @@ def transcribe_partial_audio(
     return_hypotheses: bool = False,
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
+    augmentor_config: DictConfig = None,
 ) -> List[str]:
+    """
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
 
-    # if test_ds:
-
-    # elif test_ds
-
-    # else:
-    #     raise ValueError("todo")
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
     if return_hypotheses and logprobs:
@@ -378,17 +375,15 @@ def transcribe_partial_audio(
         logging_level = logging.get_verbosity()
         logging.set_verbosity(logging.WARNING)
 
-        # if "augmentor" in test_ds:
-        #     print("=========")
-        #     print(test_ds)
-        #     temporary_datalayer = asr_model._setup_dataloader_from_config(test_ds)
-        # else:
         config = {
             'manifest_filepath': path2manifest,
             'batch_size': batch_size,
             'num_workers': num_workers,
             'channel_selector': channel_selector,
         }
+        if augmentor_config:
+            config['augmentor_config'] = augmentor_config
+
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
 
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
