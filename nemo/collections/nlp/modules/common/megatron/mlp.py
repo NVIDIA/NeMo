@@ -216,7 +216,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if self.dropout > 0:
             intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
 
-        infused_adapter = self.get_from_adapter_layer(AdapterName.MLP_INFUSED)
+        infused_adapter = self.get_adapter_module(AdapterName.MLP_INFUSED)
         if infused_adapter:
             intermediate_parallel = infused_adapter(intermediate_parallel)
 
