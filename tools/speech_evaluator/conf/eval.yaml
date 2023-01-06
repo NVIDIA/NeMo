@@ -43,11 +43,11 @@ analyst:
         duration: 
             exec: True
             slot: [[0,2],[2,5],[5,10],[10,20],[20,100000]]
-            wer_each_class: False #True # whether to save wer for each class.
+            wer_each_class: False # whether to save wer for each presented class.
             
         gender:
             exec: False
-            slot: [["m"]]
+            slot: [["female"]]
             wer_each_class: True
             
         speaker:
