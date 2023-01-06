@@ -17,6 +17,7 @@ import torch.multiprocessing as mp
 from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.seed import seed_everything
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5AdapterLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -59,6 +60,7 @@ Usage:
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    seed_everything(cfg.model.seed)
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
