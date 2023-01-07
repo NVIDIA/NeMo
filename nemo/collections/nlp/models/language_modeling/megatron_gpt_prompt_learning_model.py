@@ -436,6 +436,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 input_embeds = self.embed_input_train(input_ids, taskname_ids)
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
+            if hasattr(self, "foo_idx"):
+                pass
+            else:
+                self.foo_idx = 0
+            print(self.foo_idx, encoder_input.shape)
+            torch.save(encoder_input.detach().cpu(), f'./125m_tokens/{self.foo_idx}.pt')
+            self.foo_idx += 1
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -645,6 +652,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return
 
     def validation_step(self, batch, batch_idx):
+        exit()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
@@ -763,7 +771,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
                 drop_last=True,
-                shuffle=True,
+                shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
