@@ -16,7 +16,6 @@ import torch.multiprocessing as mp
 from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.seed import seed_everything
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
@@ -47,7 +46,6 @@ withing this examples directory to convert your model to .nemo format.
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
-    seed_everything(cfg.model.seed)
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
 
