@@ -463,7 +463,7 @@ class FastPitchSSLModule(NeuralModule):
                 if pitch.shape[-1] != enc_out.shape[1]:
                     # during inference, we send the averaged pitch over each token so we don't need to average here
                     # TODO: have a flag to indicate whether the pitch is already averaged or not
-                    pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
+                    pitch = average_features(pitch.unsqueeze(1), durs).squeeze(1)
 
                 pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
             else:

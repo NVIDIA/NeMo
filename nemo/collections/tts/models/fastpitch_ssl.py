@@ -26,7 +26,7 @@ from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models import ssl_tts
-from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_pitch
+from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_features
 from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -360,9 +360,9 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = enc_mask[:, :, None]
         if pitch_contour is not None and compute_pitch == False:
             if durs_gt is not None:
-                pitch = average_pitch(pitch_contour.unsqueeze(1), durs_gt).squeeze(1)
+                pitch = average_features(pitch_contour.unsqueeze(1), durs_gt).squeeze(1)
             elif durs is not None:
-                pitch = average_pitch(pitch_contour.unsqueeze(1), durs).squeeze(1)
+                pitch = average_features(pitch_contour.unsqueeze(1), durs).squeeze(1)
             else:
                 raise ValueError("durs or durs_gt must be provided")
 
