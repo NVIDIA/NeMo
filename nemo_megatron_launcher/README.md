@@ -20,6 +20,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [4.1.3. AWS](#413-aws)
   * [4.2. Cluster Validation](#42-cluster-validation)
     + [4.2.1. Validation Script Usage](#421-validation-script-usage)
+    + [4.2.2. Running tests manually](#421-running-tests-manually)
   * [4.3. Config Modifications](#43-config-modifications)
     + [4.3.1 Set NCCL Topology](#431-set-nccl-topology)
     + [4.3.2 Environment Variables](#432-environment-variables)
@@ -383,6 +384,32 @@ By default, the script will run both the GPU diagnostics and the NCCL test. You 
 - `--nccl`: run NCCL test only
 
 See `bash cluster_validation.sh -h` for more information.
+
+#### 4.2.2 Running tests manually
+<a id="markdown-running-tests-manually" name="running-tests-manually"></a>
+
+The `cluster_validation.sh` script is essentially a wrapper of the 2 Slurm job scripts in the CSP directories. If you prefer, you can run these jobs manually.
+Make sure to use the Slurm job script in your corresponding CSP's path (`csp/<csp>/dcgmi_diag.sh` and `csp/<csp>/nccl.sh`)
+
+For the GPU diagnostics job, provide these arguments when submitting the job to Slurm:
+
+```
+sbatch -p <partition> -w <node list> -o <job log file> dcgmi_diag.sh
+```
+
+For the NCCL test job, `cluster_validation.sh` performs a pair-wise sweep of the nodes, as this is a sufficient test, but you can test with a different number of nodes if desired.
+
+First build the test binaries:
+```
+sbatch -N 1 build-nccl-tests.sh
+```
+
+Then, to run a 2-node `all_reduce_perf` job:
+```
+sbatch -w <node 1>,<node 2> -o <job log file> nccl.sh
+```
+
+To run the job with more nodes, simply add the node names to the `-w` flag in the same comma-separated list format.
 
 ### 4.3. Config Modifications
 <a id="markdown-config-modifications" name="config-modifications"></a>
