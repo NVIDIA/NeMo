@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.utils import CastToFloat, logging
+from nemo.utils import CastToFloat, CastToFloatAll, logging
 
 try:
     import onnxruntime
@@ -404,13 +404,6 @@ def script_module(m: nn.Module):
     return torch.jit.script(m)
 
 
-default_replacements = {
-    "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
-    "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
-    "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
-    "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
-}
-
 script_replacements = {}
 
 
@@ -424,6 +417,17 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     Returns:
         model, possibly modified in-place
     """
+    from nemo.collections.tts.modules.submodules import MaskedInstanceNorm1d
+
+    default_replacements = {
+        "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
+        "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
+        "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+        "InstanceNorm1d": wrap_module(nn.InstanceNorm1d, CastToFloat),
+        "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
+        "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
+    }
+
     replace_modules(model, default_Apex_replacements)
     replace_modules(model, default_replacements)
     # This one has to be the last

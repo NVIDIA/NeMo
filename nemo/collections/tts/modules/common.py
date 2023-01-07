@@ -158,7 +158,7 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        mask = get_mask_from_lengths(lens, context.shape[-1])
+        mask = get_mask_from_lengths(lens, context)
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
@@ -314,10 +314,8 @@ class SimpleConvNet(torch.nn.Module):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
 
-        if seq_lens is not None:
-            mask = get_mask_from_lengths(seq_lens, z_w_context.shape[-1]).unsqueeze(1).float()
-        else:
-            mask = torch.ones_like(z_w_context)
+        mask = get_mask_from_lengths(seq_lens, z_w_context).unsqueeze(1).to(dtype=z_w_context.dtype)
+
         for i in range(self.n_layers):
             z_w_context = self.layers[i](z_w_context, mask)
             z_w_context = torch.relu(z_w_context)
