@@ -16,14 +16,15 @@ import copy
 import os
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import wrapt
 
-import nemo
-from nemo import constants
 from nemo.utils import AppState, logging
+from nemo.utils.data_utils import resolve_cache_dir  # imported for compatibility: model_utils.resolve_cache_dir()
+from nemo.utils.data_utils import is_datastore_path
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 
@@ -59,7 +60,7 @@ class ArtifactItem:
     hashed_path: Optional[str] = None
 
 
-def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> str:
+def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
     """
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
@@ -133,8 +134,7 @@ def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> str:
             values_are_paths = 0
             for val_i in value:
                 val_i = str(val_i)
-
-                if os.path.exists(val_i) or os.path.isdir(val_i):
+                if os.path.exists(val_i) or os.path.isdir(val_i) or is_datastore_path(val_i):
                     values_are_paths += 1
                 else:
                     # reset counter and break inner loop
@@ -144,7 +144,7 @@ def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> str:
                 return key
 
         else:
-            if os.path.exists(str(value)) or os.path.isdir(str(value)):
+            if os.path.exists(str(value)) or os.path.isdir(str(value)) or is_datastore_path(str(value)):
                 return key
 
     return None
@@ -161,7 +161,7 @@ def parse_dataset_as_name(name: str) -> str:
     Returns:
         str prefix used to identify uniquely this data/manifest file.
     """
-    if os.path.exists(str(name)) or os.path.isdir(str(name)):
+    if os.path.exists(str(name)) or os.path.isdir(str(name)) or is_datastore_path(str(name)):
         name = Path(name).stem
     else:
         name = str(name)
@@ -276,14 +276,12 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
         model._validation_dl = dataloaders
         model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
-
         unique_names_check(name_list=model._validation_names)
         return
 
     else:
         model.setup_validation_data(cfg.validation_ds)
         model._validation_names = [parse_dataset_as_name(ds_values)]
-
         unique_names_check(name_list=model._validation_names)
 
 
@@ -461,6 +459,7 @@ def maybe_update_config_version(cfg: 'DictConfig'):
     return cfg
 
 
+@lru_cache(maxsize=1024)
 def import_class_by_path(path: str):
     """
     Recursive import of class by path string.
@@ -512,7 +511,7 @@ def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelI
     return list_of_models
 
 
-def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optional[bool], str):
+def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Optional[bool], str]:
     """
     Checks if a library is installed, and if it is, checks the operator(lib.__version__, checked_version) as a result.
     This bool result along with a string analysis of result is returned.
@@ -563,25 +562,6 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
     return None, msg
-
-
-def resolve_cache_dir() -> Path:
-    """
-    Utility method to resolve a cache directory for NeMo that can be overriden by an environment variable.
-
-    Example:
-        NEMO_CACHE_DIR="~/nemo_cache_dir/" python nemo_example_script.py
-
-    Returns:
-        A Path object, resolved to the absolute path of the cache directory. If no override is provided,
-        uses an inbuilt default which adapts to nemo versions strings.
-    """
-    override_dir = os.environ.get(constants.NEMO_ENV_CACHE_DIR, "")
-    if override_dir == "":
-        path = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}')
-    else:
-        path = Path(override_dir).resolve()
-    return path
 
 
 def uninject_model_parallel_rank(filepath):

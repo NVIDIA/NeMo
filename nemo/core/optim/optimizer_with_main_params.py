@@ -217,7 +217,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
 
                 # Allocate gradient memory buffers for each data type
-                self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
+                if any(param.requires_grad for param in param_group['params']):
+                    self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
 
         # Three groups of parameters:
         self.float16_groups = []  # original float16 parameters
@@ -278,8 +279,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if self._fp32_grad_accum:
-                    # Expand so we get access to grad_fn.
+                if self._fp32_grad_accum and param.requires_grad:
+                    # Expand so we get access to grad_fn
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
@@ -320,7 +321,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                                 allreduce_tensor,
                                 group=get_data_parallel_group(),
                                 async_op=True,
-                                op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                                op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                             )
                         else:
                             allreduce_tensor.div_(get_data_parallel_world_size())
@@ -333,7 +334,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                             main_param.grad,
                             group=get_data_parallel_group(),
                             async_op=True,
-                            op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                            op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                         )
                     else:
                         main_param.grad.div_(get_data_parallel_world_size())

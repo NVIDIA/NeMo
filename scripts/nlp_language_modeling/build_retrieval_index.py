@@ -149,7 +149,7 @@ def process_sentence_chunks(
         logging.info(f"Use {use_num_docs} out of {num_docs} docs to build index")
         total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
     logging.info(f"{total_chunks} chunks are used to build the index")
-
+    start = 0
     if stage is None or stage == 0:
         beg = time.time()
         # only prepare the warmup batch for stage None and stage 0
@@ -306,6 +306,19 @@ if __name__ == "__main__":
         merge_ondisk(index, all_files, str(path / 'merged.index'))
         faiss.write_index(index, args.output_file)
         logging.info(f'Write to {args.output_file},  Size of Index : {index.ntotal}')
+        # consolidate it as one index
+        if args.devices is None or not torch.cuda.is_available():
+            device_list = None
+        else:
+            device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+        index = faiss.read_index(args.output_file)
+        co = faiss.GpuMultipleClonerOptions()
+        co.useFloat16 = True
+        co.usePrecomputed = False
+        co.shard = True
+        index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
+        index = faiss.index_gpu_to_cpu(index)
+        faiss.write_index(index, args.output_file)
         sys.exit(0)
 
     model = SentenceTransformer(args.sentence_transformer_model)

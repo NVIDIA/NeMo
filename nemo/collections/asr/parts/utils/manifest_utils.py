@@ -18,6 +18,7 @@ from collections import Counter
 from collections import OrderedDict as od
 from typing import Dict, List
 
+import librosa
 import numpy as np
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -28,6 +29,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
 )
+from nemo.utils.data_utils import DataStoreObject
 
 
 def rreplace(s: str, old: str, new: str) -> str:
@@ -79,7 +81,10 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
             subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
-            uniq_id = get_uniq_id_with_period(audio)
+            if dic['uniq_id'] is not None:
+                uniq_id = dic['uniq_id']
+            else:
+                uniq_id = get_uniq_id_with_period(audio)
             if uniq_id not in _subsegment_dict:
                 _subsegment_dict[uniq_id] = {'ts': [], 'json_dic': []}
             for subsegment in subsegments:
@@ -364,11 +369,13 @@ def read_manifest(manifest: str) -> List[dict]:
     Returns:
         data (list): List of JSON items
     """
+    manifest = DataStoreObject(manifest)
+
     data = []
     try:
-        f = open(manifest, 'r', encoding='utf-8')
+        f = open(manifest.get(), 'r', encoding='utf-8')
     except:
-        raise Exception("Manifest file could not be opened")
+        raise Exception(f"Manifest file could not be opened: {manifest}")
     for line in f:
         item = json.loads(line)
         data.append(item)

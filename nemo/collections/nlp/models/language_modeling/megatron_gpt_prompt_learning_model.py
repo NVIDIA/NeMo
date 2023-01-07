@@ -131,8 +131,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
-        # TODO: Enable amp_o2 training
-        self.megatron_amp_o2 = False
+        self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -194,6 +193,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
+        self.lowest_val_loss = None
 
     def load_task_templates(self, task_templates):
         """
@@ -308,18 +308,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         weights during inference or future p-tuning/prompt-tuning.
         """
         # Save p-tuned prompts to prompt table
-        for taskname in self.new_tasks:
-            device = next(self.word_embeddings.parameters()).device
-            tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
-            taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
-            virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            self.prompt_table.add_prompt_from_p_tuning_encoder(
-                taskname, virtual_prompt_embeddings, total_virtual_tokens
-            )
-
-        # Remove prompt encoder from model
-        self.prompt_encoder = None
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in self.new_tasks:
+                device = next(self.word_embeddings.parameters()).device
+                tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
+                taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
+                virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
+                total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+                self.prompt_table.add_prompt_from_p_tuning_encoder(
+                    taskname, virtual_prompt_embeddings, total_virtual_tokens
+                )
 
     def freeze_existing_virtual_prompt_params(self):
         """Freeze params of existing virtual prompts that should not be tuned further
@@ -456,16 +454,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
-                output = self.frozen_model.model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    inference_max_sequence_len=inference_max_sequence_len,
-                )
+            output = self.frozen_model.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+            )
 
         return output
 
@@ -567,11 +564,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
-
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -591,6 +583,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -601,6 +594,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
 
         # only the last stages of the pipeline return losses
@@ -668,6 +662,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        logging.info(f'val_loss: {averaged_loss}')
+
+        # Save inference ready .nemo checkpoint version
+        if self.cfg.get("save_nemo_on_validation_end", False):
+            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
+                self.save_checkpoint_as_nemo_file()
+                self.lowest_val_loss = averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -676,12 +677,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
+    def update_config_for_inference_and_save(self):
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
@@ -693,7 +689,46 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
-        logging.info(f"The final model was saved to {self.cfg.nemo_path}")
+        logging.info(f"An inference ready model was saved to {self.cfg.nemo_path}")
+
+    def save_checkpoint_as_nemo_file(self):
+        self.add_ptuned_prompts_to_prompt_table()
+
+        # Save current config and state dict params in temp values
+        current_virtual_prompt_style = self.virtual_prompt_style
+        current_virtual_prompt_source = self.virtual_prompt_source
+        current_existing_tasks = self.cfg.existing_tasks
+        current_new_tasks = self.cfg.new_tasks
+
+        # Temporarily overwrite params to save an inference ready .nemo checkpoint
+        self.update_config_for_inference_and_save()
+
+        # Set values back to their training state to continue training
+        self.virtual_prompt_style = current_virtual_prompt_style
+        self.virtual_prompt_source = current_virtual_prompt_source
+
+        # Revert prompt table back to previous state
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in current_new_tasks:
+                if taskname in self.prompt_table.prompt_table:
+                    del self.prompt_table.prompt_table[taskname]
+
+        with open_dict(self.cfg):
+            self.cfg.existing_tasks = current_existing_tasks
+            self.cfg.new_tasks = current_new_tasks
+            self.cfg.virtual_prompt_style = current_virtual_prompt_style.value
+
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+
+            # Remove prompt encoder from model
+            self.prompt_encoder = None
+            logging.info(f"Prompt encoder deleted")
+
+        self.update_config_for_inference_and_save()
 
     def setup(self, stage=None):
         if (
@@ -813,7 +848,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
@@ -836,6 +871,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
         )
 
         return dataset, dataloader
@@ -957,7 +993,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
-            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
         )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
@@ -986,7 +1022,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
-                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
             )
 
     @classmethod

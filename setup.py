@@ -18,15 +18,14 @@
 """Setup for pip package."""
 
 import codecs
+import importlib.util
 import os
 import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
-import importlib.util
 
 import setuptools
-
 
 spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
 package_info = importlib.util.module_from_spec(spec)
@@ -81,21 +80,21 @@ extras_require = {
     'test': req_file("requirements_test.txt"),
     # NeMo Tools
     'nemo_text_processing': req_file("requirements_nemo_text_processing.txt"),
-    # Torch Packages
-    # 'torch_tts': req_file("requirements_torch_tts.txt"),  ## Removed in 1.7.0
     # Lightning Collections Packages
     'core': req_file("requirements_lightning.txt"),
     'common': req_file('requirements_common.txt'),
+    # domain packages
     'asr': req_file("requirements_asr.txt"),
-    'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
-    'tts': req_file("requirements_tts.txt") + req_file("requirements_torch_tts.txt"),
+    'tts': req_file("requirements_tts.txt"),
+    'slu': req_file("requirements_slu.txt"),
 }
 
 
 extras_require['all'] = list(chain(extras_require.values()))
 
 # Add lightning requirements as needed
+extras_require['nemo_text_processing'] = list(chain([extras_require['nemo_text_processing'], extras_require['core']]))
 extras_require['common'] = list(chain([extras_require['common'], extras_require['core']]))
 extras_require['test'] = list(
     chain(
@@ -108,7 +107,6 @@ extras_require['test'] = list(
     )
 )
 extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core'], extras_require['common']]))
-extras_require['cv'] = list(chain([extras_require['cv'], extras_require['core'], extras_require['common']]))
 extras_require['nlp'] = list(
     chain(
         [
@@ -132,6 +130,8 @@ extras_require['tts'] = list(
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
+
+extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']]))
 
 tests_requirements = extras_require["test"]
 

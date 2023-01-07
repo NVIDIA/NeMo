@@ -22,6 +22,7 @@ Requirements
 
 
 .. _wfst_deployment_quick_start:
+
 Quick Start
 -----------
 
@@ -58,7 +59,7 @@ Go to script folder:
 
     cd NeMo/tools/text_processing_deployment
 
-1. Grammars written in Python are exported to `OpenFST <https://www.openfst.org/>`_ archive files (FAR). Specifically, grammars `ClassifyFst` and `VerbalizeFst` from :doc:`nemo_text_processing <wfst_inverse_text_normalization>` are exported and saved to `./LANGUAGE/classify/tokenize_and_classify.far` and `./LANGUAGE/verbalize/verbalize.far` respectively.
+1. Grammars written in Python are exported to `OpenFST <https://www.openfst.org/>`_ archive files (FAR). Specifically, grammars `ClassifyFst` and `VerbalizeFst` from :doc:`nemo_text_processing <wfst_text_normalization>` are exported and saved to `./LANGUAGE/classify/tokenize_and_classify.far` and `./LANGUAGE/verbalize/verbalize.far` respectively.
 
 .. code-block:: bash
 
@@ -88,6 +89,8 @@ Go to script folder:
     echo "ITN result: two dollars fifty. TN result: $2.50" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 
 This returns "ITN result: $2.50. TN result: two dollars fifty cents"
+
+See :doc:`WFST Resources <wfst_resources>` for more details.
 
 References
 ----------

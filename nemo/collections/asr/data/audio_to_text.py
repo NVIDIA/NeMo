@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import json
 import math
+import multiprocessing
 import os
-from typing import Callable, Dict, Iterable, List, Optional, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
 from torch.utils.data import ChainDataset
+from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
@@ -29,6 +32,14 @@ from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.utils.data_utils import (
+    DataStoreObject,
+    datastore_object_get,
+    datastore_path_to_webdataset_url,
+    is_datastore_cache_shared,
+    is_datastore_path,
+)
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = [
     'AudioToCharDataset',
@@ -138,16 +149,16 @@ class ASRManifestProcessor:
         self.bos_id = bos_id
         self.pad_id = pad_id
 
-    def process_text_by_id(self, index: int) -> (List[int], int):
+    def process_text_by_id(self, index: int) -> Tuple[List[int], int]:
         sample = self.collection[index]
         return self.process_text_by_sample(sample)
 
-    def process_text_by_file_id(self, file_id: str) -> (List[int], int):
+    def process_text_by_file_id(self, file_id: str) -> Tuple[List[int], int]:
         manifest_idx = self.collection.mapping[file_id][0]
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
-    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> (List[int], int):
+    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> Tuple[List[int], int]:
         t, tl = sample.text_tokens, len(sample.text_tokens)
 
         if self.bos_id is not None:
@@ -182,6 +193,11 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
         # Brace expand
         audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
 
+    # Expand store paths into WebDataset URLs
+    audio_tar_filepaths = [
+        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in audio_tar_filepaths
+    ]
+
     # Check for distributed and partition shards accordingly
     if world_size > 1:
         if shard_strategy == 'scatter':
@@ -206,6 +222,127 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
     return audio_tar_filepaths
+
+
+def cache_datastore_manifests(
+    manifest_filepaths: Union[str, List[str]],
+    cache_audio: bool = False,
+    shared_cache: Optional[bool] = None,
+    num_workers: Optional[int] = None,
+    max_num_workers: int = 20,
+):
+    """Cache manifests and audio from an object store.
+    It is assumed that remote manifests are using relative paths.
+
+    Args:
+        manifest_filepaths: list of paths to manifest files (list of strings or a string with `,` as separator)
+        cache_audio: If True, audio from manifest will also be cached
+        shared_cache: Optional, True if cache is shared across all nodes
+        num_workers: Optional, number of workers to be used for download
+        max_num_workers: max number of workers to be used for download, used when setting num_workers automatically
+    """
+    if isinstance(manifest_filepaths, str):
+        manifest_filepaths = manifest_filepaths.split(',')
+
+    num_datastore_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
+
+    if num_datastore_manifests > 0:
+        # Local utility function
+        def cache_data(manifest_filepaths, cache_audio, num_workers, max_num_workers):
+            """Cache manifests and audio data from object store.
+            """
+            # Determine the number of workers to use
+            if num_workers is None:
+                num_workers = os.cpu_count() - 1
+            num_workers = min(num_workers, max_num_workers)
+
+            # Process each manifest file
+            for manifest_file in manifest_filepaths:
+                # If manifest is on a data store, then cache it.
+                # Otherwise, nothing to do.
+                if is_datastore_path(manifest_file):
+                    logging.info('Cache manifest file: %s', manifest_file)
+                    cached_manifest_file = DataStoreObject(manifest_file).get()
+                    logging.info('Cached at: %s', str(cached_manifest_file))
+
+                    if cache_audio:
+                        # Each audio file from manifest will be cached.
+                        logging.info('Cache audio from manifest file: %s', manifest_file)
+                        # Assumes that manifest is using relative paths
+                        manifest_dir = os.path.dirname(manifest_file)
+                        # Prepare all store objects
+                        audio_objects = []
+                        with open(cached_manifest_file, 'r') as f:
+                            for line in f:
+                                item = json.loads(line)
+                                store_path = os.path.join(manifest_dir, item['audio_filepath'])
+                                audio_objects.append(DataStoreObject(store_path=store_path))
+
+                        if num_workers is not None and num_workers > 1:
+                            logging.debug('Using multiprocessing with num_workers: %d.', num_workers)
+                            with multiprocessing.Pool(processes=num_workers) as p:
+                                result = list(
+                                    tqdm(p.imap(datastore_object_get, audio_objects), total=len(audio_objects))
+                                )
+                        else:
+                            logging.debug('Using a single process.')
+                            result = []
+                            for audio_object in tqdm(audio_objects):
+                                result.append(audio_object.get() is not None)
+
+                        if not all(result):
+                            raise RuntimeError('Some files not downloaded successfully')
+                        logging.info('Caching complete')
+
+                else:
+                    # Nothing to do here
+                    logging.debug('Manifest is not on a data store: %s', manifest_file)
+
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            logging.debug('Distributed environment is available and initialized.')
+
+            # Handle distributed environment
+            if shared_cache is None:
+                shared_cache = is_datastore_cache_shared()
+
+            if shared_cache:
+                logging.debug('Cache is shared among nodes, cache data on global rank zero.')
+                is_rank_zero = is_global_rank_zero()
+            else:
+                logging.debug('Cache is not shared among nodes, cache data on local rank zero.')
+                local_rank = int(os.environ.get("LOCAL_RANK", 0))
+                is_rank_zero = local_rank == 0
+
+            if is_rank_zero:
+                logging.info('Cache data from %s rank 0', 'global' if shared_cache else 'local')
+                cache_data(
+                    manifest_filepaths=manifest_filepaths,
+                    cache_audio=cache_audio,
+                    num_workers=num_workers,
+                    max_num_workers=max_num_workers,
+                )
+            logging.debug('Reached barrier')
+            torch.distributed.barrier()
+
+        elif is_global_rank_zero():
+            # Handle non-distributed environment, e.g., if running on a single GPU
+            logging.warning(
+                'Torch distributed is not initialized and caching may be prone to data race conditions. '
+                'Now caching data from global rank 0. If there are other ranks and they pass this '
+                'before rank 0, errors might result.'
+            )
+            cache_data(
+                manifest_filepaths=manifest_filepaths,
+                cache_audio=cache_audio,
+                num_workers=num_workers,
+                max_num_workers=max_num_workers,
+            )
+        else:
+            raise RuntimeError(
+                'Torch distributed is not initialized and caching on nodes other than global rank zero is disabled '
+                'to avoid race condition between different ranks. To ensure distributed environment is '
+                'initialized, please update data config to use `defer_setup = True`.'
+            )
 
 
 class _AudioTextDataset(Dataset):
@@ -265,6 +402,9 @@ class _AudioTextDataset(Dataset):
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
+
+        # If necessary, cache manifests and audio from object store
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -328,6 +468,7 @@ class AudioToCharDataset(_AudioTextDataset):
     {"audio_filepath": "/path/to/audio.wav", "text": "the
     transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
@@ -470,17 +611,17 @@ class AudioToBPEDataset(_AudioTextDataset):
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -494,6 +635,12 @@ class AudioToBPEDataset(_AudioTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], List) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -567,7 +714,6 @@ class _TarredAudioToTextDataset(IterableDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         blank_index (int): Blank character index, defaults to -1.
         unk_index (int): Unknown character index, defaults to -1.
         normalize (bool): Dataset parameter.
@@ -618,7 +764,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
@@ -628,12 +773,15 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
+        # If necessary, cache manifests from object store
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
+
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
             max_duration=max_duration,
             min_duration=min_duration,
-            max_utts=max_utts,
+            max_utts=0,
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
@@ -832,7 +980,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         blank_index (int): Blank character index, defaults to -1.
         unk_index (int): Unknown character index, defaults to -1.
         normalize (bool): Dataset parameter.
@@ -852,6 +999,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             If this is None, pads using 0s.
             Defaults to None.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
@@ -860,6 +1008,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
                 .. warning::
+
                     Replicated strategy allows every node to sample the entire set of available tarfiles,
                     and therefore more than one node may sample the same tarfile, and even sample the same
                     data points! As such, there is no assured guarantee that all samples in the dataset will be
@@ -867,6 +1016,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                     occasions (when the number of shards is not divisible with ``world_size``), will not sample
                     the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
                     or test datasets.
+
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -883,7 +1033,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         blank_index: int = -1,
         unk_index: int = -1,
         normalize: bool = True,
@@ -913,7 +1062,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             shuffle_n=shuffle_n,
             min_duration=min_duration,
             max_duration=max_duration,
-            max_utts=max_utts,
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
@@ -973,7 +1121,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
@@ -983,6 +1130,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             If this is None, pads using 0s.
             Defaults to None.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
@@ -990,13 +1138,16 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                .. warning:: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                .. warning::
+
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
                     and therefore more than one node may sample the same tarfile, and even sample the same
                     data points! As such, there is no assured guarantee that all samples in the dataset will be
                     sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
                     occasions (when the number of shards is not divisible with ``world_size``), will not sample
                     the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
                     or test datasets.
+
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -1013,7 +1164,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         trim: bool = False,
         use_start_end_token: bool = True,
         shard_strategy: str = "scatter",
@@ -1021,17 +1171,17 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -1045,6 +1195,12 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], Iterable) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -1058,7 +1214,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             shuffle_n=shuffle_n,
             min_duration=min_duration,
             max_duration=max_duration,
-            max_utts=max_utts,
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,

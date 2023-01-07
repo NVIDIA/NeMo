@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,177 +12,148 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ctypes.util
-import os
-from unittest.mock import Mock, patch
-
 import pytest
+from nemo_text_processing.g2p.modules import IPAG2P
 
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import PhonemizerTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
+    EnglishCharsTokenizer,
+    GermanCharsTokenizer,
+    IPATokenizer,
+    SpanishCharsTokenizer,
+)
 
 
 class TestTTSTokenizers:
-
-    ESPEAK_AVAILABLE = ctypes.util.find_library('espeak-ng') or ctypes.util.find_library('espeak')
+    PHONEME_DICT_DE = {
+        "HALLO": ["hˈaloː"],
+        "WELT": ["vˈɛlt"],
+    }
+    PHONEME_DICT_EN = {"HELLO": ["həˈɫoʊ"], "WORLD": ["ˈwɝɫd"], "CAFE": ["kəˈfeɪ"]}
+    PHONEME_DICT_ES = {
+        "BUENOS": ["bwˈenos"],
+        "DÍAS": ["dˈias"],
+    }
 
     @staticmethod
-    def _create_tokenizer(language, phoneme_probability=None):
-        phoneme_dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict", "test_dict.txt")
-        tokenizer = PhonemizerTokenizer(
-            language=language, phoneme_dict=phoneme_dict_path, phoneme_probability=phoneme_probability
-        )
-        return tokenizer
+    def _parse_text(tokenizer, text):
+        tokens = tokenizer.encode(text)
+        chars = tokenizer.decode(tokens)
+        chars = chars.replace('|', '')
+        return chars, tokens
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_espeak_not_installed(self):
-        with patch('ctypes.util.find_library', Mock(return_value=False)):
-            with pytest.raises(ImportError, match="requires eSpeak to be installed"):
-                self._create_tokenizer("en-us")
+    def test_english_chars_tokenizer(self):
+        input_text = "Hello world!"
+        expected_output = "hello world!"
 
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_phonemizer_tokenizer(self):
-        input_text = "NVIDIA NeMo"
-        expected_output = "ɛnˈvidiə ˈnimoʊ"
-        tokenizer = self._create_tokenizer("en-us")
+        tokenizer = EnglishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
-
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_oov(self):
-        input_text = "NVIDIA NeMo is awesome"
-        expected_output = "ɛnˈvidiə ˈnimoʊ ɪz ˈɔːsʌm"
-        tokenizer = self._create_tokenizer("en-us")
-
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
-
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_punctuation(self):
-        input_text = "NVIDIA NeMo, is awesome!"
-        expected_output = "ɛnˈvidiə ˈnimoʊ, ɪz ˈɔːsʌm!"
-        tokenizer = self._create_tokenizer("en-us")
-
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_accented_characters_and_digits(self):
-        input_text = "There is 1 é in café"
-        # E-speak converts standalone é to its formal name "e-acute"
-        expected_output = "ðˈɛɹ ɪz wˈʌn ˌiːɐkjˈuːt ˈɪn kæfˈeɪ"
-        tokenizer = self._create_tokenizer("en-us")
+    def test_english_chars_tokenizer_unknown_token(self):
+        input_text = "Hey 🙂 there"
+        expected_output = "hey there"
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        tokenizer = EnglishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_graphemes(self):
-        input_text = "Hello fhwdgads."
-        expected_output = "HELLO FHWDGADS."
-        tokenizer = self._create_tokenizer("en-us", phoneme_probability=0.0)
-
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        assert chars == expected_output
+        assert len(tokens) == len(expected_output)
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_phoneme_probability(self):
-        input_text = "NVIDIA NeMo"
-        expected_grapheme_output = "NVIDIA NEMO"
-        expected_phoneme_output = "ɛnˈvidiə ˈnimoʊ"
-        tokenizer = self._create_tokenizer("en-us", phoneme_probability=0.0)
+    def test_english_chars_tokenizer_accented_character(self):
+        input_text = "Let's drink at the café."
+        expected_output = "let's drink at the cafe."
 
-        grapheme_output = tokenizer.text_to_phonemes(input_text)
-        with tokenizer.set_phone_prob(prob=1.0):
-            phoneme_output = tokenizer.text_to_phonemes(input_text)
+        tokenizer = EnglishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-        assert grapheme_output == expected_grapheme_output
-        assert phoneme_output == expected_phoneme_output
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_with_unknown_character(self):
-        input_text = "NVIDIA🙂 NeMo 🧐"
-        expected_output = "ɛnˈvidiə ˈnimoʊ"
-        tokenizer = self._create_tokenizer("en-us")
+    def test_german_chars_tokenizer(self):
+        input_text = "Was ist dein Lieblingsgetränk?"
+        expected_output = "was ist dein lieblingsgetränk?"
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        tokenizer = GermanCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_forward(self):
-        input_text = "NVIDIA NeMo, is awesome!"
-        tokenizer = self._create_tokenizer("en-us")
+    def test_spanish_chars_tokenizer(self):
+        input_text = "¿Cuál es su nombre?"
+        expected_output = "¿cuál es su nombre?"
 
-        output_tokens = tokenizer(input_text)
-        output_phonemes = tokenizer.text_to_phonemes(input_text)
-        # Validate tokens (list of integers) is the same length as the output phonemes
-        assert len(output_tokens) == len(output_phonemes)
+        tokenizer = SpanishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_unsupported_language(self):
-        with pytest.raises(ValueError, match="Language not supported"):
-            self._create_tokenizer("pt-BR")
+    def test_ipa_tokenizer(self):
+        input_text = "Hello world!"
+        expected_output = " həˈɫoʊ ˈwɝɫd! "
 
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
+        g2p = IPAG2P(phoneme_dict=self.PHONEME_DICT_EN)
+
+        tokenizer = IPATokenizer(g2p=g2p, locale=None, pad_with_space=True)
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_wrong_language(self):
-        input_text = "こんにちは世界"
-        expected_output = ""
-        tokenizer = self._create_tokenizer("en-us")
+    def test_ipa_tokenizer_unsupported_locale(self):
+        g2p = IPAG2P(phoneme_dict=self.PHONEME_DICT_EN)
+        with pytest.raises(ValueError, match="Unsupported locale"):
+            IPATokenizer(g2p=g2p, locale="asdf")
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
-
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_spanish(self):
-        input_text = "¿podrás buscar algún restaurante para hoy en la noche?"
-        expected_output = "¿poðɾˈas buskˈaɾ alɣˈun ɾɾˌestaʊɾˈante pˈaɾa ˈoɪ ˈen lˈa nˈotʃe?"
-        tokenizer = self._create_tokenizer("es")
+    def test_ipa_tokenizer_de_de(self):
+        input_text = "Hallo welt"
+        expected_output = "hˈaloː vˈɛlt"
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        g2p = IPAG2P(phoneme_dict=self.PHONEME_DICT_DE, locale="de-DE")
+        tokenizer = IPATokenizer(g2p=g2p, locale="de-DE")
+        chars, tokens = self._parse_text(tokenizer, input_text)
 
-    @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
-    )
+        assert chars == expected_output
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_phonemizer_tokenizer_german(self):
-        input_text = "Erzähl mir eine Geschichte."
-        expected_output = "ɛɾtsˈɛːl mˈiːɾ ˌaɪnə ɡəʃˈɪçtə."
-        tokenizer = self._create_tokenizer("de")
+    def test_ipa_tokenizer_en_us(self):
+        input_text = "Hello café."
+        expected_output = "həˈɫoʊ kəˈfeɪ."
+        g2p = IPAG2P(phoneme_dict=self.PHONEME_DICT_EN)
 
-        output = tokenizer.text_to_phonemes(input_text)
-        assert output == expected_output
+        tokenizer = IPATokenizer(g2p=g2p, locale="en-US")
+        tokenizer.tokens.extend("CAFE")
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_ipa_tokenizer_es_es(self):
+        input_text = "¡Buenos días!"
+        expected_output = "¡bwˈenos dˈias!"
+
+        g2p = IPAG2P(phoneme_dict=self.PHONEME_DICT_ES, locale="es-ES")
+        tokenizer = IPATokenizer(g2p=g2p, locale="es-ES")
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output

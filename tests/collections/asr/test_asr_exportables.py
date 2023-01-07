@@ -110,6 +110,17 @@ class TestExportable:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    def test_SqueezeformerModel_export_to_onnx(self, squeezeformer_model):
+        model = squeezeformer_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
+            filename = os.path.join(tmpdir, 'squeeze.ts')
+            device = next(model.parameters()).device
+            input_example = torch.randn(4, model.encoder._feat_in, 777, device=device)
+            input_example_length = torch.full(size=(input_example.shape[0],), fill_value=777, device=device)
+            model.export(output=filename, input_example=tuple([input_example, input_example_length]), check_trace=True)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecCitrinetModel_limited_SE_export_to_onnx(self, citrinet_model):
         model = citrinet_model.cuda()
         asr_module_utils.change_conv_asr_se_context_window(model, context_window=24, update_config=False)
@@ -166,7 +177,7 @@ class TestExportable:
 
             if num_states > 0:
                 for idx, ip in enumerate(onnx_model.graph.input[3:]):
-                    assert ip.name == "input-" + state_name + '-' + str(idx + 1)
+                    assert ip.name == "input_" + state_name + '_' + str(idx + 1)
 
             assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
             assert onnx_model.graph.output[0].name == 'outputs'
@@ -174,7 +185,53 @@ class TestExportable:
 
             if num_states > 0:
                 for idx, op in enumerate(onnx_model.graph.output[2:]):
-                    assert op.name == "output-" + state_name + '-' + str(idx + 1)
+                    assert op.name == "output_" + state_name + '_' + str(idx + 1)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_EncDecRNNTModel_export_to_ts(self, citrinet_rnnt_model):
+        model = citrinet_rnnt_model.cuda()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fn = 'citri_rnnt.ts'
+            filename = os.path.join(tmpdir, fn)
+            # Perform export + test with the input examples of the RNNT model.
+            files, descr = model.export(output=filename, verbose=False, check_trace=True)
+
+            encoder_filename = os.path.join(tmpdir, 'encoder-' + fn)
+            assert files[0] == encoder_filename
+            assert os.path.exists(encoder_filename)
+
+            ts_encoder = torch.jit.load(encoder_filename)
+            assert ts_encoder is not None
+
+            arguments = ts_encoder.forward.schema.arguments[1:]  # First value is `self`
+            assert arguments[0].name == 'audio_signal'
+            assert arguments[1].name == 'length'
+
+            decoder_joint_filename = os.path.join(tmpdir, 'decoder_joint-' + fn)
+            assert files[1] == decoder_joint_filename
+            assert os.path.exists(decoder_joint_filename)
+
+            ts_decoder_joint = torch.jit.load(decoder_joint_filename)
+            assert ts_decoder_joint is not None
+
+            ts_decoder_joint_args = ts_decoder_joint.forward.schema.arguments[1:]  # First value is self
+
+            input_examples = model.decoder.input_example()
+            assert type(input_examples[-1]) == tuple
+            num_states = len(input_examples[-1])
+            state_name = list(model.decoder.output_types.keys())[-1]
+
+            # enc_logits + (all decoder inputs - state tuple) + flattened state list
+            assert len(ts_decoder_joint_args) == (1 + (len(input_examples) - 1) + num_states)
+            assert ts_decoder_joint_args[0].name == 'encoder_outputs'
+            assert ts_decoder_joint_args[1].name == 'targets'
+            assert ts_decoder_joint_args[2].name == 'target_length'
+
+            if num_states > 0:
+                for idx, ip in enumerate(ts_decoder_joint_args[3:]):
+                    assert ip.name == "input_" + state_name + '_' + str(idx + 1)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -538,6 +595,52 @@ def conformer_model():
             'n_layers': 2,
             'd_model': 256,
             'subsampling': 'striding',
+            'subsampling_factor': 4,
+            'subsampling_conv_channels': 512,
+            'reduction': None,
+            'reduction_position': None,
+            'reduction_factor': 1,
+            'ff_expansion_factor': 4,
+            'self_attention_model': 'rel_pos',
+            'n_heads': 8,
+            'att_context_size': [-1, -1],
+            'xscaling': True,
+            'untie_biases': True,
+            'pos_emb_max_len': 500,
+            'conv_kernel_size': 31,
+            'dropout': 0.1,
+            'dropout_pre_encoder': 0.1,
+            'dropout_emb': 0.0,
+            'dropout_att': 0.1,
+        },
+    }
+
+    decoder = {
+        'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
+        'params': {'feat_in': 256, 'num_classes': 1024, 'vocabulary': list(chr(i % 28) for i in range(0, 1024))},
+    }
+
+    modelConfig = DictConfig(
+        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+    )
+    conformer_model = EncDecCTCModel(cfg=modelConfig)
+    return conformer_model
+
+
+@pytest.fixture()
+def squeezeformer_model():
+    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    encoder = {
+        'cls': 'nemo.collections.asr.modules.SqueezeformerEncoder',
+        'params': {
+            'feat_in': 80,
+            'feat_out': -1,
+            'n_layers': 2,
+            'adaptive_scale': True,
+            'time_reduce_idx': 1,
+            'time_recovery_idx': None,
+            'd_model': 256,
+            'subsampling': 'dw_striding',
             'subsampling_factor': 4,
             'subsampling_conv_channels': 512,
             'ff_expansion_factor': 4,

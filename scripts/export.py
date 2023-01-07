@@ -84,9 +84,10 @@ def nemo_export(argv):
 
     # Create a PL trainer object which is required for restoring Megatron models
     cfg_trainer = TrainerConfig(
-        gpus=1,
-        accelerator="ddp",
+        accelerator='gpu',
+        strategy="ddp",
         num_nodes=1,
+        devices=1,
         # Need to set the following two to False as ExpManager will take care of them differently.
         logger=False,
         enable_checkpointing=False,
@@ -127,30 +128,27 @@ def nemo_export(argv):
         in_args["max_dim"] = args.max_dim
         max_dim = args.max_dim
 
-    if args.cache_support and model.hasattr("encoder") and model.encoder.hasattr("export_cache_support"):
-        export_cache_support_prev = model.encoder.export_cache_support
+    if args.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
         model.encoder.export_cache_support = True
         logging.info("Caching support is enabled.")
-    else:
-        export_cache_support_prev = None
 
     autocast = nullcontext
-    model.to(device=args.device).freeze()
-    model.eval()
-    with torch.inference_mode():
-        input_example = model.input_module.input_example(**in_args)
-    if check_trace:
-        check_trace = [input_example]
-        if max_dim:
-            in_args["max_dim"] = (max_dim + 1) // 2
-            in_args["max_batch"] = (max_batch + 1) // 2
-            input_example2 = model.input_module.input_example(**in_args)
-            check_trace.append(input_example2)
-
     if args.autocast:
         autocast = torch.cuda.amp.autocast
     try:
-        with autocast(), torch.inference_mode():
+        with autocast(), torch.no_grad(), torch.inference_mode():
+            model.to(device=args.device).freeze()
+            model.eval()
+            input_example = None
+            if check_trace and len(in_args) > 0:
+                input_example = model.input_module.input_example(**in_args)
+                check_trace = [input_example]
+                for key, arg in in_args.items():
+                    in_args[key] = (arg + 1) // 2
+                input_example2 = model.input_module.input_example(**in_args)
+                check_trace.append(input_example2)
+                logging.info(f"Using additional check args: {in_args}")
+
             _, descriptions = model.export(
                 out,
                 input_example=input_example,
