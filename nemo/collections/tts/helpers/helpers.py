@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Tuple
 
 import librosa
 import matplotlib.pylab as plt

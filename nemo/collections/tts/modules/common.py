@@ -96,13 +96,9 @@ class BiLSTM(nn.Module):
             # Calculate sizes and prepare views to our zero buffer to pass as hx
             max_batch_size = seq.batch_sizes[0]
             common_shape = (self.bilstm.num_layers * 2, max_batch_size)
-            # borisf: ONNX insists on having self.n_dir float
-            common_size = max_batch_size * (self.bilstm.num_layers * 2)
-            h_shape = (*common_shape, self.real_hidden_size)
-            c_shape = (*common_shape, self.bilstm.hidden_size)
             hx = (
-                seq.data.new_zeros(h_shape),
-                seq.data.new_zeros(c_shape),
+                seq.data.new_zeros(*common_shape, self.real_hidden_size),
+                seq.data.new_zeros(*common_shape, self.bilstm.hidden_size),
             )
             ret, _ = self.bilstm(seq, hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
@@ -110,7 +106,11 @@ class BiLSTM(nn.Module):
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
         context, lens, unsort_ids = sort_tensor(context, lens)
         dtype = context.dtype
-        return self.lstm_tensor(context, lens, enforce_sorted=True)[0][unsort_ids]
+        # this is only needed for Torchscript to run in Triton
+        # (https://github.com/pytorch/pytorch/issues/89241)
+        with torch.cuda.amp.autocast(enabled=False):
+            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
+        return ret[0].to(dtype=dtype)[unsort_ids]
 
 
 class ConvLSTMLinear(nn.Module):
@@ -162,7 +162,6 @@ class ConvLSTMLinear(nn.Module):
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
-        context = context * mask
         context = context.transpose(1, 2)
         # Apply Bidirectional LSTM
         context = self.bilstm(context, lens)

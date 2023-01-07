@@ -16,7 +16,6 @@ from typing import List, Union
 
 import torch
 from pytorch_lightning.core.module import _jit_is_scripting
-from torch.onnx import TrainingMode, _globals
 
 from nemo.core.classes import typecheck
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
@@ -31,9 +30,6 @@ from nemo.utils.export_utils import (
     verify_torchscript,
     wrap_forward_method,
 )
-
-_globals.check_shape_inference = True
-
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -59,7 +55,6 @@ class Exportable(ABC):
         verbose=False,
         do_constant_folding=True,
         onnx_opset_version=None,
-        training=TrainingMode.EVAL,
         check_trace: Union[bool, List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
@@ -77,7 +72,6 @@ class Exportable(ABC):
                 verbose=verbose,
                 do_constant_folding=do_constant_folding,
                 onnx_opset_version=onnx_opset_version,
-                training=training,
                 check_trace=check_trace,
                 dynamic_axes=dynamic_axes,
                 check_tolerance=check_tolerance,
@@ -99,7 +93,6 @@ class Exportable(ABC):
         verbose=False,
         do_constant_folding=True,
         onnx_opset_version=None,
-        training=TrainingMode.EVAL,
         check_trace: Union[bool, List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
@@ -156,7 +149,6 @@ class Exportable(ABC):
                         check_trace_input = check_trace
                 jitted_model = self
                 if format == ExportFormat.TORCHSCRIPT:
-                    # torch._C._jit_set_autocast_mode(False)
                     jitted_model = torch.jit.trace_module(
                         self,
                         {"forward": tuple(input_list) + tuple(input_dict.values())},
@@ -164,8 +156,7 @@ class Exportable(ABC):
                         check_trace=check_trace,
                         check_tolerance=check_tolerance,
                     )
-                    if not self.training:
-                        jitted_model = torch.jit.optimize_for_inference(torch.jit.freeze(jitted_model))
+                    jitted_model = torch.jit.optimize_for_inference(torch.jit.freeze(jitted_model))
                     if verbose:
                         logging.info(f"JIT code:\n{jitted_model.code}")
                     jitted_model.save(output)
