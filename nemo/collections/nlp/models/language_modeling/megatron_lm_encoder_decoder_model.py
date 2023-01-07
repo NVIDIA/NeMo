@@ -1110,18 +1110,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
         return output_tensor.transpose(1, 0)
 
-    def decode(
-        self,
-        tokens_enc,
-        enc_mask,
-        num_tokens_to_generate,
-        encoder_input=None,
-        tokenizer=None,
-        enc_output=None,
-        enc_output_attn_mask=None,
-        ignore_ids=[],
-        bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
-    ):
+    def _init_for_inference(self, tokens_enc, enc_output):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1141,9 +1130,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
             )
 
-        # If classes that inherit from this class are using a different tokenizer,
-        tokenizer = self.tokenizer if tokenizer is None else tokenizer
-        app_state = AppState()
         if tokens_enc is not None:
             global_batch_per_gpu = tokens_enc.size(0)
             device = tokens_enc.device
@@ -1153,6 +1139,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             device = enc_output.device
             encoder_seq_length = enc_output.size(1)
 
+        return global_batch_per_gpu, encoder_seq_length, device
+
+    def decode(
+        self,
+        tokens_enc,
+        enc_mask,
+        num_tokens_to_generate,
+        encoder_input=None,
+        tokenizer=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        ignore_ids=[],
+        bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+    ):
+        # If classes that inherit from this class are using a different tokenizer,
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
+        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(tokens_enc=tokens_enc, enc_output=enc_output)
+        app_state = AppState()
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
@@ -1258,6 +1262,105 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         return predicted_tokens_dec, log_probs
+
+    def log_prob(
+        self,
+        tokens_enc,
+        enc_mask,
+        tokens_dec,
+        dec_mask,
+        encoder_input=None,
+        tokenizer=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+    ):
+        # If classes that inherit from this class are using a different tokenizer,
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
+        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(tokens_enc=tokens_enc, enc_output=enc_output)
+        app_state = AppState()
+        num_micro_batches_before_decode = get_num_microbatches()
+        # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
+        # reconfigure back to how things were before decode
+        # TODO: Check if the user is trying to do gradient acc and maybe throw error
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
+        bos_id = tokenizer.bos_id if bos_id is None else bos_id
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
+
+        # get encoder hiddens (output)
+        if enc_output is None:
+            # Encode returns a tensr of shape [batch, seq_len, hidden]
+            # All ranks will call `.encode()`, but only the last rank will have a non-empty output tensor.
+            enc_output = self.encode(
+                tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
+            )
+        if enc_output_attn_mask is None:
+            enc_output_attn_mask = enc_mask
+        
+        decoder_seq_length = tokens_dec.size(1)
+        dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
+        batch_for_pipeline = [enc_output, enc_output_attn_mask, tokens_dec, dec_mask]
+        arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+            )
+
+        # get output tensor
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = output_tensor[0]['logits']
+            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            # Truncate to -1 to avoid use log-probs over the next token that is not a part of the input.
+            log_probs = torch.nn.functional.log_softmax(output_tensor, dim=-1)[:, :-1]
+            # Index from 1: to avoid providing the <bos> token.
+            ground_truth_sequence_log_prob = torch.gather(log_probs, 2, tokens_dec[:, 1:,].unsqueeze(-1)).squeeze(-1)
+        else:
+            ground_truth_sequence_log_prob = torch.zeros(
+                (tokens_dec.shape[0], tokens_dec.shape[1] - 1), dtype=self.autocast_dtype
+            ).cuda()
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # Broadcast from the last pipeline stage to all other model-parallel ranks.
+            torch.distributed.broadcast(
+                ground_truth_sequence_log_prob,
+                parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+
+        # Reset microbatch calculator to what it was before decoding.
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return ground_truth_sequence_log_prob
 
     def complete(self, request: Dict):
         """
