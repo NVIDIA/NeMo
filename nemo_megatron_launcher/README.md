@@ -340,13 +340,13 @@ We recommend building a new container image with Docker, then creating an Enroot
 On the scheduler node:
 
 - Install Docker
-- Build the image with EFA drivers and NCCL plugin from `tools/csp/aws/Dockerfile`
+- Build the image with EFA drivers and NCCL plugin from `csp_tools/aws/Dockerfile`
 - Run this command on the Docker image to create an Enroot image:
 ```
     enroot import --output nemo_megatron_training.sqsh dockerd://<image name>:<tag>
 ```
 - Move the `.sqsh` file to the root of nemo-megatron-scripts
-- Set the container path in `conf/config.yaml` to the new Enroot image:
+- Set the container path in `launch_scripts/conf/config.yaml` to the new Enroot image:
 ```
 container: /path/to/nemo_megatron_launcher/nemo_megatron_training.sqsh
 ```
@@ -356,7 +356,7 @@ container: /path/to/nemo_megatron_launcher/nemo_megatron_training.sqsh
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
 
-The cluster validation script at `csp/<csp>/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
+The cluster validation script at `csp_tools/<csp>/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
 These nodes should be replaced or restarted through the CSP UI.
 
@@ -389,7 +389,7 @@ See `bash cluster_validation.sh -h` for more information.
 <a id="markdown-running-tests-manually" name="running-tests-manually"></a>
 
 The `cluster_validation.sh` script is essentially a wrapper of the 2 Slurm job scripts in the CSP directories. If you prefer, you can run these jobs manually.
-Make sure to use the Slurm job script in your corresponding CSP's path (`csp/<csp>/dcgmi_diag.sh` and `csp/<csp>/nccl.sh`)
+Make sure to use the Slurm job script in your corresponding CSP's path (`csp_tools/<csp>/dcgmi_diag.sh` and `csp_tools/<csp>/nccl.sh`)
 
 For the GPU diagnostics job, provide these arguments when submitting the job to Slurm:
 
@@ -417,12 +417,12 @@ Before launching jobs some changes to the config must be made.
 
 #### 4.3.1 Set NCCL Topology
 <a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
-The NCCL topology file is unique for each CSP, and can be found in their corresponding folders (`tools/csp/<csp>/topo.xml`)
+The NCCL topology file is unique for each CSP, and can be found in their corresponding folders (`csp_tools/<csp>/topo.xml`)
 
-In `conf/config.yaml`, mount the directory containing the topology file:
+In `launch_scripts/conf/config.yaml`, mount the directory containing the topology file:
 ```
 container_mounts:
-  - /path/to/nemo_megatron_launcher/tools/csp/<csp>/:/nccl
+  - /path/to/nemo_megatron_launcher/csp_tools/<csp>/:/nccl
 ```
 
 Then set the path of the file in the container:

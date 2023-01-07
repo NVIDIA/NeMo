@@ -3,7 +3,7 @@
 #SBATCH --ntasks-per-node=1
 
 srun --container-mounts="$PWD:/nccl" \
-     --container-image=../../../nemo_megatron_training.sqsh \
+     --container-image=../../nemo_megatron_training.sqsh \
      bash -c "
      cd /nccl &&
      curl -fSsL --proto '=https' https://github.com/NVIDIA/nccl-tests/tarball/master | tar xz &&
