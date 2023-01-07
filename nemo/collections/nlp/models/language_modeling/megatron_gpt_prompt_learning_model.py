@@ -64,7 +64,6 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPromptLearningModel']
 
 
-
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
