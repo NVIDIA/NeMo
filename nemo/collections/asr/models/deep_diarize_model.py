@@ -259,9 +259,9 @@ class DeepDiarizeModel(ModelPT):
             encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
         else:
             encoded_xl_features, _ = self.transformer_feature_encoder(train_x)
-        seq_mask = torch.ones(train_x.size(0), train_x.size(1)).to(self.device)
+        seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
         # shuffle frames before generating attractors
-        attractors, _ = self.eda_module(self._shuffle(train_x, dim=1), seq_mask)
+        attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
 
         # loss would be calculated between outputs and number of speakers present in segment
         # sigmoid results where greater than threshold should not be masked
@@ -347,8 +347,8 @@ class DeepDiarizeModel(ModelPT):
                 encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
 
             if not self.cfg.global_attractors:
-                seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
-                chunk_attractors, _ = self.eda_module(chunk, seq_mask)
+                seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
+                chunk_attractors, _ = self.eda_module(encoded_xl_features, seq_mask)
 
             # if attractors is None:
             #     attractors = chunk_attractors
