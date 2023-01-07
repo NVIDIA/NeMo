@@ -80,7 +80,7 @@ class TestExportable:
         model = radtts_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'rad.ts')
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.cuda.amp.autocast(enabled=True, cache_enabled=False, dtype=torch.float16):
                 input_example1 = model.input_module.input_example(max_batch=3, max_dim=777)
                 input_example2 = model.input_module.input_example(max_batch=16, max_dim=1024)
                 model.export(output=filename, verbose=True, input_example=input_example1, check_trace=[input_example2])

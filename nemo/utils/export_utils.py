@@ -121,9 +121,9 @@ def verify_torchscript(model, output, input_examples, input_names, check_toleran
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
-        output_example = model.forward(*input_list, **input_dict)
         # We disable autocast here to make sure exported TS will run under Triton or other C++ env
         with torch.cuda.amp.autocast(enabled=False):
+            output_example = model.forward(*input_list, **input_dict)
             ts_model = torch.jit.load(output)
             all_good = all_good and run_ts_and_compare(
                 ts_model, input_list, input_dict, output_example, check_tolerance
