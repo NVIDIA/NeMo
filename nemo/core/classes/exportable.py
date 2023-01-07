@@ -102,6 +102,10 @@ class Exportable(ABC):
         my_args = locals().copy()
         my_args.pop('self')
 
+        self.eval()
+        for param in self.parameters():
+            param.requires_grad = False
+
         exportables = []
         for m in self.modules():
             if isinstance(m, Exportable):
