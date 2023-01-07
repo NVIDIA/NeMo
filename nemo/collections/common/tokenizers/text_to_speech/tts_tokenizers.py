@@ -213,7 +213,7 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=_PUNCT_LIST,
-        text_preprocessing_func=lambda x: x,
+        text_preprocessing_func=german_text_preprocessing,
     ):
         """German grapheme-based tokenizer.
         Args:

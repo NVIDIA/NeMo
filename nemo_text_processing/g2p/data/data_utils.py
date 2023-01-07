@@ -130,6 +130,17 @@ def english_text_preprocessing(text, lower=True):
     return text
 
 
+def german_text_preprocessing(text):
+    res = []
+    for c in unicodedata.normalize("NFC", text):
+        if c in ['’']:  # right single quotation mark as an apostrophe, U+2019, decimal 8217
+            res.append("'")
+        else:
+            res.append(c)
+
+    return ''.join(res)
+
+
 def _word_tokenize(words: List[Tuple[str, str, str]]) -> List[Tuple[List[str], bool]]:
     """
     Process a list of words and attach indicators showing if each word is unchangeable or not. Each word representation
@@ -199,10 +210,6 @@ def any_locale_word_tokenize(text):
 
 
 def any_locale_text_preprocessing(text):
-    return text.lower()
-
-
-def german_text_preprocessing(text):
     return text.lower()
 
 
