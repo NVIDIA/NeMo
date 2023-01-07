@@ -1155,7 +1155,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     ):
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
-        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(tokens_enc=tokens_enc, enc_output=enc_output)
+        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(
+            tokens_enc=tokens_enc, enc_output=enc_output
+        )
         app_state = AppState()
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -1277,7 +1279,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     ):
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
-        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(tokens_enc=tokens_enc, enc_output=enc_output)
+        global_batch_per_gpu, encoder_seq_length, device = self._init_for_inference(
+            tokens_enc=tokens_enc, enc_output=enc_output
+        )
         app_state = AppState()
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -1303,7 +1307,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
-        
+
         decoder_seq_length = tokens_dec.size(1)
         dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
         batch_for_pipeline = [enc_output, enc_output_attn_mask, tokens_dec, dec_mask]
