@@ -17,6 +17,7 @@ This script is used to generate JSON manifests for mel-generator model training.
 
 $ python scripts/dataset_processing/tts/thorsten_neutral/get_data.py \
     --data-root ~/experiments/thorsten_neutral \
+    --manifests-root ~/experiments/thorsten_neutral \
     --data-version "22_10" \
     --min-duration 0.1 \
     --normalize-text

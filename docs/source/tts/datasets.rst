@@ -88,22 +88,54 @@ The texts of this dataset has been normalized already. So there is no extra need
 * Command Line Instruction: TBD
 
 
-Thorsten Müller (German Neutral-TTS dataset)
+Thorsten Müller's German Neutral-TTS datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* Dataset URL: https://www.openslr.org/resources/95/
+There are two German neutral datasets released by Thorsten Müller for now, 21.02 and 22.10, respectively. Version 22.10 has been recorded with a better recording setup, such as recording chamber and better microphone. So it is advised to train models on the 22.10 version because its audio quality is better and it has a way more natural speech flow and higher character rate per second speech. The two datasets are described below and defined in `scripts/dataset_processing/tts/thorsten_neutral/get_data.py:THORSTEN_NEUTRAL <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py#L41-L51>`_.
+
+.. code-block:: python
+
+    # Thorsten Müller published two neural voice datasets, 21.02 and 22.10.
+    THORSTEN_NEUTRAL = {
+        "21_02": {
+            "url": "https://zenodo.org/record/5525342/files/thorsten-neutral_v03.tgz?download=1",
+            "dir_name": "thorsten-de_v03",
+            "metadata": ["metadata.csv"],
+        },
+        "22_10": {
+            "url": "https://zenodo.org/record/7265581/files/ThorstenVoice-Dataset_2022.10.zip?download=1",
+            "dir_name": "ThorstenVoice-Dataset_2022.10",
+            "metadata": ["metadata_train.csv", "metadata_dev.csv", "metadata_test.csv"],
+        },
+    }
+
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr_95/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash
 
-    $ python scripts/dataset_processing/tts/openslr_95/get_data.py \
+    # Version 22.10
+    $ python scripts/dataset_processing/tts/thorsten_neutral/get_data.py \
         --data-root <your_local_dataset_root> \
-        --val-size 0.1 \
-        --test-size 0.2 \
-        --seed-for-ds-split 100
+        --manifests-root <your_local_manifest_root> \
+        --data-version "22_10" \
+        --val-size 100 \
+        --test-size 100 \
+        --seed-for-ds-split 100 \
+        --normalize-text
 
+    # Version 21.02
+    $ python scripts/dataset_processing/tts/thorsten_neutral/get_data.py \
+        --data-root <your_local_dataset_root> \
+        --manifests-root <your_local_manifest_root> \
+        --data-version "21_02" \
+        --val-size 100 \
+        --test-size 100 \
+        --seed-for-ds-split 100 \
+        --normalize-text
+
+    # extract pitch and compute pitch normalization params for each version.
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
-        --config-path openslr_95/ds_conf \
+        --config-path thorsten_neutral/ds_conf \
         --config-name ds_for_fastpitch_align.yaml \
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>
@@ -118,6 +150,7 @@ HUI Audio Corpus German
 
     $ python scripts/dataset_processing/tts/hui_acg/get_data.py \
         --data-root <your_local_dataset_root> \
+        --manifests-root <your_local_manifest_root> \
         --set-type clean \
         --min-duration 0.1 \
         --max-duration 15 \
