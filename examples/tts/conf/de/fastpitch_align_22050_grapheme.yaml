@@ -85,7 +85,7 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: null # change to null to include longer audios.
+      max_duration: 15  # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
       trim: true
@@ -119,7 +119,7 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: null # change to null to include longer audios.
+      max_duration: 15  # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
       trim: true
