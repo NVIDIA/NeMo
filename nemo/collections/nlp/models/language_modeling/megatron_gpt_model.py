@@ -571,26 +571,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_with_batch_size_list
 
     def validation_epoch_end(self, outputs):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss with their batch size
-            total_num_samples = 0
-            total_loss = 0
-            for loss_with_batch_size in outputs:
-                loss_with_batch_size_array = np.array(loss_with_batch_size).flatten()
-                batch_losses = loss_with_batch_size_array[0::2]
-                batch_sizes = loss_with_batch_size_array[1::2]
-                total_num_samples += sum(batch_sizes)
-                total_loss += np.dot(batch_losses, batch_sizes)
+        if not outputs:
+            return
+        try:
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss with their batch size
+                total_num_samples = 0
+                total_loss = 0
+                for loss_with_batch_size in outputs:
+                    loss_with_batch_size_array = np.array(loss_with_batch_size).flatten()
+                    batch_losses = loss_with_batch_size_array[0::2]
+                    batch_sizes = loss_with_batch_size_array[1::2]
+                    total_num_samples += sum(batch_sizes)
+                    total_loss += np.dot(batch_losses, batch_sizes)
 
-            avg_loss = total_loss / total_num_samples
-            averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
-        else:
-            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+                avg_loss = total_loss / total_num_samples
+                averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
+            else:
+                averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        except:
+            logging.info(f"Exception in `validation_epoch_end`, outputs={outputs}")
+            return
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
