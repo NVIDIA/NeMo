@@ -108,7 +108,8 @@ There are two German neutral datasets released by Thorsten Müller for now, 21.0
         },
     }
 
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr_95/get_data.py
+* Thorsten Müller's German Datasets repo: https://github.com/thorstenMueller/Thorsten-Voice
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash
