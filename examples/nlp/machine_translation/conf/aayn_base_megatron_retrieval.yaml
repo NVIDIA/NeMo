@@ -21,14 +21,11 @@ model:
     num_neighbors: 3 # number of nearest neighbors to append
   
   validation_ds:
-    # retrieval: True # train retrieval augmented model 
-    # TODO uncomment this to val retrieval augmented model
     nn_mapping: null # file with indices of nns to retrieve fro val
     num_neighbors: 3 # number of nearest neighbors to append
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset # hack for textmemmap dataset
   
   test_ds:
-    retrieval: True # train retrieval augmented model
     nn_mapping: null
     num_neighbors: 3 # number of nearest neighbors to append
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset # hack for textmemmap dataset

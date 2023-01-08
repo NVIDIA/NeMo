@@ -90,26 +90,31 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
         self._train_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
+        # Retrieval dataset is not oversampled so we won't give max_num_samples
         self._retrieval_ds = self.build_memmap_dataset_from_config(
             self._cfg.retrieval_ds,
             encoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
             decoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
-            retrieval_dataset=True
+            no_oversample=True,
             )
         self._train_ds = RetrievalSeq2Seq(
             self._train_without_neighbors_ds,
             self._retrieval_ds,
             self._cfg.train_ds.nn_mapping,
             self._cfg.train_ds.num_neighbors,
-            self._cfg.retriever.copy_prob, 
-            text_append_mode=self._cfg.retriever.type =='text'
+            text_append_mode=self._cfg.retriever.type =='text',
+            copy_prob=self._cfg.retriever.copy_prob,
+            mask_prob=self._cfg.retriever.mask_prob,
         )
 
         if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
             raise ValueError(f"Validation dataset must be text_memmap for RetrievalNMT models, found {self._cfg.validation_ds.dataset_type}")
         
         #! FIX tHIS
-        self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.validation_ds, retrieval_dataset=False)
+        self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(
+            self._cfg.validation_ds,
+            no_oversample=True
+        )
         
         if isinstance(self._validation_without_neighbors_ds, List):
             self._validation_ds = []
@@ -120,8 +125,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                     self._cfg.validation_ds.nn_mapping[idx],
                     self._cfg.validation_ds.num_neighbors,
                     text_append_mode=self._cfg.retriever.type =='text', 
-                    copy_prob=0.0,
-                    mask_prob=0.0,
                 ))
         else:
             self._validation_ds = RetrievalSeq2Seq(
@@ -130,15 +133,16 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 self._cfg.validation_ds.nn_mapping,
                 self._cfg.validation_ds.num_neighbors,
                 text_append_mode=self._cfg.retriever.type == 'text',
-                copy_prob=0.0,
-                mask_prob=0.0,
             )
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
             if self._cfg.test_ds.get("dataset_type", "text_memmap") != "text_memmap":
                 raise ValueError(f"Test dataset type must be 'text_memmap', found {self._cfg.test_ds.dataset_type}")
             
-            self._test_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.test_ds)
+            self._test_without_neighbors_ds = self.build_memmap_dataset_from_config(
+                self._cfg.test_ds,
+                no_oversample=True
+            )
             
             if isinstance(self._test_without_neighbors_ds, List):
                 self._test_ds = []
@@ -149,8 +153,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                         self._cfg.test_ds.nn_mapping[idx],
                         self._cfg.test_ds.num_neighbors,
                         text_append_mode=self._cfg.retriever.type == 'text',
-                        copy_prob=0.0,
-                        mask_prob=0.0,
                     ))
             else:
                 self._test_ds = RetrievalSeq2Seq(
@@ -159,8 +161,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                     self._cfg.test_ds.nn_mapping,
                     self._cfg.test_ds.num_neighbors,
                     text_append_mode=self._cfg.retriever.type == 'text',
-                    copy_prob=0.0,
-                    mask_prob=0.0,
                 )
 
     def process_global_batch_for_text_translation_datasets(self, batch):
@@ -418,8 +418,8 @@ class RetrievalSeq2Seq(Dataset):
         retrieval_text_memmap_dataset,
         nn_mapping,
         num_neighbors = 10,
-        copy_prob = 0.0,
         text_append_mode = False,
+        copy_prob = 0.0,
         mask_prob = 0.0,
         max_seq_length = 512,
     ):
@@ -440,18 +440,24 @@ class RetrievalSeq2Seq(Dataset):
         self.max_seq_length = max_seq_length
 
         # Select only the number of nns specified
-        # TODO: Make sure this numbering is aligned with the actual seq2seq dataset and retrieval too
         self.nn_mapping = np.load(nn_mapping)[:, :num_neighbors]
 
         # len(self.seq2seq_text_memmap_dataset) is oversampled so use the src_indexed_dataset
         assert len(self.seq2seq_text_memmap_dataset.src_indexed_dataset) == len(self.nn_mapping)
     
     def __len__(self):
-        return len(self.seq2seq_text_memmap_dataset.src_indexed_dataset)
+        return len(self.seq2seq_text_memmap_dataset)
+
     
     def __getitem__(self, idx):
-        # Output format is a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
+        """"
+        Returns a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
+        In "text" mode, add the neighbors to the src neighbors are empty
+        Copying is handled for all modes.
+        Masking is only handled for "text" mode. FOr other needs to be implemented in forward method
+        """
         data_item = self.seq2seq_text_memmap_dataset[idx]
+        # Need this idx_mapped to index into retrieval set so as to maintain correct mapping
         idx_mapped = data_item['idx']
         if idx_mapped >= len(self.nn_mapping):
             raise ValueError(f'idx_mapped {idx_mapped} is greater than len(self.nn_mapping) {len(self.nn_mapping)}')
@@ -463,6 +469,7 @@ class RetrievalSeq2Seq(Dataset):
         if np.random.uniform(0,1) < self.copy_prob:
             # Add copy example
             nn_src_list.append(data_item['text_enc'].tolist())
+            # 'text_dec' doesn't have eos
             nn_tgt_list.append(data_item['text_dec'].tolist() + [self.retrieval_text_memmap_dataset.tgt_tokenizer.eos_id])
             # if copying original example, then only need to add one less neighbor
             num_iters = self.num_neighbors - 1

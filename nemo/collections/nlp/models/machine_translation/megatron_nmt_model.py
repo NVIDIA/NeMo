@@ -308,6 +308,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return self.eval_epoch_end(outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
+        if len(outputs) == 0:
+            logging.info(f'No outputs in eval_epoch_end. Possibly bad model reload bug. Skipping')
+            return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
@@ -499,7 +502,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def build_memmap_dataset_from_config(self, cfg: DictConfig, encoder_tokenizer=None, decoder_tokenizer=None, retrieval_dataset=False):
+    def build_memmap_dataset_from_config(self, cfg: DictConfig, encoder_tokenizer=None, decoder_tokenizer=None, no_oversample=False):
         """Builds a memmap dataset from a existing binary based on the provided config. Can provide custom tokenizers too."""
         if encoder_tokenizer is None:
             encoder_tokenizer = self.encoder_tokenizer
@@ -538,8 +541,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             for weight, prefix in zip(cfg.concat_sampling_probabilities, cfg.src_file_name):
                 data_prefix.append(weight)
                 data_prefix.append(prefix)
-
-            num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
+            if no_oversample:
+                raise NotImplementedError
+                max_num_samples = [None]
+            else:
+                num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
@@ -574,7 +580,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
         else:
-            if retrieval_dataset:
+            if no_oversample:
                 max_num_samples = None
             else:
                 max_num_samples = self.trainer.max_steps * self._cfg.global_batch_size
