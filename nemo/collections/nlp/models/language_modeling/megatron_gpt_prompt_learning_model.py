@@ -823,7 +823,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         get_dataset_only=False,
         cache_data_path=None,
         load_cache=False,
-        zero_shot_mode=False
+        zero_shot_mode=False,
     ):
         dataset = GPTPromptLearningDataset(
             data=data,
@@ -840,7 +840,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             tokens_to_generate=tokens_to_generate,
             cache_data_path=cache_data_path,
             load_cache=load_cache,
-            zero_shot_mode=zero_shot_mode
+            zero_shot_mode=zero_shot_mode,
         )
 
         if get_dataset_only:
