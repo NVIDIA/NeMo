@@ -14,6 +14,7 @@
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Tuple
 
@@ -133,28 +134,26 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         with open_dict(cfg):
             cfg.output_filename = model_name + "-" + dataset_name + "-" + mode_name + ".json"
 
-    temp_eval_config_yaml_file = "temp_eval_config.yaml"
-    with open(temp_eval_config_yaml_file, "w") as f:
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
         OmegaConf.save(cfg, f)
+        f.seek(0)  # reset file pointer
+        script_path = Path(__file__).parents[2] / "examples" / "asr" / "transcribe_speech.py"
 
-    script_path = Path(__file__).parents[2] / "examples" / "asr" / "transcribe_speech.py"
+        # If need to move other config such as decoding strategy, could either:
+        # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
+        # 2) add command as "rnnt_decoding.strategy=greedy_batch " to below script
+        subprocess.run(
+            f"python {script_path} "
+            f"model_path={cfg.model_path} "
+            f"pretrained_name={cfg.pretrained_name} "
+            f"dataset_manifest={cfg.test_ds.manifest_filepath} "
+            f"output_filename={cfg.output_filename} "
+            f"batch_size={cfg.test_ds.batch_size} "
+            f"eval_config_yaml={f.name} ",
+            shell=True,
+            check=True,
+        )
 
-    # If need to move other config such as decoding strategy, could either:
-    # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
-    # 2)  Add command as "rnnt_decoding.strategy=greedy_batch " to below script
-    subprocess.run(
-        f"python {script_path} "
-        f"model_path={cfg.model_path} "
-        f"pretrained_name={cfg.pretrained_name} "
-        f"dataset_manifest={cfg.test_ds.manifest_filepath} "
-        f"output_filename={cfg.output_filename} "
-        f"batch_size={cfg.test_ds.batch_size} "
-        f"eval_config_yaml={temp_eval_config_yaml_file} ",
-        shell=True,
-        check=True,
-    )
-
-    os.remove(temp_eval_config_yaml_file)
     return cfg
 
 
