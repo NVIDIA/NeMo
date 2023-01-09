@@ -39,6 +39,7 @@ model:
   n_speakers: 1
   # max_token_duration: 75
   symbols_embedding_dim: 384
+  symbols_embedding_dim_twice: 768
   max_token_duration: 75
   pitch_embedding_kernel_size: 3
 
@@ -138,7 +139,7 @@ model:
       drop_last: false
       shuffle: false
       batch_size: 16
-      num_workers: 0
+      num_workers: 1
       pin_memory: true
 
   preprocessor:
@@ -177,25 +178,17 @@ model:
     dropemb: 0.0
     d_embed: ${model.symbols_embedding_dim}
 
-  spectrogram_encoder: #n_embed and padding_idx are added by the model
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
-    n_layer: 2
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    d_inner: 1536
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
+  alignment_module:
+    _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
+    n_text_channels: ${model.symbols_embedding_dim}
 
-  infuser_model: #n_embed and padding_idx are added by the model
-    _target_: nemo.collections.tts.modules.transformer.BiModalTransformerEncoder
-    n_layer: 6
+  decoder: #n_embed and padding_idx are added by the model
+    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
+    n_layer: 4
     n_head: 1
-    d_model: ${model.symbols_embedding_dim}
+    d_model: ${model.symbols_embedding_dim_twice}
     d_head: 64
     d_inner: 1536
-    d_mode: 384
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1
@@ -216,7 +209,7 @@ model:
 trainer:
   num_nodes: 1
   devices: 1
-  accelerator: cpu
+  accelerator: gpu
   strategy: ddp
   precision: 32
   max_epochs: 1000

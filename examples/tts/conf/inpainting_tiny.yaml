@@ -42,6 +42,7 @@ model:
   # symbols_embedding_dim: 384
   max_token_duration: 75
   symbols_embedding_dim: 24
+  symbols_embedding_dim_twice: 48
   pitch_embedding_kernel_size: 3
 
   pitch_fmin: ${pitch_fmin}
@@ -194,29 +195,19 @@ model:
     dropemb: 0.0
     d_embed: ${model.symbols_embedding_dim}
 
-  spectrogram_encoder: #n_embed and padding_idx are added by the model
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
-    # n_layer: 6
-    n_layer: 6
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    # d_inner: 1536
-    d_inner: 128
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
+  alignment_module:
+    _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
+    n_text_channels: ${model.symbols_embedding_dim}
 
-  infuser_model: #n_embed and padding_idx are added by the model
-    _target_: nemo.collections.tts.modules.transformer.BiModalTransformerEncoder
+  decoder: #n_embed and padding_idx are added by the model
+    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     # n_layer: 6
     n_layer: 2
     n_head: 1
-    d_model: ${model.symbols_embedding_dim}
+    d_model: ${model.symbols_embedding_dim_twice}
     d_head: 64
     # d_inner: 1536
     d_inner: 128
-    d_mode: 24
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1

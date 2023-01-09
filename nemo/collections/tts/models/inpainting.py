@@ -27,7 +27,8 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.tts.modules.transformer import FFTransformerDecoder, BiModalTransformerEncoder
-
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len
+from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 
 
 import torch
@@ -55,6 +56,7 @@ from nemo.core.neural_types.elements import (
     MelSpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.collections.tts.losses.fastpitchloss import MelLoss
 
 
 class BidirectionalLinear(Linear):
@@ -70,40 +72,62 @@ class BaselineModule(NeuralModule):
     def __init__(
         self,
         num_mels,
-        text_encoder, spectrogram_encoder,
-        infuser_model,
+        text_encoder,
+        aligner,
+        decoder,
     ):
         """TODO"""
         super().__init__()
         self.text_encoder = text_encoder
 
-        # todo experiment using the same params for spectrogram projection
-        internal_dim = spectrogram_encoder.d_model
-        self.spectrogram_projection = BidirectionalLinear(num_mels, internal_dim)
+        internal_dim = decoder.d_model - text_encoder.d_model
+        self.spectrogram_projection = BidirectionalLinear(
+            num_mels, internal_dim)
 
-        self.spectrogram_encoder = spectrogram_encoder
-        self.infuser_model = infuser_model
+        self.aligner = aligner
+
+        self.decoder = decoder
 
     def forward(
-        self, transcripts, transcripts_len, input_mels, input_mels_len
+        self, transcripts, transcripts_len, input_mels, input_mels_len,
+        align_prior=None
     ):
         """TODO"""
         # TODO check masking is done correctly here
-        text_encodings, _ = self.text_encoder(transcripts)
+        text_encodings, text_mask = self.text_encoder(transcripts)
 
         spectrogram_projections = self.spectrogram_projection(input_mels)
-        spectrogram_encodings, _ = self.spectrogram_encoder(
-            input=spectrogram_projections, seq_lens=input_mels_len)
 
-        text_encs, spec_encs = self.infuser_model(
-            text_encs=text_encodings,
-            text_lens=transcripts_len,
-            spec_encs=spectrogram_encodings,
-            spec_lens=input_mels_len,
+        attn_soft, attn_logprob = self.aligner(
+            queries=input_mels.permute(0, 2, 1),  # aligner assumes time last axis
+            keys=text_encodings.permute(0, 2, 1),
+            mask=text_mask == 0,
+            attn_prior=align_prior
         )
+        attn_hard = binarize_attention_parallel(
+            attn_soft, transcripts_len, input_mels_len)
+        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
-        spectrogram_preds = self.spectrogram_projection.reverse(spec_encs)
-        return spectrogram_preds
+        # repeat each text encoding the number of mel FFTs the model expects
+        text_encodings_repeated, _ = regulate_len(
+            attn_hard_dur, text_encodings, pace=1.0)
+
+        both_encodings = torch.concatenate(
+            (spectrogram_projections, text_encodings_repeated), axis=-1)
+
+        output_decodings, _ = self.decoder(
+            input=both_encodings,
+            seq_lens=input_mels_len
+        )
+        spec_encoding_size = spectrogram_projections.shape[-1]
+        output_decodings_trimmed = output_decodings[:, :, :spec_encoding_size]
+
+        spectrogram_preds = self.spectrogram_projection.reverse(
+            output_decodings_trimmed)
+
+        alignment_outputs = (attn_logprob, attn_soft, attn_hard)
+
+        return spectrogram_preds, alignment_outputs
 
 
 class InpaintingMSELoss(Loss):
@@ -134,87 +158,8 @@ class InpaintingMSELoss(Loss):
         loss_fn = F.mse_loss
         mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
 
-        gap_error = mse_loss.sum() / spect_predicted.shape[0]
-
-        # TODO - could look into different ways of reducing the per-pixel
-        # loss here such as averaging per example in the batch
-
-        # TODO - loss term for
-        # * whole spectrogram
-        # * coefficient * (just reconstructed part)
-
-        return gap_error
-
-
-class InpaintingMSELoss(Loss):
-    @property
-    def input_types(self):
-        return {
-            "spect_predicted": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_tgt": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_mask": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "loss": NeuralType(elements_type=LossType()),
-        }
-
-    @typecheck()
-    def forward(self, spect_predicted, spect_tgt, spect_mask):
-        spect_tgt.requires_grad = False
-        spect_tgt = spect_tgt.transpose(1, 2)  # (B, T, H)
-        spect_predicted = spect_predicted.transpose(1, 2)  # (B, T, H)
-        spect_mask = spect_mask.transpose(1, 2)  # (B, T, H)
-
-        gap_mask = (1 - spect_mask)
-
-        gap_target = spect_tgt * gap_mask
-        gap_predicted = spect_predicted * gap_mask
-
-        loss_fn = F.mse_loss
-        mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
-
-        # TODO - could look into different ways of reducing the per-pixel
-        # loss here such as averaging per example in the batch
-
-        return mse_loss.sum() / spect_predicted.shape[0]
-
-class InpaintingMSELoss(Loss):
-    @property
-    def input_types(self):
-        return {
-            "spect_predicted": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_tgt": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_mask": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "loss": NeuralType(elements_type=LossType()),
-        }
-
-    @typecheck()
-    def forward(self, spect_predicted, spect_tgt, spect_mask):
-        spect_tgt.requires_grad = False
-        spect_tgt = spect_tgt.transpose(1, 2)  # (B, T, H)
-        spect_predicted = spect_predicted.transpose(1, 2)  # (B, T, H)
-        spect_mask = spect_mask.transpose(1, 2)  # (B, T, H)
-
-        gap_mask = (1 - spect_mask)
-
-        gap_target = spect_tgt * gap_mask
-        gap_predicted = spect_predicted * gap_mask
-
-        loss_fn = F.mse_loss
-        mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
-
-        # TODO - could look into different ways of reducing the per-pixel
-        # loss here such as averaging per example in the batch
-
-        return mse_loss.sum() / spect_predicted.shape[0]
+        avg_pixel_loss = mse_loss.sum() / gap_mask.sum()
+        return avg_pixel_loss
 
 
 class InpainterModel(ModelPT, Exportable):
@@ -234,21 +179,24 @@ class InpainterModel(ModelPT, Exportable):
             "padding_idx": self.vocab.pad,
         }
 
+        aligner = instantiate(cfg.alignment_module)
+        self.forward_sum_loss_fn = ForwardSumLoss()
+        self.bin_loss_fn = BinLoss()
+        self.bin_loss_warmup_epochs = cfg.bin_loss_warmup_epochs
+
         text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
-
-        spectrogram_encoder = instantiate(cfg.spectrogram_encoder)
-
-        infuser_model = instantiate(cfg.infuser_model)
+        decoder = instantiate(cfg.decoder)
 
         self.module = BaselineModule(
-            cfg.n_mel_channels,
-            text_encoder, spectrogram_encoder,
-            infuser_model,
+            num_mels=cfg.n_mel_channels,
+            text_encoder=text_encoder,
+            aligner=aligner,
+            decoder=decoder,
         )
 
         # TODO - review this loss to only look at the reconstructed part
         self.gap_loss = InpaintingMSELoss()
-        self.mse_loss = MSELoss(reduction='mean')
+        self.mse_loss = MelLoss()
         self.audio_sample_rate = cfg.sample_rate
         self.spectrogram_sample_stride = cfg.n_window_stride
 
@@ -291,9 +239,8 @@ class InpainterModel(ModelPT, Exportable):
 
         return instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
-    def forward(self, transcripts, transcripts_len, input_mels, input_mels_len):
-        return self.module(
-            transcripts, transcripts_len, input_mels, input_mels_len)
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
 
     def normalize_text(self, text):
         return self.text_normalizer_call(
@@ -356,7 +303,7 @@ class InpainterModel(ModelPT, Exportable):
         full_spectrogram = torch.concatenate(concatenate_tuple, axis=0)
         full_spectrogram = full_spectrogram.type(torch.float32)
 
-        predicted_spectrogram, = self(
+        (predicted_spectrogram,), _ = self(
             transcripts=torch.tensor([tokens]),
             transcripts_len=torch.tensor([len(tokens)]),
             input_mels=full_spectrogram.unsqueeze(0),
@@ -365,7 +312,12 @@ class InpainterModel(ModelPT, Exportable):
         return predicted_spectrogram
 
     def forward_pass(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
+        (
+            audio, audio_lens,
+            text, text_lens,
+            align_prior_matrix,
+            pitch, pitch_lens
+        ) = batch
 
         mels, spec_len = self.preprocessor(
             input_signal=audio, length=audio_lens)
@@ -376,54 +328,70 @@ class InpainterModel(ModelPT, Exportable):
         mel_masks = self.make_spectrogram_mask(mels, spec_len)
         mels_masked = mels * mel_masks
 
-        mels_pred = self(
+        mels_pred, alignment_outputs = self(
             transcripts=text,
             transcripts_len=text_lens,
             input_mels=mels_masked,
-            input_mels_len=spec_len
+            input_mels_len=spec_len,
+            align_prior=align_prior_matrix
         )
+
         gap_loss = self.gap_loss(
             spect_predicted=mels_pred, spect_tgt=mels,
             spect_mask=mel_masks
         )
-        mse_loss = self.mse_loss(mels_pred, mels)
+        mse_loss = self.mse_loss(
+            spect_predicted=mels_pred, spect_tgt=mels)
         # TODO make this a parameter
-        loss = (10 * gap_loss) + mse_loss
-        return loss, (text, text_lens, mels, mels_masked, mels_pred, spec_len)
+        reconstruction_loss = (10 * gap_loss) + mse_loss
+
+        (attn_logprob, attn_soft, attn_hard) = alignment_outputs
+        ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+        bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
+        bin_loss = self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
+        alignment_loss = ctc_loss + bin_loss
+
+        outputs = (text, text_lens, mels, mels_masked, mels_pred, spec_len, attn_soft)
+
+        return reconstruction_loss, alignment_loss, outputs
 
     def training_step(self, batch, batch_idx):
-        loss, specs = self.forward_pass(batch, batch_idx)
-        self.log("train_loss", loss)
+        loss_spec, loss_alignment, specs = self.forward_pass(batch, batch_idx)
+        train_loss = loss_spec + loss_alignment
+        self.log("train_loss", train_loss)
 
         if self.log_train_spectrograms:
-            (texts, text_lens, mels, mels_masked, mels_pred, mels_len) = specs
+            (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_soft) = specs
             self._log_spectrograms(
                 mels_len[:3],
                 mels[:3],
                 mels_masked[:3],
                 mels_pred[:3],
+                attn_soft[:3],
                 'train'
             )
             self.log_train_spectrograms = False
 
-        return loss
+        return train_loss
 
     def validation_step(self, batch, batch_idx):
-        loss, specs = self.forward_pass(batch, batch_idx)
-        (texts, text_lens, mels, mels_masked, mels_pred, mels_len) = specs
-        self.log("validation_loss", loss)
+        loss_spec, loss_alignment, specs = self.forward_pass(batch, batch_idx)
+        (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_soft) = specs
+        self.log("validation_loss", loss_spec + loss_alignment)
         return {
-            'loss': loss,
+            'loss_spec': loss_spec,
+            'loss_alignment': loss_alignment,
             'texts': texts,
             'text_lens': text_lens,
             'input_spectrogram': mels,
             'input_spectrogram_masked': mels_masked,
             'pred_spectrogram': mels_pred,
-            'spectrogram_lens': mels_len
+            'spectrogram_lens': mels_len,
+            'attn_soft': attn_soft
         }
 
     def validation_epoch_end(self, outputs):
-        losses = [o['loss'] for o in outputs]
+        losses = [o['loss_spec'] + o['loss_alignment'] for o in outputs]
         self.log("validation_mean_loss", sum(losses) / len(losses))
         if self.tb_logger is None or len(outputs) == 0:
             return
@@ -434,6 +402,7 @@ class InpainterModel(ModelPT, Exportable):
             batch['input_spectrogram'][:3],
             batch['input_spectrogram_masked'][:3],
             batch['pred_spectrogram'][:3],
+            batch['attn_soft'][:3],
             'validation'
         )
         self.log_train_spectrograms = True
@@ -444,6 +413,7 @@ class InpainterModel(ModelPT, Exportable):
         input_spectrograms,
         input_spectrograms_masked,
         pred_spectrograms,
+        attn_soft,
         name_prefix
     ):
         for i, (
@@ -451,17 +421,20 @@ class InpainterModel(ModelPT, Exportable):
             input_spectrogram,
             input_spectrogram_masked,
             pred_spectrogram,
+            text_alignment,
         ) in enumerate(zip(
             spectrogram_lens,
             input_spectrograms,
             input_spectrograms_masked,
             pred_spectrograms,
+            attn_soft,
         )):
-            f, axarr = plt.subplots(3)
+            f, axarr = plt.subplots(4)
             f.suptitle('input text TBD')
             axarr[0].imshow(input_spectrogram[:l].cpu().numpy().T)
             axarr[1].imshow(input_spectrogram_masked[:l].cpu().numpy().T)
-            axarr[2].imshow(pred_spectrogram[:l].cpu().detach().numpy().T)
+            axarr[2].imshow(text_alignment[:l].cpu().detach().numpy().T)
+            axarr[3].imshow(pred_spectrogram[:l].cpu().detach().numpy().T)
             self.tb_logger.add_figure(
                 f'{name_prefix}_{i+1}', f, global_step=self.global_step)
 

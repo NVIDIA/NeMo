@@ -47,15 +47,15 @@ class TestInpainting:
             spect_mask=spec_mask
         )
 
-        # loss should be:
+        # loss should be average loss per pixel:
         # (1 - 1)^2 + (1 - 0)^2 + (-1 - 1)^2 +
         # (1 - 1)^2 + (1 - 0)^2 + (1 - 1)^ 2
-        # / 2
+        # / 6
         #
-        # = (0 + 1 + 4) + (0 + 1 + 0) / 2
+        # = (0 + 1 + 4) + (0 + 1 + 0) / 6
         #
-        # = 6 / 1 = 6
-        assert output == approx(6)
+        # = 6 / 6 = 1
+        assert output == approx(1)
 
     @pytest.mark.unit
     def test_discriminator(self):
