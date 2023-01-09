@@ -1,7 +1,7 @@
 python examples/tts/fastpitch_finetune.py --config-name=fastpitch_align_v1.05.yaml \
   train_dataset=data/PROJECT-907dbaf1/data.json \
   validation_datasets=data/PROJECT-907dbaf1/data.json \
-  sup_data_path=.data/PROJECT-907dbaf1/data_cache \
+  sup_data_path=data/PROJECT-907dbaf1/data_cache \
   +init_from_nemo_model=saved_models/fastpitch_2/checkpoints/FastPitch.nemo \
   +trainer.max_steps=1000 ~trainer.max_epochs \
   trainer.check_val_every_n_epoch=5 \
