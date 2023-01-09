@@ -340,7 +340,7 @@ def transcribe_partial_audio(
     return_hypotheses: bool = False,
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
-    augmentor_config: DictConfig = None,
+    augmentor: DictConfig = None,
 ) -> List[str]:
     """
     See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
@@ -380,8 +380,8 @@ def transcribe_partial_audio(
             'num_workers': num_workers,
             'channel_selector': channel_selector,
         }
-        if augmentor_config:
-            config['augmentor_config'] = augmentor_config
+        if augmentor:
+            config['augmentor'] = augmentor
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):

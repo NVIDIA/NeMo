@@ -159,11 +159,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
     # Load augmentor from exteranl yaml file which contains eval info, could be extend to other feature such VAD, P&C
-    augmentor_config = None
+    augmentor = None
     if cfg.eval_config_yaml:
         eval_config = OmegaConf.load(cfg.eval_config_yaml)
-        augmentor_config = eval_config.test_ds.get("augmentor")
-        logging.info(f"Will apply on-the-fly augmentation on samples during transcription: {augmentor_config} ")
+        augmentor = eval_config.test_ds.get("augmentor")
+        logging.info(f"Will apply on-the-fly augmentation on samples during transcription: {augmentor} ")
 
     # setup GPU
     if cfg.cuda is None:
@@ -261,7 +261,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         num_workers=cfg.num_workers,
                         return_hypotheses=return_hypotheses,
                         channel_selector=cfg.channel_selector,
-                        augmentor_config=augmentor_config,
+                        augmentor=augmentor,
                     )
                 else:
                     logging.warning(
@@ -273,7 +273,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         num_workers=cfg.num_workers,
                         return_hypotheses=return_hypotheses,
                         channel_selector=cfg.channel_selector,
-                        augmentor_config=augmentor_config,
+                        augmentor=augmentor,
                     )
             else:
                 transcriptions = asr_model.transcribe(
@@ -282,7 +282,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     num_workers=cfg.num_workers,
                     return_hypotheses=return_hypotheses,
                     channel_selector=cfg.channel_selector,
-                    augmentor_config=augmentor_config,
+                    augmentor=augmentor,
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
