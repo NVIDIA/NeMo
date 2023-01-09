@@ -885,7 +885,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
             self._del_model_without_trainer(model)
-            if ema_enabled and os.path.exists(self._ema_format_filepath(model)):
+            if ema_enabled and self._fs.exists(self._ema_format_filepath(model)):
                 self._del_model_without_trainer(self._ema_format_filepath(model))
             logging.debug(f"Removed checkpoint: {model}")
 
