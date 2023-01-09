@@ -210,7 +210,10 @@ def convert_num_to_words(_str: str) -> str:
 
 
 def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[DictConfig, dict]:
-    """ Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) """
+    """ 
+    Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
+    We use WER in function name as a convention, but it currently Error Rate (ER) support Word Error Rate (WER) and Character Error Rate (CER)
+    """
     samples = []
     hyps = []
     refs = []
@@ -233,20 +236,24 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
             if cfg.analyst.metric_calculator.clean_groundtruth_text:
                 ref = clean_label(ref)
 
-            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(
+            wer, tokens, ins_rate, del_rate, sub_rate = word_error_rate_detail(
                 hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
             )
-            sample['wer'] = wer
-            sample['words'] = words
-            sample['ins_rate'] = ins_rate
-            sample['del_rate'] = del_rate
-            sample['sub_rate'] = sub_rate
+            eval_metric = "wer"
+            if cfg.analyst.metric_calculator.use_cer:
+                eval_metric = "cer"
+
+            sample[eval_metric] = wer # evaluatin metric, could be word error rate of character error rate 
+            sample['tokens'] = tokens # number of word/characters/tokens
+            sample['ins_rate'] = ins_rate # insertion error rate 
+            sample['del_rate'] = del_rate # deletion error rate 
+            sample['sub_rate'] = sub_rate # substitution error rate 
 
             samples.append(sample)
             hyps.append(hyp)
             refs.append(ref)
 
-    total_wer, total_words, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
+    total_wer, total_tokens, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
         hypotheses=hyps, references=refs, use_cer=cfg.analyst.metric_calculator.use_cer
     )
 
@@ -264,20 +271,28 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
 
     total_res = {
         "samples": len(samples),
-        "words": total_words,
-        "wer": total_wer,
+        "tokens": total_tokens,
+        eval_metric: total_wer,
         "ins_rate": total_ins_rate,
         "del_rate": total_del_rate,
         "sub_rate": total_sub_rate,
     }
-    return cfg, total_res
+    return cfg, total_res, eval_metric
 
 
-def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
+def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
     """ 
-    Calculate group eval_metric (wer) for target metadata, 
-    such as WER for female/male or slot group wer for 0-2s, 2-5s, >5s audios 
+    Caculating number of samples (samples), number of words/characters/tokens (tokens), 
+    wer/cer, insertion error rate (ins_rate), deletion error rate (del_rate), substitution error rate (sub_rate) of the group/slot. 
+
+    The group could be [female, male] or slot group like [0-2s, 2-5s, >5s audios]
     """
+
+    if eval_metric not in ['wer', 'cer']:
+        raise ValueError(
+            "Currently support wer and cer as eval_metric. Please implement it in cal_target_metadata_wer if using different eval_metric"
+        )
+
     wer_each_class = {}
     with open(manifest, 'r') as fp:
         for line in fp:
@@ -287,7 +302,7 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                 if target_class not in wer_each_class:
                     wer_each_class[target_class] = {
                         'samples': 0,
-                        'words': 0,
+                        'tokens': 0,
                         "errors": 0,
                         "inss": 0,
                         "dels": 0,
@@ -295,36 +310,36 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                     }
                 wer_each_class[target_class]['samples'] += 1
 
-                words = sample["words"]
-                wer_each_class[target_class]["words"] += words
-                wer_each_class[target_class]["errors"] += words * sample[eval_metric]
-                wer_each_class[target_class]["inss"] += words * sample["ins_rate"]
-                wer_each_class[target_class]["dels"] += words * sample["del_rate"]
-                wer_each_class[target_class]["subs"] += words * sample["sub_rate"]
+                tokens = sample["tokens"]
+                wer_each_class[target_class]["tokens"] += tokens
+                wer_each_class[target_class]["errors"] += tokens * sample[eval_metric]
+                wer_each_class[target_class]["inss"] += tokens * sample["ins_rate"]
+                wer_each_class[target_class]["dels"] += tokens * sample["del_rate"]
+                wer_each_class[target_class]["subs"] += tokens * sample["sub_rate"]
 
     if len(wer_each_class) > 0:
         res_wer_each_class = {}
         for target_class in wer_each_class:
             res_wer_each_class[target_class] = {}
             res_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
-            res_wer_each_class[target_class]["wer"] = (
-                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["words"]
+            res_wer_each_class[target_class][eval_metric] = (
+                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["tokens"]
             )
-            res_wer_each_class[target_class]["words"] = wer_each_class[target_class]["words"]
+            res_wer_each_class[target_class]["tokens"] = wer_each_class[target_class]["tokens"]
             res_wer_each_class[target_class]["ins_rate"] = (
-                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["words"]
+                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["tokens"]
             )
             res_wer_each_class[target_class]["del_rate"] = (
-                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["words"]
+                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["tokens"]
             )
             res_wer_each_class[target_class]["sub_rate"] = (
-                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["words"]
+                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["tokens"]
             )
     else:
         logging.info(f"metadata '{target}' does not present in manifest. Skipping! ")
         return None
 
-    values = ['samples', 'words', 'errors', 'inss', 'dels', 'subs']
+    values = ['samples', 'tokens', 'errors', 'inss', 'dels', 'subs']
     slot_wer = {}
     if 'slot' in meta_cfg and meta_cfg.slot:
         for target_class in wer_each_class:
@@ -335,7 +350,7 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                         if slot_key not in slot_wer:
                             slot_wer[slot_key] = {
                                 'samples': 0,
-                                'words': 0,
+                                'tokens': 0,
                                 "errors": 0,
                                 "inss": 0,
                                 "dels": 0,
@@ -352,7 +367,7 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                         if slot_key not in slot_wer:
                             slot_wer[slot_key] = {
                                 'samples': 0,
-                                'words': 0,
+                                'tokens': 0,
                                 "errors": 0,
                                 "inss": 0,
                                 "dels": 0,
@@ -366,10 +381,10 @@ def target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_m
                     raise ValueError("Current only support target metadata belongs to numeric or string ")
 
         for slot_key in slot_wer:
-            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['words']
-            slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['words']
-            slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['words']
-            slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['words']
+            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['tokens']
+            slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['tokens']
+            slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['tokens']
+            slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['tokens']
             slot_wer[slot_key].pop('errors')
             slot_wer[slot_key].pop('inss')
             slot_wer[slot_key].pop('dels')

@@ -13,10 +13,11 @@
 # limitations under the License.
 import json
 import random
-
+import torch
+import numpy as np
 import git
 from omegaconf import OmegaConf
-from utils import cal_write_wer, run_asr_inference, target_metadata_wer
+from utils import cal_target_metadata_wer, cal_write_wer, run_asr_inference
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -57,13 +58,16 @@ def main(cfg):
     cfg.engine = run_asr_inference(cfg.engine)
 
     ## Analyst
-    cfg, total_res = cal_write_wer(cfg)
+    cfg, total_res, eval_metric = cal_write_wer(cfg)
     report.update({"res": total_res})
 
     for target in cfg.analyst.metadata:
         if cfg.analyst.metadata[target].exec:
-            occ_avg_wer = target_metadata_wer(
-                cfg.analyst.metric_calculator.output_filename, target, cfg.analyst.metadata[target]
+            occ_avg_wer = cal_target_metadata_wer(
+                manifest=cfg.analyst.metric_calculator.output_filename,
+                target=target,
+                meta_cfg=cfg.analyst.metadata[target],
+                eval_metric=eval_metric,
             )
             report[target] = occ_avg_wer
 
@@ -74,9 +78,9 @@ def main(cfg):
     report.update(config_metric_calculator)
 
     pretty = json.dumps(report, indent=4)
-    wer = "%.3f" % (report["res"]["wer"] * 100)
+    res = "%.3f" % (report["res"][eval_metric] * 100)
     logging.info(pretty)
-    logging.info(f"Overall WER / CER is {wer} %")
+    logging.info(f"Overall {eval_metric} is {res} %")
 
     ## Writer
     report_file = "report.json"
