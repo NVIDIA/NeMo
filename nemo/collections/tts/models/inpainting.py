@@ -343,7 +343,7 @@ class InpainterModel(ModelPT, Exportable):
         mse_loss = self.mse_loss(
             spect_predicted=mels_pred, spect_tgt=mels)
         # TODO make this a parameter
-        reconstruction_loss = (10 * gap_loss) + mse_loss
+        reconstruction_loss = (100 * gap_loss) + mse_loss
 
         (attn_logprob, attn_soft, attn_hard) = alignment_outputs
         ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
