@@ -327,6 +327,8 @@ class InpainterModel(ModelPT, Exportable):
         # at the edge of the spectrogram
         mel_masks = self.make_spectrogram_mask(mels, spec_len)
         mels_masked = mels * mel_masks
+        negative_mask = -14 * (1 - mel_masks)
+        mels_masked += negative_mask
 
         mels_pred, alignment_outputs = self(
             transcripts=text,
@@ -343,7 +345,7 @@ class InpainterModel(ModelPT, Exportable):
         mse_loss = self.mse_loss(
             spect_predicted=mels_pred, spect_tgt=mels)
         # TODO make this a parameter
-        reconstruction_loss = (100 * gap_loss) + mse_loss
+        reconstruction_loss = (1000 * gap_loss) + mse_loss
 
         (attn_logprob, attn_soft, attn_hard) = alignment_outputs
         ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
@@ -433,7 +435,7 @@ class InpainterModel(ModelPT, Exportable):
             f.suptitle('input text TBD')
             axarr[0].imshow(input_spectrogram[:l].cpu().numpy().T)
             axarr[1].imshow(input_spectrogram_masked[:l].cpu().numpy().T)
-            axarr[2].imshow(text_alignment[:l].cpu().detach().numpy().T)
+            axarr[2].imshow(text_alignment[0][:l].cpu().detach().numpy().T)
             axarr[3].imshow(pred_spectrogram[:l].cpu().detach().numpy().T)
             self.tb_logger.add_figure(
                 f'{name_prefix}_{i+1}', f, global_step=self.global_step)
