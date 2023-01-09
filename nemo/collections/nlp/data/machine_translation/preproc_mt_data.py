@@ -806,7 +806,7 @@ class MTDataPreproc:
                                 yttm.BPE.train(
                                     data=concat_data_path,
                                     vocab_size=encoder_tokenizer_vocab_size,
-                                    model=os.path.join(out_dir, encoder_tokenizer_model),
+                                    model=encoder_tokenizer_model,
                                     coverage=encoder_tokenizer_coverage,
                                     n_threads=-1,
                                 )
