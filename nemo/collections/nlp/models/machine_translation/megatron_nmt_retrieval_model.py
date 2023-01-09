@@ -317,6 +317,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         """"
         In parent class: batch is bucketed using OLD NMT
         Here batch comes from collate of RetrievalSeq2Seq and is a dict and is properly formatted.
+        Batch size i think was manually configured somwhere to 32 in setup_eval_dataloader
         """
         # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
@@ -344,8 +345,8 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             predicted_tokens_ids, _ = self.decode(
                 tokens_enc,
                 enc_mask,
-                tokens_enc.size(1)
-                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                min(self._cfg.train_ds.max_seq_length, tokens_enc.size(1)
+                + self._cfg.max_generation_delta),  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
                 tokenizer=self.decoder_tokenizer,
             )
             encoder_inputs = self.postprocess_outputs(
@@ -431,12 +432,12 @@ class RetrievalSeq2Seq(Dataset):
         self.seq2seq_text_memmap_dataset = seq2seq_text_memmap_dataset
         self.retrieval_text_memmap_dataset = retrieval_text_memmap_dataset
         self.num_neighbors = num_neighbors
-        self.copy_prob = copy_prob
         self.text_append_mode = text_append_mode
+        self.copy_prob = copy_prob
         self.mask_prob = mask_prob
         # Correct for both 'text' and 'perceiver' modes
-        self.nn_start_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('_<extra_id_0>')
-        self.nn_end_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('_<extra_id_1>')
+        self.nn_start_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('▁<extra_id_0>')
+        self.nn_end_tag = self.retrieval_text_memmap_dataset.src_tokenizer.token_to_id('▁<extra_id_1>')
         self.max_seq_length = max_seq_length
 
         # Select only the number of nns specified
@@ -444,11 +445,10 @@ class RetrievalSeq2Seq(Dataset):
 
         # len(self.seq2seq_text_memmap_dataset) is oversampled so use the src_indexed_dataset
         assert len(self.seq2seq_text_memmap_dataset.src_indexed_dataset) == len(self.nn_mapping)
-    
+
     def __len__(self):
         return len(self.seq2seq_text_memmap_dataset)
 
-    
     def __getitem__(self, idx):
         """"
         Returns a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
@@ -503,7 +503,8 @@ class RetrievalSeq2Seq(Dataset):
                 data_item['text_enc'] = data_item['text_enc'] + [self.seq2seq_text_memmap_dataset.tgt_tokenizer.eos_id]
             nn_src_list = None
             nn_tgt_list = None
-
+        assert len(data_item['text_enc']) <= self.max_seq_length
+        assert len(data_item['text_dec']) <= self.max_seq_length
         return {
             'text_enc': data_item['text_enc'],
             'text_dec': data_item['text_dec'],
