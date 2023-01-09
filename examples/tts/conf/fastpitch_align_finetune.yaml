@@ -111,7 +111,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 16
+      batch_size: 8
       num_workers: 12
       pin_memory: true
 
@@ -143,7 +143,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 32
+      batch_size: 8
       num_workers: 8
       pin_memory: true
 
