@@ -40,7 +40,7 @@ def read_custom_vocab(filename: str) -> List[str]:
     return list(phrases)
 
 
-ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, 10000)
+ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, max_dst_freq=125000)
 # CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
 
 big_sample_of_phrases = set()
@@ -55,10 +55,31 @@ with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
 
 big_sample_of_phrases = list(big_sample_of_phrases)
 
-input_paths = list(braceexpand.braceexpand(args.input_path))
-input_custom_vocab_paths = list(braceexpand.braceexpand(args.input_vocab_path))
-output_paths = list(braceexpand.braceexpand(args.output_path))
-output_info_paths = list(braceexpand.braceexpand(args.output_info_path))
+input_paths = args.input_path
+input_custom_vocab_paths = args.input_vocab_path
+output_paths = args.output_path
+output_info_paths = args.output_info_path
+
+# Replace '(', '[', '<' and '_OP_' with '{'
+brace_keys_open = ['(', '[', '<', '_OP_']
+for bkey in brace_keys_open:
+    input_paths = input_paths.replace(bkey, "{")
+    input_custom_vocab_paths = input_custom_vocab_paths.replace(bkey, "{")
+    output_paths = output_paths.replace(bkey, "{")
+    output_info_paths = output_info_paths.replace(bkey, "{")
+
+# Replace ')', ']', '>' and '_CL_' with '}'
+brace_keys_close = [')', ']', '>', '_CL_']
+for bkey in brace_keys_close:
+    input_paths = input_paths.replace(bkey, "}")
+    input_custom_vocab_paths = input_custom_vocab_paths.replace(bkey, "}")
+    output_paths = output_paths.replace(bkey, "}")
+    output_info_paths = output_info_paths.replace(bkey, "}")
+
+input_paths = list(braceexpand.braceexpand(input_paths))
+input_custom_vocab_paths = list(braceexpand.braceexpand(input_custom_vocab_paths))
+output_paths = list(braceexpand.braceexpand(output_paths))
+output_info_paths = list(braceexpand.braceexpand(output_info_paths))
 if len(input_paths) != len(output_paths) or len(input_paths) != len(output_info_paths) or len(input_paths) != len(input_custom_vocab_paths):
     raise(IndexError, "number of input_path, output_path and output_info_path should match!")
 
