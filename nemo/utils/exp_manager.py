@@ -850,7 +850,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_score = None
         self.best_model_path = ""
 
-        checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
+        checkpoints = list(path for path in Path(self.dirpath).rglob("*.ckpt") if not self._is_ema_filepath(path))
         for checkpoint in checkpoints:
             if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
                 checkpoint = uninject_model_parallel_rank(checkpoint)
@@ -1008,7 +1008,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
 
     def _has_ema_ckpts(self, best_k_models: List[str]) -> bool:
-        return any(model_name.endswith(f'-EMA{self.FILE_EXTENSION}') for model_name in best_k_models)
+        return any(self._is_ema_filepath(model_name) for model_name in best_k_models)
+
+    def _is_ema_filepath(self, filepath: Union[Path, str]) -> bool:
+        return filepath.endswith(f'-EMA{self.FILE_EXTENSION}')
 
 
 def configure_checkpointing(
