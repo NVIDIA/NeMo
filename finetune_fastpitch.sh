@@ -8,4 +8,3 @@ python examples/tts/fastpitch_finetune.py --config-name=fastpitch_align_v1.05.ya
   model.train_ds.dataloader_params.batch_size=8 model.validation_ds.dataloader_params.batch_size=8 \
   model.n_speakers=1 model.optim.lr=2e-4 \
   ~model.optim.sched model.optim.name=adam trainer.devices=1 trainer.strategy=null \
-  trainer.accelerator=cpu
