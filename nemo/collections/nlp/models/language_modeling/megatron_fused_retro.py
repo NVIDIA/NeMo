@@ -92,7 +92,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         #         f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
         #     )
 
-
     # def add_adapter(self, name: str, cfg: DictConfig):
     #     # call the same method on each `MLP` layer, collecting results
     #     for layer in self.layers:
@@ -115,46 +114,46 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
     #     # call the same method on each `MLP` layer, collecting results
     #     is_available = any([layer.is_adapter_available() for layer in self.layers])
     #     return is_available
-        
+
     # def setup(self, stage=None):
     #     if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
     #         self.frozen_model.freeze()
     #         return
 
-        # self.setup_test_data()
-        # if stage == 'test':
-        #     return
+    # self.setup_test_data()
+    # if stage == 'test':
+    #     return
 
-        # self.setup_training_data()
-        # self.setup_validation_data()
+    # self.setup_training_data()
+    # self.setup_validation_data()
 
-        # Setup Retro Data
-        # global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
-        # # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
-        # max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
-        # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        # test_iters = self.trainer.limit_test_batches
+    # Setup Retro Data
+    # global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+    # # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+    # max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+    # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+    # test_iters = self.trainer.limit_test_batches
 
-        # train_valid_test_num_samples = [
-        #     max_train_steps * global_batch_size,
-        #     eval_iters * global_batch_size,
-        #     test_iters * global_batch_size,
-        # ]
-        # self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-        #     cfg=self.cfg,
-        #     trainer=self.trainer,
-        #     data_prefix=self.cfg.retro_data.data_prefix,
-        #     data_impl=self.cfg.retro_data.data_impl,
-        #     splits_string=self.cfg.retro_data.splits_string,
-        #     train_valid_test_num_samples=train_valid_test_num_samples,
-        #     seq_length=self.cfg.retro_data.seq_length,
-        #     seed=self.cfg.seed,
-        #     skip_warmup=self.cfg.retro_data.get('skip_warmup', True),
-        #     tokenizer=self.tokenizer,
-        #     retrieval_prefix=self.cfg.retro_data.retrieval_prefix,
-        #     knn_map_path=self.cfg.retro_data.knn_index,
-        # )
-        # logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
+    # train_valid_test_num_samples = [
+    #     max_train_steps * global_batch_size,
+    #     eval_iters * global_batch_size,
+    #     test_iters * global_batch_size,
+    # ]
+    # self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+    #     cfg=self.cfg,
+    #     trainer=self.trainer,
+    #     data_prefix=self.cfg.retro_data.data_prefix,
+    #     data_impl=self.cfg.retro_data.data_impl,
+    #     splits_string=self.cfg.retro_data.splits_string,
+    #     train_valid_test_num_samples=train_valid_test_num_samples,
+    #     seq_length=self.cfg.retro_data.seq_length,
+    #     seed=self.cfg.seed,
+    #     skip_warmup=self.cfg.retro_data.get('skip_warmup', True),
+    #     tokenizer=self.tokenizer,
+    #     retrieval_prefix=self.cfg.retro_data.retrieval_prefix,
+    #     knn_map_path=self.cfg.retro_data.knn_index,
+    # )
+    # logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
 
     # def setup_training_data(self, training_data_config=None):
     #     if self.cfg.data.get('train_ds', None):
@@ -347,7 +346,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
     #     reduced_loss = average_losses_across_data_parallel_group([lm_loss])
     #     return reduced_loss
 
-
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
@@ -393,7 +391,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
-
     # First we call forward on Adapter learning
 
     # Take outputs from forward adapter learning function
@@ -402,10 +399,10 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel, adapter_mixins.
 
     # def load_task_templates(self, task_templates):
     #     """
-    #     Takes in the task template portion of the config and turns  
-    #     it into a table where each task's prompt template and 
-    #     the number of virtual tokens to insert in a given part of 
-    #     the prompt template are specified. 
+    #     Takes in the task template portion of the config and turns
+    #     it into a table where each task's prompt template and
+    #     the number of virtual tokens to insert in a given part of
+    #     the prompt template are specified.
     #     """
     #     self.task_templates = {}
     #     self.task_id_num_to_name = {}
