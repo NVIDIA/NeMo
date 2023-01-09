@@ -112,8 +112,7 @@ model:
       drop_last: false
       shuffle: true
       batch_size: 32
-      # num_workers: 12
-      num_workers: 0
+      num_workers: 12
       pin_memory: true
 
   validation_ds:
@@ -145,8 +144,7 @@ model:
       drop_last: false
       shuffle: false
       batch_size: 32
-      # num_workers: 8
-      num_workers: 0
+      num_workers: 8
       pin_memory: true
 
   preprocessor:
