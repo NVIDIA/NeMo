@@ -84,7 +84,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
             cfg.output_filename = model_name + "-" + dataset_name + "-" + mode_name + ".json"
 
     script_path = (
-        Path(__file__).parents[5]
+        Path(__file__).parents[2]
         / "examples"
         / "asr"
         / "asr_chunked_inference"
@@ -96,7 +96,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         cfg.model_path and 'transducer' in cfg.model_path
     ):
         script_path = (
-            Path(__file__).parents[5]
+            Path(__file__).parents[2]
             / "examples"
             / "asr"
             / "asr_chunked_inference"
@@ -137,7 +137,7 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
     with open(temp_eval_config_yaml_file, "w") as f:
         OmegaConf.save(cfg, f)
 
-    script_path = Path(__file__).parents[5] / "examples" / "asr" / "transcribe_speech.py"
+    script_path = Path(__file__).parents[2] / "examples" / "asr" / "transcribe_speech.py"
 
     # If need to move other config such as decoding strategy, could either:
     # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
