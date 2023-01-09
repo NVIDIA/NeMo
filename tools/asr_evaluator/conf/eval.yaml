@@ -6,7 +6,7 @@ engine:
     model_path: null  
     pretrained_name: null
 
-    inference_mode: 
+    inference: 
         mode: offline # choose from offline, chunked or offline_by_chunked
         chunk_len_in_secs: 1.6 #null # Need to specify if use buffered inference (default for offline_by_chunked is 20)
         total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for offline_by_chunked is 22)

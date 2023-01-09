@@ -27,7 +27,7 @@ This script serves as evaluator of ASR models
 Usage:
   python python asr_evaluator.py \
 engine.pretrained_name="stt_en_conformer_transducer_large" \
-engine.inference_mode.mode="offline" \
+engine.inference.mode="offline" \
 engine.test_ds.augmentor.noise.manifest_path=<manifest file for noise data> \
 .....
 
