@@ -18,7 +18,7 @@ import inspect
 import math
 import warnings
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 import hydra
 import torch.optim as optim
