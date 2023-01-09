@@ -547,7 +547,7 @@ def split_view(tensor, split_size: int, dim: int = 0):
 
 def slice_segments(x, ids_str, segment_size=4):
     """
-    Slices segments from batch
+    Time-wise slicing (patching) of bathches for audio/spectrogram
     """
     ret = torch.zeros_like(x[:, :, :segment_size])
     for i in range(x.size(0)):

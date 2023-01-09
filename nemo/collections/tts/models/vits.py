@@ -259,9 +259,9 @@ class VitsModel(TextToWaveform):
         metrics = {
             "loss_gen": loss_gen,
             "loss_fm": loss_fm,
-            "loss_mel * c_mel": loss_mel,
+            "loss_mel": loss_mel,
             "loss_dur": loss_dur,
-            "loss_kl * c_kl": loss_kl,
+            "loss_kl": loss_kl,
             "loss_gen_all": loss_gen_all,
             "loss_disc_all": loss_disc_all,
             "grad_gen": norm_g,
