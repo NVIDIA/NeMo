@@ -20,8 +20,9 @@ def main(cfg):
     pred_frames_dir = cfg.pred_dir
     gt_frames_dir = cfg.gt_dir
     num_workders = cfg.num_workers
+    result_file = str(Path(pred_frames_dir).parent / Path("grid_search_results"))
     best_params, optimal_scores = vad_tune_threshold_on_dev(
-        params, pred_frames_dir, gt_frames_dir, num_workers=num_workders
+        params, pred_frames_dir, gt_frames_dir, num_workers=num_workders, result_file=result_file
     )
     pprint(best_params)
     pprint(optimal_scores)

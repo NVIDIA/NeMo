@@ -140,6 +140,9 @@ def main(cfg):
     logging.info(f"Classification report with threshold={threshold:.2f}")
     logging.info(f"\n{clf_report}")
 
+    logging.info(cfg.vad.parameters.postprocessing)
+    logging.info("Done.")
+
 
 def evaluate_single_manifest(manifest_filepath, cfg, vad_model, out_dir):
 

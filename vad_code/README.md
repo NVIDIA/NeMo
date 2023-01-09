@@ -41,6 +41,10 @@
 - freesound_train 46.53
 - musan_train: 8.11
 
+- Test:
+  - ava
+  - ami_eval
+  - ch109
 
 ## Data Processing
 1. Generate manifest with: audio_filepath, duration, offset
