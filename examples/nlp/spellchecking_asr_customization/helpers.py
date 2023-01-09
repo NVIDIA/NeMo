@@ -20,6 +20,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.models import SpellcheckingAsrCustomizationModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging
 
 __all__ = ["MODEL", "MODEL_NAMES", "instantiate_model_and_trainer"]
@@ -58,7 +59,8 @@ def instantiate_model_and_trainer(
             raise ValueError(f"{model_name} is unknown model type")
     elif os.path.exists(pretrained_cfg):
         logging.info(f"Restoring pretrained {model_name} model from {pretrained_cfg}")
-        model = SpellcheckingAsrCustomizationModel.restore_from(pretrained_cfg)
+        save_restore_connector = NLPSaveRestoreConnector()
+        model = SpellcheckingAsrCustomizationModel.restore_from(pretrained_cfg, save_restore_connector=save_restore_connector)
     else:
         logging.info(f"Loading pretrained model {pretrained_cfg}")
         if model_name == MODEL:

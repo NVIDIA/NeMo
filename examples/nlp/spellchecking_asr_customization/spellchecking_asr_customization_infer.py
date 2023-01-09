@@ -83,6 +83,9 @@ def main(cfg: DictConfig) -> None:
         "pin_memory": cfg.inference.get("num_workers", False)
     }
     for input_filename, output_filename in zip(input_filenames, output_filenames):
+        if not os.path.exists(input_filename):
+            logging.info(f"Skip non-existing {input_filename}.")
+            continue
         all_preds = model._infer(dataloader_cfg, input_filename)
         with open(output_filename, "w", encoding="utf-8") as f_out:
             f_out.write("\n".join(all_preds))
