@@ -877,10 +877,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             models_to_delete = len(best_k_models) - self.save_top_k
         logging.debug(f'Number of models to delete: {models_to_delete}')
+
+        # If EMA enabled, delete the additional EMA weights
+        ema_enabled = self._has_ema_ckpts(best_k_models)
+
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
             self._del_model_without_trainer(model)
+            if ema_enabled:
+                self._del_model_without_trainer(self._ema_format_filepath(model))
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
@@ -1000,6 +1006,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
+
+    def _has_ema_ckpts(self, best_k_models: List[str]) -> bool:
+        return any(model_name.endswith(f'-EMA{self.FILE_EXTENSION}') for model_name in best_k_models)
 
 
 def configure_checkpointing(
