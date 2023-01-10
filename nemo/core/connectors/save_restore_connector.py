@@ -408,7 +408,9 @@ class SaveRestoreConnector:
         artifacts_containers = []
         for name, module in model.named_modules():
             if isinstance(module, nemo_classes.ModelPT) and module.has_artifacts():  # NeMo model with artifacts
-                artifacts_containers.append((name, module.artifacts))
+                # select artifacts only if registered in config
+                if name == "" or OmegaConf.select(model.cfg, name) is not None:
+                    artifacts_containers.append((name, module.artifacts))
 
         if artifacts_containers and (not hasattr(model, "artifacts") or model.artifacts is None):
             # model has no artifacts, but submodules have some
