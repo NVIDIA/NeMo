@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ def get_args():
         "--num-workers",
         default=-1,
         type=int,
-        help="Specify the max number of concurrently Python workers processes. "
+        help="Specify the max number of concurrent Python worker processes. "
         "If -1 all CPUs are used. If 1 no parallel computing is used.",
     )
     parser.add_argument(
