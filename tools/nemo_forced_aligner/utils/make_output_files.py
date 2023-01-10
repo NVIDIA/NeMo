@@ -19,8 +19,8 @@ from pathlib import Path
 import soundfile as sf
 
 
-def _get_utt_id(audio_filepath, n_parts_for_ctm_id):
-    fp_parts = Path(audio_filepath).parts[-n_parts_for_ctm_id:]
+def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
+    fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
     utt_id = Path("_".join(fp_parts)).stem
     utt_id = utt_id.replace(" ", "-")  # replace any spaces in the filepath with dashes
     return utt_id
@@ -78,7 +78,7 @@ def make_ctm(
     model_downsample_factor,
     output_dir,
     remove_blank_tokens_from_ctm,
-    n_parts_for_ctm_id,
+    audio_filepath_parts_in_utt_id,
     minimum_timestamp_duration,
     audio_sr,
 ):
@@ -99,7 +99,7 @@ def make_ctm(
         boundary_info = add_t_start_end_to_boundary_info(boundary_info, alignment)
 
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm
-        utt_id = _get_utt_id(manifest_line['audio_filepath'], n_parts_for_ctm_id)
+        utt_id = _get_utt_id(manifest_line['audio_filepath'], audio_filepath_parts_in_utt_id)
 
         # get audio file duration if we will need it later
         if minimum_timestamp_duration > 0:
@@ -130,7 +130,7 @@ def make_new_manifest(
     output_dir,
     original_manifest_filepath,
     additional_ctm_grouping_separator,
-    n_parts_for_ctm_id,
+    audio_filepath_parts_in_utt_id,
     pred_text_all_lines,
 ):
     if pred_text_all_lines:
@@ -150,7 +150,7 @@ def make_new_manifest(
         for i_line, line in enumerate(fin):
             data = json.loads(line)
 
-            utt_id = _get_utt_id(data["audio_filepath"], n_parts_for_ctm_id)
+            utt_id = _get_utt_id(data["audio_filepath"], audio_filepath_parts_in_utt_id)
 
             data["token_level_ctm_filepath"] = str(Path(output_dir) / "tokens" / f"{utt_id}.ctm")
             data["word_level_ctm_filepath"] = str(Path(output_dir) / "words" / f"{utt_id}.ctm")

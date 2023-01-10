@@ -69,14 +69,14 @@ Arguments:
         `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
         for `addtional_ctm_grouping_separator`-separated segments. 
     remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
-    n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
+    audio_filepath_parts_in_utt_id: int specifying how many of the 'parts' of the audio_filepath
         we will use (starting from the final part of the audio_filepath) to determine the 
         utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
         will be replaced with dashes, so as not to change the number of space-separated elements in the 
         CTM files.
-        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 1 => utt_id will be "e1"
-        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 2 => utt_id will be "d_e1"
-        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and n_parts_for_ctm_id is 3 => utt_id will be "c_d_e1"
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 1 => utt_id will be "e1"
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 2 => utt_id will be "d_e1"
+        e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 3 => utt_id will be "c_d_e1"
     minimum_timestamp_duration: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any 
         line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the 
         middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio 
@@ -101,7 +101,7 @@ class AlignmentConfig:
     additional_ctm_grouping_separator: Optional[str] = None
     remove_blank_tokens_from_ctm: bool = False
     minimum_timestamp_duration: float = 0
-    n_parts_for_ctm_id: int = 1
+    audio_filepath_parts_in_utt_id: int = 1
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -208,7 +208,7 @@ def main(cfg: AlignmentConfig):
             cfg.model_downsample_factor,
             os.path.join(cfg.output_dir, "tokens"),
             cfg.remove_blank_tokens_from_ctm,
-            cfg.n_parts_for_ctm_id,
+            cfg.audio_filepath_parts_in_utt_id,
             cfg.minimum_timestamp_duration,
             audio_sr,
         )
@@ -221,7 +221,7 @@ def main(cfg: AlignmentConfig):
             cfg.model_downsample_factor,
             os.path.join(cfg.output_dir, "words"),
             False,  # dont try to remove blank tokens because we dont expect them to be there anyway
-            cfg.n_parts_for_ctm_id,
+            cfg.audio_filepath_parts_in_utt_id,
             cfg.minimum_timestamp_duration,
             audio_sr,
         )
@@ -235,7 +235,7 @@ def main(cfg: AlignmentConfig):
                 cfg.model_downsample_factor,
                 os.path.join(cfg.output_dir, "additional_segments"),
                 False,  # dont try to remove blank tokens because we dont expect them to be there anyway
-                cfg.n_parts_for_ctm_id,
+                cfg.audio_filepath_parts_in_utt_id,
                 cfg.minimum_timestamp_duration,
                 audio_sr,
             )
@@ -244,7 +244,7 @@ def main(cfg: AlignmentConfig):
         cfg.output_dir,
         cfg.manifest_filepath,
         cfg.additional_ctm_grouping_separator,
-        cfg.n_parts_for_ctm_id,
+        cfg.audio_filepath_parts_in_utt_id,
         pred_text_all_lines,
     )
 
