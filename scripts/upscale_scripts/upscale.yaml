@@ -32,7 +32,7 @@ upscaler:
   trainer:
     max_epochs: 2
     num_sanity_val_steps: 0
-    val_check_interval: 0.5
+    val_check_interval: 0.25
     devices: 1
     num_nodes: 1
     accelerator: gpu
@@ -43,7 +43,9 @@ upscaler:
     high_freq_cutoff: 0
     num_examples: 40000
     train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_1k.jsonl"
-    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_test_100.jsonl"
+    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_val_100.jsonl"
+    token_based_training: False
+    num_virtual_prompts: 10
   
   wandb:
     name: ${name}
