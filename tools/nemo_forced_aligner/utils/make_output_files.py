@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from pathlib import Path
 
@@ -123,3 +124,45 @@ def make_ctm(
                     f_ctm.write(f"{utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
 
     return None
+
+
+def make_new_manifest(
+    output_ctm_folder,
+    original_manifest_filepath,
+    additional_ctm_grouping_separator,
+    n_parts_for_ctm_id,
+    pred_text_all_lines,
+):
+    if pred_text_all_lines:
+        with open(original_manifest_filepath, 'r') as f:
+            num_lines_in_manifest = sum(1 for _ in f)
+
+        if not num_lines_in_manifest == len(pred_text_all_lines):
+            raise RuntimeError(
+                f"Number of lines in the original manifest ({num_lines_in_manifest}) does not match "
+                f"the number of pred_texts we have ({len(pred_text_all_lines)}). Something has gone wrong."
+            )
+
+    tgt_manifest_name = str(Path(original_manifest_filepath).stem) + "_with_ctm_paths.json"
+    tgt_manifest_filepath = str(Path(output_ctm_folder) / tgt_manifest_name)
+
+    with open(original_manifest_filepath, 'r') as fin, open(tgt_manifest_filepath, 'w') as fout:
+        for i_line, line in enumerate(fin):
+            data = json.loads(line)
+
+            utt_id = _get_utt_id(data["audio_filepath"], n_parts_for_ctm_id)
+
+            data["token_level_ctm_filepath"] = str(Path(output_ctm_folder) / "tokens" / f"{utt_id}.ctm")
+            data["word_level_ctm_filepath"] = str(Path(output_ctm_folder) / "words" / f"{utt_id}.ctm")
+
+            if additional_ctm_grouping_separator:
+                data["additional_segment_level_ctm_filepath"] = str(
+                    Path(output_ctm_folder) / "additional_segments" / f"{utt_id}.ctm"
+                )
+
+            if pred_text_all_lines:
+                data['pred_text'] = pred_text_all_lines[i_line]
+
+            new_line = json.dumps(data)
+
+            fout.write(f"{new_line}\n")

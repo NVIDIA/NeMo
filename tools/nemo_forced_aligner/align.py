@@ -18,8 +18,15 @@ from typing import Optional
 
 import torch
 from omegaconf import OmegaConf
-from utils.data_prep import get_audio_sr, get_batch_starts_ends, get_log_probs_y_T_U, get_manifest_lines
-from utils.make_ctm import make_ctm
+from utils.data_prep import (
+    get_audio_sr,
+    get_batch_starts_ends,
+    get_log_probs_y_T_U,
+    get_manifest_lines,
+    is_entry_in_all_lines,
+    is_entry_in_any_lines,
+)
+from utils.make_output_files import make_ctm, make_new_manifest
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -48,6 +55,8 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_ctm_folder: the folder where output CTM files will be saved.
+    align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
+        as the 'ground truth' for the forced alignment. 
     transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
         The string needs to be in a format recognized by torch.device().
     viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
@@ -85,6 +94,7 @@ class AlignmentConfig:
     output_ctm_folder: Optional[str] = None
 
     # General configs
+    align_using_pred_text: bool = False
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
     batch_size: int = 1
@@ -118,11 +128,35 @@ def main(cfg: AlignmentConfig):
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder must be specified")
 
+    if cfg.batch_size < 1:
+        raise ValueError("cfg.batch_size cannot be zero or a negative number")
+
     if cfg.additional_ctm_grouping_separator == "" or cfg.additional_ctm_grouping_separator == " ":
-        raise ValueError("cfg.additional_grouping_separaor cannot be empty string or space character")
+        raise ValueError("cfg.additional_grouping_separator cannot be empty string or space character")
 
     if cfg.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
+
+    # Validate manifest contents
+    if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):
+        raise RuntimeError(
+            "At least one line in cfg.manifest_filepath does not contain an 'audio_filepath' entry. "
+            "All lines must contain an 'audio_filepath' entry."
+        )
+
+    if cfg.align_using_pred_text:
+        if is_entry_in_any_lines(cfg.manifest_filepath, "pred_text"):
+            raise RuntimeError(
+                "Cannot specify cfg.align_using_pred_text=True when the manifest at cfg.manifest_filepath "
+                "contains 'pred_text' entries. This is because the audio will be transcribed and may produce "
+                "a different 'pred_text'. This may cause confusion."
+            )
+    else:
+        if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
+            raise RuntimeError(
+                "At least one line in cfg.manifest_filepath does not contain a 'text' entry. "
+                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=True."
+            )
 
     # init devices
     transcribe_device = torch.device(cfg.transcribe_device)
@@ -147,13 +181,23 @@ def main(cfg: AlignmentConfig):
     # get start and end line IDs of batches
     starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
+    if cfg.align_using_pred_text:
+        # record pred_texts to save them in the new manifest at the end of this script
+        pred_text_all_lines = []
+    else:
+        pred_text_all_lines = None
+
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
         data = get_manifest_lines(cfg.manifest_filepath, start, end)
 
-        log_probs, y, T, U, token_info, word_info, segment_info = get_log_probs_y_T_U(
-            data, model, cfg.additional_ctm_grouping_separator
+        log_probs, y, T, U, token_info, word_info, segment_info, pred_text_list = get_log_probs_y_T_U(
+            data, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
         )
+
+        if cfg.align_using_pred_text:
+            pred_text_all_lines.extend(pred_text_list)
+
         alignments = viterbi_decoding(log_probs, y, T, U, viterbi_device)
 
         make_ctm(
@@ -176,7 +220,7 @@ def main(cfg: AlignmentConfig):
             model,
             cfg.model_downsample_factor,
             os.path.join(cfg.output_ctm_folder, "words"),
-            False,  # dont try to remove blank tokens because we dont expect them to be there
+            False,  # dont try to remove blank tokens because we dont expect them to be there anyway
             cfg.n_parts_for_ctm_id,
             cfg.minimum_timestamp_duration,
             audio_sr,
@@ -190,11 +234,19 @@ def main(cfg: AlignmentConfig):
                 model,
                 cfg.model_downsample_factor,
                 os.path.join(cfg.output_ctm_folder, "additional_segments"),
-                False,  # dont try to remove blank tokens because we dont expect them to be there
+                False,  # dont try to remove blank tokens because we dont expect them to be there anyway
                 cfg.n_parts_for_ctm_id,
                 cfg.minimum_timestamp_duration,
                 audio_sr,
             )
+
+    make_new_manifest(
+        cfg.output_ctm_folder,
+        cfg.manifest_filepath,
+        cfg.additional_ctm_grouping_separator,
+        cfg.n_parts_for_ctm_id,
+        pred_text_all_lines,
+    )
 
     return None
 

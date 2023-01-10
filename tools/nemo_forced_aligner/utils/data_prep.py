@@ -37,6 +37,37 @@ def get_batch_starts_ends(manifest_filepath, batch_size):
     return starts, ends
 
 
+def is_entry_in_any_lines(manifest_filepath, entry):
+    """
+    Returns True if entry is a key in any of the JSON lines in manifest_filepath
+    """
+
+    entry_in_manifest = False
+
+    with open(manifest_filepath, 'r') as f:
+        for line in f:
+            data = json.loads(line)
+
+            if entry in data:
+                entry_in_manifest = True
+
+    return entry_in_manifest
+
+
+def is_entry_in_all_lines(manifest_filepath, entry):
+    """
+    Returns True is entry is a key in all of the JSON lines in manifest_filepath.
+    """
+    with open(manifest_filepath, 'r') as f:
+        for line in f:
+            data = json.loads(line)
+
+            if entry not in data:
+                return False
+
+    return True
+
+
 def get_audio_sr(manifest_filepath):
     """
     Measure the sampling rate of the audio file in the first line
@@ -246,12 +277,13 @@ def get_y_token_word_segment_info(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_log_probs_y_T_U(data, model, separator):
+def get_log_probs_y_T_U(data, model, separator, align_using_pred_text):
     """
     Preparing some tensors to be used during Viterbi decoding.
     Returns:
         log_probs, y, T, U (y and U are s.t. every other token is a blank),
-        token_info_list, word_info_list, segment_info_list
+        token_info_list, word_info_list, segment_info_list,
+        pred_text_list
     """
 
     audio_filepaths = [line["audio_filepath"] for line in data]
@@ -262,9 +294,11 @@ def get_log_probs_y_T_U(data, model, separator):
 
     log_probs_list = []
     T_list = []
+    pred_text_list = []
     for hypothesis in hypotheses:
         log_probs_list.append(hypothesis.y_sequence)
         T_list.append(hypothesis.y_sequence.shape[0])
+        pred_text_list.append(hypothesis.text)
 
     y_list = []
     U_list = []
@@ -272,8 +306,14 @@ def get_log_probs_y_T_U(data, model, separator):
     word_info_list = []
     segment_info_list = []
 
-    for line in data:
-        y_line, token_info, word_info, segment_info = get_y_token_word_segment_info(line["text"], model, separator)
+    for i_line, line in enumerate(data):
+        if align_using_pred_text:
+            gt_text_for_alignment = pred_text_list[i_line]
+        else:
+            gt_text_for_alignment = line["text"]
+        y_line, token_info, word_info, segment_info = get_y_token_word_segment_info(
+            gt_text_for_alignment, model, separator
+        )
 
         y_list.append(y_line)
         U_list.append(len(y_line))
@@ -299,4 +339,4 @@ def get_log_probs_y_T_U(data, model, separator):
         U_b = U[b]
         y[b, :U_b] = torch.tensor(y_b)
 
-    return log_probs, y, T, U, token_info_list, word_info_list, segment_info_list
+    return log_probs, y, T, U, token_info_list, word_info_list, segment_info_list, pred_text_list
