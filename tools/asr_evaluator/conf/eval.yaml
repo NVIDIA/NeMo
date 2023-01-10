@@ -62,7 +62,7 @@ analyst:
             
         emotion: 
             enable: True
-            slot: [['happy','laugh'],['neural'],['sad']] 
+            slot: [['happy','laugh'],['neutral'],['sad']] 
             save_wer_per_class: False
                  
 writer:

@@ -14,7 +14,7 @@ ASR evaluator contains two main parts:
 - **ENGINE**. To conduct ASR inference.
 - **ANALYST**. To evaluate model performance based on predictions. 
 
-In Analyst, you can evaluate on all metadata if it presents in manifest. For exmaple, you can evaluate the peformance of model based on duration of each sample, such as how's the model peforms on samples smaller than 5s and longer than 5s by [[0,5][5,100000]] and get wer/cer of each slot. Or how's the model performs on postive (happy, laugh) or neural (neural) or negative mood (sad) as below. And if you set save_wer_per_class=True, it will calculate wer for all (i.e. above 5 classes + cry) classes presented in the data. 
+In Analyst, we can evaluate on metadata (such as duration, emotion, etc.) if it presents in manifest. For example, with the following config, we can calculate WERs for audios in different interval groups, where each group (in seconds) is defined by [[0,2],[2,5],[5,10],[10,20],[20,100000]]. Also, we can calculate the WERs for three groups of emotions, where each group is defined by [['happy','laugh'],['neutral'],['sad']]. Moreover, if we set save_wer_per_class=True, it will calculate WERs for audios in all classes presented in the data (i.e. above 5 classes + 'cry' which presented in data but not in the slot). 
 
 ```
 analyst:   
@@ -26,7 +26,7 @@ analyst:
 
         emotion: 
             enable: True
-            slot: [['happy','laugh'],['neural'],['sad']] # we could have 'cry' in data but not in slot we focus on.
+            slot: [['happy','laugh'],['neutral'],['sad']] # we could have 'cry' in data but not in slot we focus on.
             save_wer_per_class: False
  ```           
             
