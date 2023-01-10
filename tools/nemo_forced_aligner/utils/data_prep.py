@@ -110,7 +110,7 @@ def get_char_tokens(text, model):
     return tokens
 
 
-def get_y_token_word_segment_info(text, model, separator):
+def get_y_and_boundary_info_for_utt(text, model, separator):
     """
     Get y, token_info, word_info and segment_info for the text provided, tokenized by the model provided.
     """
@@ -277,7 +277,7 @@ def get_y_token_word_segment_info(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_log_probs_y_T_U(manifest_lines_batch, model, separator, align_using_pred_text):
+def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, align_using_pred_text):
     """
     Preparing some tensors to be used during Viterbi decoding.
     Returns:
@@ -311,7 +311,7 @@ def get_log_probs_y_T_U(manifest_lines_batch, model, separator, align_using_pred
             gt_text_for_alignment = pred_text_batch[i_line]
         else:
             gt_text_for_alignment = line["text"]
-        y_utt, token_info_utt, word_info_utt, segment_info_utt = get_y_token_word_segment_info(
+        y_utt, token_info_utt, word_info_utt, segment_info_utt = get_y_and_boundary_info_for_utt(
             gt_text_for_alignment, model, separator
         )
 

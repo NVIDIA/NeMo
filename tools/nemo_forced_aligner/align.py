@@ -21,7 +21,7 @@ from omegaconf import OmegaConf
 from utils.data_prep import (
     get_audio_sr,
     get_batch_starts_ends,
-    get_log_probs_y_T_U,
+    get_batch_tensors_and_boundary_info,
     get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
@@ -200,7 +200,7 @@ def main(cfg: AlignmentConfig):
             word_info_batch,
             segment_info_batch,
             pred_text_batch,
-        ) = get_log_probs_y_T_U(
+        ) = get_batch_tensors_and_boundary_info(
             manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
         )
 
