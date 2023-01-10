@@ -16,7 +16,6 @@ import csv
 import itertools
 import json
 import os
-import pathlib
 import random
 import subprocess
 

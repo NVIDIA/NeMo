@@ -15,7 +15,6 @@
 """Entry point, main file to run to launch jobs with the HP tool."""
 
 import math
-import sys
 
 import hydra
 import omegaconf
