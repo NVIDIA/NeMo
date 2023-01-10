@@ -142,9 +142,6 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
     path_list[-1] = "log_job_%j.err"
     error = "/".join(path_list)
 
-    ini_parent = pathlib.Path(ini).parent.as_posix()
-    csv_parent = pathlib.Path(csv).parent.as_posix()
-
     bash_commands = [
         f"export NCCL_LAUNCH_MODE=GROUP",
         "echo ${SLURM_PROCID}.${SLURM_LOCALID}@$(hostname)",
