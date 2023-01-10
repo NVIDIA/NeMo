@@ -84,19 +84,19 @@ def get_audio_sr(manifest_filepath):
         return f_audio.samplerate
 
 
-def get_manifest_lines(manifest_filepath, start, end):
-    data = []
+def get_manifest_lines_batch(manifest_filepath, start, end):
+    manifest_lines_batch = []
     with open(manifest_filepath, "r") as f:
         for line_i, line in enumerate(f):
             if line_i == start and line_i == end:
-                data.append(json.loads(line))
+                manifest_lines_batch.append(json.loads(line))
                 break
 
             if line_i == end:
                 break
             if line_i >= start:
-                data.append(json.loads(line))
-    return data
+                manifest_lines_batch.append(json.loads(line))
+    return manifest_lines_batch
 
 
 def get_char_tokens(text, model):
@@ -111,6 +111,9 @@ def get_char_tokens(text, model):
 
 
 def get_y_token_word_segment_info(text, model, separator):
+    """
+    Get y, token_info, word_info and segment_info for the text provided, tokenized by the model provided.
+    """
 
     if hasattr(model, 'tokenizer'):
 
@@ -123,7 +126,7 @@ def get_y_token_word_segment_info(text, model, separator):
         segments = [seg.strip() for seg in segments]
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
-        BLANK_TOKEN = "<blank>"
+        BLANK_TOKEN = "<b>"
         y_token_ids = []
         y_token_ids_with_blanks = [BLANK_ID]
         y_tokens = []
@@ -277,7 +280,7 @@ def get_y_token_word_segment_info(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_log_probs_y_T_U(data, model, separator, align_using_pred_text):
+def get_log_probs_y_T_U(manifest_lines_batch, model, separator, align_using_pred_text):
     """
     Preparing some tensors to be used during Viterbi decoding.
     Returns:
@@ -286,57 +289,66 @@ def get_log_probs_y_T_U(data, model, separator, align_using_pred_text):
         pred_text_list
     """
 
-    audio_filepaths = [line["audio_filepath"] for line in data]
-    B = len(audio_filepaths)
+    audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
+    B = len(audio_filepaths_batch)
 
     with torch.no_grad():
-        hypotheses = model.transcribe(audio_filepaths, return_hypotheses=True, batch_size=B)
+        hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
 
-    log_probs_list = []
-    T_list = []
-    pred_text_list = []
+    log_probs_list_batch = []
+    T_list_batch = []
+    pred_text_batch = []
     for hypothesis in hypotheses:
-        log_probs_list.append(hypothesis.y_sequence)
-        T_list.append(hypothesis.y_sequence.shape[0])
-        pred_text_list.append(hypothesis.text)
+        log_probs_list_batch.append(hypothesis.y_sequence)
+        T_list_batch.append(hypothesis.y_sequence.shape[0])
+        pred_text_batch.append(hypothesis.text)
 
-    y_list = []
-    U_list = []
-    token_info_list = []
-    word_info_list = []
-    segment_info_list = []
+    y_list_batch = []
+    U_list_batch = []
+    token_info_batch = []
+    word_info_batch = []
+    segment_info_batch = []
 
-    for i_line, line in enumerate(data):
+    for i_line, line in enumerate(manifest_lines_batch):
         if align_using_pred_text:
-            gt_text_for_alignment = pred_text_list[i_line]
+            gt_text_for_alignment = pred_text_batch[i_line]
         else:
             gt_text_for_alignment = line["text"]
-        y_line, token_info, word_info, segment_info = get_y_token_word_segment_info(
+        y_utt, token_info_utt, word_info_utt, segment_info_utt = get_y_token_word_segment_info(
             gt_text_for_alignment, model, separator
         )
 
-        y_list.append(y_line)
-        U_list.append(len(y_line))
-        token_info_list.append(token_info)
-        word_info_list.append(word_info)
-        segment_info_list.append(segment_info)
+        y_list_batch.append(y_utt)
+        U_list_batch.append(len(y_utt))
+        token_info_batch.append(token_info_utt)
+        word_info_batch.append(word_info_utt)
+        segment_info_batch.append(segment_info_utt)
 
-    T_max = max(T_list)
-    U_max = max(U_list)
+    T_max = max(T_list_batch)
+    U_max = max(U_list_batch)
     V = len(model.decoder.vocabulary) + 1
-    T = torch.tensor(T_list)
-    U = torch.tensor(U_list)
+    T_batch = torch.tensor(T_list_batch)
+    U_batch = torch.tensor(U_list_batch)
 
-    # make log_probs tensor of shape (B x T_max x V)
-    log_probs = V_NEG_NUM * torch.ones((B, T_max, V))
-    for b, log_probs_b in enumerate(log_probs_list):
-        t = log_probs_b.shape[0]
-        log_probs[b, :t, :] = log_probs_b
+    # make log_probs_batch tensor of shape (B x T_max x V)
+    log_probs_batch = V_NEG_NUM * torch.ones((B, T_max, V))
+    for b, log_probs_utt in enumerate(log_probs_list_batch):
+        t = log_probs_utt.shape[0]
+        log_probs_batch[b, :t, :] = log_probs_utt
 
     # make y tensor of shape (B x U_max)
-    y = V * torch.ones((B, U_max), dtype=torch.int64)
-    for b, y_b in enumerate(y_list):
-        U_b = U[b]
-        y[b, :U_b] = torch.tensor(y_b)
+    y_batch = V * torch.ones((B, U_max), dtype=torch.int64)
+    for b, y_utt in enumerate(y_list_batch):
+        U_utt = U_batch[b]
+        y_batch[b, :U_utt] = torch.tensor(y_utt)
 
-    return log_probs, y, T, U, token_info_list, word_info_list, segment_info_list, pred_text_list
+    return (
+        log_probs_batch,
+        y_batch,
+        T_batch,
+        U_batch,
+        token_info_batch,
+        word_info_batch,
+        segment_info_batch,
+        pred_text_batch,
+    )

@@ -22,7 +22,7 @@ from utils.data_prep import (
     get_audio_sr,
     get_batch_starts_ends,
     get_log_probs_y_T_U,
-    get_manifest_lines,
+    get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
 )
@@ -189,21 +189,30 @@ def main(cfg: AlignmentConfig):
 
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
-        data = get_manifest_lines(cfg.manifest_filepath, start, end)
+        manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        log_probs, y, T, U, token_info, word_info, segment_info, pred_text_list = get_log_probs_y_T_U(
-            data, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
+        (
+            log_probs_batch,
+            y_batch,
+            T_batch,
+            U_batch,
+            token_info_batch,
+            word_info_batch,
+            segment_info_batch,
+            pred_text_batch,
+        ) = get_log_probs_y_T_U(
+            manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
         )
 
         if cfg.align_using_pred_text:
-            pred_text_all_lines.extend(pred_text_list)
+            pred_text_all_lines.extend(pred_text_batch)
 
-        alignments = viterbi_decoding(log_probs, y, T, U, viterbi_device)
+        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
         make_ctm(
-            token_info,
-            alignments,
-            data,
+            token_info_batch,
+            alignments_batch,
+            manifest_lines_batch,
             model,
             cfg.model_downsample_factor,
             os.path.join(cfg.output_dir, "tokens"),
@@ -214,9 +223,9 @@ def main(cfg: AlignmentConfig):
         )
 
         make_ctm(
-            word_info,
-            alignments,
-            data,
+            word_info_batch,
+            alignments_batch,
+            manifest_lines_batch,
             model,
             cfg.model_downsample_factor,
             os.path.join(cfg.output_dir, "words"),
@@ -228,9 +237,9 @@ def main(cfg: AlignmentConfig):
 
         if cfg.additional_ctm_grouping_separator:
             make_ctm(
-                segment_info,
-                alignments,
-                data,
+                segment_info_batch,
+                alignments_batch,
+                manifest_lines_batch,
                 model,
                 cfg.model_downsample_factor,
                 os.path.join(cfg.output_dir, "additional_segments"),
