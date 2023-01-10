@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,8 +91,9 @@ def _estimate_model_size(
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 0.87 if model_name == "mt5" else 1.0
+    valid_models = ["gpt3", "t5", "mt5", "bert"]
     try:
-        if model_name in ["gpt3", "t5", "mt5", "bert"]:
+        if model_name in valid_models:
             return round(
                 model_penalty
                 * (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
@@ -106,6 +107,9 @@ def _estimate_model_size(
         print(f"Input values were not valid: {err}")
     except ZeroDivisionError as err:
         print(f"Cannot divide by zero. This can happen if num_tokens_in_b is zero: {err}")
+    except NotImplementedError as err:
+        print(f"Model size estimation is only available for {valid_models}: {err}")
+    return None
 
 
 def _estimate_training_time(
@@ -125,8 +129,9 @@ def _estimate_training_time(
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 1.15 if model_name == "mt5" else 1.0
+    valid_models = ["gpt3", "t5", "mt5", "bert"]
     try:
-        if model_name in ["gpt3", "t5", "mt5", "bert"]:
+        if model_name in valid_models:
             return round(
                 model_penalty
                 * (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
@@ -139,6 +144,9 @@ def _estimate_training_time(
         print(f"Input values were not valid: {err}")
     except ZeroDivisionError as err:
         print(f"Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero: {err}")
+    except NotImplementedError as err:
+        print(f"Training time estimation is only available for {valid_models}: {err}")
+    return None
 
 
 def _calculate_gbs_tp_pp(model_size_in_b: float, gpu_memory_gb: int = 80, model_name: str = "gpt3",) -> Tuple[int]:

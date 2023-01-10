@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,7 +67,6 @@ def generate_grid_search_configs(
     """
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
-    gpus_per_node = train_cfg.get("gpus_per_node")
     num_nodes = train_cfg.get("num_nodes")
     act_layers = train_cfg.get("act_ckpt_layers")
 
@@ -80,7 +79,6 @@ def generate_grid_search_configs(
         else base_cfg["model"]["encoder"]["num_layers"]
     )
 
-    act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
     act_method = base_cfg["model"].get("activations_checkpoint_method", "block")
 
     tp_list, pp_list, mbs_list, min_model_parallel, max_model_parallel = _calculate_tp_pp_mbs_grid(
@@ -163,7 +161,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
             act_multiple = 8 // pp
         elif 11.3 <= model_size_in_b < 26.0:
             act_multiple = 16 // pp
-        elif 26.0 <= model_size_in_b:
+        elif 26.0 <= model_size_in_b < 60.0:
             act_multiple = 16 // pp
         elif 60.0 <= model_size_in_b:
             act_multiple = 32 // pp
@@ -506,7 +504,6 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
         int pp is the Pipeline Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
     """
-    tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 3, 4, 6, 8]
     min_model_parallel = 1
@@ -567,7 +564,6 @@ def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
         int pp is the Pipeline Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
     """
-    tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8]
     min_model_parallel = 1
@@ -829,3 +825,4 @@ def launch_throughput_measure(
         dependency = job_id.decode("utf-8")
         print(f"Submitted job to select optimal throughput with job id: {dependency}")
         return dependency
+    return None
