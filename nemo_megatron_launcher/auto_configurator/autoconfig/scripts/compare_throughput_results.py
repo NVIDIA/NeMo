@@ -68,9 +68,7 @@ def main(cfg):
         model_name = candidate_cfg.get("run").get("name").split("_")[0]
         gbs = model_cfg.get("global_batch_size")
         enc_seq_len = (
-            model_cfg.get("encoder_seq_length")
-            if model_name in ("gpt3", "bert")
-            else model_cfg.get("seq_length")
+            model_cfg.get("encoder_seq_length") if model_name in ("gpt3", "bert") else model_cfg.get("seq_length")
         )
         dec_seq_len = data_cfg.get("seq_length_dec")
 
@@ -85,7 +83,9 @@ def main(cfg):
             hs = encoder_cfg.get("hidden_size")
             ffn_hs = encoder_cfg.get("ffn_hidden_size")
             layers = encoder_cfg.get("num_layers") + decoder_cfg.get("num_layers")
-            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") + decoder_cfg.get("activations_checkpoint_num_layers")
+            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") + decoder_cfg.get(
+                "activations_checkpoint_num_layers"
+            )
             num_mbs_act = None
             act_per_pipe = None
         tp = model_cfg.get("tensor_model_parallel_size")
@@ -175,17 +175,7 @@ def main(cfg):
 
 
 def calculate_tflops(
-    model_name,
-    gbs,
-    enc_seq_len,
-    dec_seq_len,
-    hs,
-    ffn_hs,
-    layers,
-    vocab,
-    nodes,
-    gpus_per_node,
-    time_per_step,
+    model_name, gbs, enc_seq_len, dec_seq_len, hs, ffn_hs, layers, vocab, nodes, gpus_per_node, time_per_step,
 ):
     """Calculates model and hardware TFLOPS for each model.
 
@@ -199,8 +189,7 @@ def calculate_tflops(
     if model_name == "gpt3":
         # Model FLOPS calculation
         model_flops = (
-            (24 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs)
-            * (3 * layers)
+            (24 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs) * (3 * layers)
             + (6 * gbs * enc_seq_len * hs * vocab)
         ) / time_per_step
         model_flops_per_gpu = model_flops / (nodes * gpus_per_node)
@@ -210,26 +199,30 @@ def calculate_tflops(
 
     elif model_name == "bert":
         model_flops = (
-            72 * gbs * layers * enc_seq_len * hs * hs * ( 1 + (enc_seq_len/(6*hs)) + (vocab/(12 * hs * layers)))
+            72 * gbs * layers * enc_seq_len * hs * hs * (1 + (enc_seq_len / (6 * hs)) + (vocab / (12 * hs * layers)))
         ) / time_per_step
         model_flops_per_gpu = model_flops / (nodes * gpus_per_node)
         model_tflops = model_flops / 1e12
-        model_tflops_per_gpu = model_flops_per_gpu / 1e12        
-        
+        model_tflops_per_gpu = model_flops_per_gpu / 1e12
+
     elif model_name in ["t5", "mt5"]:
         # Encoder Layer FLOPS: include self attention + MLP
-        flops_self_attn_enc = 8*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs
-        flops_mlp_enc = 6*gbs*enc_seq_len*hs*ffn_hs #geglu needs two gemms for h -> ffn_h
+        flops_self_attn_enc = 8 * gbs * enc_seq_len * hs * hs + 4 * gbs * enc_seq_len * enc_seq_len * hs
+        flops_mlp_enc = 6 * gbs * enc_seq_len * hs * ffn_hs  # geglu needs two gemms for h -> ffn_h
         flops_enc_layer = flops_self_attn_enc + flops_mlp_enc
 
         # Decoder Layer FLOPS: inlcude self_attn + cross_attn + MLP
-        flops_self_attn_dec = 8*gbs*dec_seq_len*hs*hs + 4*gbs*dec_seq_len*dec_seq_len*hs
-        flops_cross_attn_dec = 4*gbs*enc_seq_len*hs*hs + 4*gbs*dec_seq_len*hs*hs + 4*gbs*enc_seq_len*dec_seq_len*hs
-        flops_mlp_dec = 6*gbs*dec_seq_len*hs*ffn_hs # geglu needs two gemms for h -> ffn_h
+        flops_self_attn_dec = 8 * gbs * dec_seq_len * hs * hs + 4 * gbs * dec_seq_len * dec_seq_len * hs
+        flops_cross_attn_dec = (
+            4 * gbs * enc_seq_len * hs * hs
+            + 4 * gbs * dec_seq_len * hs * hs
+            + 4 * gbs * enc_seq_len * dec_seq_len * hs
+        )
+        flops_mlp_dec = 6 * gbs * dec_seq_len * hs * ffn_hs  # geglu needs two gemms for h -> ffn_h
         flops_dec_layer = flops_self_attn_dec + flops_cross_attn_dec + flops_mlp_dec
 
-        #FLOPs of logits layer in the head
-        flops_logits = 2*gbs*dec_seq_len*hs*vocab
+        # FLOPs of logits layer in the head
+        flops_logits = 2 * gbs * dec_seq_len * hs * vocab
 
         # FLOPs of fprop
         flops_fprop = (flops_enc_layer + flops_dec_layer) * (layers // 2) + flops_logits
@@ -247,4 +240,3 @@ def calculate_tflops(
 
 if __name__ == "__main__":
     main()
-
