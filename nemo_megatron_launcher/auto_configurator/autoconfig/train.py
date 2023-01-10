@@ -15,7 +15,6 @@
 """Module to launch training jobs using nemo_megatron_launcher."""
 
 import os
-import shutil
 import subprocess
 
 from autoconfig import utils
