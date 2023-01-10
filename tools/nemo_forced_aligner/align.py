@@ -18,7 +18,7 @@ from typing import Optional
 
 import torch
 from omegaconf import OmegaConf
-from utils.data_prep import get_audio_sr, get_log_probs_y_T_U, get_manifest_lines
+from utils.data_prep import get_audio_sr, get_batch_starts_ends, get_log_probs_y_T_U, get_manifest_lines
 from utils.make_ctm import make_ctm
 from utils.viterbi_decoding import viterbi_decoding
 
@@ -144,14 +144,8 @@ def main(cfg: AlignmentConfig):
         "timestamps in output CTM."
     )
 
-    # define start and end line IDs of batches
-    with open(cfg.manifest_filepath, 'r') as f:
-        num_lines_in_manifest = sum(1 for _ in f)
-
-    starts = [x for x in range(0, num_lines_in_manifest, cfg.batch_size)]
-    ends = [x - 1 for x in starts]
-    ends.pop(0)
-    ends.append(num_lines_in_manifest)
+    # get start and end line IDs of batches
+    starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):

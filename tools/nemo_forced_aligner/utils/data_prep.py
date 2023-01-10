@@ -21,6 +21,22 @@ import torch
 V_NEG_NUM = -1e30
 
 
+def get_batch_starts_ends(manifest_filepath, batch_size):
+    """
+    Get the start and end ids of the lines we will use for each 'batch'.
+    """
+
+    with open(manifest_filepath, 'r') as f:
+        num_lines_in_manifest = sum(1 for _ in f)
+
+    starts = [x for x in range(0, num_lines_in_manifest, batch_size)]
+    ends = [x - 1 for x in starts]
+    ends.pop(0)
+    ends.append(num_lines_in_manifest)
+
+    return starts, ends
+
+
 def get_audio_sr(manifest_filepath):
     """
     Measure the sampling rate of the audio file in the first line
