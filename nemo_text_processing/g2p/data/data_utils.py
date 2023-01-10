@@ -14,11 +14,12 @@
 
 
 import csv
+import os
 import re
 import string
 import unicodedata
 from builtins import str as unicode
-from typing import List, Tuple
+from typing import Dict, List, Tuple, Union
 
 __all__ = [
     "read_wordids",
@@ -72,6 +73,9 @@ def read_wordids(wordid_map: str):
         homograph_dict: a dictionary of graphemes with corresponding word_id - ipa_form pairs
         wordid_to_idx: word id to label id mapping
     """
+    if not os.path.exists(wordid_map):
+        raise ValueError(f"{wordid_map} not found")
+
     homograph_dict = {}
     wordid_to_idx = {}
 
@@ -92,13 +96,18 @@ def read_wordids(wordid_map: str):
     return homograph_dict, wordid_to_idx
 
 
-def get_wordid_to_nemo(wordid_to_nemo_cmu_file: str = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu.tsv"):
+def get_wordid_to_phonemes(
+    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu-0.7b_nv22.10.tsv",
+):
     """
     WikiHomograph and NeMo use slightly different phoneme sets, this function reads WikiHomograph word_ids to NeMo
     IPA heteronyms mapping
     """
+    if not os.path.exists(wordid_to_phonemes_file):
+        raise ValueError(f"{wordid_to_phonemes_file} not found")
+
     wordid_to_nemo_cmu = {}
-    with open(wordid_to_nemo_cmu_file, "r", encoding="utf-8") as f:
+    with open(wordid_to_phonemes_file, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             if i == 0:
                 continue
@@ -128,36 +137,6 @@ def english_text_preprocessing(text, lower=True):
         text = text.lower()
 
     return text
-
-
-def german_text_preprocessing(text: str) -> str:
-    """
-    TODO @xueyang: Apply NFC form may be too aggressive since it would ignore some accented characters that do not exist
-      in predefined German alphabet (nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon.IPA_CHARACTER_SETS),
-      such as 'é'. This is not expected. A better solution is to add an extra normalization with NFD to discard the
-      diacritics and consider 'é' and 'e' produce similar pronunciations.
-
-    Note that the tokenizer needs to run `unicodedata.normalize("NFC", x)` before calling `encode` function,
-    especially for the characters that have diacritics, such as 'ö' in the German alphabet. 'ö' can be encoded as
-    b'\xc3\xb6' (one char) as well as b'o\xcc\x88' (two chars). Without the normalization of composing two chars
-    together and without a complete predefined set of diacritics, when the tokenizer reads the input sentence
-    char-by-char, it would skip the combining diaeresis b'\xcc\x88', resulting in indistinguishable pronunciations
-    for 'ö' and 'o'.
-
-    Args:
-        text (str): the original input sentence.
-
-    Returns:
-        NFC normalized sentence (str).
-    """
-    res = []
-    for c in unicodedata.normalize("NFC", text):
-        if c in ['’']:  # right single quotation mark as an apostrophe, U+2019, decimal 8217
-            res.append("'")
-        else:
-            res.append(c)
-
-    return ''.join(res)
 
 
 def _word_tokenize(words: List[Tuple[str, str, str]]) -> List[Tuple[List[str], bool]]:
@@ -232,9 +211,66 @@ def any_locale_text_preprocessing(text):
     return text.lower()
 
 
+def german_text_preprocessing(text):
+    return text.lower()
+
+
 def spanish_text_preprocessing(text):
     return text.lower()
 
 
 def chinese_text_preprocessing(text):
     return text.lower()
+
+
+def remove_punctuation(text: str, remove_spaces=True, do_lower=True, exclude=None):
+    all_punct_marks = string.punctuation
+
+    if exclude is not None:
+        for p in exclude:
+            all_punct_marks = all_punct_marks.replace(p, "")
+
+    text = re.sub("[" + all_punct_marks + "]", " ", text)
+
+    text = re.sub(r" +", " ", text)
+    if remove_spaces:
+        text = text.replace(" ", "").replace("\u00A0", "").strip()
+
+    if do_lower:
+        text = text.lower()
+    return text.strip()
+
+
+def get_homograph_spans(sentences: List[str], supported_homographs: Union[Dict, List]):
+    """
+    Find homographs in sentences and returns span indices
+
+    Args:
+        sentences: sentences to find homographs in
+        supported_homographs: homographs to look for
+
+    Return:
+        start_end: List[Tuple[int]] - start-end indices that indicate location of found homograph in the sentence
+        homographs: List[List[str]] - homographs found in sentences, each sentence can contain more than one homograph
+    """
+    start_end = []
+    homographs = []
+    for sent in sentences:
+        cur_start_end = []
+        cur_homographs = []
+        start_idx = 0
+        for word in sent.lower().split():
+            word_by_hyphen = word.split("-")
+            for sub_word in word_by_hyphen:
+                no_punct_word = remove_punctuation(sub_word, do_lower=True, remove_spaces=False)
+                if no_punct_word in supported_homographs:
+                    start_idx = sent.index(no_punct_word, start_idx)
+                    end_idx = start_idx + len(no_punct_word)
+                    cur_start_end.append((start_idx, end_idx))
+                    cur_homographs.append(no_punct_word)
+                    start_idx = end_idx
+                else:
+                    start_idx += len(sub_word) + 1
+        homographs.append(cur_homographs)
+        start_end.append(cur_start_end)
+    return start_end, homographs
