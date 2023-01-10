@@ -42,8 +42,9 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
         cfg = run_chunked_inference(cfg)
 
     elif cfg.inference.mode == "offline_by_chunked":
-        # Specify default total_buffer_in_secs=22 and chunk_len_in_secs=20 for offline conformer
-        # to avoid problem of long audio sample.
+        # When use Conformer to transcribe long audio sample, we could probably encounter CUDA out of memory issue.
+        # Here we use offline_by_chunked mode to simulate offline mode for Conformer.
+        # And we specify default total_buffer_in_secs=22 and chunk_len_in_secs=20 to avoid above problem.
         OmegaConf.set_struct(cfg, True)
         if 'total_buffer_in_secs' not in cfg.inference or not cfg.inference.total_buffer_in_secs:
             with open_dict(cfg):

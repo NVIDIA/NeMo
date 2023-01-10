@@ -216,7 +216,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
-        channel_selector: Optional[ChannelSelectorType] = None, 
+        channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
     ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
@@ -280,7 +280,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
                 if augmentor:
                     config['augmentor'] = augmentor
-                    
+
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
