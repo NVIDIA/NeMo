@@ -18,7 +18,7 @@ import os
 import soundfile as sf
 import torch
 
-V_NEG_NUM = -1e30
+from .constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
@@ -126,7 +126,6 @@ def get_y_token_word_segment_info(text, model, separator):
         segments = [seg.strip() for seg in segments]
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
-        BLANK_TOKEN = "<b>"
         y_token_ids = []
         y_token_ids_with_blanks = [BLANK_ID]
         y_tokens = []
@@ -194,9 +193,7 @@ def get_y_token_word_segment_info(text, model, separator):
         segments = [seg.strip() for seg in segments]
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
-        BLANK_TOKEN = "<b>"
         SPACE_ID = model.decoder.vocabulary.index(" ")
-        SPACE_TOKEN = "<space>"
         y_token_ids = []
         y_token_ids_with_blanks = [BLANK_ID]
         y_tokens = []
@@ -331,7 +328,7 @@ def get_log_probs_y_T_U(manifest_lines_batch, model, separator, align_using_pred
     U_batch = torch.tensor(U_list_batch)
 
     # make log_probs_batch tensor of shape (B x T_max x V)
-    log_probs_batch = V_NEG_NUM * torch.ones((B, T_max, V))
+    log_probs_batch = V_NEGATIVE_NUM * torch.ones((B, T_max, V))
     for b, log_probs_utt in enumerate(log_probs_list_batch):
         t = log_probs_utt.shape[0]
         log_probs_batch[b, :t, :] = log_probs_utt

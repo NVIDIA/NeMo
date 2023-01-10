@@ -14,7 +14,7 @@
 
 import torch
 
-V_NEG_NUM = -1e30
+from .constants import V_NEGATIVE_NUM
 
 
 def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
@@ -33,11 +33,11 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     T_batch = T_batch.to(viterbi_device)
     U_batch = U_batch.to(viterbi_device)
 
-    padding_for_log_probs = V_NEG_NUM * torch.ones((B, T_max, 1), device=viterbi_device)
+    padding_for_log_probs = V_NEGATIVE_NUM * torch.ones((B, T_max, 1), device=viterbi_device)
     log_probs_padded = torch.cat((log_probs_batch, padding_for_log_probs), dim=2)
     log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=y_batch.unsqueeze(1).repeat(1, T_max, 1))
 
-    v_matrix = V_NEG_NUM * torch.ones_like(log_probs_reordered)
+    v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered)
     backpointers = -999 * torch.ones_like(v_matrix)
     v_matrix[:, 0, :2] = log_probs_reordered[:, 0, :2]
 
@@ -54,11 +54,11 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
         v_prev = v_matrix[:, t - 1, :]
         v_prev_shifted = torch.roll(v_prev, shifts=1, dims=1)
-        v_prev_shifted[:, 0] = V_NEG_NUM
+        v_prev_shifted[:, 0] = V_NEGATIVE_NUM
 
         v_prev_shifted2 = torch.roll(v_prev, shifts=2, dims=1)
-        v_prev_shifted2[:, :2] = V_NEG_NUM
-        v_prev_shifted2.masked_fill_(letter_repetition_mask, V_NEG_NUM)
+        v_prev_shifted2[:, :2] = V_NEGATIVE_NUM
+        v_prev_shifted2.masked_fill_(letter_repetition_mask, V_NEGATIVE_NUM)
 
         v_prev_dup = torch.cat(
             (v_prev.unsqueeze(2), v_prev_shifted.unsqueeze(2), v_prev_shifted2.unsqueeze(2),), dim=2,

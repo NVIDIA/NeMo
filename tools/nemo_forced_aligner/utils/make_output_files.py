@@ -18,6 +18,8 @@ from pathlib import Path
 
 import soundfile as sf
 
+from .constants import BLANK_TOKEN, SPACE_TOKEN
+
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
@@ -90,8 +92,6 @@ def make_ctm(
     """
     assert len(boundary_info_batch) == len(alignments_batch) == len(manifest_lines_batch)
 
-    BLANK_TOKEN = "<b>"  # TODO: move outside of function
-
     os.makedirs(output_dir, exist_ok=True)
 
     spectrogram_hop_length = model.preprocessor.featurizer.hop_length
@@ -126,6 +126,8 @@ def make_ctm(
                     end_time = min(token_mid_point + minimum_timestamp_duration / 2, audio_file_duration)
 
                 if not (text == BLANK_TOKEN and remove_blank_tokens_from_ctm):
+                    # replace any spaces with <space> so we dont introduce extra space characters to our CTM files
+                    text = text.replace(" ", SPACE_TOKEN)
                     f_ctm.write(f"{utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
 
     return None
