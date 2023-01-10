@@ -1,5 +1,4 @@
 env:
-    random_seed: 42
     save_git_hash: True
 
 engine:    
@@ -32,6 +31,7 @@ engine:
             max_snr_db: 15
 
     output_filename: null
+    random_seed: 42
 
 analyst:
     metric_calculator:

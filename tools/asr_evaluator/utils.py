@@ -111,6 +111,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         f"pretrained_name={cfg.pretrained_name} "
         f"dataset_manifest={cfg.test_ds.manifest_filepath} "
         f"output_filename={cfg.output_filename} "
+        f"random_seed={cfg.random_seed} "
         f"batch_size={cfg.test_ds.batch_size} "
         f"chunk_len_in_secs={cfg.inference.chunk_len_in_secs} "
         f"total_buffer_in_secs={cfg.inference.total_buffer_in_secs} "
@@ -149,6 +150,7 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
             f"dataset_manifest={cfg.test_ds.manifest_filepath} "
             f"output_filename={cfg.output_filename} "
             f"batch_size={cfg.test_ds.batch_size} "
+            f"random_seed={cfg.random_seed} "
             f"eval_config_yaml={f.name} ",
             shell=True,
             check=True,
@@ -243,11 +245,11 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
             if cfg.analyst.metric_calculator.use_cer:
                 eval_metric = "cer"
 
-            sample[eval_metric] = wer # evaluatin metric, could be word error rate of character error rate 
-            sample['tokens'] = tokens # number of word/characters/tokens
-            sample['ins_rate'] = ins_rate # insertion error rate 
-            sample['del_rate'] = del_rate # deletion error rate 
-            sample['sub_rate'] = sub_rate # substitution error rate 
+            sample[eval_metric] = wer  # evaluatin metric, could be word error rate of character error rate
+            sample['tokens'] = tokens  # number of word/characters/tokens
+            sample['ins_rate'] = ins_rate  # insertion error rate
+            sample['del_rate'] = del_rate  # deletion error rate
+            sample['sub_rate'] = sub_rate  # substitution error rate
 
             samples.append(sample)
             hyps.append(hyp)

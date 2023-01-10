@@ -13,8 +13,7 @@
 # limitations under the License.
 import json
 import random
-import torch
-import numpy as np
+
 import git
 from omegaconf import OmegaConf
 from utils import cal_target_metadata_wer, cal_write_wer, run_asr_inference
@@ -41,10 +40,7 @@ def main(cfg):
     report = {}
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
-    # Set and save random seed and git hash for reproducibility
-    random.seed(cfg.env.random_seed)
-    report['random'] = cfg.env.random_seed
-
+    # Store git hash for reproducibility
     if cfg.env.save_git_hash:
         repo = git.Repo(search_parent_directories=True)
         report['git_hash'] = repo.head.object.hexsha
@@ -55,7 +51,7 @@ def main(cfg):
     # If need to change more parameters for ASR inference, change it in
     # 1) shell script in eval_utils.py in nemo/collections/asr/parts/utils or
     # 2) TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr
-    cfg.engine = run_asr_inference(cfg.engine)
+    cfg.engine = run_asr_inference(cfg=cfg.engine)
 
     ## Analyst
     cfg, total_res, eval_metric = cal_write_wer(cfg)

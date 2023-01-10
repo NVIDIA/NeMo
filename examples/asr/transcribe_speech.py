@@ -116,6 +116,7 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
@@ -152,6 +153,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
+
+    if cfg.random_seed:
+        pl.seed_everything(cfg.random_seed)
 
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
