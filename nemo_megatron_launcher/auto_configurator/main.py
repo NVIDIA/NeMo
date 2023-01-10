@@ -36,7 +36,6 @@ def main(cfg: omegaconf.dictconfig.DictConfig) -> None:
     :param omegaconf.dictconfig.DictConfig cfg: OmegaConf object, read using the @hydra.main decorator.
     :return: None
     """
-    hydra_args = " ".join(sys.argv[1:])
     hydra_args = convert_to_cli(cfg)
     search_config(cfg=cfg, hydra_args=hydra_args)
 
