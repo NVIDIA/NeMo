@@ -52,54 +52,190 @@ def get_manifest_lines(manifest_filepath, start, end):
     return data
 
 
-def get_processed_text_and_segments(text, separator):
-    """
-    If the separator is not empty string, ie CTM segments will not just be tokens,
-    this function replaces the separator with a space, amalgamates any spaces around
-    it into one, and returns the new processed text as well as a list of strings
-    containing the segments to be returned in the CTM.
-    """
-    if separator == "":
-        return text, None
+def get_char_tokens(text, model):
+    tokens = []
+    for character in text:
+        if character in model.decoder.vocabulary:
+            tokens.append(model.decoder.vocabulary.index(character))
+        else:
+            tokens.append(len(model.decoder.vocabulary))  # return unk token (same as blank token)
 
-    # get rid of any whitespace around text
-    text = text.strip()
-
-    segments = text.split(separator)
-
-    # remove any spaces at start and end of segments
-    segments = [seg.strip() for seg in segments]
-
-    processed_text = " ".join(segments)
-
-    return processed_text, segments
+    return tokens
 
 
-def tokenize_text(model, text):
-    """ Works for token-based and character-based models """
-    if hasattr(model, "tokenizer"):
-        return model.tokenizer.text_to_ids(text)
+def get_y_token_word_segment_info(text, model, separator):
+
+    if hasattr(model, 'tokenizer'):
+
+        if not separator:  # if separator is not defined - treat the whole text as one segment
+            segments = [text]
+        else:
+            segments = text.split(separator)
+
+        # remove any spaces at start and end of segments
+        segments = [seg.strip() for seg in segments]
+
+        BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
+        BLANK_TOKEN = "<blank>"
+        y_token_ids = []
+        y_token_ids_with_blanks = [BLANK_ID]
+        y_tokens = []
+        y_tokens_with_blanks = [BLANK_TOKEN]
+        token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
+        word_info = []
+        segment_info = []
+
+        segment_s_pointer = 1
+        word_s_pointer = 1
+
+        for segment in segments:
+            words = segment.split(" ")
+            for word in words:
+
+                word_tokens = model.tokenizer.text_to_tokens(word)
+                word_ids = model.tokenizer.text_to_ids(word)
+                for token, id_ in zip(word_tokens, word_ids):
+                    y_token_ids.append(id_)
+                    y_token_ids_with_blanks.extend([id_, BLANK_ID])
+                    y_tokens.append(token)
+                    y_tokens_with_blanks.extend([token, BLANK_TOKEN])
+
+                    token_info.append(
+                        {
+                            "text": token,
+                            "s_start": len(y_tokens_with_blanks) - 2,
+                            "s_end": len(y_tokens_with_blanks) - 2,
+                        }
+                    )
+                    token_info.append(
+                        {
+                            "text": BLANK_TOKEN,
+                            "s_start": len(y_tokens_with_blanks) - 1,
+                            "s_end": len(y_tokens_with_blanks) - 1,
+                        }
+                    )
+
+                word_info.append(
+                    {
+                        "text": word,
+                        "s_start": word_s_pointer,
+                        "s_end": word_s_pointer + (len(word_tokens) - 1) * 2,  # TODO check this,
+                    }
+                )
+                word_s_pointer += len(word_tokens) * 2  # TODO check this
+
+            segment_tokens = model.tokenizer.text_to_tokens(segment)
+            segment_info.append(
+                {
+                    "text": segment,
+                    "s_start": segment_s_pointer,
+                    "s_end": segment_s_pointer + (len(segment_tokens) - 1) * 2,
+                }
+            )
+            segment_s_pointer += len(segment_tokens) * 2
+
+        return y_token_ids_with_blanks, token_info, word_info, segment_info
 
     elif hasattr(model.decoder, "vocabulary"):
-        # i.e. assume it is character-based model (in theory could be TalkNet - that will not work)
-        tokens = []
-        for character in text:
-            if character in model.decoder.vocabulary:
-                tokens.append(model.decoder.vocabulary.index(character))
-            else:
-                tokens.append(len(model.decoder.vocabulary))  # return unk token (same as blank token)
 
-        return tokens
+        segments = text.split(separator)
+
+        # remove any spaces at start and end of segments
+        segments = [seg.strip() for seg in segments]
+
+        BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
+        BLANK_TOKEN = "<b>"
+        SPACE_ID = model.decoder.vocabulary.index(" ")
+        SPACE_TOKEN = "<space>"
+        y_token_ids = []
+        y_token_ids_with_blanks = [BLANK_ID]
+        y_tokens = []
+        y_tokens_with_blanks = [BLANK_TOKEN]
+        token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
+        word_info = []
+        segment_info = []
+
+        segment_s_pointer = 1
+        word_s_pointer = 1
+
+        for i_segment, segment in enumerate(segments):
+            words = segment.split(" ")
+            for i_word, word in enumerate(words):
+
+                word_tokens = list(word)
+                word_ids = get_char_tokens(word, model)
+                for token, id_ in zip(word_tokens, word_ids):
+                    y_token_ids.append(id_)
+                    y_token_ids_with_blanks.extend([id_, BLANK_ID])
+                    y_tokens.append(token)
+                    y_tokens_with_blanks.extend([token, BLANK_TOKEN])
+
+                    token_info.append(
+                        {
+                            "text": token,
+                            "s_start": len(y_tokens_with_blanks) - 2,
+                            "s_end": len(y_tokens_with_blanks) - 2,
+                        }
+                    )
+                    token_info.append(
+                        {
+                            "text": BLANK_TOKEN,
+                            "s_start": len(y_tokens_with_blanks) - 1,
+                            "s_end": len(y_tokens_with_blanks) - 1,
+                        }
+                    )
+
+                # add space token unless this is the final word in the final segment
+                if not (i_segment == len(segments) - 1 and i_word == len(words) - 1):
+                    y_token_ids.append(SPACE_ID)
+                    y_token_ids_with_blanks.extend([SPACE_ID, BLANK_ID])
+                    y_tokens.append(SPACE_TOKEN)
+                    y_tokens_with_blanks.extend([SPACE_TOKEN, BLANK_TOKEN])
+                    token_info.append(
+                        {
+                            "text": SPACE_TOKEN,
+                            "s_start": len(y_tokens_with_blanks) - 2,
+                            "s_end": len(y_tokens_with_blanks) - 2,
+                        }
+                    )
+                    token_info.append(
+                        {
+                            "text": BLANK_TOKEN,
+                            "s_start": len(y_tokens_with_blanks) - 1,
+                            "s_end": len(y_tokens_with_blanks) - 1,
+                        }
+                    )
+                word_info.append(
+                    {
+                        "text": word,
+                        "s_start": word_s_pointer,
+                        "s_end": word_s_pointer + len(word_tokens) * 2 - 2,  # TODO check this,
+                    }
+                )
+                word_s_pointer += len(word_tokens) * 2 + 2  # TODO check this
+
+            segment_tokens = get_char_tokens(segment, model)
+            segment_info.append(
+                {
+                    "text": segment,
+                    "s_start": segment_s_pointer,
+                    "s_end": segment_s_pointer + (len(segment_tokens) - 1) * 2,
+                }
+            )
+            segment_s_pointer += len(segment_tokens) * 2 + 2
+
+        return y_token_ids_with_blanks, token_info, word_info, segment_info
 
     else:
-        raise RuntimeError("Can't tokenize this model atm")
+        raise RuntimeError("Cannot get tokens of this model.")
 
 
 def get_log_probs_y_T_U(data, model, separator):
     """
     Preparing some tensors to be used during Viterbi decoding.
     Returns:
-        log_probs, y, T, U_dash (ie. U with every other token being a blank)
+        log_probs, y, T, U (y and U are s.t. every other token is a blank),
+        token_info_list, word_info_list, segment_info_list
     """
 
     audio_filepaths = [line["audio_filepath"] for line in data]
@@ -116,17 +252,24 @@ def get_log_probs_y_T_U(data, model, separator):
 
     y_list = []
     U_list = []
+    token_info_list = []
+    word_info_list = []
+    segment_info_list = []
+
     for line in data:
-        processed_text, _ = get_processed_text_and_segments(line['text'], separator)
-        y_line = tokenize_text(model, processed_text)
+        y_line, token_info, word_info, segment_info = get_y_token_word_segment_info(line["text"], model, separator)
+
         y_list.append(y_line)
         U_list.append(len(y_line))
+        token_info_list.append(token_info)
+        word_info_list.append(word_info)
+        segment_info_list.append(segment_info)
 
     T_max = max(T_list)
     U_max = max(U_list)
-    blank_index = len(model.decoder.vocabulary)
     V = len(model.decoder.vocabulary) + 1
     T = torch.tensor(T_list)
+    U = torch.tensor(U_list)
 
     # make log_probs tensor of shape (B x T_max x V)
     log_probs = V_NEG_NUM * torch.ones((B, T_max, V))
@@ -134,19 +277,10 @@ def get_log_probs_y_T_U(data, model, separator):
         t = log_probs_b.shape[0]
         log_probs[b, :t, :] = log_probs_b
 
-    # make y tensor of shape (B x U_dash_max)
-    U_dash_max = 2 * U_max + 1
-    y = V * torch.ones((B, U_dash_max), dtype=torch.int64)
-    U_dash_list = []
+    # make y tensor of shape (B x U_max)
+    y = V * torch.ones((B, U_max), dtype=torch.int64)
     for b, y_b in enumerate(y_list):
-        y_dash_b = [blank_index]
-        for y_b_element in y_b:
-            y_dash_b.append(y_b_element)
-            y_dash_b.append(blank_index)
-        U_dash = len(y_dash_b)
-        y[b, :U_dash] = torch.tensor(y_dash_b)
-        U_dash_list.append(U_dash)
+        U_b = U[b]
+        y[b, :U_b] = torch.tensor(y_b)
 
-    U_dash = torch.tensor(U_dash_list)
-
-    return log_probs, y, T, U_dash
+    return log_probs, y, T, U, token_info_list, word_info_list, segment_info_list

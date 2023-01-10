@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import torch
 from omegaconf import OmegaConf
 from utils.data_prep import get_audio_sr, get_log_probs_y_T_U, get_manifest_lines
-from utils.make_ctm import make_segment_ctm, make_token_ctm
+from utils.make_ctm import make_ctm
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -52,21 +53,13 @@ Arguments:
     viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
         The string needs to be in a format recognized by torch.device().
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
-    ctm_grouping_separator: the string used to separate CTM segments.
-        If the separator is “” or None, each line of the output CTM will be the tokens used by the ASR model.
-        If the separator is anything else, e.g. “ “, “|” or “<new section>”, the segments will be the blocks of 
-        text separated by that separator.
-        Default: “ “, ie for languages such as English, the CTM segments will be words.
-        Note: if the separator is not “” or “ “, it will be removed from the CTM, ie it is treated as a marker 
-        which is not part of the ground truth. It will essentially be treated as a space, and any additional spaces 
-        around it will be amalgamated into one, i.e. the following texts will be treated as equivalent:
-        “abc|def”
-        “abc |def”
-        “abc| def”
-        “abc | def”
-    remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from output CTMs. 
-        Note: "<blank>" tokens can only be present if your CTMs are token-level. Therefore, NFA will throw an error 
-        if you set `remove_blank_tokens_from_ctm` to `True` if the `ctm_grouping_separator` is not `""` or `None`. 
+    additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
+        level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
+        files in: `<output_ctm_folder>/tokens/<utt_id>.ctm` and `<output_ctm_folder>/words/<utt_id>.ctm`. 
+        If `additional_ctm_grouping_separator` is specified, an additional folder 
+        `<output_ctm_folder>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
+        for `addtional_ctm_grouping_separator`-separated segments. 
+    remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
     n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
         we will use (starting from the final part of the audio_filepath) to determine the 
         utt_id that will be used in the CTM files. Note also that any spaces that are present in the audio_filepath 
@@ -95,7 +88,7 @@ class AlignmentConfig:
     transcribe_device: str = "cpu"
     viterbi_device: str = "cpu"
     batch_size: int = 1
-    ctm_grouping_separator: Optional[str] = " "
+    additional_ctm_grouping_separator: Optional[str] = None
     remove_blank_tokens_from_ctm: bool = False
     minimum_timestamp_duration: float = 0
     n_parts_for_ctm_id: int = 1
@@ -125,30 +118,11 @@ def main(cfg: AlignmentConfig):
     if cfg.output_ctm_folder is None:
         raise ValueError("cfg.output_ctm_folder must be specified")
 
-    if (cfg.ctm_grouping_separator != "" or cfg.ctm_grouping_separator is None) and cfg.remove_blank_tokens_from_ctm:
-        raise ValueError(
-            "cfg.remove_blank_tokens_from_ctm can only be set to True if producing token-level CTMs, "
-            " (i.e. if cfg.ctm_grouping_separator is empty string or None"
-        )
+    if cfg.additional_ctm_grouping_separator == "" or cfg.additional_ctm_grouping_separator == " ":
+        raise ValueError("cfg.additional_grouping_separaor cannot be empty string or space character")
 
     if cfg.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
-
-    # Log info about selected params
-    if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
-        logging.info(
-            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => " "each line of the output CTM will be a token"
-        )
-    elif cfg.ctm_grouping_separator == " ":
-        logging.info(
-            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => "
-            "each line of the output CTM will be a space-separated word"
-        )
-    else:
-        logging.info(
-            f"ctm_grouping_separator is {cfg.ctm_grouping_separator} => "
-            f"each line of the output CTM will be the text that is inbetween {cfg.ctm_grouping_separator}"
-        )
 
     # init devices
     transcribe_device = torch.device(cfg.transcribe_device)
@@ -183,30 +157,46 @@ def main(cfg: AlignmentConfig):
     for start, end in zip(starts, ends):
         data = get_manifest_lines(cfg.manifest_filepath, start, end)
 
-        log_probs, y, T, U = get_log_probs_y_T_U(data, model, cfg.ctm_grouping_separator)
+        log_probs, y, T, U, token_info, word_info, segment_info = get_log_probs_y_T_U(
+            data, model, cfg.additional_ctm_grouping_separator
+        )
         alignments = viterbi_decoding(log_probs, y, T, U, viterbi_device)
 
-        if cfg.ctm_grouping_separator == "" or cfg.ctm_grouping_separator is None:
-            make_token_ctm(
-                data,
-                alignments,
-                model,
-                cfg.model_downsample_factor,
-                cfg.output_ctm_folder,
-                cfg.remove_blank_tokens_from_ctm,
-                cfg.minimum_timestamp_duration,
-                cfg.n_parts_for_ctm_id,
-                audio_sr,
-            )
+        make_ctm(
+            token_info,
+            alignments,
+            data,
+            model,
+            cfg.model_downsample_factor,
+            os.path.join(cfg.output_ctm_folder, "tokens"),
+            cfg.remove_blank_tokens_from_ctm,
+            cfg.n_parts_for_ctm_id,
+            cfg.minimum_timestamp_duration,
+            audio_sr,
+        )
 
-        else:
-            make_segment_ctm(
-                data,
+        make_ctm(
+            word_info,
+            alignments,
+            data,
+            model,
+            cfg.model_downsample_factor,
+            os.path.join(cfg.output_ctm_folder, "words"),
+            False,  # dont try to remove blank tokens because we dont expect them to be there
+            cfg.n_parts_for_ctm_id,
+            cfg.minimum_timestamp_duration,
+            audio_sr,
+        )
+
+        if cfg.additional_ctm_grouping_separator:
+            make_ctm(
+                segment_info,
                 alignments,
+                data,
                 model,
                 cfg.model_downsample_factor,
-                cfg.output_ctm_folder,
-                cfg.ctm_grouping_separator,
+                os.path.join(cfg.output_ctm_folder, "additional_segments"),
+                False,  # dont try to remove blank tokens because we dont expect them to be there
                 cfg.n_parts_for_ctm_id,
                 cfg.minimum_timestamp_duration,
                 audio_sr,
