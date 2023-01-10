@@ -162,15 +162,6 @@ def main(cfg):
             if not done:
                 with torch.no_grad():
                     _, sentences = model.disambiguate(
-                        sentences=["The soldier deserted the desert in desert.", "He read a book"],
-                        batch_size=2,
-                        num_workers=cfg.num_workers,
-                        wordid_to_phonemes_file=cfg.wordid_to_phonemes_file,
-                    )
-                    import pdb
-
-                    pdb.set_trace()
-                    _, sentences = model.disambiguate(
                         sentences=[test_input],
                         batch_size=1,
                         num_workers=cfg.num_workers,
