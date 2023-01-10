@@ -24,6 +24,9 @@ from nemo.utils import logging
 
 
 def run_asr_inference(cfg: DictConfig) -> DictConfig:
+    """
+    Execute ASR inference based on input mode and parameters.
+    """
     if (cfg.model_path and cfg.pretrained_name) or (not cfg.model_path and not cfg.pretrained_name):
         raise ValueError("Please specify either cfg.model_path or cfg.pretrained_name!")
 
@@ -159,7 +162,7 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
     return cfg
 
 
-def clean_label(_str: str, num_to_words: bool = True) -> str:
+def clean_label(_str: str, num_to_words: bool = True, langid="en") -> str:
     """
     Remove unauthorized characters in a string, lower it and remove unneeded spaces
     """
@@ -175,39 +178,49 @@ def clean_label(_str: str, num_to_words: bool = True) -> str:
     for i in replace_with_apos:
         _str = _str.replace(i, "'")
     if num_to_words:
-        _str = convert_num_to_words(_str)
+        if langid == "en":
+            _str = convert_num_to_words(_str, langid="en")
+        else:
+            logging.info(
+                "Currently support basic num_to_words in English only. Please use Text Normalization to convert other languages! Skipping!"
+            )
 
     ret = " ".join(_str.split())
     return ret
 
 
-def convert_num_to_words(_str: str) -> str:
+def convert_num_to_words(_str: str, langid: str = "en") -> str:
     """
     Convert digits to corresponding words. Note this is a naive approach and could be replaced with text normalization.
     """
-    num_to_words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
-    _str = _str.strip()
-    words = _str.split()
-    out_str = ""
-    num_word = []
-    for word in words:
-        if word.isdigit():
-            num = int(word)
-            while num:
-                digit = num % 10
-                digit_word = num_to_words[digit]
-                num_word.append(digit_word)
-                num = int(num / 10)
-                if not (num):
-                    num_str = ""
-                    num_word = num_word[::-1]
-                    for ele in num_word:
-                        num_str += ele + " "
-                    out_str += num_str + " "
-                    num_word.clear()
-        else:
-            out_str += word + " "
-    out_str = out_str.strip()
+    if langid == "en":
+        num_to_words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+        _str = _str.strip()
+        words = _str.split()
+        out_str = ""
+        num_word = []
+        for word in words:
+            if word.isdigit():
+                num = int(word)
+                while num:
+                    digit = num % 10
+                    digit_word = num_to_words[digit]
+                    num_word.append(digit_word)
+                    num = int(num / 10)
+                    if not (num):
+                        num_str = ""
+                        num_word = num_word[::-1]
+                        for ele in num_word:
+                            num_str += ele + " "
+                        out_str += num_str + " "
+                        num_word.clear()
+            else:
+                out_str += word + " "
+        out_str = out_str.strip()
+    else:
+        raise ValueError(
+            "Currently support basic num_to_words in English only. Please use Text Normalization to convert other languages!"
+        )
     return out_str
 
 
@@ -236,7 +249,7 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
             ref = sample['text']
 
             if cfg.analyst.metric_calculator.clean_groundtruth_text:
-                ref = clean_label(ref)
+                ref = clean_label(ref, langid=cfg.analyst.metric_calculator.langid)
 
             wer, tokens, ins_rate, del_rate, sub_rate = word_error_rate_detail(
                 hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
@@ -285,9 +298,20 @@ def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[Dic
 def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
     """ 
     Caculating number of samples (samples), number of words/characters/tokens (tokens), 
-    wer/cer, insertion error rate (ins_rate), deletion error rate (del_rate), substitution error rate (sub_rate) of the group/slot. 
+    wer/cer, insertion error rate (ins_rate), deletion error rate (del_rate), substitution error rate (sub_rate) of the group/slot of target metadata. 
 
     The group could be [female, male] or slot group like [0-2s, 2-5s, >5s audios]
+
+
+    Args:
+        manifest (str): Filepath of the generated manifest which contains prediction and eval result for each samples.  
+        target (str): Target metadata. Execute the target metadata if field presents in manifest. 
+            such as 'duration', 'speaker', 'emotion', etc.
+        meta_cfg (DictConfig): Config for calculating group eval_metric for the target metadata.
+        eval_metric: (str): Supported evaluation metrics. Currently support 'wer' and 'cer'.
+
+    Return: 
+        ret (dict): Generated dictionary containing all results regarding the target metadata. 
     """
 
     if eval_metric not in ['wer', 'cer']:
@@ -295,14 +319,14 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
             "Currently support wer and cer as eval_metric. Please implement it in cal_target_metadata_wer if using different eval_metric"
         )
 
-    wer_each_class = {}
+    wer_per_class = {}
     with open(manifest, 'r') as fp:
         for line in fp:
             sample = json.loads(line)
             if target in sample:
                 target_class = sample[target]
-                if target_class not in wer_each_class:
-                    wer_each_class[target_class] = {
+                if target_class not in wer_per_class:
+                    wer_per_class[target_class] = {
                         'samples': 0,
                         'tokens': 0,
                         "errors": 0,
@@ -310,32 +334,32 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
                         "dels": 0,
                         "subs": 0,
                     }
-                wer_each_class[target_class]['samples'] += 1
+                wer_per_class[target_class]['samples'] += 1
 
                 tokens = sample["tokens"]
-                wer_each_class[target_class]["tokens"] += tokens
-                wer_each_class[target_class]["errors"] += tokens * sample[eval_metric]
-                wer_each_class[target_class]["inss"] += tokens * sample["ins_rate"]
-                wer_each_class[target_class]["dels"] += tokens * sample["del_rate"]
-                wer_each_class[target_class]["subs"] += tokens * sample["sub_rate"]
+                wer_per_class[target_class]["tokens"] += tokens
+                wer_per_class[target_class]["errors"] += tokens * sample[eval_metric]
+                wer_per_class[target_class]["inss"] += tokens * sample["ins_rate"]
+                wer_per_class[target_class]["dels"] += tokens * sample["del_rate"]
+                wer_per_class[target_class]["subs"] += tokens * sample["sub_rate"]
 
-    if len(wer_each_class) > 0:
-        res_wer_each_class = {}
-        for target_class in wer_each_class:
-            res_wer_each_class[target_class] = {}
-            res_wer_each_class[target_class]["samples"] = wer_each_class[target_class]["samples"]
-            res_wer_each_class[target_class][eval_metric] = (
-                wer_each_class[target_class]["errors"] / wer_each_class[target_class]["tokens"]
+    if len(wer_per_class) > 0:
+        res_wer_per_class = {}
+        for target_class in wer_per_class:
+            res_wer_per_class[target_class] = {}
+            res_wer_per_class[target_class]["samples"] = wer_per_class[target_class]["samples"]
+            res_wer_per_class[target_class][eval_metric] = (
+                wer_per_class[target_class]["errors"] / wer_per_class[target_class]["tokens"]
             )
-            res_wer_each_class[target_class]["tokens"] = wer_each_class[target_class]["tokens"]
-            res_wer_each_class[target_class]["ins_rate"] = (
-                wer_each_class[target_class]["inss"] / wer_each_class[target_class]["tokens"]
+            res_wer_per_class[target_class]["tokens"] = wer_per_class[target_class]["tokens"]
+            res_wer_per_class[target_class]["ins_rate"] = (
+                wer_per_class[target_class]["inss"] / wer_per_class[target_class]["tokens"]
             )
-            res_wer_each_class[target_class]["del_rate"] = (
-                wer_each_class[target_class]["dels"] / wer_each_class[target_class]["tokens"]
+            res_wer_per_class[target_class]["del_rate"] = (
+                wer_per_class[target_class]["dels"] / wer_per_class[target_class]["tokens"]
             )
-            res_wer_each_class[target_class]["sub_rate"] = (
-                wer_each_class[target_class]["subs"] / wer_each_class[target_class]["tokens"]
+            res_wer_per_class[target_class]["sub_rate"] = (
+                wer_per_class[target_class]["subs"] / wer_per_class[target_class]["tokens"]
             )
     else:
         logging.info(f"metadata '{target}' does not present in manifest. Skipping! ")
@@ -344,7 +368,7 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
     values = ['samples', 'tokens', 'errors', 'inss', 'dels', 'subs']
     slot_wer = {}
     if 'slot' in meta_cfg and meta_cfg.slot:
-        for target_class in wer_each_class:
+        for target_class in wer_per_class:
             for s in meta_cfg.slot:
                 if isinstance(s[0], float) or isinstance(s[0], int):
                     if s[0] <= target_class < s[1]:
@@ -360,7 +384,7 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
                             }
 
                         for v in values:
-                            slot_wer[slot_key][v] += wer_each_class[target_class][v]
+                            slot_wer[slot_key][v] += wer_per_class[target_class][v]
                         break
 
                 elif isinstance(s[0], str):
@@ -377,7 +401,7 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
                             }
 
                         for v in values:
-                            slot_wer[slot_key][v] += wer_each_class[target_class][v]
+                            slot_wer[slot_key][v] += wer_per_class[target_class][v]
                         break
                 else:
                     raise ValueError("Current only support target metadata belongs to numeric or string ")
@@ -391,11 +415,11 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
             slot_wer[slot_key].pop('inss')
             slot_wer[slot_key].pop('dels')
             slot_wer[slot_key].pop('subs')
-        res_wer_each_class.update(slot_wer)
+        res_wer_per_class.update(slot_wer)
 
     ret = None
-    if meta_cfg.wer_each_class:
-        ret = res_wer_each_class
-    if (not meta_cfg.wer_each_class) and ('slot' in meta_cfg and meta_cfg.slot):
+    if meta_cfg.save_wer_per_class:
+        ret = res_wer_per_class
+    if (not meta_cfg.save_wer_per_class) and ('slot' in meta_cfg and meta_cfg.slot):
         ret = slot_wer
     return ret

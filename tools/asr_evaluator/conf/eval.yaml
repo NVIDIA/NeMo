@@ -36,33 +36,34 @@ engine:
 analyst:
     metric_calculator:
         clean_groundtruth_text: True
+        langid: "en" # speciify language to clean text. Note use text normalization in NeMo for better performancce
         output_filename: null # specify it if wanna skip engine and use previously generated manifest
         use_cer: False
 
     metadata:
         duration: 
-            exec: True
-            slot: [[0,2],[2,5],[5,10],[10,20],[20,100000]]
-            wer_each_class: False # whether to save wer for each presented class.
+            enable: True
+            slot: [[0,2],[2,5],[5,10],[10,20],[20,100000]] # a slot accepts List[List[str]] or List[List[float]]. i.e. 1.8s belongs to slot [0,2]
+            save_wer_per_class: False # whether to save wer for each presented class.
             
         gender:
-            exec: False
-            slot: [["female"]]
-            wer_each_class: True
+            enable: False
+            slot: [["female"]] # One could also report only one group/class though there are multiple classes in the data. 
+            save_wer_per_class: True
             
         speaker:
-            exec: True
-            wer_each_class: False
+            enable: True
+            save_wer_per_class: False
             
         age:
-            exec: False
+            enable: False
             slot: null
-            wer_each_class: False
+            save_wer_per_class: False
             
         emotion: 
-            exec: True
-            slot: [['happy','laugh'],['neural'],['sad','cry']]
-            wer_each_class: False
+            enable: True
+            slot: [['happy','laugh'],['neural'],['sad','cry']] 
+            save_wer_per_class: False
                  
 writer:
     report_filename: null

@@ -57,7 +57,7 @@ def main(cfg):
     report.update({"res": total_res})
 
     for target in cfg.analyst.metadata:
-        if cfg.analyst.metadata[target].exec:
+        if cfg.analyst.metadata[target].enable:
             occ_avg_wer = cal_target_metadata_wer(
                 manifest=cfg.analyst.metric_calculator.output_filename,
                 target=target,
