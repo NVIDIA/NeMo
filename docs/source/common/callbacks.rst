@@ -32,25 +32,20 @@ To change the decay rate, pass the additional argument.
 .. code-block:: bash
 
     python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
-        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.devices=2 \
-        trainer.accelerator='gpu' \
-        trainer.max_epochs=50 \
+        ...
         exp_manager.ema.enable=True \
         exp_manager.ema.decay=0.999
 
 We also offer other helpful arguments.
 
-.. code-block:: bash
+.. list-table::
+   :header-rows: 1
 
-    python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
-        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.devices=2 \
-        trainer.accelerator='gpu' \
-        trainer.max_epochs=50 \
-        exp_manager.ema.enable=True \
-        exp_manager.ema.validate_original_weights=True \ # validate the original weights instead of EMA weights.
-        exp_manager.ema.every_n_steps=2 \ # apply EMA every N steps instead of every step.
-        exp_manager.ema.cpu_offload=True # offload EMA weights to CPU. May introduce significant slow-downs.
+   * - Argument
+     - Description
+   * - `exp_manager.ema.validate_original_weights=True`
+     - Validate the original weights instead of EMA weights.
+   * - `exp_manager.ema.every_n_steps=2`
+     - Apply EMA every N steps instead of every step.
+   * - `exp_manager.ema.cpu_offload=True`
+     - Offload EMA weights to CPU. May introduce significant slow-downs.
