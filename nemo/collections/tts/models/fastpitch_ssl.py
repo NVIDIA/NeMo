@@ -14,13 +14,13 @@
 import os
 import random
 from logging import ERROR, getLogger
-from typing import Optional
+from typing import Iterable, Optional
 
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
@@ -130,9 +130,9 @@ class FastPitchModel_SSL(ModelPT):
             if self.logger is None and self.logger.experiment is None:
                 return None
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
+            if isinstance(self.logger, Iterable):
                 for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
+                    if isinstance(logger, Iterable):
                         tb_logger = logger.experiment
                         break
             self._tb_logger = tb_logger
@@ -308,10 +308,10 @@ class FastPitchModel_SSL(ModelPT):
 
             _spec_len = spec_len[_rand_idx].data.cpu().item()
             wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
-            self.tb_logger.add_audio("Real audio", wav_vocoded, self.global_step, 22050)
+            self.tb_logger.add_audio("Real audio", wav_vocoded[0], self.global_step, 22050)
 
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
-            self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
+            self.tb_logger.add_audio("Generated Audio", wav_vocoded[0], self.global_step, 22050)
             self.log_train_images = True
 
     def generate_wav(

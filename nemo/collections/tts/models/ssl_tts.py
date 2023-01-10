@@ -14,7 +14,7 @@
 import itertools
 from concurrent.futures import process
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Iterable, Optional, Union
 
 import editdistance
 import librosa
@@ -23,7 +23,7 @@ import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.supporters import CombinedLoader
 
 import nemo.collections.tts.torch.data as TTSData
@@ -153,7 +153,7 @@ class SSLDisentangler(ModelPT):
             if self.logger is None and self.logger.experiment is None:
                 return None
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
+            if isinstance(self.logger, Iterable):
                 for logger in self.logger:
                     if isinstance(logger, TensorBoardLogger):
                         tb_logger = logger.experiment
