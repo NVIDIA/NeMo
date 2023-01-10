@@ -38,5 +38,5 @@ WFST TN/ITN resources could be found in :doc:`here <wfst_resources>`.
 
 Riva resources
 --------------
-    - `Riva Text Normalization customization <https://riva-builder-01.nvidia.com/main/tts/tts-custom.html#custom-text-normalization>`_.
+    - `Riva Text Normalization customization for TTS <https://riva-builder-01.nvidia.com/main/tts/tts-custom.html#custom-text-normalization>`_.
     - `Riva ASR/Inverse Text Normalization customization <https://riva-builder-01.nvidia.com/main/asr/asr-customizing.html>`_.
