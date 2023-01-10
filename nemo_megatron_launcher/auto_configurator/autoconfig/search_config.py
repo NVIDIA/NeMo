@@ -16,7 +16,6 @@ import os
 from typing import Optional
 
 import omegaconf
-from autoconfig import utils
 from autoconfig.base_config import calculate_model_size, generate_base_config
 from autoconfig.inference_sweep import search_inference_config
 from autoconfig.training_config import search_training_config
