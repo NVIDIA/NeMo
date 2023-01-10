@@ -120,6 +120,6 @@ def make_ctm(
                     end_time = min(token_mid_point + minimum_timestamp_duration / 2, audio_file_duration)
 
                 if not (text == BLANK_TOKEN and remove_blank_tokens_from_ctm):
-                    f_ctm.write(f"{utt_id} 1 {start_time:.5f} {end_time - start_time:.5f} {text}\n")
+                    f_ctm.write(f"{utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
 
     return None
