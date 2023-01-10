@@ -24,8 +24,7 @@ from tensorboard.backend.event_processing import event_accumulator
 
 @hydra.main(config_path="../../conf", config_name="config")
 def main(cfg):
-    hp_cfg = cfg.search_config
-    settings_cfg = hp_cfg.train_settings
+    settings_cfg = cfg.search_config.train_settings
     model_size = settings_cfg.model_size_in_b
     output_top_n = settings_cfg.output_top_n
     nodes = cfg.get("nodes")
