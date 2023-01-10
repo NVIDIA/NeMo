@@ -181,6 +181,7 @@ def _calculate_gbs_tp_pp(model_size_in_b: float, gpu_memory_gb: int = 80, model_
             return _gbs_tp_pp_bert_40gb(model_size_in_b=model_size_in_b)
     else:
         raise NotImplementedError("Only gpt3, t5, mt5 and bert are supported.")
+    return None
 
 
 def _gbs_tp_pp_gpt3_80gb(model_size_in_b: float) -> Tuple[int]:

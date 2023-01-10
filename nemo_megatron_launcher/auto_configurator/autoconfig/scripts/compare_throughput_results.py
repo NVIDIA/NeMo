@@ -14,9 +14,6 @@
 
 """Script to compare the throughput of all the jobs."""
 import os
-import csv
-import sys
-import re
 from shutil import copyfile
 
 import hydra
@@ -27,7 +24,6 @@ from tensorboard.backend.event_processing import event_accumulator
 
 @hydra.main(config_path="../../conf", config_name="config")
 def main(cfg):
-    bignlp_hp_tool_path = cfg.bignlp_hp_tool_path
     hp_cfg = cfg.search_config
     settings_cfg = hp_cfg.train_settings
     model_size = settings_cfg.model_size_in_b
