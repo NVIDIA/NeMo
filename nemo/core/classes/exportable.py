@@ -115,7 +115,7 @@ class Exportable(ABC):
         format = get_export_format(output)
         output_descr = f"{qual_name} exported to {format}"
 
-        # Pytorch's default for None is too low, can't pass None through
+        # Pytorch's default opset version is too low, using reasonable latest one
         if onnx_opset_version is None:
             onnx_opset_version = 16
 
@@ -167,7 +167,7 @@ class Exportable(ABC):
                     jitted_model = torch.jit.load(output)
 
                     if check_trace:
-                        verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
+                        verify_torchscript(jitted_model, output, check_trace_input, check_tolerance)
                 elif format == ExportFormat.ONNX:
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:

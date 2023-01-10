@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Tuple
+from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
@@ -133,13 +133,11 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.device)
 
 
-def get_mask_from_lengths(
-    lengths=None, x=None,
-):
+def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[torch.Tensor] = None,) -> torch.Tensor:
     """Constructs binary mask from a 1D torch tensor of input lengths
 
     Args:
-        lengths (torch.tensor): 1D tensor
+        lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
         x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask 
     Returns:
         mask (torch.tensor): num_sequences x max_length x 1 binary tensor

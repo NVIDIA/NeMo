@@ -117,7 +117,7 @@ def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
     return odict
 
 
-def verify_torchscript(model, output, input_examples, input_names, check_tolerance=0.01):
+def verify_torchscript(model, output, input_examples, check_tolerance=0.01):
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)

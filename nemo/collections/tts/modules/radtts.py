@@ -602,7 +602,6 @@ class RadTTSModule(NeuralModule, Exportable):
     ):
 
         batch_size = text.shape[0]
-        n_tokens = text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
         if speaker_id_text is None:
             speaker_id_text = speaker_id
@@ -692,7 +691,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        return mel, out_lens, dur  # , f0, energy_avg
+        return mel, out_lens, dur, f0, energy_avg
 
     def infer_f0(self, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
         f0 = self.f0_pred_module.infer(txt_enc_time_expanded, spk_vec, lens)
@@ -804,7 +803,7 @@ class RadTTSModule(NeuralModule, Exportable):
         """
         Runs the generator, for inputs and outputs see input_types, and output_types
         """
-        mel, n_frames, dur = self.infer(
+        mel, n_frames, dur, _, _ = self.infer(
             speaker_id,
             text,
             speaker_id_text=speaker_id_text,
