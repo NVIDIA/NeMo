@@ -29,7 +29,7 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/{tokens,words,additional_segments}/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
 
-* **[OPTIONAL]** `align_using_pred_text`: if True, will transcribe the audio using the specified model and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_ctm_folder>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
+* **[OPTIONAL]** `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_ctm_folder>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
 
 * **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').
 
