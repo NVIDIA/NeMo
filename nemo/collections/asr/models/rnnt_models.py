@@ -216,7 +216,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
-        channel_selector: Optional[ChannelSelectorType] = None,
+        channel_selector: Optional[ChannelSelectorType] = None, 
+        augmentor: DictConfig = None,
     ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -232,7 +233,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
         """
@@ -277,6 +278,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     'channel_selector': channel_selector,
                 }
 
+                if augmentor:
+                    config['augmentor'] = augmentor
+                    
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
