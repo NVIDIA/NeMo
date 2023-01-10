@@ -37,7 +37,7 @@ from nemo.utils import logging
 
 """
 Align the utterances in manifest_filepath. 
-Results are saved in ctm files in output_ctm_folder.
+Results are saved in ctm files in output_dir.
 
 Arguments:
     pretrained_name: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded
@@ -54,7 +54,7 @@ Arguments:
         If the ASR model is a Citirnet model, its downsample factor is 8.
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
-    output_ctm_folder: the folder where output CTM files will be saved.
+    output_dir: the folder where output CTM files and new JSON manifest will be saved.
     align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
         as the 'ground truth' for the forced alignment. 
     transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
@@ -64,9 +64,9 @@ Arguments:
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
     additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
-        files in: `<output_ctm_folder>/tokens/<utt_id>.ctm` and `<output_ctm_folder>/words/<utt_id>.ctm`. 
+        files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. 
         If `additional_ctm_grouping_separator` is specified, an additional folder 
-        `<output_ctm_folder>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
+        `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
         for `addtional_ctm_grouping_separator`-separated segments. 
     remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
     n_parts_for_ctm_id: int specifying how many of the 'parts' of the audio_filepath
@@ -91,7 +91,7 @@ class AlignmentConfig:
     model_path: Optional[str] = None
     model_downsample_factor: Optional[int] = None
     manifest_filepath: Optional[str] = None
-    output_ctm_folder: Optional[str] = None
+    output_dir: Optional[str] = None
 
     # General configs
     align_using_pred_text: bool = False
@@ -125,8 +125,8 @@ def main(cfg: AlignmentConfig):
     if cfg.manifest_filepath is None:
         raise ValueError("cfg.manifest_filepath must be specified")
 
-    if cfg.output_ctm_folder is None:
-        raise ValueError("cfg.output_ctm_folder must be specified")
+    if cfg.output_dir is None:
+        raise ValueError("cfg.output_dir must be specified")
 
     if cfg.batch_size < 1:
         raise ValueError("cfg.batch_size cannot be zero or a negative number")
@@ -206,7 +206,7 @@ def main(cfg: AlignmentConfig):
             data,
             model,
             cfg.model_downsample_factor,
-            os.path.join(cfg.output_ctm_folder, "tokens"),
+            os.path.join(cfg.output_dir, "tokens"),
             cfg.remove_blank_tokens_from_ctm,
             cfg.n_parts_for_ctm_id,
             cfg.minimum_timestamp_duration,
@@ -219,7 +219,7 @@ def main(cfg: AlignmentConfig):
             data,
             model,
             cfg.model_downsample_factor,
-            os.path.join(cfg.output_ctm_folder, "words"),
+            os.path.join(cfg.output_dir, "words"),
             False,  # dont try to remove blank tokens because we dont expect them to be there anyway
             cfg.n_parts_for_ctm_id,
             cfg.minimum_timestamp_duration,
@@ -233,7 +233,7 @@ def main(cfg: AlignmentConfig):
                 data,
                 model,
                 cfg.model_downsample_factor,
-                os.path.join(cfg.output_ctm_folder, "additional_segments"),
+                os.path.join(cfg.output_dir, "additional_segments"),
                 False,  # dont try to remove blank tokens because we dont expect them to be there anyway
                 cfg.n_parts_for_ctm_id,
                 cfg.minimum_timestamp_duration,
@@ -241,7 +241,7 @@ def main(cfg: AlignmentConfig):
             )
 
     make_new_manifest(
-        cfg.output_ctm_folder,
+        cfg.output_dir,
         cfg.manifest_filepath,
         cfg.additional_ctm_grouping_separator,
         cfg.n_parts_for_ctm_id,

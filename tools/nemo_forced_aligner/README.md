@@ -9,7 +9,7 @@ python <path_to_NeMo>/NeMo/tools/nemo_forced_aligner/align.py \
         pretrained_name="stt_en_citrinet_1024_gamma_0_25" \
         model_downsample_factor=8 \
         manifest_filepath=<path to manifest of utterances you want to align> \
-        output_ctm_folder=<path to where your ctm files will be saved>
+        output_dir=<path to where your ctm files will be saved>
 ```
 
 ## How do I use NeMo Forced Aligner?
@@ -27,9 +27,9 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing `'audio_filepath'` and `'text'` fields. The audio filepaths need to be absolute paths.
 
-* `output_ctm_folder`: The folder where to save CTM files containing the generated alignments. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_ctm_folder>/{tokens,words,additional_segments}/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`.
+* `output_dir`: The folder where to save CTM files containing the generated alignments and new JSON manifest containing paths to those CTM files. There will be one CTM file per utterance (ie one CTM file per line in the manifest). The files will be called `<output_dir>/{tokens,words,additional_segments}/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `n_parts_for_ctm_id`. The new JSON manifest will be at `<output_dir>/<original manifest file name>_with_ctm_paths.json`.
 
-* **[OPTIONAL]** `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_ctm_folder>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
+* **[OPTIONAL]** `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
 
 * **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').
 
@@ -37,7 +37,7 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
-* **[OPTIONAL]** `additional_ctm_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_ctm_folder>/tokens/<utt_id>.ctm` and `<output_ctm_folder>/words/<utt_id>.ctm`. If `additional_ctm_grouping_separator` is specified, an additional folder `<output_ctm_folder>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space, as space-separated word-level CTMs will always be saved in `<output_ctm_folder>/words/<utt_id>.ctm`.)
+* **[OPTIONAL]** `additional_ctm_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. If `additional_ctm_grouping_separator` is specified, an additional folder `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space, as space-separated word-level CTMs will always be saved in `<output_dir>/words/<utt_id>.ctm`.)
 > Note: the `additional_ctm_grouping_separator` will be removed from the ground truth text and all the output CTMs, ie it is treated as a marker which is not part of the ground truth. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_ctm_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
 
 * **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False). 
@@ -52,22 +52,22 @@ By default, NFA needs to be provided with a 'manifest' file where each line spec
 {"audio_filepath": "/absolute/path/to/audio.wav", "text": "the transcription of the utterance"}
 ```
 
-You can omit the `"text"` field from the manifest if you specify `align_using_pred_text=true`. In that case, any `"text"` fields in the manifest will be ignored: the ASR model at `pretrained_name` or `model_path` will be used to transcribe the audio and obtain `"pred_text"`, which will be used as the 'ground truth' for the forced alignment process. The `"pred_text"` will also be saved in the output manifest JSON file at `<output_ctm_folder>/<original manifest file name>_with_ctm_paths.json`. To remove the possibility of overwriting `"pred_text"`, NFA will not attempt to do alignment with `align_using_pred_text=true` if there are existing `"pred_text"` fields in the original manifest.
+You can omit the `"text"` field from the manifest if you specify `align_using_pred_text=true`. In that case, any `"text"` fields in the manifest will be ignored: the ASR model at `pretrained_name` or `model_path` will be used to transcribe the audio and obtain `"pred_text"`, which will be used as the 'ground truth' for the forced alignment process. The `"pred_text"` will also be saved in the output manifest JSON file at `<output_dir>/<original manifest file name>_with_ctm_paths.json`. To remove the possibility of overwriting `"pred_text"`, NFA will not attempt to do alignment with `align_using_pred_text=true` if there are existing `"pred_text"` fields in the original manifest.
 
 > Note: NFA does not require `"duration"` fields in the manifest, and can align long audio files without running out of memory. Depending on your machine specs, you can align audios up to 5-10 minutes on Conformer CTC models, up to around 1.5 hours for QuartzNet models, and up to several hours for Citrinet models. NFA will also produce better alignments the more accurate the ground-truth `"text"` is.
 
 
 # Output CTM file format
 For each utterance specified in a line of `manifest_filepath`, several CTM files will be generated:
-* a CTM file containing token-level alignments at `<output_ctm_folder>/tokens/<utt_id>.ctm`,
-* a CTM file containing word-level alignments at `<output_ctm_folder>/words/<utt_id>.ctm`,
-* if `additional_ctm_grouping_separator` is specified, there will also be a CTM file containing those segments at `output_ctm_folder/additional_segments`.
+* a CTM file containing token-level alignments at `<output_dir>/tokens/<utt_id>.ctm`,
+* a CTM file containing word-level alignments at `<output_dir>/words/<utt_id>.ctm`,
+* if `additional_ctm_grouping_separator` is specified, there will also be a CTM file containing those segments at `output_dir/additional_segments`.
 Each CTM file will contain lines of the format:
 `<utt_id> 1 <start time in samples> <duration in samples> <text, ie token/word/segment>`.
 Note the second item in the line (the 'channel ID', which is required by the CTM file format) is always 1, as NFA operates on single channel audio.
 
 # Output JSON manifest file format
-A new manifest file will be saved at `<output_ctm_folder>/<original manifest file name>_with_ctm_paths.json`. It will contain the same fields as the original manifest, and additionally:
+A new manifest file will be saved at `<output_dir>/<original manifest file name>_with_ctm_paths.json`. It will contain the same fields as the original manifest, and additionally:
 * `"token_level_ctm_filepath"`
 * `"word_level_ctm_filepath"`
 * `"additonal_segment_level_ctm_filepath"` (if `additional_ctm_grouping_separator` is specified)

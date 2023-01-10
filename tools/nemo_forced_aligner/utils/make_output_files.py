@@ -76,7 +76,7 @@ def make_ctm(
     data_list,
     model,
     model_downsample_factor,
-    output_ctm_folder,
+    output_dir,
     remove_blank_tokens_from_ctm,
     n_parts_for_ctm_id,
     minimum_timestamp_duration,
@@ -89,7 +89,7 @@ def make_ctm(
 
     BLANK_TOKEN = "<b>"  # TODO: move outside of function
 
-    os.makedirs(output_ctm_folder, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     spectrogram_hop_length = model.preprocessor.featurizer.hop_length
     timestep_to_sample_ratio = spectrogram_hop_length * model_downsample_factor
@@ -106,7 +106,7 @@ def make_ctm(
             with sf.SoundFile(manifest_line["audio_filepath"]) as f:
                 audio_file_duration = f.frames / f.samplerate
 
-        with open(os.path.join(output_ctm_folder, f"{utt_id}.ctm"), "w") as f_ctm:
+        with open(os.path.join(output_dir, f"{utt_id}.ctm"), "w") as f_ctm:
             for segment_info in boundary_info:
                 text = segment_info["text"]
                 start_sample = segment_info["t_start"] * timestep_to_sample_ratio
@@ -127,7 +127,7 @@ def make_ctm(
 
 
 def make_new_manifest(
-    output_ctm_folder,
+    output_dir,
     original_manifest_filepath,
     additional_ctm_grouping_separator,
     n_parts_for_ctm_id,
@@ -144,7 +144,7 @@ def make_new_manifest(
             )
 
     tgt_manifest_name = str(Path(original_manifest_filepath).stem) + "_with_ctm_paths.json"
-    tgt_manifest_filepath = str(Path(output_ctm_folder) / tgt_manifest_name)
+    tgt_manifest_filepath = str(Path(output_dir) / tgt_manifest_name)
 
     with open(original_manifest_filepath, 'r') as fin, open(tgt_manifest_filepath, 'w') as fout:
         for i_line, line in enumerate(fin):
@@ -152,12 +152,12 @@ def make_new_manifest(
 
             utt_id = _get_utt_id(data["audio_filepath"], n_parts_for_ctm_id)
 
-            data["token_level_ctm_filepath"] = str(Path(output_ctm_folder) / "tokens" / f"{utt_id}.ctm")
-            data["word_level_ctm_filepath"] = str(Path(output_ctm_folder) / "words" / f"{utt_id}.ctm")
+            data["token_level_ctm_filepath"] = str(Path(output_dir) / "tokens" / f"{utt_id}.ctm")
+            data["word_level_ctm_filepath"] = str(Path(output_dir) / "words" / f"{utt_id}.ctm")
 
             if additional_ctm_grouping_separator:
                 data["additional_segment_level_ctm_filepath"] = str(
-                    Path(output_ctm_folder) / "additional_segments" / f"{utt_id}.ctm"
+                    Path(output_dir) / "additional_segments" / f"{utt_id}.ctm"
                 )
 
             if pred_text_all_lines:
