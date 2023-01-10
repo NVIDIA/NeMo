@@ -73,7 +73,7 @@ class MockModel(ModelPT):
     def setup_data_from_file(self, temp_file):
         """
         Load data from temp_file to `self.temp_data`
-        Allows test changing resource after instantiation
+        Allows to test changing resource after instantiation
         """
         with open_dict(self.cfg):
             self.cfg.temp_file = temp_file
@@ -623,7 +623,7 @@ class TestSaveRestore:
     @pytest.mark.parametrize("change_child_number", [False, True])
     def test_mock_model_nested(self, change_child_number: bool):
         """
-        test model with 2 children: model and each child can be saved/restored separately
+        Test model with 2 children: model and each child can be saved/restored separately
         model is constructed from presaved models
         """
         # children - simple mock models
@@ -670,7 +670,7 @@ class TestSaveRestore:
     @pytest.mark.parametrize("change_child_resource", [False, True])
     def test_mock_model_nested_with_resources(self, change_child_resource: bool):
         """
-        test nested model with 2 children: model and each child can be saved/restored separately
+        Test nested model with 2 children: model and each child can be saved/restored separately
         child models and parent model itself contain resources
         model is constructed from presaved models
         if change_child_resource is True, child model resources are changed after instantiation parent model
@@ -746,6 +746,92 @@ class TestSaveRestore:
                 if change_child_resource:
                     assert parent.child2_model.temp_data == child2_data_other
                 else:
+                    assert parent.child2_model.temp_data == child2_data
+
+    @pytest.mark.unit
+    def test_mock_model_nested_with_resources_multiple_passes(self):
+        """
+        Test nested model with 2 children: multiple save-restore passes
+        child models and parent model itself contain resources
+        """
+        with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile(
+            'w'
+        ) as file_child2, tempfile.NamedTemporaryFile('w') as file_child2_other, tempfile.NamedTemporaryFile(
+            'w'
+        ) as file_parent:
+            # write text data, use these files as resources
+            parent_data = ["*****\n"]
+            child1_data = ["+++++\n"]
+            child2_data = ["-----\n"]
+            child2_data_other = [".....\n"]
+            file_parent.writelines(parent_data)
+            file_parent.flush()
+            file_child1.writelines(child1_data)
+            file_child1.flush()
+            file_child2.writelines(child2_data)
+            file_child2.flush()
+            file_child2_other.writelines(child2_data_other)
+            file_child2_other.flush()
+
+            # construct child models with resources
+            # create configs
+            cfg_child1 = _mock_model_config()
+            cfg_child1.model.temp_file = file_child1.name
+            cfg_child2 = _mock_model_config()
+            cfg_child2.model.temp_file = file_child2.name
+            # create child models
+            child1 = MockModel(cfg=cfg_child1.model, trainer=None)
+            child1 = child1.to('cpu')
+            child2 = MockModel(cfg=cfg_child2.model, trainer=None)
+            child2 = child2.to('cpu')
+
+            with tempfile.TemporaryDirectory() as tmpdir_parent1, tempfile.TemporaryDirectory() as tmpdir_parent2, tempfile.TemporaryDirectory() as tmpdir_parent3, tempfile.TemporaryDirectory() as tmpdir_parent4:
+                parent_path1 = os.path.join(tmpdir_parent1, "parent.nemo")
+                parent_path2 = os.path.join(tmpdir_parent2, "parent.nemo")
+                with tempfile.TemporaryDirectory() as tmpdir_child:
+                    # save children
+                    child1_path = os.path.join(tmpdir_child, 'child1.nemo')
+                    child1.save_to(child1_path)
+                    child2_path = os.path.join(tmpdir_child, 'child2.nemo')
+                    child2.save_to(child2_path)
+
+                    # create model with children using saved "nemo" checkpoints
+                    cfg_parent = _mock_model_with_children_config(
+                        child1_model_path=child1_path, child2_model_path=child2_path
+                    )
+                    cfg_parent.model.temp_file = file_parent.name  # add resource
+                    parent = MockModelWithChildren(cfg_parent.model)
+
+                    # save-restore first pass
+                    # save to different locations
+                    parent.save_to(parent_path1)
+                    parent.save_to(parent_path2)
+
+                # restore, separate children checkpoints are not available here (tmpdir_child destroyed)
+                parent1 = ModelPT.restore_from(parent_path1)
+                parent2 = ModelPT.restore_from(parent_path2)
+
+                # check resources
+                for parent in (parent1, parent2):
+                    assert parent.temp_data == parent_data
+                    assert parent.child1_model.temp_data == child1_data
+                    assert parent.child2_model.temp_data == child2_data
+
+                del parent2  # use parent1 for second pass
+
+                # save-restore second pass
+                parent_path3 = os.path.join(tmpdir_parent3, "parent.nemo")
+                parent_path4 = os.path.join(tmpdir_parent4, "parent.nemo")
+                parent1.save_to(parent_path3)
+                parent1.save_to(parent_path4)
+
+                parent3 = ModelPT.restore_from(parent_path3)
+                parent4 = ModelPT.restore_from(parent_path4)
+
+                # check resources
+                for parent in (parent3, parent4):
+                    assert parent.temp_data == parent_data
+                    assert parent.child1_model.temp_data == child1_data
                     assert parent.child2_model.temp_data == child2_data
 
     @pytest.mark.unit
