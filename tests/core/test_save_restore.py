@@ -65,12 +65,28 @@ class MockModel(ModelPT):
         self.w = torch.nn.Linear(10, 1)
         # mock temp file
         if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
-            self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
-            with open(self.temp_file, 'r', encoding='utf-8') as f:
-                self.temp_data = f.readlines()
+            self.setup_data_from_file(self.cfg.temp_file)
         else:
             self.temp_file = None
             self.temp_data = None
+
+    def setup_data_from_file(self, temp_file):
+        """
+        Load data from temp_file to `self.temp_data`
+        Allows test changing resource after instantiation
+        """
+        with open_dict(self.cfg):
+            self.cfg.temp_file = temp_file
+        self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
+        with open(self.temp_file, 'r', encoding='utf-8') as f:
+            self.temp_data = f.readlines()
+
+    def change_stub_number(self, new_number: int):
+        """
+        Change stub number in config, useful for testing nested models,
+        since child can mutate config independently
+        """
+        self.cfg.stub_number = new_number
 
     def forward(self, x):
         y = self.w(x)
@@ -112,8 +128,6 @@ class MockModelWithChildren(MockModel):
                 self.cfg.child1_model = self.child1_model.cfg
             else:
                 self.child1_model = ModelPT.from_config_dict(self.cfg.child1_model)
-            # submodule artifacts should be registered explicitly
-            self.register_submodule_artifacts(self.child1_model, 'child1_model')
 
         # child 2
         if cfg.get('child2_model_path') is None and cfg.get('child2_model') is None:
@@ -129,12 +143,10 @@ class MockModelWithChildren(MockModel):
                 self.cfg.child2_model = self.child2_model.cfg  # assign model config
             else:
                 self.child2_model = ModelPT.from_config_dict(self.cfg.child2_model)
-            # submodule artifacts should be registered explicitly
-            self.register_submodule_artifacts(self.child2_model, 'child2_model')
 
 
 def _mock_model_config():
-    conf = {'temp_file': None, 'target': classpath(MockModel)}
+    conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -608,7 +620,8 @@ class TestSaveRestore:
             model = model.to('cpu')
 
     @pytest.mark.unit
-    def test_mock_model_nested(self):
+    @pytest.mark.parametrize("change_child_number", [False, True])
+    def test_mock_model_nested(self, change_child_number: bool):
         """
         test model with 2 children: model and each child can be saved/restored separately
         model is constructed from presaved models
@@ -637,36 +650,49 @@ class TestSaveRestore:
                 )
 
                 parent = MockModelWithChildren(cfg_parent.model)
+                if change_child_number:
+                    parent.child2_model.change_stub_number(10)
                 parent.save_to(parent_path)
             # restore, separate children checkpoints are not available here (tmpdir_child destroyed)
             parent = ModelPT.restore_from(parent_path)
             # check model is transparent, child models can be accessed and can be saved/restored separately
             _ = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
-            _ = self.__test_restore_elsewhere(parent.child2_model, map_location='cpu')
+            child2 = self.__test_restore_elsewhere(parent.child2_model, map_location='cpu')
+            if change_child_number:
+                assert child2.cfg.stub_number == 10
 
             # check model itself can be saved/restored
-            _ = self.__test_restore_elsewhere(parent, map_location='cpu')
+            parent = self.__test_restore_elsewhere(parent, map_location='cpu')
+            if change_child_number:
+                assert parent.child2_model.cfg.stub_number == 10
 
     @pytest.mark.unit
-    def test_mock_model_nested_with_resources(self):
+    @pytest.mark.parametrize("change_child_resource", [False, True])
+    def test_mock_model_nested_with_resources(self, change_child_resource: bool):
         """
         test nested model with 2 children: model and each child can be saved/restored separately
         child models and parent model itself contain resources
         model is constructed from presaved models
+        if change_child_resource is True, child model resources are changed after instantiation parent model
         """
         with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile(
             'w'
-        ) as file_child2, tempfile.NamedTemporaryFile('w') as file_parent:
+        ) as file_child2, tempfile.NamedTemporaryFile('w') as file_child2_other, tempfile.NamedTemporaryFile(
+            'w'
+        ) as file_parent:
             # write text data, use these files as resources
             parent_data = ["*****\n"]
             child1_data = ["+++++\n"]
             child2_data = ["-----\n"]
+            child2_data_other = [".....\n"]
             file_parent.writelines(parent_data)
             file_parent.flush()
             file_child1.writelines(child1_data)
             file_child1.flush()
             file_child2.writelines(child2_data)
             file_child2.flush()
+            file_child2_other.writelines(child2_data_other)
+            file_child2_other.flush()
 
             # construct child models with resources
             # create configs
@@ -695,6 +721,8 @@ class TestSaveRestore:
                     )
                     cfg_parent.model.temp_file = file_parent.name  # add resource
                     parent = MockModelWithChildren(cfg_parent.model)
+                    if change_child_resource:
+                        parent.child2_model.setup_data_from_file(file_child2_other.name)
                     parent.save_to(parent_path)
 
                 # restore, separate children checkpoints are not available here (tmpdir_child destroyed)
@@ -708,16 +736,17 @@ class TestSaveRestore:
                 # test resources
                 # check separately restored child models
                 assert child1.temp_data == child1_data
-                assert child2.temp_data == child2_data
+                if change_child_resource:
+                    assert child2.temp_data == child2_data_other
+                else:
+                    assert child2.temp_data == child2_data
                 # test parent model + child models
                 assert parent.temp_data == parent_data
                 assert parent.child1_model.temp_data == child1_data
-                assert parent.child2_model.temp_data == child2_data
-
-                # test number of artifacts
-                assert hasattr(parent, "artifacts")
-                assert isinstance(parent.artifacts, dict)
-                assert len(parent.artifacts) == 3  # model itself + 2 children
+                if change_child_resource:
+                    assert parent.child2_model.temp_data == child2_data_other
+                else:
+                    assert parent.child2_model.temp_data == child2_data
 
     @pytest.mark.unit
     def test_mock_model_nested_double_with_resources(self):
@@ -787,11 +816,6 @@ class TestSaveRestore:
                 assert parent.temp_data == parent_data
                 assert parent.child1_model.temp_data == child_with_child_data
                 assert parent.child1_model.child1_model.temp_data == child_data
-
-                # test number of artifacts
-                assert hasattr(parent, "artifacts")
-                assert isinstance(parent.artifacts, dict)
-                assert len(parent.artifacts) == 3  # model itself, child_with_child, child
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):

@@ -241,27 +241,21 @@ class ModelPT(LightningModule, Model):
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
-    def register_submodule_artifacts(self, submodule: ModelPT, module_config_path: str):
-        """
-        Register submodule artifacts for nested NeMo models.
-        Should be called after construction and assigning NeMo submodule and config
-        Args:
-            submodule (ModelPT): NeMo submodule
-            module_config_path (str): Path in config, where config of submodule is assigned
-        """
-        # check submodule contains artifacts
-        if not hasattr(submodule, 'artifacts') or getattr(submodule, 'artifacts') is None:
-            return  # nothing to register
+    def has_artifacts(self) -> bool:
+        """Returns True if model has artifacts registered"""
+        return hasattr(self, 'artifacts') and self.artifacts is not None and len(self.artifacts) > 0
 
-        # initialize `artifacts` property if not initialized
-        if not hasattr(self, 'artifacts') or getattr(self, 'artifacts') is None:
-            self.artifacts = {}
-
-        # copy artifacts from submodule
-        for submodule_artifact_name, artifact_info in submodule.artifacts.items():
-            # artifact name should be a valid path in config
-            artifact_name = f"{module_config_path}.{submodule_artifact_name}"
-            self.artifacts[artifact_name] = artifact_info
+    def has_native_or_submodules_artifacts(self) -> bool:
+        """Returns True if it has artifacts or any of the submodules have artifacts"""
+        for module in self.modules():
+            if (
+                isinstance(module, ModelPT)
+                and hasattr(module, 'artifacts')
+                and module.artifacts is not None
+                and len(module.artifacts) > 0
+            ):
+                return True
+        return False
 
     def save_to(self, save_path: str):
         """
