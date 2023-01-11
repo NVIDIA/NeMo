@@ -42,14 +42,14 @@ $ python scripts/dataset_processing/tts/resynthesize_dataset.py \
 Then we get output dataset with following directory structure:
 /output/manifest_mel.json
 /output/mels/foo.npy
-/output/mels/foo.gt.npy
+/output/mels/foo_gt.npy
 /output/mels/bar.npy
-/output/mels/bar.gt.npy
+/output/mels/bar_gt.npy
 
 /output/manifest_mel.json has the same entries as /dataset/manifest.json but with new fields for spectrograms.
 "mel_filepath" is path to the resynthesized spectrogram .npy, "mel_gt_filepath" is path to ground-truth spectrogram .npy
 
-The output structure mimics generate_mels.py script for compatibility reasons.
+The output structure is similar to generate_mels.py script for compatibility reasons.
 """
 
 import argparse
@@ -168,7 +168,8 @@ def prepare_paired_mel_spectrograms(
 
     output_manifest = []
     output_json_manifest = output_folder / f"{input_json_manifest.stem}_mel{input_json_manifest.suffix}"
-    (output_folder / "mels").mkdir(exist_ok=True, parents=True)
+    output_mels_folder = output_folder / "mels"
+    output_mels_folder.mkdir(exist_ok=True, parents=True)
     for batch, batch_manifest in tqdm(
         zip(resynthesizer.resynthesized_batches(), chunks(input_manifest, size=batch_size)), desc="Batch #"
     ):
@@ -184,8 +185,8 @@ def prepare_paired_mel_spectrograms(
             pred_mel = pred_mels[i, :, :length].clone().numpy()
             true_mel = true_mels[i, :, :length].clone().numpy()
 
-            pred_mel_path = output_folder / "mels" / f"{filename}.mel.npy"
-            true_mel_path = output_folder / "mels" / f"{filename}.mel.gt.npy"
+            pred_mel_path = output_mels_folder / f"{filename}.npy"
+            true_mel_path = output_mels_folder / f"{filename}_gt.npy"
 
             np.save(pred_mel_path, pred_mel)
             np.save(true_mel_path, true_mel)
