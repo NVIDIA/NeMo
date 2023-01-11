@@ -46,30 +46,30 @@ class TextToTextItem(NamedTuple):
 
 class TextToTextBatch(NamedTuple):
     tts_texts: torch.Tensor  # tokenized texts for tts
-    tts_text_length: torch.Tensor
+    tts_text_lengths: torch.Tensor
     transcripts: torch.Tensor  # tokenized texts for ASR
-    transcript_length: torch.Tensor
+    transcript_lengths: torch.Tensor
     speakers: torch.Tensor  # speaker ids for multi-speaker TTS
 
     @staticmethod
     def collate_fn(batch: List[TextToTextItem], asr_pad_id: int, tts_text_pad_id: int) -> TextToTextBatch:
         return TextToTextBatch(
             tts_texts=pad_sequence([item.tts_text for item in batch], batch_first=True, padding_value=tts_text_pad_id),
-            tts_text_length=torch.tensor([item.tts_text.shape[0] for item in batch]).long(),
+            tts_text_lengths=torch.tensor([item.tts_text.shape[0] for item in batch]).long(),
             transcripts=pad_sequence([item.transcript for item in batch], batch_first=True, padding_value=asr_pad_id),
-            transcript_length=torch.tensor([item.transcript.shape[0] for item in batch]).long(),
+            transcript_lengths=torch.tensor([item.transcript.shape[0] for item in batch]).long(),
             speakers=torch.tensor([item.speaker for item in batch]).long(),
         )
 
 
 class TextOrAudioToTextBatch(NamedTuple):
-    audio_signal: torch.Tensor
-    a_sig_length: torch.Tensor
+    audio_signals: torch.Tensor
+    audio_signal_lengths: torch.Tensor
     tts_texts: torch.Tensor
-    tts_text_length: torch.Tensor
+    tts_text_lengths: torch.Tensor
     speakers: torch.Tensor
     transcripts: torch.Tensor
-    transcript_length: torch.Tensor
+    transcript_lengths: torch.Tensor
 
     @staticmethod
     def collate_fn(
@@ -91,13 +91,16 @@ class TextOrAudioToTextBatch(NamedTuple):
             return TextToTextBatch.collate_fn(batch=text_items, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id)
 
         # mixed batch
-        audio_signal = pad_sequence([item[0] for item in asr_items], batch_first=True, padding_value=0.0)
-        a_sig_length = torch.tensor([item[1] for item in asr_items]).long()
+
+        # each asr item is a tuple:
+        # audio_signal (0), audio_length (1), transcript (2), transcript_length (3), sample_id (4, optional)
+        audio_signals = pad_sequence([item[0] for item in asr_items], batch_first=True, padding_value=0.0)
+        audio_signal_lengths = torch.tensor([item[1] for item in asr_items]).long()
 
         tts_texts = pad_sequence(
             [item.tts_text for item in text_items], batch_first=True, padding_value=tts_text_pad_id
         )
-        tts_text_length = torch.tensor([item.tts_text.shape[0] for item in text_items]).long()
+        tts_text_lengths = torch.tensor([item.tts_text.shape[0] for item in text_items]).long()
         speakers = torch.tensor([item.speaker for item in text_items]).long()
 
         transcripts = pad_sequence(
@@ -105,18 +108,18 @@ class TextOrAudioToTextBatch(NamedTuple):
             batch_first=True,
             padding_value=asr_pad_id,
         )
-        transcript_length = torch.tensor(
+        transcript_lengths = torch.tensor(
             [item.transcript.shape[0] for item in text_items] + [item[3] for item in asr_items]
         ).long()
 
         return TextOrAudioToTextBatch(
-            audio_signal=audio_signal,
-            a_sig_length=a_sig_length,
+            audio_signals=audio_signals,
+            audio_signal_lengths=audio_signal_lengths,
             tts_texts=tts_texts,
-            tts_text_length=tts_text_length,
+            tts_text_lengths=tts_text_lengths,
             speakers=speakers,
             transcripts=transcripts,
-            transcript_length=transcript_length,
+            transcript_lengths=transcript_lengths,
         )
 
 
@@ -163,6 +166,7 @@ class TextToTextDatasetBase:
     tts_text_pad_id: int
     asr_bos_id: Optional[int] = None
     asr_eos_id: Optional[int] = None
+    data: List[Dict[str, Any]]
 
     def __init__(
         self,
@@ -237,9 +241,9 @@ class TextToTextDatasetBase:
                     num_skipped_utterances += 1
                     continue
                 asr_texts.append(tmp_item["text"])
-                try:
+                if "tts_text_normalized" in tmp_item:
                     tts_texts.append(tmp_item["tts_text_normalized"])
-                except KeyError:
+                else:
                     tts_texts.append(tmp_item["tts_text"])
                     need_normalization = True
 
@@ -263,7 +267,7 @@ class TextToTextDatasetBase:
             tts_texts = tts_texts[start:end]
             num_utterances = num_utterances_part
 
-        self.data: List[Dict[str, Any]] = [dict() for _ in range(num_utterances)]
+        self.data = [dict() for _ in range(num_utterances)]
 
         if tokenizer_workers == 1:
             logging.warning("Preprocessing large text with tokenizer_workers=1 may be slow with ASR tokenizer")
@@ -295,7 +299,10 @@ class TextToTextDatasetBase:
         gc.collect()
 
         if tokenizer_workers == 1:
-            logging.warning("Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer")
+            logging.warning(
+                "Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer, "
+                "prefer tokenizer_worders=(num_cpu_cores/num_gpus_per_node)"
+            )
             for i, tokenized_text in enumerate(
                 tqdm(
                     (self._tts_text_to_tokens(text, normalize=need_normalization) for text in tts_texts),
@@ -307,7 +314,7 @@ class TextToTextDatasetBase:
             if need_normalization:
                 # TODO: implement, if we really need normalization inplace
                 raise NotImplementedError(
-                    "Normalization with tokenizer_workers > 1 is not implemented"
+                    "Normalization with tokenizer_workers > 1 is not implemented. "
                     "It is not recommended to use normalization on the fly at all, since it's extremely slow"
                 )
 
@@ -392,7 +399,7 @@ class TextToTextDataset(TextToTextDatasetBase, Dataset):
         Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
         """
         return TextOrAudioToTextBatch.collate_fn(
-            batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
+            batch=batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
         )
 
 
@@ -458,5 +465,5 @@ class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
         Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
         """
         return TextOrAudioToTextBatch.collate_fn(
-            batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
+            batch=batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
         )

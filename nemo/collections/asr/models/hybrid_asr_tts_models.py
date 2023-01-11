@@ -217,6 +217,18 @@ class ASRWithTTSModel(ASRModel):
         cfg: Optional[DictConfig] = None,
         trainer: Optional[Trainer] = None,
     ):
+        """
+        Load model from pretrained ASR and TTS models
+        Args:
+            asr_model_path: path to .nemo ASR model checkpoint
+            tts_model_path: path to .nemo TTS model checkpoint
+            asr_model_fuse_bn: automatically fuse batchnorm layers in ASR model
+            cfg: optional config for hybrid model
+            trainer: Pytorch-Lightning trainer
+
+        Returns:
+            ASRWithTTSModel instance
+        """
         if cfg is None:
             cfg = DictConfig(
                 dict(
@@ -248,6 +260,10 @@ class ASRWithTTSModel(ASRModel):
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        """
+        Setup optimizer and scheduler. Ensure tts model is frozen.
+        Add optimizer and scheduler to asr model, to allow `train_step` on ASR model
+        """
         self.tts_model.freeze()
         optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
         # set ASR model optimizer/scheduler to allow training_step on asr_model
@@ -256,54 +272,69 @@ class ASRWithTTSModel(ASRModel):
         return optimizer, scheduler
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        """Setup validation data for ASR model"""
         return self.asr_model.setup_validation_data(val_data_config)
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        """Validation epoch end hook for ASR model"""
         return self.asr_model.multi_validation_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        """Test epoch end hook for ASR model"""
         return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        """Transcribe audio data using ASR model"""
         return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        """Setup multiple validation data for ASR model"""
         self.asr_model.setup_multiple_validation_data(val_data_config)
 
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        """Setup test data for ASR model"""
         self.asr_model.setup_test_data(test_data_config)
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        """Setup multiple test data for ASR Model"""
         return self.asr_model.setup_multiple_test_data(test_data_config)
 
     def save_asr_model_to(self, save_path: str):
+        """Save ASR model separately"""
         return self.asr_model.save_to(save_path=save_path)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        """Validation step, forward to ASR model"""
         return self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """Validation epoch end hook, forward to ASR model"""
         return self.asr_model.validation_epoch_end(outputs=outputs)
 
     def test_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """Test epoch end hook, forward to ASR model"""
         return self.asr_model.test_epoch_end(outputs=outputs)
 
     def val_dataloader(self):
+        """Get valudation dataloader from ASR model"""
         return self.asr_model.val_dataloader()
 
     def unfreeze(self) -> None:
+        """Unfreeze the ASR model, keep TTS model frozen."""
         super().unfreeze()
         self.tts_model.freeze()  # tts model should be always frozen
 
     def on_fit_start(self):
+        """Call asr_model on_fit_start hook, ensure TTS model is frozen"""
         self.asr_model.on_fit_start()
         self.tts_model.freeze()
 
     def train(self, mode: bool = True):
+        """Train mode, ensure TTS model is frozen"""
         super().train(mode)
         self.tts_model.eval()
         return self
@@ -311,6 +342,7 @@ class ASRWithTTSModel(ASRModel):
     def _get_tts_spectrogram(
         self, tts_texts: torch.Tensor, speakers: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get TTS spectrogram from text and speaker ids"""
         with torch.no_grad():
             spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
             # TODO: use enhancer
@@ -318,14 +350,15 @@ class ASRWithTTSModel(ASRModel):
             return spectrogram, spectrogram_len
 
     def _get_batch_spect(self, batch: Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]):
+        """Get batch with spectrograms from text-only, audio-text or mixed batch data"""
         if isinstance(batch, TextToTextBatch):
             spectrogram, spectrogram_len = self._get_tts_spectrogram(batch.tts_texts, batch.speakers)
             transcript = batch.transcripts
-            transcript_len = batch.transcript_length
+            transcript_len = batch.transcript_lengths
         elif isinstance(batch, TextOrAudioToTextBatch):
             tts_spectrogram, tts_spectrogram_len = self.get_tts_spectrogram(batch.tts_texts, batch.speakers)
             asr_spectrogram, asr_spectrogram_len = self.preprocessor(
-                input_signal=batch.audio_signal, length=batch.a_sig_length,
+                input_signal=batch.audio_signals, length=batch.audio_signal_lengths,
             )
 
             spectrogram = pad_sequence(
@@ -342,14 +375,17 @@ class ASRWithTTSModel(ASRModel):
             spectrogram_len = torch.cat([tts_spectrogram_len, asr_spectrogram_len], dim=0)
 
             transcript = batch.transcripts
-            transcript_len = batch.transcript_length
+            transcript_len = batch.transcript_lengths
         else:
-            audio_signal, audio_signal_len, transcript, transcript_len = batch
-            spectrogram, spectrogram_len = self.preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+            audio_signal, audio_signal_len, transcript, transcript_len, *_ = batch  # audio batch: 4 or 5 elements
+            spectrogram, spectrogram_len = self.preprocessor(input_signal=audio_signal, length=audio_signal_len)
         spectrogram = clean_spectrogram_batch(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Setup training data from config: text-only, audio-text or mixed data.
+        """
         if train_data_config is None:
             logging.warning("No training data")
             return
@@ -403,7 +439,19 @@ class ASRWithTTSModel(ASRModel):
             pin_memory=train_data_config.get('pin_memory', False),
         )
 
-    def _setup_text_dataset_from_config(self, train_data_config: Optional[Union[DictConfig, Dict]], iterable=True):
+    def _setup_text_dataset_from_config(
+        self, train_data_config: Optional[Union[DictConfig, Dict]], iterable=True
+    ) -> Union[TextToTextDataset, TextToTextIterableDataset]:
+        """
+        Construct text-to-text (text-only) dataset from config.
+
+        Args:
+            train_data_config: config
+            iterable: construct iterable-style datasset if True, otherwise map-style
+
+        Returns:
+            text-to-text dataset of TextToTextDataset or TextToTextIterableDataset type
+        """
         # expected fields for text_data: manifest_filepath, speakers_filepath, min_words, max_words
         # + optional tokenizer_workers
         text_data_config = train_data_config.text_data
@@ -440,6 +488,11 @@ class ASRWithTTSModel(ASRModel):
         return textonly_ds
 
     def training_step(self, batch: Union[TextOrAudioToTextBatch, TextToTextBatch, DALIOutputs, tuple], batch_nb: int):
+        """
+        Training step for ASR-TTS model.
+        - construct spectrogram for the batch (from text - using TTS model, from audio - using ASR preprocessor)
+        - call training_step on ASR model
+        """
         assert not self.tts_model.training
         if isinstance(batch, DALIOutputs):
             return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)

@@ -14,7 +14,7 @@
 
 """
 Finetuning pretrained ASR model with text-only data (can be mixed with audio-text pairs)
-```sh
+```shell
 python speech_to_text_bpe_with_text_finetune.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.asr_model_path=<path to ASR model> \

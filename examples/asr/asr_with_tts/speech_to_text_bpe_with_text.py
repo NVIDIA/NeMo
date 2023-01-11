@@ -14,7 +14,7 @@
 
 """
 Training the model from scratch
-```sh
+```shell
 python speech_to_text_bpe_with_text.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     ++asr_model_type=<rnnt_bpe or ctc_bpe> \
