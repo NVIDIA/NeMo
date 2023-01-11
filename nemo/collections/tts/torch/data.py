@@ -15,6 +15,7 @@
 
 import json
 import math
+import os
 import pickle
 import random
 from pathlib import Path
@@ -255,7 +256,10 @@ class TTSDataset(Dataset):
             logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
 
         self.data = TTSDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
-        self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
+        self.base_data_dir = get_base_dir([
+            os.path.abspath(item["audio_filepath"])
+            for item in self.data
+        ])
 
         # Initialize audio and mel related parameters
         self.sample_rate = sample_rate
@@ -475,7 +479,10 @@ class TTSDataset(Dataset):
         sample = self.data[index]
 
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
-        rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+        rel_audio_path = Path(
+            os.path.abspath(sample["audio_filepath"])
+        ).relative_to(self.base_data_dir).with_suffix("")
+
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         if sample["is_phoneme"] == 1:
             rel_audio_path_as_text_id += "_phoneme"

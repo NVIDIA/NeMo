@@ -31,8 +31,13 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     # Define the Tacotron 2 model, this will construct the model as well as
     # define the training and validation dataloaders
-    model = Tacotron2Model(cfg=cfg.model, trainer=trainer)
-    model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
+    # model = Tacotron2Model(cfg=cfg.model, trainer=trainer)
+    # model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
+
+    model = Tacotron2Model.from_pretrained("tts_en_tacotron2")
+    import code  # NOQA
+    code.interact(local={**locals(), **globals()})
+
     # Let's add a few more callbacks
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
