@@ -266,7 +266,7 @@ def main(cfg) -> None:
 
 
     dataset = T5ZeroShotPromptLearningDataset(
-        datasets=['/home/jupinderp/data/prompt_learning_data/squad_test.jsonl'],
+        datasets=cfg.data.test_ds,
         tokenizer=model.tokenizer,
         virtual_prompt_source="",
         task_templates="",
