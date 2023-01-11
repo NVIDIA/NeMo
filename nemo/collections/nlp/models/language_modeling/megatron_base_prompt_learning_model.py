@@ -380,11 +380,22 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         discrete_token_ids = input_ids.clone()
         discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+        return discrete_token_embeds
+        
 
         # Find the indicies where virtual tokens should be inserted
         virtual_token_locations = input_ids >= self.pseudo_token_ids_start
         virtual_token_locations = virtual_token_locations.unsqueeze(-1)
         virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
+        
+        '''print(self.pseudo_token_ids_start)
+        print(virtual_token_locations.any())
+        if not virtual_token_locations.any():
+            print("NO VIRTUAL TOKENS JUST DISCRETE TOKEN EMBEDS")
+
+        raise ValueError("TTTT")
+
+        return discrete_token_embeds'''
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():

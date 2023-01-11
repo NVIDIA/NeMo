@@ -90,14 +90,15 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
+            prompt_template = prompt_template.replace("<|VIRTUAL_PROMPT_0|> ", '')
             prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
+            total_virtual_tokens = 0 #self.task_templates[taskname]["total_virtual_tokens"]
+            #virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
             truncation_field = self.task_templates[taskname]['truncate_field']
             answer_field = self.task_templates[taskname]["answer_field"]
 
             input_example = prompt_template
-
+            '''
             self._input_sanity_checks(
                 total_virtual_tokens=total_virtual_tokens,
                 virtual_token_splits=virtual_token_splits,
@@ -106,11 +107,11 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 truncation_field=truncation_field,
                 answer_field=answer_field,
                 doc=doc,
-            )
+            )'''
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc, answer_field)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
+            #input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
             input_ids = self.tokenizer.text_to_ids(input_example)
