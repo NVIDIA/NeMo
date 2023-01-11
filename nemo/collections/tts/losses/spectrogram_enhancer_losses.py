@@ -41,7 +41,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch.autograd import grad as torch_grad
 
-from nemo.collections.tts.modules.spectrogram_enhancer import mask
+from nemo.collections.tts.helpers.helpers import mask_sequence_tensor
 
 
 class GradientPenaltyLoss(torch.nn.Module):
@@ -98,5 +98,5 @@ class ConsistencyLoss(torch.nn.Module):
         output = F.interpolate(output, size=(w, h), mode="bilinear", antialias=True)
 
         dist = (condition - output).abs()
-        dist = mask(dist, lengths)
+        dist = mask_sequence_tensor(dist, lengths)
         return (dist / rearrange(lengths, "b -> b 1 1 1")).sum(dim=-1).mean() * self.weight

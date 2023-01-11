@@ -17,8 +17,8 @@ import torch
 from einops import rearrange
 from omegaconf import DictConfig
 
+from nemo.collections.tts.helpers.helpers import mask_sequence_tensor
 from nemo.collections.tts.models import SpectrogramEnhancerModel
-from nemo.collections.tts.modules.spectrogram_enhancer import mask
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def sample_input(batch_size=15, max_length=1000):
     lengths = torch.randint(max_length // 4, max_length - 7, (batch_size,), generator=generator)
     input_spectrograms = torch.randn((batch_size, 80, 1000), generator=generator)
 
-    input_spectrograms = mask(input_spectrograms, lengths)
+    input_spectrograms = mask_sequence_tensor(input_spectrograms, lengths)
 
     return input_spectrograms, lengths
 

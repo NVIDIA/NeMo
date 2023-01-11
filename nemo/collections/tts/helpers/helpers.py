@@ -49,6 +49,7 @@ import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
+from einops import rearrange
 from numba import jit, prange
 from numpy import ndarray
 

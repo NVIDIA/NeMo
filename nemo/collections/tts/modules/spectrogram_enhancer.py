@@ -46,6 +46,8 @@ import torch.nn.functional as F
 from einops import rearrange
 from kornia.filters import filter2d
 
+from nemo.collections.tts.helpers import mask_sequence_tensor
+
 
 class Blur(torch.nn.Module):
     def __init__(self):
@@ -199,21 +201,6 @@ class GeneratorBlock(torch.nn.Module):
         return x, rgb
 
 
-def mask(tensor, lengths):
-    batch_size, *_, max_lengths = tensor.shape
-
-    if len(tensor.shape) == 3:
-        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
-        mask = mask <= rearrange(lengths, "b -> b 1 1")
-    elif len(tensor.shape) == 4:
-        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
-        mask = mask <= rearrange(lengths, "b -> b 1 1 1")
-    else:
-        raise ValueError("Can only mask tensors of shape B x C x L and B x D x C x L")
-
-    return tensor * mask
-
-
 class DiscriminatorBlock(torch.nn.Module):
     def __init__(self, input_channels, filters, downsample=True):
         super().__init__()
@@ -298,7 +285,7 @@ class Generator(torch.nn.Module):
 
         # add and mask
         result = (target + condition) / 2
-        result = mask(result, (condition_lengths / scale).ceil().long())
+        result = mask_sequence_tensor(result, (condition_lengths / scale).ceil().long())
 
         return result
 
@@ -359,12 +346,12 @@ class Discriminator(torch.nn.Module):
         for block in self.blocks:
             x = block(x)
             scale = condition.shape[-1] // x.shape[-1]
-            x = mask(x, (lengths / scale).ceil().long())
+            x = mask_sequence_tensor(x, (lengths / scale).ceil().long())
 
         x = self.final_conv(x)
 
         scale = condition.shape[-1] // x.shape[-1]
-        x = mask(x, (lengths / scale).ceil().long())
+        x = mask_sequence_tensor(x, (lengths / scale).ceil().long())
 
         x = x.mean(axis=-2)
         x = (x / rearrange(lengths / scale, "b -> b 1 1")).sum(axis=-1)

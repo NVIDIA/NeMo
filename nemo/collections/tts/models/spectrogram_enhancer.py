@@ -49,14 +49,13 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from nemo.collections.tts.helpers.helpers import to_device_recursive
+from nemo.collections.tts.helpers.helpers import mask_sequence_tensor, to_device_recursive
 from nemo.collections.tts.losses.spectrogram_enhancer_losses import (
     ConsistencyLoss,
     GeneratorLoss,
     GradientPenaltyLoss,
     HingeLoss,
 )
-from nemo.collections.tts.modules.spectrogram_enhancer import mask
 from nemo.core import Exportable, ModelPT, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import BoolType
@@ -87,12 +86,12 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
     def normalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
         spectrogram = spectrogram / (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
-        return mask(spectrogram, lengths)
+        return mask_sequence_tensor(spectrogram, lengths)
 
     def unnormalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         spectrogram = spectrogram * (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
         spectrogram = spectrogram + self._cfg.spectrogram_min_value
-        return mask(spectrogram, lengths)
+        return mask_sequence_tensor(spectrogram, lengths)
 
     def generate_zs(self, batch_size: int = 1, mixing: bool = False):
         if mixing and self._cfg.mixed_prob < random():
