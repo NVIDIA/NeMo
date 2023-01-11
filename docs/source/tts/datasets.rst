@@ -1,7 +1,7 @@
 Data Preprocessing
 ==================
 
-NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (work in progress), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/tts/torch/data.py>`_. The ``nemo_tts`` collection expects each dataset to consist of a set of utterances in individual audio files plus a ``JSON`` manifest that describes the dataset, with information about one utterance per line. The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend ``WAV`` files as they are the default and have been most thoroughly tested.
+NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (zh-CN), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/tts/torch/data.py>`_. The ``nemo_tts`` collection expects each dataset to consist of a set of utterances in individual audio files plus a ``JSON`` manifest that describes the dataset, with information about one utterance per line. The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend ``WAV`` files as they are the default and have been most thoroughly tested. NeMo supports any original sampling rates of audios, although our scripts of extracting supplementary data and model training all specify the common target sampling rates as either 44100 Hz or 22050 Hz. If the original sampling rate mismatches the target sampling rate, the `feature preprocess <https://github.com/NVIDIA/NeMo/blob/stable/nemo/collections/asr/parts/preprocessing/features.py#L124>`_ can automatically resample the original sampling rate into the target one.
 
 There should be one ``JSON`` manifest file per dataset that will be passed in, therefore, if the user wants separate training and validation datasets, they should also have separate manifests. Otherwise, they will be loading validation data with their training data and vice versa. Each line of the manifest should be in the following format:
 
@@ -66,7 +66,8 @@ LibriTTS
 
     $ python scripts/dataset_processing/tts/libritts/get_data.py \
         --data-root <your_local_dataset_root> \
-        --data-sets dev_clean
+        --data-sets "ALL"
+        --num-workers 4
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path ljspeech/ds_conf \
@@ -74,6 +75,8 @@ LibriTTS
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>
 
+.. note::
+    LibriTTS original sampling rate is **24000 Hz**, we re-use LJSpeech's config to down-sample it to **22050 Hz**.
 
 
 HiFiTTS
@@ -85,22 +88,55 @@ The texts of this dataset has been normalized already. So there is no extra need
 * Command Line Instruction: TBD
 
 
-Thorsten Müller (German Neutral-TTS dataset)
+Thorsten Müller's German Neutral-TTS Datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* Dataset URL: https://www.openslr.org/resources/95/
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr/get_data.py
+There are two German neutral datasets released by Thorsten Müller for now, 21.02 and 22.10, respectively. Version 22.10 has been recorded with a better recording setup, such as recording chamber and better microphone. So it is advised to train models on the 22.10 version because its audio quality is better and it has a way more natural speech flow and higher character rate per second speech. The two datasets are described below and defined in `scripts/dataset_processing/tts/thorsten_neutral/get_data.py:THORSTEN_NEUTRAL <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py#L41-L51>`_.
+
+.. code-block:: python
+
+    # Thorsten Müller published two neural voice datasets, 21.02 and 22.10.
+    THORSTEN_NEUTRAL = {
+        "21_02": {
+            "url": "https://zenodo.org/record/5525342/files/thorsten-neutral_v03.tgz?download=1",
+            "dir_name": "thorsten-de_v03",
+            "metadata": ["metadata.csv"],
+        },
+        "22_10": {
+            "url": "https://zenodo.org/record/7265581/files/ThorstenVoice-Dataset_2022.10.zip?download=1",
+            "dir_name": "ThorstenVoice-Dataset_2022.10",
+            "metadata": ["metadata_train.csv", "metadata_dev.csv", "metadata_test.csv"],
+        },
+    }
+
+* Thorsten Müller's German Datasets repo: https://github.com/thorstenMueller/Thorsten-Voice
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash
 
-    $ python scripts/dataset_processing/tts/openslr/get_data.py \
+    # Version 22.10
+    $ python scripts/dataset_processing/tts/thorsten_neutral/get_data.py \
         --data-root <your_local_dataset_root> \
-        --val-size 0.1 \
-        --test-size 0.2 \
-        --seed-for-ds-split 100
+        --manifests-root <your_local_manifest_root> \
+        --data-version "22_10" \
+        --val-size 100 \
+        --test-size 100 \
+        --seed-for-ds-split 100 \
+        --normalize-text
 
+    # Version 21.02
+    $ python scripts/dataset_processing/tts/thorsten_neutral/get_data.py \
+        --data-root <your_local_dataset_root> \
+        --manifests-root <your_local_manifest_root> \
+        --data-version "21_02" \
+        --val-size 100 \
+        --test-size 100 \
+        --seed-for-ds-split 100 \
+        --normalize-text
+
+    # extract pitch and compute pitch normalization params for each version.
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
-        --config-path openslr/ds_conf \
+        --config-path thorsten_neutral/ds_conf \
         --config-name ds_for_fastpitch_align.yaml \
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>
@@ -115,6 +151,7 @@ HUI Audio Corpus German
 
     $ python scripts/dataset_processing/tts/hui_acg/get_data.py \
         --data-root <your_local_dataset_root> \
+        --manifests-root <your_local_manifest_root> \
         --set-type clean \
         --min-duration 0.1 \
         --max-duration 15 \
@@ -128,6 +165,27 @@ HUI Audio Corpus German
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path hui_acg/ds_conf \
+        --config-name ds_for_fastpitch_align.yaml \
+        manifest_filepath=<your_path_to_train_manifest> \
+        sup_data_path=<your_path_to_where_to_save_supplementary_data>
+
+
+SFSpeech Chinese/English Bilingual Speech
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* Dataset URL: https://catalog.ngc.nvidia.com/orgs/nvidia/resources/sf_bilingual_speech_zh_en
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/sfbilingual/get_data.py
+* Command Line Instruction:
+
+.. code-block:: bash
+
+    $ python scripts/dataset_processing/tts/sfbilingual/get_data.py \
+        --data-root <your_local_dataset_root> \
+        --val-size 0.1 \
+        --test-size 0.2 \
+        --seed-for-ds-split 100
+
+    $ python scripts/dataset_processing/tts/extract_sup_data.py \
+        --config-path sfbilingual/ds_conf \
         --config-name ds_for_fastpitch_align.yaml \
         manifest_filepath=<your_path_to_train_manifest> \
         sup_data_path=<your_path_to_where_to_save_supplementary_data>

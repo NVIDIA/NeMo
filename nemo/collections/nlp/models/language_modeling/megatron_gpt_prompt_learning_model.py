@@ -136,8 +136,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
-        # TODO: Enable amp_o2 training
-        self.megatron_amp_o2 = False
+        self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -531,16 +530,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
-                output = self.frozen_model.model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    inference_max_sequence_len=inference_max_sequence_len,
-                )
+            output = self.frozen_model.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+            )
 
         return output
 
@@ -962,7 +960,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
@@ -985,6 +983,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
         )
 
         return dataset, dataloader
