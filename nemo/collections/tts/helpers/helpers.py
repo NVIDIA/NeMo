@@ -575,3 +575,24 @@ def to_device_recursive(e, device: torch.device):
         return e.to(device)
     else:
         return e
+
+
+def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
+    """
+    For tensors containing sequences, zero out out-of-bound elements given lengths of every element in the batch.
+
+    tensor: tensor of shape (B, D, L) or (B, D1, D2, L),
+    lengths: LongTensor of shape (B,)
+    """
+    batch_size, *_, max_lengths = tensor.shape
+
+    if len(tensor.shape) == 3:
+        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1")
+    elif len(tensor.shape) == 4:
+        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1 1")
+    else:
+        raise ValueError("Can only mask tensors of shape B x D x L and B x D1 x D2 x L")
+
+    return tensor * mask
