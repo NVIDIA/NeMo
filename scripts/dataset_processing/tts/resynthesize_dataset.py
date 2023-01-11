@@ -54,7 +54,6 @@ The output structure mimics generate_mels.py script for compatibility reasons.
 
 import argparse
 import itertools
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List
