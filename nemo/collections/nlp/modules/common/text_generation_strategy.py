@@ -92,7 +92,10 @@ class TextGenerationStrategy:
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            if hasattr(tokenizer, "bos_id"):
+                context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            else:
+                context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
@@ -330,7 +333,10 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            if hasattr(tokenizer, "bos_id"):
+                context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            else:
+                context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         if self.pad_token_for_retrieval:
@@ -359,9 +365,14 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [
-                [[tokenizer.bos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
-            ]
+            if hasattr(tokenizer, "bos_id"):
+                context_tokens = [
+                    [[tokenizer.bos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
+                ]
+            else:
+                context_tokens = [
+                    [[tokenizer.eos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
+                ]
         else:
             context_tokens = [[tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]
         if self.pad_token_for_retrieval:
