@@ -16,6 +16,8 @@ import argparse
 import os
 import random
 import shutil
+import math
+import json
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest
 from nemo.utils import logging
@@ -133,9 +135,60 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_dire
             idx += 1
         alignment_file.close()
 
+def breakdown_manifest(target_manifest, breakdown_thres=15):
+    """
+    Breakdown manifest into smaller chunks if the number of words exceeds the threshold.
+
+    Args:
+        target_manifest (list): 
+            List of dictionaries containing the manifest information.
+        breakdown_thres (int):
+            Threshold for the number of words in a line. If the number of words exceeds this threshold, 
+            the json line will be broken down into multiple lines.
+
+    Returns:
+        output_manifest_list (list): 
+            List of dictionaries containing the manifest information.
+    """
+    output_manifest_list = []
+    for json_dict in target_manifest:
+        audio_filepath = json_dict['audio_filepath']
+        duration = json_dict['duration']
+        speaker_id = json_dict['speaker_id']
+        words = json_dict['words']
+        alignments = json_dict['alignments']
+        assert len(words) == len(alignments), f"Mismatch between words {len(words)} and alignments {len(alignments)} for {audio_filepath}"
+        last_alignment = alignments[0]
+        if len(words) > breakdown_thres:
+            # split the line into multiple lines
+            num_lines = math.ceil(len(words) / breakdown_thres)
+            for i in range(num_lines):
+                start = i * breakdown_thres
+                end = (i + 1) * breakdown_thres
+                if end > len(words):
+                    end = len(words)
+                if i > 0:
+                    add_offset_sil = [""]
+                    add_offset_stamp = [last_alignment]
+                else:
+                    add_offset_sil = []
+                    add_offset_stamp = []
+
+                new_json_dict = {
+                    'audio_filepath': audio_filepath,
+                    'duration': duration,
+                    'speaker_id': speaker_id,
+                    'words': add_offset_sil + words[start:end],
+                    'alignments': add_offset_stamp + alignments[start:end],
+                }
+                last_alignment = alignments[end - 1]
+                output_manifest_list.append(new_json_dict)
+        else:
+            output_manifest_list.append(json_dict)
+    return output_manifest_list
 
 def create_manifest_with_alignments(
-    input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=3
+    input_manifest_filepath, ctm_directory, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
 ):
     """
     Create new manifest file with word alignments using CTM files
@@ -147,6 +200,7 @@ def create_manifest_with_alignments(
         precision (int): How many decimal places to keep in the manifest file
     """
     manifest = read_manifest(input_manifest_filepath)
+
     target_manifest = []
     src_i = 0
     tgt_i = 0
@@ -155,7 +209,12 @@ def create_manifest_with_alignments(
         fn = f['audio_filepath'].split('/')[-1]
         filename = fn.split('.')[0]  # assuming that there is only one period in the input filenames
 
-        ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
+        if "voxceleb" in data_format_style:
+            fn_split = f['audio_filepath'].split('/')
+            filename = fn_split[-3] + '-' + fn_split[-2] + '-' + fn_split[-1].split('.')[0]
+            ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
+        else:
+            ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
 
         if not os.path.isfile(ctm_filepath):
             logging.info(f"Skipping {filename}.wav as there is no corresponding CTM file")
@@ -164,6 +223,11 @@ def create_manifest_with_alignments(
 
         with open(ctm_filepath, 'r') as ctm_file:
             lines = ctm_file.readlines()
+
+        # One-word samples should be filtered out.
+        if len(lines) <= 1:
+            src_i += 1
+            continue
 
         words = []
         end_times = []
@@ -176,9 +240,13 @@ def create_manifest_with_alignments(
             end = float(ctm[2]) + float(ctm[3])
             start = round(start, output_precision)
             end = round(end, output_precision)
-            if start > prev_end:  # insert silence
+            interval = start - prev_end 
+
+            if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
                 words.append("")
                 end_times.append(start)
+            elif i > 0 and interval <= silence_dur_threshold:
+                end_times[-1] = start
 
             words.append(ctm[4])
             end_times.append(end)
@@ -203,6 +271,7 @@ def create_manifest_with_alignments(
         src_i += 1
         tgt_i += 1
 
+    target_manifest = breakdown_manifest(target_manifest, breakdown_thres)
     logging.info(f"Writing output manifest file to {output_manifest_filepath}")
     write_manifest(output_manifest_filepath, target_manifest)
 
@@ -219,11 +288,21 @@ def main():
     use_ctm = args.use_ctm
     output_precision = args.output_precision
 
-    if not use_ctm:
+    # args.base_alignment_path is containing the ctm files
+    if use_ctm:
+        ctm_directory = args.base_alignment_path
+    # args.base_alignment_path is containing *.lab style alignments for the dataset
+    else:
         create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_directory, dataset)
 
     create_manifest_with_alignments(
-        input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=output_precision
+        input_manifest_filepath, 
+        ctm_directory, 
+        output_manifest_filepath, 
+        data_format_style=args.data_format_style,
+        silence_dur_threshold=args.silence_dur_threshold,
+        output_precision=output_precision, 
+        breakdown_thres=args.breakdown_thres,
     )
 
 
@@ -240,7 +319,10 @@ if __name__ == "__main__":
 
     Args:
         input_manifest_filepath (str): Path to input manifest file
-        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset (specifically to the LibriSpeech-Alignments directory containing both the LibriSpeech folder as well as the unaligned.txt file) or to a directory containing the requisite CTM files
+        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset 
+                                   (specifically to the LibriSpeech-Alignments directory containing 
+                                   both the LibriSpeech folder as well as the unaligned.txt file) 
+                                   or to a directory containing the requisite CTM files
         output_manifest_filepath (str): Path to output manifest file
         ctm_directory (str): Path to output CTM directory (only used for LibriSpeech)
         dataset (str): Which dataset split to create a combined manifest file for
@@ -269,7 +351,20 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
+        "--data_format_style",
+        help="Use specific format for speaker IDs and utterance IDs. e.g. 'voxceleb', 'librispeech', 'swbd'",
+        default=False,
+        type=str,
+        required=False,
+    )
+    parser.add_argument(
         "--output_precision", help="precision for output alignments", type=int, required=False, default=3
+    )
+    parser.add_argument(
+        "--breakdown_thres", help="threshold for breaking-down the source utterances", type=int, required=False, default=15
+    )
+    parser.add_argument(
+        "--silence_dur_threshold", help="threshold for inserting silence", type=float, required=False, default=0.1
     )
     args = parser.parse_args()
 

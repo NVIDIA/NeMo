@@ -181,8 +181,8 @@ class MultiSpeakerSimulator(object):
         """
         Checks YAML arguments to ensure they are within valid ranges.
         """
-        if self._params.data_simulator.session_config.num_speakers < 2:
-            raise Exception("At least two speakers are required for multispeaker audio sessions (num_speakers < 2)")
+        if self._params.data_simulator.session_config.num_speakers < 1:
+            raise Exception("At least two speakers are required for multispeaker audio sessions (num_speakers < 1)")
         if (
             self._params.data_simulator.session_params.turn_prob < 0
             or self._params.data_simulator.session_params.turn_prob > 1
@@ -286,6 +286,7 @@ class MultiSpeakerSimulator(object):
     def _load_speaker_sample(self, speaker_lists: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
         """
         Load a sample for the selected speaker ID.
+        The first alignment and word must be silence that determines the start of the alignments.
 
         Args:
             speaker_lists (list): List of samples for each speaker in the session.
@@ -295,9 +296,15 @@ class MultiSpeakerSimulator(object):
             file_path (str): Path to the desired audio file
         """
         speaker_id = speaker_ids[speaker_turn]
-        file_id = np.random.randint(0, len(speaker_lists[str(speaker_id)]) - 1)
-        file_path = speaker_lists[str(speaker_id)][file_id]
-        return file_path
+        file_id = np.random.randint(0, max(len(speaker_lists[str(speaker_id)]) - 1, 1))
+        file_dict = speaker_lists[str(speaker_id)][file_id]
+
+        # Check whether the first word is silence and insert a silence token if the first token is not silence.
+        if file_dict['words'][0] != "":
+            file_dict['words'].insert(0, "")
+            file_dict['alignments'].insert(0, 1/(10**self._params.data_simulator.outputs.output_precision))
+
+        return file_dict
 
     def _get_speaker_dominance(self) -> List[float]:
         """
@@ -395,16 +402,20 @@ class MultiSpeakerSimulator(object):
         Returns:
             prev_speaker/speaker_turn (int): Speaker turn
         """
-        if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker != None:
+        if self._params.data_simulator.session_config.num_speakers == 1:
+            prev_speaker = 0 if prev_speaker == None else prev_speaker
             return prev_speaker
         else:
-            speaker_turn = prev_speaker
-            while speaker_turn == prev_speaker:  # ensure another speaker goes next
-                rand = np.random.uniform(0, 1)
-                speaker_turn = 0
-                while rand > dominance[speaker_turn]:
-                    speaker_turn += 1
-            return speaker_turn
+            if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker != None:
+                return prev_speaker
+            else:
+                speaker_turn = prev_speaker
+                while speaker_turn == prev_speaker:  # ensure another speaker goes next
+                    rand = np.random.uniform(0, 1)
+                    speaker_turn = 0
+                    while rand > dominance[speaker_turn]:
+                        speaker_turn += 1
+                return speaker_turn
 
     def _get_window(self, window_amount: int, start: bool = False):
         """
@@ -511,48 +522,58 @@ class MultiSpeakerSimulator(object):
             sentence_duration+nw (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
         """
-        if (
-            sentence_duration == 0
-        ) and self._params.data_simulator.session_params.start_window:  # cut off the start of the sentence
-            first_alignment = int(file['alignments'][0] * self._params.data_simulator.sr)
-            start_cutoff, start_window_amount = self._get_start_buffer_and_window(first_alignment)
-        else:
-            start_cutoff = 0
+        if len(file['alignments']) <= 1:
+            raise ValueError(f"Alignment file has inappropriate length of {len(file['alignments'])}")
+
+        offset_idx = np.random.randint(low=1, high=len(file['words']))
+        
+        first_alignment = int(file['alignments'][offset_idx-1] * self._params.data_simulator.sr)
+        start_cutoff, start_window_amount = self._get_start_buffer_and_window(first_alignment)
+        if not self._params.data_simulator.session_params.start_window:  # cut off the start of the sentence
+            start_window_amount = 0
 
         # ensure the desired number of words are added and the length of the output session isn't exceeded
         sentence_duration_sr = len(self._sentence)
+        
         remaining_duration_sr = max_sentence_duration_sr - sentence_duration_sr
         remaining_duration = max_sentence_duration - sentence_duration
         prev_dur_sr, dur_sr = 0, 0
-        nw, i = 0, 0
-        while nw < remaining_duration and dur_sr < remaining_duration_sr and i < len(file['words']):
-            dur_sr = int(file['alignments'][i] * self._params.data_simulator.sr) - start_cutoff
+        nw = 0
+        word_idx = offset_idx
+        silence_count = 1
+        while nw < remaining_duration and dur_sr < remaining_duration_sr and word_idx < len(file['words']):
+            dur_sr = int(file['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+
             if dur_sr > remaining_duration_sr:
                 break
 
-            word = file['words'][i]
+            word = file['words'][word_idx]
+            
+            if silence_count > 0 and word == "":
+                break
+
             self._words.append(word)
             self._alignments.append(
                 float(sentence_duration_sr * 1.0 / self._params.data_simulator.sr)
                 - float(start_cutoff * 1.0 / self._params.data_simulator.sr)
-                + file['alignments'][i]
+                + file['alignments'][word_idx]
             )
 
             if word == "":
-                i += 1
+                word_idx += 1
+                silence_count += 1
                 continue
             elif self._text == "":
                 self._text += word
             else:
                 self._text += " " + word
-            i += 1
+            
+            word_idx += 1
             nw += 1
             prev_dur_sr = dur_sr
 
         # add audio clip up to the final alignment
-        if (
-            sentence_duration == 0
-        ) and self._params.data_simulator.session_params.window_type != None:  # cut off the start of the sentence
+        if self._params.data_simulator.session_params.window_type != None:  # cut off the start of the sentence
             if start_window_amount > 0:  # include window
                 window = self._get_window(start_window_amount, start=True)
                 self._sentence = torch.cat(
@@ -565,11 +586,14 @@ class MultiSpeakerSimulator(object):
             self._sentence = torch.cat(
                 (self._sentence, audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sr]), 0
             )
+
         else:
-            self._sentence = torch.cat((self._sentence, audio_file[:prev_dur_sr]), 0)
+            self._sentence = torch.cat(
+                (self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sr]), 0
+            )
 
         # windowing at the end of the sentence
-        if (i < len(file['words'])) and self._params.data_simulator.session_params.window_type != None:
+        if (word_idx < len(file['words'])) and self._params.data_simulator.session_params.window_type != None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
                 prev_dur_sr, remaining_duration_sr, len(audio_file[start_cutoff + prev_dur_sr :])
             )
@@ -577,6 +601,7 @@ class MultiSpeakerSimulator(object):
                 (self._sentence, audio_file[start_cutoff + prev_dur_sr : start_cutoff + prev_dur_sr + release_buffer]),
                 0,
             )
+
             if end_window_amount > 0:  # include window
                 window = self._get_window(end_window_amount, start=False)
                 self._sentence = torch.cat(
@@ -885,18 +910,19 @@ class MultiSpeakerSimulator(object):
         start = float(round(start, self._params.data_simulator.outputs.output_precision))
         for i in range(len(self._words)):
             word = self._words[i]
-            if (
-                word != ""
-            ):  # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
+            if word != "":  # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
+                prev_align = 0 if i == 0 else self._alignments[i - 1]
                 align1 = float(
-                    round(self._alignments[i - 1] + start, self._params.data_simulator.outputs.output_precision)
+                    round(prev_align + start, self._params.data_simulator.outputs.output_precision)
                 )
                 align2 = float(
                     round(
-                        self._alignments[i] - self._alignments[i - 1],
+                        self._alignments[i] - prev_align,
                         self._params.data_simulator.outputs.output_precision,
                     )
                 )
+                if align2 < 0:
+                    import ipdb; ipdb.set_trace()
                 text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
                 arr.append((align1, text))
         return arr
