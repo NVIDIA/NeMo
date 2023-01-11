@@ -1135,7 +1135,7 @@ pipeline {
                     python heteronym_classification_inference.py \
                         manifest=/home/TestData/g2p/heteronym_classification.json \
                         pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
-                        output_file=preds.json'
+                        output_manifest=preds.json'
               }
             }
           }
