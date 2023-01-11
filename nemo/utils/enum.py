@@ -17,9 +17,18 @@ from enum import Enum
 
 class PrettyStrEnum(Enum):
     """
-    Pretty enum with string values for config options with choices
+    Pretty enum to work with string values for config options with choices
     Provides en automatic error message with possible values, if the value is not in the enum
     Converting to string will show the actual string value, which makes serialization/deserialization straightforward
+
+    Example:
+        class ModelType(PrettyStrEnum):
+            CTC = "ctc"
+            RNNT = "rnnt"
+        ...
+        model_type = ModelType(model_type_string)  # automatically validated
+        if model_type == ModelType.CTC:  # more error-prone (to typos) compared to pure string literals
+            ...  # do something specific to CTC model
     """
 
     def __str__(self):
