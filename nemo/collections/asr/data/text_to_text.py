@@ -270,7 +270,10 @@ class TextToTextDatasetBase:
         self.data = [dict() for _ in range(num_utterances)]
 
         if tokenizer_workers == 1:
-            logging.warning("Preprocessing large text with tokenizer_workers=1 may be slow with ASR tokenizer")
+            logging.warning(
+                "Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer. "
+                "Prefer tokenizer_workers=(num_cpu_cores/num_gpus_per_node)"
+            )
             for i, tokenized_text in enumerate(
                 tqdm((self._asr_text_to_tokens(text) for text in asr_texts), total=len(asr_texts))
             ):
@@ -300,8 +303,8 @@ class TextToTextDatasetBase:
 
         if tokenizer_workers == 1:
             logging.warning(
-                "Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer, "
-                "prefer tokenizer_worders=(num_cpu_cores/num_gpus_per_node)"
+                "Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer. "
+                "Prefer tokenizer_workers=(num_cpu_cores/num_gpus_per_node)"
             )
             for i, tokenized_text in enumerate(
                 tqdm(
