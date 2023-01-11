@@ -25,7 +25,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 import json
 from scripts.upscale_scripts.models import EmbeddingProjector
 
-
 def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
@@ -42,7 +41,6 @@ def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
         restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
     )
     return model
-
 
 def get_word_type_embeddings(model):
     word_embeddings = model.frozen_model.model.language_model.embedding.word_embeddings.weight.data

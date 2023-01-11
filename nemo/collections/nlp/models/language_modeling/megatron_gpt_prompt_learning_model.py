@@ -282,7 +282,17 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        if self.prompt_encoder_type == PromptEncoderType.TPMLP:
+        if self.prompt_encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
+           self.prompt_encoder = PromptEncoder(
+                encoder_type=self.prompt_encoder_type,
+                total_virtual_tokens=total_virtual_tokens,
+                token_dim=self.hidden_size,
+                hidden_size=-1,  # unused
+                lstm_dropout=-1,  # unused
+                num_layers=-1,  # unused
+                cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0),
+            )
+        elif self.prompt_encoder_type == PromptEncoderType.TPMLP:
             self.prompt_encoder = PromptEncoderMLP(
                 total_virtual_tokens=total_virtual_tokens,
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),

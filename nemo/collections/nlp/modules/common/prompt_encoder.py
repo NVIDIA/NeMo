@@ -57,6 +57,7 @@ class PromptEncoderType(enum.Enum):
     FROZEN_EMBEDDING_MLP = 'frozen_embedding_mlp'
     BOTTLENECK_MLP = 'bottleneck_mlp'
     EYE_MLP = 'eye_mlp'
+    SIMPLE_EMBEDDING = "simple_embedding"
     LINEAR_COMBINATION = 'linear_combination'
     LINEAR_COMBINATION_BASELINE = 'linear_combination_baseline'
 
@@ -264,7 +265,9 @@ class PromptEncoder(NeuralModule, Exportable):
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
 
-        if self.encoder_type == PromptEncoderType.LSTM:
+        if self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
+            pass
+        elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
                 input_size=self.input_size,
@@ -351,6 +354,8 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.lstm_head(input_embeds)[0]
         elif self.encoder_type in [PromptEncoderType.MLP, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
             output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
+            output_embeds = input_embeds
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
@@ -375,6 +380,8 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.EYE_MLP:
             output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
+            output_embeds = input_embeds
 
         # (10, 2048)
         output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-8
