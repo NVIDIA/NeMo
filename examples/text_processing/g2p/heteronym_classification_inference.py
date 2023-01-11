@@ -107,7 +107,7 @@ def main(cfg):
 
     if cfg.manifest is not None and os.path.exists(cfg.manifest):
         with torch.no_grad():
-            preds = model.disambiguate_manifest(
+            model.disambiguate_manifest(
                 manifest=cfg.manifest,
                 output_manifest=cfg.output_manifest,
                 grapheme_field=cfg.grapheme_field,
