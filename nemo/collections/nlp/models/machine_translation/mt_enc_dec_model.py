@@ -39,6 +39,7 @@ from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcess
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, JaMecabProcessor
 from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -169,6 +170,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
+        if isinstance(self.encoder_tokenizer, TabularTokenizer):
+            # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
+            encoder_padding_idx = 0
+        else:
+            encoder_padding_idx = self.encoder_tokenizer.pad_id
         self.encoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -177,6 +183,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             encoder=True,
             pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
             checkpoint_file=checkpoint_file,
+            padding_idx=encoder_padding_idx,
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
@@ -185,6 +192,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         library = decoder_cfg_dict.pop('library', 'nemo')
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
+        if isinstance(self.decoder_tokenizer, TabularTokenizer):
+            # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
+            decoder_padding_idx = 0
+        else:
+            decoder_padding_idx = self.decoder_tokenizer.pad_id
         self.decoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -192,6 +204,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             config_dict=decoder_cfg_dict,
             encoder=False,
             pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            padding_idx=decoder_padding_idx,
         )
 
         # validate hidden_size of encoder and decoder
