@@ -148,7 +148,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             self.prompt_encoder_type = "tpmlp"
 
-
         if self.pipeline_parallel:
             assert (
                 self.cfg.optim.sched.get("min_lr", 0.0) == 0.0
@@ -282,7 +281,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
         if self.prompt_encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
-           self.prompt_encoder = PromptEncoder(
+            self.prompt_encoder = PromptEncoder(
                 encoder_type=self.prompt_encoder_type,
                 total_virtual_tokens=total_virtual_tokens,
                 token_dim=self.hidden_size,
@@ -307,10 +306,26 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
-        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
-            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2)
-            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
-                hidden_size=self.hidden_size
+        elif self.prompt_encoder_type in [
+            PromptEncoderType.LSTM,
+            PromptEncoderType.MLP,
+            PromptEncoderType.SIMPLE_LSTM,
+            PromptEncoderType.SIMPLE_MLP,
+            PromptEncoderType.FROZEN_MLP,
+            PromptEncoderType.FROZEN_EMBEDDING_MLP,
+            PromptEncoderType.BOTTLENECK_MLP,
+            PromptEncoderType.EYE_MLP,
+        ]:
+            hidden_size = self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2)
+            if self.prompt_encoder_type in [
+                PromptEncoderType.SIMPLE_LSTM,
+                PromptEncoderType.SIMPLE_MLP,
+                PromptEncoderType.FROZEN_MLP,
+                PromptEncoderType.FROZEN_EMBEDDING_MLP,
+                PromptEncoderType.BOTTLENECK_MLP,
+                PromptEncoderType.EYE_MLP,
+            ]:
+                hidden_size = self.hidden_size
 
             self.prompt_encoder = PromptEncoder(
                 encoder_type=self.prompt_encoder_type,
@@ -335,16 +350,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             mask_restrict = self.cfg.p_tuning.get("mask_restrict", False)
             noise_std = self.cfg.p_tuning.get("noise_std", 0.0)
             self.prompt_encoder = PromptEncoderLinearCombination(
-                total_virtual_tokens, 
-                word_embedding, 
-                l1_scale, 
-                l2_scale, 
-                cs_scale, 
-                normalize, 
-                use_relu, 
+                total_virtual_tokens,
+                word_embedding,
+                l1_scale,
+                l2_scale,
+                cs_scale,
+                normalize,
+                use_relu,
                 normalize_original_embeddings,
-                init_val, 
-                spaced_init, 
+                init_val,
+                spaced_init,
                 mask_restrict,
                 noise_std=noise_std,
             )
@@ -352,8 +367,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
             cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
             self.prompt_encoder = PromptEncoderLinearCombinationBaseline(
-                total_virtual_tokens, word_embedding, cs_scale,
-                self.training_top_tokens
+                total_virtual_tokens, word_embedding, cs_scale, self.training_top_tokens
             )
         else:
             raise ValueError('not supported')
@@ -439,9 +453,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         parameters. Matching load method for this class' custom state dict method. 
         """
         if self.cfg.p_tuning.encoder_type == PromptEncoderType.LINEAR_COMBINATION:
-                self.prompt_encoder.load_state_dict(state_dict_, strict)
-                print(self.prompt_encoder)
-                return
+            self.prompt_encoder.load_state_dict(state_dict_, strict)
+            print(self.prompt_encoder)
+            return
 
         if self.frozen_model.model.pre_process:
             if self._prompt_table_key in state_dict:
@@ -632,7 +646,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Only get needed virtual token embeddings from the prompt table according to virtual token ids
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
-            virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
+            virtual_token_embeds = [
+                self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)
+            ]
             virtual_token_embeds = torch.stack(virtual_token_embeds)
             # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
             discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
@@ -640,7 +656,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             # Put virtual and discrete token embs in their correct locations for final output
             virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
             input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
-        
+
         elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
@@ -713,7 +729,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-        loss_mean, l2_mean, l1_mean, cs_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean'], loss_mean['cs_mean']
+        loss_mean, l2_mean, l1_mean, cs_mean = (
+            loss_mean['loss_mean'],
+            loss_mean['l2_mean'],
+            loss_mean['l1_mean'],
+            loss_mean['cs_mean'],
+        )
         self.allreduce_gradients()
 
         ## logging
@@ -861,7 +882,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.init_prompt_encoder()
 
             self.freeze_existing_virtual_prompt_params()
-
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
@@ -1023,7 +1043,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                     l1_scale = self.prompt_encoder.l1_scale
                     l2_scale = self.prompt_encoder.l2_scale
                     cs_scale = self.prompt_encoder.cs_scale
-                    final_loss = loss + (l1_scale * w_l1.type_as(loss)) + (l2_scale * w_l2.type_as(loss)) + (cs_scale * w_cs.type_as(loss))
+                    final_loss = (
+                        loss
+                        + (l1_scale * w_l1.type_as(loss))
+                        + (l2_scale * w_l2.type_as(loss))
+                        + (cs_scale * w_cs.type_as(loss))
+                    )
                 else:
                     w_l1, w_l2, w_cs = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                     l1_scale, l2_scale, cs_scale = 0.0, 0.0, 0.0

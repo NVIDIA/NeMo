@@ -158,20 +158,20 @@ def main(cfg) -> None:
         zero_shot_baseline=zero_shot_mode,
     )
     _validation_ds, _validation_dl = model.build_virtual_prompt_dataset(
-                data=cfg.data_paths,
-                batch_size=cfg.inference.get("batch_size", 1),
-                max_seq_length=model.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=model.cfg.data.get('min_seq_length', 1),
-                add_bos=model.cfg.data.get('add_bos', False),
-                add_eos=model.cfg.data.get('add_eos', True),
-                for_train=True,
-                drop_last=True,
-                shuffle=False,
-                num_workers=1, 
-                pin_memory=True,
-                cache_data_path=None,
-                load_cache=None,
-            )
+        data=cfg.data_paths,
+        batch_size=cfg.inference.get("batch_size", 1),
+        max_seq_length=model.frozen_model.cfg.encoder_seq_length,
+        min_seq_length=model.cfg.data.get('min_seq_length', 1),
+        add_bos=model.cfg.data.get('add_bos', False),
+        add_eos=model.cfg.data.get('add_eos', True),
+        for_train=True,
+        drop_last=True,
+        shuffle=False,
+        num_workers=1,
+        pin_memory=True,
+        cache_data_path=None,
+        load_cache=None,
+    )
 
     out = trainer.test(model, _validation_dl)
     config = OmegaConf.to_container(cfg.inference)

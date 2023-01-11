@@ -1,9 +1,11 @@
 import os
+from typing import Any
+
 import pytorch_lightning as ptl
 import torch
 import torch.nn.functional as F
-from typing import Any
 from torch import nn
+
 
 class EmbeddingProjector(ptl.LightningModule):
     def __init__(self, input_size: int, output_size: int, cfg: Any) -> None:
@@ -12,7 +14,7 @@ class EmbeddingProjector(ptl.LightningModule):
         self.output_size = output_size
         self.hidden_size = cfg.hidden_size
         self.upscaler = nn.Sequential(
-            nn.Linear(self.input_size, self.hidden_size), 
+            nn.Linear(self.input_size, self.hidden_size),
             nn.GELU(),
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.GELU(),
