@@ -288,8 +288,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=-1,  # unused
                 dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=-1,  # unused
-                cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0),
-                insert_tasknames = self.cfg.p_tuning.get("insert_tasknames", True),
+                cs_scale=self.cfg.p_tuning.get("cs_scale", 0.0),
+                insert_tasknames=self.cfg.p_tuning.get("insert_tasknames", True),
             )
         elif self.prompt_encoder_type == PromptEncoderType.TPMLP:
             self.prompt_encoder = PromptEncoderMLP(
@@ -334,8 +334,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=hidden_size,
                 dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=self.cfg.p_tuning.get("num_layers", 2),
-                cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0),
-                insert_tasknames = self.cfg.p_tuning.get("insert_tasknames", True),
+                cs_scale=self.cfg.p_tuning.get("cs_scale", 0.0),
+                insert_tasknames=self.cfg.p_tuning.get("insert_tasknames", True),
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
