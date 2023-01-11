@@ -18,6 +18,8 @@ from enum import Enum
 class PrettyStrEnum(Enum):
     """
     Pretty enum with string values for config options with choices
+    Provides en automatic error message with possible values, if the value is not in the enum
+    Converting to string will show the actual string value, which makes serialization/deserialization straightforward
     """
 
     def __str__(self):
