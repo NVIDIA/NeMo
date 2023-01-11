@@ -236,9 +236,10 @@ class PromptEncoder(NeuralModule, Exportable):
         total_virtual_tokens: int,
         token_dim: int,
         hidden_size,
-        lstm_dropout: float,
+        dropout: float,
         num_layers: int,
         cs_scale: float,
+        insert_tasknames: bool,
     ):
         """
         Initializes the PromptEncoder module.
@@ -258,6 +259,8 @@ class PromptEncoder(NeuralModule, Exportable):
         self.l1_scale = 0.0
         self.l2_scale = 0.0
         self.cs_scale = cs_scale
+        self.dropout = torch.nn.Dropout(dropout)
+        self.insert_taskname_embeddings = insert_tasknames
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
@@ -273,7 +276,7 @@ class PromptEncoder(NeuralModule, Exportable):
                 input_size=self.input_size,
                 hidden_size=self.hidden_size,
                 num_layers=num_layers,
-                dropout=lstm_dropout,
+                dropout=dropout,
                 bidirectional=True,
                 batch_first=True,
             )
@@ -291,7 +294,7 @@ class PromptEncoder(NeuralModule, Exportable):
                 input_size=self.input_size,
                 hidden_size=self.hidden_size // 2,
                 num_layers=num_layers,
-                dropout=lstm_dropout,
+                dropout=dropout,
                 bidirectional=True,
                 batch_first=True,
             )
@@ -346,7 +349,8 @@ class PromptEncoder(NeuralModule, Exportable):
         length = min(task_seq_length, self.total_virtual_tokens)
 
         # Replace general input with task specific embeddings to specify the correct task
-        input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
+        if self.insert_taskname_embeddings:
+            input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
 
         if self.encoder_type == PromptEncoderType.LSTM:
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
@@ -359,6 +363,7 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
+        output_embeds = self.dropout(output_embeds)
         return output_embeds
     
     def encoder_reg(self,):
