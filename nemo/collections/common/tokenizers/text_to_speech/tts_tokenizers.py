@@ -661,7 +661,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         g2p,
         punct=True,
         non_default_punct_list=None,
-        chars=False,
         *,
         space=' ',
         silence=None,
@@ -676,7 +675,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             g2p: Grapheme to phoneme module.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
             apostrophe: Whether to use apostrophe or not.
