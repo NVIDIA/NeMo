@@ -21,51 +21,55 @@ Mozilla Common Voice provides 1400 hours of validated Esperanto speech (see `her
 Download data
 #################################
 
-You can use the NeMo script to get data manifests for Esperanto:
+You can use the NeMo script to download MCV dataset from Hugging Face and get NeMo data manifests for Esperanto:
 
 .. code-block:: bash
+    
+    """
+    # Setup
+    After installation of huggingface datasets (pip install datasets), some datasets might require authentication
+    - for example Mozilla Common Voice. You should go to the above link, register as a user and generate an API key.
 
-    python ${NEMO_ROOT}/docs/source/asr/examples/esperanto_asr/scripts/get_commonvoice_data_v2.py \
-      --data_root ${YOUR_DATA_ROOT}/esperanto/raw_data \
-      --manifest_dir ${YOUR_DATA_ROOT}/esperanto/manifests \
-      --log \
-      --files_to_process 'test.tsv' 'dev.tsv' 'train.tsv' \
-      --version cv-corpus-11.0-2022-09-21 \
-      --language eo 
+    ## Authenticated Setup Steps
+
+    Website steps:
+    - Visit https://huggingface.co/settings/profile
+    - Visit "Access Tokens" on list of items.
+    - Create new token - provide a name for the token and "read" access is sufficient.
+      - PRESERVE THAT TOKEN API KEY. You can copy that key for next step.
+    - Visit the HuggingFace Dataset page for Mozilla Common Voice
+      - There should be a section that asks you for your approval.
+      - Make sure you are logged in and then read that agreement.
+      - If and only if you agree to the text, then accept the terms.
+
+    Code steps:
+    - Now on your machine, run `huggingface-cli login`
+    - Paste your preserved HF TOKEN API KEY (from above).
+
+    Now you should be logged in. When running the script, dont forget to set `use_auth_token=True` !
+    """
+    
+    
+    # Repeat script execution three times for variable SPLIT = test, validation, and train.
+    
+    python ${NEMO_ROOT}/docs/source/asr/examples/esperanto_asr/scripts/convert_hf_dataset_to_nemo_v2.py \
+        output_dir=${OUTPUT_DIR} \
+        path="mozilla-foundation/common_voice_11_0" \
+        name="eo" \
+        split=${SPLIT} \
+        use_auth_token=True
 
 You will get the next data structure:
 
 .. code-block:: bash
 
-    ./esperanto
-    ├── manifests
-    │   ├── commonvoice_dev_manifest.json
-    │   ├── commonvoice_test_manifest.json
-    │   └── commonvoice_train_manifest.json
-    └── raw_data
-        ├── CV_unpacked
-        │   └── cv-corpus-11.0-2022-09-21
-        ├── dev
-        │   └── wav
-        ├── eo.tar.gz
-        ├── test
-        │   └── wav
-        └── train
-            └── wav
-    ./esperanto/raw_data/CV_unpacked
-    └── cv-corpus-11.0-2022-09-21
-        └── eo
-            ├── clips
-            ├── dev.tsv
-            ├── invalidated.tsv
-            ├── other.tsv
-            ├── reported.tsv
-            ├── test.tsv
-            ├── totalDur.sh
-            ├── total_clips_duration.csv
-            ├── train.tsv
-            └── validated.tsv
-
+    .
+    └── mozilla-foundation
+        └── common_voice_11_0
+            └── eo
+                ├── test
+                ├── train
+                └── validation
 
 Dataset preprocessing
 #################################
@@ -73,12 +77,13 @@ Dataset preprocessing
 Next, we must clear the text data from punctuation and various “garbage” characters. In addition to deleting a standard set of elements (as in Kinyarwanda), you can compute  the frequency of characters in the train set and add the rarest (occurring less than ten times) to the list for deletion. 
 
 .. code-block:: python
+  
   import json
   from tqdm import tqdm
 
-  dev_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_dev_manifest.json"
-  test_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json"
-  train_manifest = f"{YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_train_manifest.json"
+  dev_manifest = f"{YOUR_DATA_ROOT}/validation/validation_mozilla-foundation_common_voice_11_0_manifest.json"
+  test_manifest = f"{YOUR_DATA_ROOT}/test/test_mozilla-foundation_common_voice_11_0_manifest.json"
+  train_manifest = f"{YOUR_DATA_ROOT}/train/train_mozilla-foundation_common_voice_11_0_manifest.json"
 
   def compute_char_counts(manifest):
       char_counts = {}
@@ -110,7 +115,7 @@ Let's check:
 
   print(trash_char_list)
 
-  ['é', 'ǔ', 'á', '¨', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
+  ['é', 'ǔ', 'á', '¨', 'Ŭ', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
 
 Next we will  check the data for anomalies in audio file (for example,  audio file with noise only). For this end, we check character rate (number of chars per second). For example,  If the char rate is too high (more than 15 chars per second), then something is wrong with the audio file. It is better to filter such data from the training dataset in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our example.
 
@@ -139,7 +144,7 @@ Next we will  check the data for anomalies in audio file (for example,  audio fi
                   continue
               text = re.sub(chars_to_ignore_regex, "", text)
               text = re.sub(addition_ignore_regex, "", text)
-              data["text"] = text
+              data["text"] = text.lower()
               data = json.dumps(data, ensure_ascii=False)
               fn_out.write(f"{data}\n")
       print(f"[INFO]: {war_count} files were removed from manifest")
@@ -158,11 +163,11 @@ The NeMo toolkit provides a `script <https://github.com/NVIDIA/NeMo/blob/main/sc
 
 .. code-block:: bash
 
-    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_train_manifest.json.clean
+    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/train/train_mozilla-foundation_common_voice_11_0_manifest.json.clean
 
     python ${NEMO_ROOT}/scripts/speech_recognition/convert_to_tarred_audio_dataset.py \
       --manifest_path=${TRAIN_MANIFEST} \
-      --target_dir=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk \
+      --target_dir=${YOUR_DATA_ROOT}/train_tarred_1bk \
       --num_shards=1024 \
       --max_duration=15.0 \
       --min_duration=1.0 \
@@ -259,10 +264,10 @@ For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nem
 .. code-block:: bash
 
     TOKENIZER=${YOUR_DATA_ROOT}/esperanto/tokenizers/tokenizer_spe_bpe_v128
-    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk/tarred_audio_manifest.json
-    TARRED_AUDIO_FILEPATHS=${YOUR_DATA_ROOT}/esperanto/manifests/train_tarred_1bk/audio__OP_0..1023_CL_.tar # "_OP_0..1023_CL_" is the range for the banch of files audio_0.tar, audio_1.tar, ..., audio_1023.tar
-    DEV_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_dev_manifest.json.clean
-    TEST_MANIFEST=${YOUR_DATA_ROOT}/esperanto/manifests/commonvoice_test_manifest.json.clean
+    TRAIN_MANIFEST=${YOUR_DATA_ROOT}/train_tarred_1bk/tarred_audio_manifest.json
+    TARRED_AUDIO_FILEPATHS=${YOUR_DATA_ROOT}/train_tarred_1bk/audio__OP_0..1023_CL_.tar # "_OP_0..1023_CL_" is the range for the banch of files audio_0.tar, audio_1.tar, ..., audio_1023.tar
+    DEV_MANIFEST=${YOUR_DATA_ROOT}/validation/validation_mozilla-foundation_common_voice_11_0_manifest.json.clean
+    TEST_MANIFEST=${YOUR_DATA_ROOT}/test/test_mozilla-foundation_common_voice_11_0_manifest.json.clean
 
     python ${NEMO_ROOT}/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
       --config-path=../conf/conformer/ \
