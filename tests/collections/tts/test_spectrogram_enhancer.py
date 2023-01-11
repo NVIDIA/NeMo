@@ -156,4 +156,4 @@ def test_nemo_save_load(enhancer: SpectrogramEnhancerModel, tmp_path):
     path = tmp_path / "test-enhancer-save-load.nemo"
 
     enhancer.save_to(path)
-    return SpectrogramEnhancerModel.restore_from(path)
+    SpectrogramEnhancerModel.restore_from(path)
