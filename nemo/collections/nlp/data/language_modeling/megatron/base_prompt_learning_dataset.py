@@ -116,7 +116,7 @@ class BasePromptLearningDataset(Dataset):
 
     def _add_leading_space(self, taskname, field_name, field_text):
         """ Add leading space to text if there is a space before it in the template """
-        prompt_template = self.task_templates[taskname]["prompt_template"]
+        prompt_template = "Question: \{question\} Context: \{context\} Answer: \{answer\}" #self.task_templates[taskname]["prompt_template"]
         field_text_start = prompt_template.find("{" + field_name + "}")
         if field_text_start != 0 and prompt_template[field_text_start - 1] == " ":
             field_text = " " + field_text

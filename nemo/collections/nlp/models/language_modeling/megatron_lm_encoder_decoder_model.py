@@ -990,7 +990,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
         response = self.complete(request)
-        logging.info(f"response: {response}")
+        #logging.info(f"response: {response}")
         return response
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
