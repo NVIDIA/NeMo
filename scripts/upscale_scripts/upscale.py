@@ -356,9 +356,7 @@ def main(cfg) -> None:
         train = UpscaleDataset(
             torch.float16, sm_word_embeddings[train_type_ids, :], lg_word_embeddings[train_type_ids, :]
         )
-        val = UpscaleDataset(
-            torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :]
-        )
+        val = UpscaleDataset(torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :])
         test = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
