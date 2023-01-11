@@ -251,9 +251,17 @@ def convert_offline_dataset_to_nemo(
             )
         ):
             # remove large components from sample
-            manifest_f.write(json.dumps({"audio_filepath": sample["audio_filepath"],
-                                         "duration": sample["duration"],
-                                         "text": sample["sentence"]}, ensure_ascii=False) + "\n")
+            manifest_f.write(
+                json.dumps(
+                    {
+                        "audio_filepath": sample["audio_filepath"],
+                        "duration": sample["duration"],
+                        "text": sample["sentence"],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
 
 
 def convert_streaming_dataset_to_nemo(
