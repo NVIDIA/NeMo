@@ -176,7 +176,6 @@ class HeteronymClassificationDataset(Dataset):
                     logging.debug(f"{heteronym} is not supported. Skipping example.")
                     return None
 
-                # grapheme_ipa_forms = self.wiki_homograph_dict[heteronym]
                 heteronym_span_idx += 1
             else:
                 ids = self.tokenizer.text_to_ids(word)

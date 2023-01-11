@@ -290,7 +290,7 @@ def get_homograph_spans(sentences: List[str], supported_homographs: Union[Dict, 
             for sub_word in word_by_hyphen:
                 no_punct_word = remove_punctuation(sub_word, do_lower=True, remove_spaces=False)
                 if no_punct_word in supported_homographs:
-                    start_idx = sent.index(no_punct_word, start_idx)
+                    start_idx = sent.lower().index(no_punct_word, start_idx)
                     end_idx = start_idx + len(no_punct_word)
                     cur_start_end.append((start_idx, end_idx))
                     cur_homographs.append(no_punct_word)

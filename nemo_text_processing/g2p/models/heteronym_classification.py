@@ -14,7 +14,7 @@
 
 
 import json
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import torch
 from hydra.utils import instantiate
@@ -22,7 +22,6 @@ from nemo_text_processing.g2p.data.data_utils import get_homograph_spans, get_wo
 from nemo_text_processing.g2p.data.heteronym_classification_data import HeteronymClassificationDataset
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from tqdm import tqdm
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
@@ -59,7 +58,6 @@ class HeteronymClassificationModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.lang = self._cfg.get('lang', None)
-        self.use_negative_target_mask = False  # self._cfg.use_negative_target_mask
 
         num_classes = len(self.wordid_to_idx)
         self.classifier = TokenClassifier(

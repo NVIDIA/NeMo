@@ -515,8 +515,8 @@ class IPAG2P(BaseG2p):
         if self.heteronym_model is not None:
             try:
                 text = self.heteronym_model.disambiguate(sentences=[text])[1][0]
-            except:
-                logging.warning(f"Heteronym model failed, skipping")
+            except Exception as e:
+                logging.warning(f"Heteronym model failed {e}, skipping")
 
         words = self.word_tokenize_func(text)
         prons = []

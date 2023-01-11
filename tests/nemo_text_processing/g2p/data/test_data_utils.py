@@ -127,9 +127,9 @@ class TestDataUtils:
     def test_get_homograph_spans(self):
         supported_homographs = ["live", "read", "protest", "diffuse", "desert"]
         sentences = [
-            "I live in California. I read a book. Only people who have already gained something are willing to protest. He reads a book!",
+            "I live in California. I READ a book. Only people who have already gained something are willing to protest. He reads a book!",
             "Yesterday, I read a book.",
-            "He read a book last night and pre-diffuse and live-post and pre-desert-post.",
+            "He read a book last night and pre-diffuse and LivE-post and pre-desert-post.",
             "the soldier deserted the desert in desert.",
         ]
 
