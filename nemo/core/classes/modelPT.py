@@ -523,7 +523,7 @@ class ModelPT(LightningModule, Model):
                     optim_config['sched']['t_num_workers'] = (
                         self._trainer.num_devices * self._trainer.num_nodes
                     ) / app_state.model_parallel_size
-            else:
+            elif 'max_steps' not in optim_config['sched']:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
         # Force into DictConfig from nested structure
