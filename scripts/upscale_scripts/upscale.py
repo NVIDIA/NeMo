@@ -26,7 +26,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
 
-def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
+def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg, base_model_path):
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
         virtual_prompt_model_file, trainer=trainer, return_config=True,
@@ -36,6 +36,7 @@ def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
         prompt_learning_cfg.save_nemo_on_validation_end = False
         prompt_learning_cfg.micro_batch_size = 1
         prompt_learning_cfg.global_batch_size = 1
+        prompt_learning_cfg.language_model_path = base_model_path
 
     model = MegatronGPTPromptLearningModel.restore_from(
         restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
@@ -301,29 +302,29 @@ def get_word_token_embeddings(tok_path, tokenizer, model, num_prompts):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.nemo_trainer)
-    word_embeddings_125m = model_125m.frozen_model.model.language_model.embedding.word_embeddings.weight.data
-    pos_embeddings_125m = model_125m.frozen_model.model.language_model.embedding.position_embeddings.weight.data
-    tokenizer = model_125m.frozen_model.tokenizer
-    prompt_learning_embs_125m = model_125m.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
-    train_type_ids, val_type_ids = get_train_val_split(model_125m, cfg.upscaler.data)
+    sm_model = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.nemo_trainer, cfg.small_model_path)
+    sm_word_embeddings = sm_model.frozen_model.model.language_model.embedding.word_embeddings.weight.data
+    sm_pos_embeddings = sm_model.frozen_model.model.language_model.embedding.position_embeddings.weight.data
+    tokenizer = sm_model.frozen_model.tokenizer
+    sm_prompt_learning_embs = sm_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
+    train_type_ids, val_type_ids = get_train_val_split(sm_model, cfg.upscaler.data)
 
-    model_1_3b = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.nemo_trainer)
-    word_embeddings_1_3b = model_1_3b.frozen_model.model.language_model.embedding.word_embeddings.weight.data
-    pos_embeddings_1_3b = model_1_3b.frozen_model.model.language_model.embedding.position_embeddings.weight.data
-    prompt_learning_embs_1_3b = model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
+    lg_model = load_prompt_learning_model(cfg.large_prompt_learning_model, cfg.nemo_trainer, cfg.large_model_path)
+    lg_word_embeddings = lg_model.frozen_model.model.language_model.embedding.word_embeddings.weight.data
+    lg_pos_embeddings = lg_model.frozen_model.model.language_model.embedding.position_embeddings.weight.data
+    lg_prompt_learning_embs = lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
 
     if cfg.upscaler.data.token_based_training:
-        train_dataset = get_dataset(model_125m, [cfg.upscaler.data.train_dataset])
+        train_dataset = get_dataset(sm_model, [cfg.upscaler.data.train_dataset])
         train = UpscaleTokenDataset(
             train_dataset,
             val_type_ids,
             tokenizer,
             cfg.upscaler.data.num_virtual_prompts,
-            word_embeddings_125m,
-            pos_embeddings_125m,
-            word_embeddings_1_3b,
-            pos_embeddings_1_3b,
+            sm_word_embeddings,
+            sm_pos_embeddings,
+            lg_word_embeddings,
+            lg_pos_embeddings,
             True,
         )
         train_dataloader = DataLoader(
@@ -334,37 +335,37 @@ def main(cfg) -> None:
             train_type_ids,
             tokenizer,
             cfg.upscaler.data.num_virtual_prompts,
-            word_embeddings_125m,
-            pos_embeddings_125m,
-            word_embeddings_1_3b,
-            pos_embeddings_1_3b,
+            sm_word_embeddings,
+            sm_pos_embeddings,
+            lg_word_embeddings,
+            lg_pos_embeddings,
             False,
         )
         val_dataloader = DataLoader(
             val, batch_size=cfg.upscaler.data.batch_size, shuffle=False
         )  # , collate_fn=UpscaleTokenDataset.collate_fn)
 
-        prompt_tokens_125m = prompt_learning_embs_125m + pos_embeddings_125m[:10, :]
-        prompt_tokens_1_3b = prompt_learning_embs_1_3b + pos_embeddings_1_3b[:10, :]
-        test = UpscaleDataset(torch.float16, prompt_tokens_125m, prompt_tokens_1_3b)
-        test2 = UpscaleDataset(torch.float16, prompt_learning_embs_125m, prompt_learning_embs_1_3b)
+        sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[:10, :]
+        lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[:10, :]
+        test = UpscaleDataset(torch.float16, sm_prompt_tokens, lg_prompt_tokens)
+        test2 = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader2 = DataLoader(test2, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
     else:
         train = UpscaleDataset(
-            torch.float16, word_embeddings_125m[train_type_ids, :], word_embeddings_1_3b[train_type_ids, :]
+            torch.float16, sm_word_embeddings[train_type_ids, :], lg_word_embeddings[train_type_ids, :]
         )
         val = UpscaleDataset(
-            torch.float16, word_embeddings_125m[val_type_ids, :], word_embeddings_1_3b[val_type_ids, :]
+            torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :]
         )
-        test = UpscaleDataset(torch.float16, prompt_learning_embs_125m, prompt_learning_embs_1_3b)
+        test = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
         val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
-    projector = EmbeddingProjector(word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler)
+    projector = EmbeddingProjector(sm_word_embeddings.shape[1], lg_word_embeddings.shape[1], cfg.upscaler)
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=10, verbose=True, mode="min")
     wblogger = WandbLogger(**cfg.upscaler.wandb)
     # saves top-K checkpoints based on "val_loss" metric
@@ -382,23 +383,23 @@ def main(cfg) -> None:
     trainer.test(model=projector, dataloaders=test_dataloader2)
     trainer.fit(model=projector, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
-    best_projector = EmbeddingProjector(word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler)
+    best_projector = EmbeddingProjector(sm_word_embeddings.shape[1], lg_word_embeddings.shape[1], cfg.upscaler)
     best_projector.load_model(cfg.upscaler.save_checkpoint_path + '/upscaler.pt')
     trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.test(model=projector, dataloaders=test_dataloader2)
     best_projector = best_projector.cuda()
-    y_hat = best_projector(prompt_learning_embs_125m)
+    y_hat = best_projector(sm_prompt_learning_embs)
 
-    model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
+    lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
     if cfg.evaluation == 'generation':
         do_inference(
-            model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
+            lg_model, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
         )
     elif cfg.evaluation == 'score':
         do_scoring(
-            model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
+            lg_model, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
         )
-    model_1_3b.save_to(cfg.projected_prompt_learning_model)
+    lg_model.save_to(cfg.projected_prompt_learning_model)
 
 
 if __name__ == '__main__':

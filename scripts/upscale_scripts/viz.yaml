@@ -1,0 +1,3 @@
+viz:
+  prompt_model_file: /home/adithyare/draco_exp/p_tuning_squad_dgx2h/simple_lstm_squad_1.3b_dropout0.2_tasknameTrue_cs0.5/01_10_23/p_tuning.nemo
+  viz_file: ${viz.prompt_model_file}.png
