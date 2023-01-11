@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence
+from typing import Optional
 
 import librosa
 import matplotlib.pylab as plt
@@ -51,7 +51,6 @@ import numpy as np
 import torch
 from einops import rearrange
 from numba import jit, prange
-from numpy import ndarray
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
