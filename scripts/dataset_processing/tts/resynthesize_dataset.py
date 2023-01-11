@@ -64,6 +64,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
+from nemo.collections.tts.data.data_utils import read_manifest, write_manifest
 from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -143,18 +144,6 @@ class TTSDatasetResynthesizer:
             yield self.resynthesize_batch(batch)
 
 
-def read_manifest(path: Path) -> Dict[str, str]:
-    with path.open() as f:
-        for line in f:
-            yield json.loads(line.strip())
-
-
-def save_manifest(manifest: List[Dict[str, str]], path: Path):
-    with path.open("w") as f:
-        for entry in manifest:
-            f.write(f"{json.dumps(entry)}\n")
-
-
 def prepare_paired_mel_spectrograms(
     model_path: Path,
     input_json_manifest: Path,
@@ -209,7 +198,7 @@ def prepare_paired_mel_spectrograms(
             }
             output_manifest.append(new_manifest_entry)
 
-    save_manifest(output_manifest, output_json_manifest)
+    write_manifest(output_json_manifest, output_manifest)
 
 
 def argument_parser() -> argparse.ArgumentParser:
