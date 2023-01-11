@@ -506,7 +506,7 @@ class SaveRestoreConnector:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _update_artifact_paths(self, model, path2yaml_file):
-        if model.artifacts is not None and len(model.artifacts) > 0:
+        if hasattr(model, "artifacts") and model.artifacts is not None and len(model.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in model.artifacts.items():
                 if item.hashed_path is None:
