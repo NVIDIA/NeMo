@@ -96,6 +96,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
         )
+
+        if dataset is None:
+            return None
+
         shuffle = config['shuffle']
         if config.get('is_tarred', False):
             shuffle = False
