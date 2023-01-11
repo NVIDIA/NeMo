@@ -1,29 +1,30 @@
-import numpy as np
-from typing import List, AnyStr
+import json
 import os
+from typing import Any, AnyStr, List
+
+import numpy as np
 import pytorch_lightning as ptl
 import torch
 import torch.nn.functional as F
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
-from typing import Any
-from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.trainer.trainer import Trainer
+from scripts.upscale_scripts.models import EmbeddingProjector
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.core.config import hydra_runner
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-import json
-from scripts.upscale_scripts.models import EmbeddingProjector
+from nemo.core.config import hydra_runner
+
 
 def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
@@ -36,11 +37,11 @@ def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg):
         prompt_learning_cfg.micro_batch_size = 1
         prompt_learning_cfg.global_batch_size = 1
 
-
     model = MegatronGPTPromptLearningModel.restore_from(
         restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
     )
     return model
+
 
 def get_word_type_embeddings(model):
     word_embeddings = model.frozen_model.model.language_model.embedding.word_embeddings.weight.data
@@ -67,16 +68,29 @@ def get_dataset(model, data_paths: List[AnyStr]):
     )
     return dataset
 
+
 def get_train_val_split(model, cfg):
     dataset = get_dataset(model, [cfg.train_dataset])
     _, tokens = zip(*sorted([(value, key) for (key, value) in dataset.counter.items()], reverse=True))
-    tokens = tokens[cfg.high_freq_cutoff: cfg.num_examples + cfg.high_freq_cutoff]
+    tokens = tokens[cfg.high_freq_cutoff : cfg.num_examples + cfg.high_freq_cutoff]
     val_tokens = [i for idx, i in enumerate(tokens) if idx % 10 == 0]  # 10 % used for validation
     train_tokens = [i for idx, i in enumerate(tokens) if idx % 10 != 0]
     return train_tokens, val_tokens
 
+
 class UpscaleTokenDataset(Dataset):
-    def __init__(self, prompt_learning_dataset, discard_vocabs, tokenizer, num_prompts, word_embeds_x, pos_embeds_x, word_embeds_y, pos_embeds_y, is_training) -> None:
+    def __init__(
+        self,
+        prompt_learning_dataset,
+        discard_vocabs,
+        tokenizer,
+        num_prompts,
+        word_embeds_x,
+        pos_embeds_x,
+        word_embeds_y,
+        pos_embeds_y,
+        is_training,
+    ) -> None:
         super().__init__()
         self.discard_vocabs = set(discard_vocabs)
         self.word_embeds_x = word_embeds_x
@@ -90,14 +104,22 @@ class UpscaleTokenDataset(Dataset):
             if self.is_training:
                 type_and_position = [(idx, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs]
             else:
-                type_and_position = [(idx % num_prompts, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs]
+                type_and_position = [
+                    (idx % num_prompts, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs
+                ]
 
             type_and_position = type_and_position[num_prompts:]  # skip prompts
             promptless_input_ids = input_ids[num_prompts:]
             if self.is_training:
-                promptless_type_and_position = [(idx, id) for idx, id in enumerate(promptless_input_ids) if id not in self.discard_vocabs]
+                promptless_type_and_position = [
+                    (idx, id) for idx, id in enumerate(promptless_input_ids) if id not in self.discard_vocabs
+                ]
             else:
-                promptless_type_and_position = [(idx % num_prompts, id) for idx, id in enumerate(promptless_input_ids) if id not in self.discard_vocabs]
+                promptless_type_and_position = [
+                    (idx % num_prompts, id)
+                    for idx, id in enumerate(promptless_input_ids)
+                    if id not in self.discard_vocabs
+                ]
 
             self.examples += type_and_position
             self.examples += promptless_type_and_position
@@ -107,7 +129,7 @@ class UpscaleTokenDataset(Dataset):
 
     def __len__(self,):
         return len(self.examples)
-    
+
     def __getitem__(self, idx):
         idx, id = self.examples[idx]
         pos_embed_x = self.pos_embds_x[idx]
@@ -124,10 +146,9 @@ class UpscaleTokenDataset(Dataset):
         n_word_embed_y = self.word_embeds_y[n_id]
         nty = n_pos_embed_y + n_word_embed_y
 
-
-        #return word_embed_x, pos_embed_x, word_embed_y, pos_embed_y, n_word_embed_y, n_pos_embed_y
+        # return word_embed_x, pos_embed_x, word_embed_y, pos_embed_y, n_word_embed_y, n_pos_embed_y
         return tx, ty, nty
-    
+
     @staticmethod
     def _collate_fn(data):
         wx, px, wy, py, nwy, npy = [], [], [], [], [], []
@@ -145,11 +166,10 @@ class UpscaleTokenDataset(Dataset):
         nwy = torch.stack(nwy)
         npy = torch.stack(npy)
         return wx + px, wy + py, nwy + npy
-    
-    
+
 
 class UpscaleDataset(Dataset):
-    def __init__(self, precision:torch.dtype, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor) -> None:
+    def __init__(self, precision: torch.dtype, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor) -> None:
         super().__init__()
         self.x_embs = x_embeddings.type(precision)
         self.y_embs = y_embeddings.type(precision)
@@ -226,25 +246,26 @@ def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred
                 pred_file.write(sent + "\n")
     return True
 
+
 def do_scoring(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_file_path):
     _, score_dl = model.build_virtual_prompt_dataset(
-                data=[eval_dataset],
-                batch_size=1, #cfg.inference.get("batch_size", 1),
-                max_seq_length=model.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=model.cfg.data.get('min_seq_length', 1),
-                add_bos=model.cfg.data.get('add_bos', False),
-                add_eos=model.cfg.data.get('add_eos', True),
-                for_train=True,
-                drop_last=True,
-                shuffle=False,
-                num_workers=1, 
-                pin_memory=True,
-                cache_data_path=None,
-                load_cache=None,
-                zero_shot_baseline=False,
-            )
+        data=[eval_dataset],
+        batch_size=1,  # cfg.inference.get("batch_size", 1),
+        max_seq_length=model.frozen_model.cfg.encoder_seq_length,
+        min_seq_length=model.cfg.data.get('min_seq_length', 1),
+        add_bos=model.cfg.data.get('add_bos', False),
+        add_eos=model.cfg.data.get('add_eos', True),
+        for_train=True,
+        drop_last=True,
+        shuffle=False,
+        num_workers=1,
+        pin_memory=True,
+        cache_data_path=None,
+        load_cache=None,
+        zero_shot_baseline=False,
+    )
 
-    prompts = [json.loads(s) for s in  open(cfg.data_paths[0], 'r', encoding='utf8').readlines()]
+    prompts = [json.loads(s) for s in open(cfg.data_paths[0], 'r', encoding='utf8').readlines()]
     model.total_new_task_virtual_tokens = cfg.get("total_new_task_virtual_tokens", 10)
     print("***************************")
     with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
@@ -255,6 +276,7 @@ def do_scoring(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_f
     print(f"Scoring Complete, file saved at {cfg.pred_file_path}")
     print("***************************")
     return True
+
 
 def get_word_token_embeddings(tok_path, tokenizer, model, num_prompts):
     word_embeddings = model.frozen_model.model.language_model.embedding.word_embeddings
@@ -278,7 +300,6 @@ def get_word_token_embeddings(tok_path, tokenizer, model, num_prompts):
 @hydra_runner(config_path="./", config_name="upscale")
 def main(cfg) -> None:
 
-
     # trainer required for restoring model parallel models
     model_125m = load_prompt_learning_model(cfg.small_prompt_learning_model, cfg.nemo_trainer)
     word_embeddings_125m = model_125m.frozen_model.model.language_model.embedding.word_embeddings.weight.data
@@ -294,34 +315,56 @@ def main(cfg) -> None:
 
     if cfg.upscaler.data.token_based_training:
         train_dataset = get_dataset(model_125m, [cfg.upscaler.data.train_dataset])
-        train = UpscaleTokenDataset(train_dataset, val_type_ids, tokenizer, cfg.upscaler.data.num_virtual_prompts, word_embeddings_125m, pos_embeddings_125m, word_embeddings_1_3b, pos_embeddings_1_3b, True)
-        train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True) #, collate_fn=UpscaleTokenDataset.collate_fn)
-        val = UpscaleTokenDataset(train_dataset, train_type_ids, tokenizer, cfg.upscaler.data.num_virtual_prompts, word_embeddings_125m, pos_embeddings_125m, word_embeddings_1_3b, pos_embeddings_1_3b, False)
-        val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False) #, collate_fn=UpscaleTokenDataset.collate_fn)
+        train = UpscaleTokenDataset(
+            train_dataset,
+            val_type_ids,
+            tokenizer,
+            cfg.upscaler.data.num_virtual_prompts,
+            word_embeddings_125m,
+            pos_embeddings_125m,
+            word_embeddings_1_3b,
+            pos_embeddings_1_3b,
+            True,
+        )
+        train_dataloader = DataLoader(
+            train, batch_size=cfg.upscaler.data.batch_size, shuffle=True
+        )  # , collate_fn=UpscaleTokenDataset.collate_fn)
+        val = UpscaleTokenDataset(
+            train_dataset,
+            train_type_ids,
+            tokenizer,
+            cfg.upscaler.data.num_virtual_prompts,
+            word_embeddings_125m,
+            pos_embeddings_125m,
+            word_embeddings_1_3b,
+            pos_embeddings_1_3b,
+            False,
+        )
+        val_dataloader = DataLoader(
+            val, batch_size=cfg.upscaler.data.batch_size, shuffle=False
+        )  # , collate_fn=UpscaleTokenDataset.collate_fn)
 
-        prompt_tokens_125m = prompt_learning_embs_125m + pos_embeddings_125m[:10,:]
-        prompt_tokens_1_3b = prompt_learning_embs_1_3b + pos_embeddings_1_3b[:10,:]
+        prompt_tokens_125m = prompt_learning_embs_125m + pos_embeddings_125m[:10, :]
+        prompt_tokens_1_3b = prompt_learning_embs_1_3b + pos_embeddings_1_3b[:10, :]
         test = UpscaleDataset(torch.float16, prompt_tokens_125m, prompt_tokens_1_3b)
         test2 = UpscaleDataset(torch.float16, prompt_learning_embs_125m, prompt_learning_embs_1_3b)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader2 = DataLoader(test2, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
-
     else:
-        train = UpscaleDataset(torch.float16, word_embeddings_125m[train_type_ids, :], word_embeddings_1_3b[train_type_ids, :])
-        val = UpscaleDataset(torch.float16, word_embeddings_125m[val_type_ids, :], word_embeddings_1_3b[val_type_ids, :])
+        train = UpscaleDataset(
+            torch.float16, word_embeddings_125m[train_type_ids, :], word_embeddings_1_3b[train_type_ids, :]
+        )
+        val = UpscaleDataset(
+            torch.float16, word_embeddings_125m[val_type_ids, :], word_embeddings_1_3b[val_type_ids, :]
+        )
         test = UpscaleDataset(torch.float16, prompt_learning_embs_125m, prompt_learning_embs_1_3b)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
         val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
-
-    
-
-    projector = EmbeddingProjector(
-        word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
-    )
+    projector = EmbeddingProjector(word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler)
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=10, verbose=True, mode="min")
     wblogger = WandbLogger(**cfg.upscaler.wandb)
     # saves top-K checkpoints based on "val_loss" metric
@@ -332,14 +375,14 @@ def main(cfg) -> None:
         dirpath=cfg.upscaler.save_checkpoint_path,
         filename="upscaler-{global_step}-{val_loss:.3f}_{val_cs_loss:.3f}_{val_csn_loss:.3f}_{val_sl1_loss:.4f}",
     )
-    trainer = ptl.Trainer(**cfg.upscaler.trainer, callbacks=[early_stop_callback,checkpoint_callback], logger=wblogger)
+    trainer = ptl.Trainer(
+        **cfg.upscaler.trainer, callbacks=[early_stop_callback, checkpoint_callback], logger=wblogger
+    )
     trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.test(model=projector, dataloaders=test_dataloader2)
     trainer.fit(model=projector, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
-    best_projector = EmbeddingProjector(
-        word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler
-    )
+    best_projector = EmbeddingProjector(word_embeddings_125m.shape[1], word_embeddings_1_3b.shape[1], cfg.upscaler)
     best_projector.load_model(cfg.upscaler.save_checkpoint_path + '/upscaler.pt')
     trainer.test(model=projector, dataloaders=test_dataloader)
     trainer.test(model=projector, dataloaders=test_dataloader2)
@@ -348,9 +391,13 @@ def main(cfg) -> None:
 
     model_1_3b.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
     if cfg.evaluation == 'generation':
-        do_inference(model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path)
+        do_inference(
+            model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
+        )
     elif cfg.evaluation == 'score':
-        do_scoring(model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path)
+        do_scoring(
+            model_1_3b, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
+        )
     model_1_3b.save_to(cfg.projected_prompt_learning_model)
 
 

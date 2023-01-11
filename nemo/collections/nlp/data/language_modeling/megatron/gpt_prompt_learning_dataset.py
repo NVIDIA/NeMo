@@ -15,10 +15,10 @@
 import json
 import os
 import pickle
+from collections import Counter
 
 import torch
 from tqdm.auto import tqdm
-from collections import Counter
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
@@ -163,7 +163,7 @@ class GPTPromptLearningDataset(Dataset):
                 input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
             else:
                 input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
-            
+
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default
@@ -207,7 +207,7 @@ class GPTPromptLearningDataset(Dataset):
             else:
                 skipped += 1
 
-        self.top_tokens = [k for (_, k) in sorted((-value,key) for (key,value) in self.counter.items())]
+        self.top_tokens = [k for (_, k) in sorted((-value, key) for (key, value) in self.counter.items())]
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def _input_sanity_checks(

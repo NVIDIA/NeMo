@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import enum
-from typing import Dict, Optional, Mapping, Any
+from typing import Any, Dict, List, Mapping, Optional
 
 import torch
 from torch import nn
-from typing import List
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
@@ -296,24 +295,17 @@ class PromptEncoder(NeuralModule, Exportable):
                 batch_first=True,
             )
         elif self.encoder_type == PromptEncoderType.SIMPLE_MLP:
-            self.mlp_head = nn.Sequential(
-                nn.Linear(self.hidden_size, self.output_size),
-            )
+            self.mlp_head = nn.Sequential(nn.Linear(self.hidden_size, self.output_size),)
         elif self.encoder_type == PromptEncoderType.FROZEN_MLP:
-            self.mlp_head = nn.Sequential(
-                nn.Linear(self.hidden_size, self.output_size, bias=False),
-            )
+            self.mlp_head = nn.Sequential(nn.Linear(self.hidden_size, self.output_size, bias=False),)
             self.mlp_head[0].weight.requires_grad = False
         elif self.encoder_type == PromptEncoderType.FROZEN_EMBEDDING_MLP:
-            self.mlp_head = nn.Sequential(
-                nn.Linear(self.hidden_size, self.output_size),
-            )
+            self.mlp_head = nn.Sequential(nn.Linear(self.hidden_size, self.output_size),)
             self.embedding.weight.requires_grad = False
 
         elif self.encoder_type == PromptEncoderType.BOTTLENECK_MLP:
             self.mlp_head = nn.Sequential(
-                nn.Linear(self.hidden_size, self.hidden_size // 2),
-                nn.Linear(self.hidden_size// 2, self.output_size),
+                nn.Linear(self.hidden_size, self.hidden_size // 2), nn.Linear(self.hidden_size // 2, self.output_size),
             )
         elif self.encoder_type == PromptEncoderType.EYE_MLP:
             assert self.hidden_size == self.output_size
@@ -352,7 +344,14 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
             output_embeds = self.lstm_head(input_embeds)[0]
-        elif self.encoder_type in [PromptEncoderType.MLP, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.FROZEN_MLP, PromptEncoderType.FROZEN_EMBEDDING_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+        elif self.encoder_type in [
+            PromptEncoderType.MLP,
+            PromptEncoderType.SIMPLE_MLP,
+            PromptEncoderType.FROZEN_MLP,
+            PromptEncoderType.FROZEN_EMBEDDING_MLP,
+            PromptEncoderType.BOTTLENECK_MLP,
+            PromptEncoderType.EYE_MLP,
+        ]:
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             output_embeds = input_embeds
@@ -360,7 +359,7 @@ class PromptEncoder(NeuralModule, Exportable):
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
         return output_embeds
-    
+
     def encoder_reg(self,):
         l1 = torch.zeros(1)
         input_embeds = self.embedding(self.indices)
@@ -459,7 +458,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         t = t + self.init_val
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
         self.cos = torch.nn.CosineSimilarity(dim=0)
-    
+
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
         for k, v in state_dict.items():
             if k == 'linear_combination':
@@ -508,8 +507,6 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
             _n = (torch.randn_like(selected_original_embeddings) * self.noise_std) + selected_original_embeddings
             output_embeds = _n.transpose(0, 1) @ w
 
-
-
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
         output_embeds = output_embeds.expand(
             batch_size, output_embeds.size(0), output_embeds.size(1)
@@ -554,10 +551,10 @@ class PromptEncoderLinearCombinationBaseline(NeuralModule, Exportable):
             self.original_embeddings = original_embeddings
 
         assert self.original_embeddings.requires_grad == False
-        #self.linear_combination = torch.nn.Linear(1, self.total_virtual_tokens * embedding_dim)
+        # self.linear_combination = torch.nn.Linear(1, self.total_virtual_tokens * embedding_dim)
         self.linear_combination = torch.nn.Embedding(self.total_virtual_tokens, embedding_dim)
         t = self.original_embeddings.data[: self.total_virtual_tokens, :]
-        #self.linear_combination.weight.data = torch.ones((self.linear_combination.weight.shape))
+        # self.linear_combination.weight.data = torch.ones((self.linear_combination.weight.shape))
         self.linear_combination.weight.data = t.clone().detach().float()
         self.idx = torch.nn.parameter.Parameter(data=torch.arange(self.total_virtual_tokens), requires_grad=False)
 
@@ -574,7 +571,7 @@ class PromptEncoderLinearCombinationBaseline(NeuralModule, Exportable):
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         batch_size, _, _ = taskname_embeddings.shape
-        output_embeds = self.linear_combination(self.idx) 
+        output_embeds = self.linear_combination(self.idx)
         output_embeds = output_embeds.unsqueeze(0)
         output_embeds = output_embeds.expand(
             batch_size, output_embeds.size(1), output_embeds.size(2)

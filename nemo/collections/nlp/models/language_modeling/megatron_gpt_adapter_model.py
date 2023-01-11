@@ -200,7 +200,12 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-        loss_mean, l2_mean, l1_mean, cs_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean'], loss_mean['cs_mean']
+        loss_mean, l2_mean, l1_mean, cs_mean = (
+            loss_mean['loss_mean'],
+            loss_mean['l2_mean'],
+            loss_mean['l1_mean'],
+            loss_mean['cs_mean'],
+        )
         self.allreduce_gradients()
 
         ## logging
