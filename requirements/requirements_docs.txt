@@ -5,3 +5,4 @@ sphinx-book-theme
 sphinx-copybutton
 sphinxcontrib-bibtex
 wrapt
+Jinja2<3.1
