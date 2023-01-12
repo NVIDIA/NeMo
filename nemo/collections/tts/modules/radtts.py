@@ -627,7 +627,14 @@ class RadTTSModule(NeuralModule, Exportable):
         pace = pace[:, :txt_len_pad_removed]
         pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
 
-        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
+        txt_enc_time_expanded, out_lens = regulate_len(
+            dur,
+            txt_enc.transpose(1, 2),
+            pace,
+            replicate_to_nearest_multiple=True,
+            group_size=self.n_group_size,
+            in_lens=in_lens,
+        )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
 
@@ -638,6 +645,8 @@ class RadTTSModule(NeuralModule, Exportable):
                 voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
+            else:
+                voiced_mask_bool = None
         else:
             voiced_mask_bool = voiced_mask.bool()
 
@@ -653,13 +662,11 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = -f0_bias[..., 0]
 
         if f0 is None:
-            n_f0_feature_channels = 2 if self.use_first_order_features else 1
             f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
 
         if energy_avg is None:
-            n_energy_feature_channels = 2 if self.use_first_order_features else 1
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
 
         # replication pad, because ungrouping with different group sizes
@@ -669,14 +676,20 @@ class RadTTSModule(NeuralModule, Exportable):
 
         pitch_shift_spec_len = 0
         if pitch_shift is not None:
-            pitch_shift_spec_len, _ = regulate_len(dur, pitch_shift, pace)
+            pitch_shift_spec_len, _ = regulate_len(
+                dur, pitch_shift, pace,replicate_to_nearest_multiple=True,
+                group_size=self.n_group_size,
+                in_lens=in_lens,
+            )
             pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask, energy_avg,
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask, energy_avg, assume_padded=True
         )
 
-        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
+        residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
+        if sigma > 0.0:
+            residual = torch.normal(residual) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
