@@ -359,7 +359,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
-                flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
+                flashlight=self.cfg.beam.get('flashlight', None),
             )
 
             self.decoding.override_fold_consecutive_value = False
