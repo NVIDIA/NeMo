@@ -366,16 +366,20 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
-        if self.max_embedding_norm:
-            _n = output_embeds.norm(dim=2, keepdim=True) * (1.0 / self.max_embedding_norm)
-            output_embeds = output_embeds / _n
+        output_embeds = self.apply_max_norm(output_embeds, self.max_embedding_norm)
         output_embeds = self.dropout(output_embeds)
         output_embeds = output_embeds.expand(batch_size, -1, -1)
         return output_embeds
 
+    def apply_max_norm(self, x, m):
+        if m:
+            n = x.norm(dim=2, keepdim=True) * (1.0 / m)
+            x = x / n
+        return x
+
     def encoder_reg(self,):
         l1 = torch.zeros(1)
-        input_embeds = self.embedding(self.indices)
+        input_embeds = self.embedding(self.indices).unsqueeze(0)
         if self.encoder_type == PromptEncoderType.LSTM:
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
@@ -395,10 +399,9 @@ class PromptEncoder(NeuralModule, Exportable):
         elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             output_embeds = input_embeds
 
+        output_embeds = self.apply_max_norm(output_embeds, 1.0)
         # (10, 2048)
-        output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-8
-        # (10, 1)
-        output_embeds = output_embeds / output_embeds_norm
+        output_embeds = output_embeds.squeeze(0)
         cs = output_embeds @ output_embeds.transpose(0, 1)
         cs.fill_diagonal_(0.0)
         cs = torch.abs(cs).mean().unsqueeze(0)
