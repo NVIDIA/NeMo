@@ -677,14 +677,22 @@ class RadTTSModule(NeuralModule, Exportable):
         pitch_shift_spec_len = 0
         if pitch_shift is not None:
             pitch_shift_spec_len, _ = regulate_len(
-                dur, pitch_shift, pace,replicate_to_nearest_multiple=True,
+                dur,
+                pitch_shift,
+                pace,
+                replicate_to_nearest_multiple=True,
                 group_size=self.n_group_size,
                 in_lens=in_lens,
             )
             pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask, energy_avg, assume_padded=True
+            txt_enc_time_expanded,
+            spk_vec,
+            out_lens,
+            (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask,
+            energy_avg,
+            assume_padded=True,
         )
 
         residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
