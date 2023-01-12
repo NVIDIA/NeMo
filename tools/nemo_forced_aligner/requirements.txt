@@ -1,1 +1,1 @@
-nemo
+nemo_toolkit[asr]
