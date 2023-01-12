@@ -239,6 +239,7 @@ class PromptEncoder(NeuralModule, Exportable):
         num_layers: int,
         cs_scale: float,
         insert_tasknames: bool,
+        max_embedding_norm: Optional[float],
     ):
         """
         Initializes the PromptEncoder module.
@@ -260,6 +261,10 @@ class PromptEncoder(NeuralModule, Exportable):
         self.cs_scale = cs_scale
         self.dropout = torch.nn.Dropout(dropout)
         self.insert_taskname_embeddings = insert_tasknames
+        if max_embedding_norm == "None":
+            self.max_embedding_norm = None
+        else:
+            self.max_embedding_norm = max_embedding_norm
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
@@ -337,11 +342,10 @@ class PromptEncoder(NeuralModule, Exportable):
     def forward(self, taskname_embeddings) -> torch.Tensor:
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         batch_size, task_seq_length, _ = taskname_embeddings.shape
-        input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim).clone()
-        length = min(task_seq_length, self.total_virtual_tokens)
 
         # Replace general input with task specific embeddings to specify the correct task
         if self.insert_taskname_embeddings:
+            length = min(task_seq_length, self.total_virtual_tokens)
             input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
 
         if self.encoder_type == PromptEncoderType.LSTM:
@@ -362,7 +366,11 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
+        if self.max_embedding_norm:
+            _n = output_embeds.norm(dim=2, keepdim=True) * (1.0 / self.max_embedding_norm)
+            output_embeds = output_embeds / _n
         output_embeds = self.dropout(output_embeds)
+        output_embeds = output_embeds.expand(batch_size, -1, -1)
         return output_embeds
 
     def encoder_reg(self,):
