@@ -230,7 +230,14 @@ class DiscriminatorBlock(torch.nn.Module):
 
 class Generator(torch.nn.Module):
     def __init__(
-        self, n_bands, latent_dim, style_depth, network_capacity=16, channels=1, fmap_max=512,
+        self,
+        n_bands,
+        latent_dim,
+        style_depth,
+        network_capacity=16,
+        channels=1,
+        fmap_max=512,
+        max_spectrogram_length=2000,
     ):
         super().__init__()
         self.image_size = n_bands
@@ -270,7 +277,7 @@ class Generator(torch.nn.Module):
             torch.nn.init.zeros_(block.to_noise2.weight)
             torch.nn.init.zeros_(block.to_noise2.bias)
 
-        initial_block_size = n_bands // self.upsample_factor, 800
+        initial_block_size = n_bands // self.upsample_factor, math.ceil(max_spectrogram_length / self.upsample_factor)
         self.initial_block = torch.nn.Parameter(
             torch.randn((1, init_channels, *initial_block_size)), requires_grad=False
         )
