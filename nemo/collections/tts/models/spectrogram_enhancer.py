@@ -109,7 +109,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return self.move_to_correct_device(noise)
 
     def pad_spectrograms(self, spectrograms):
-        multiplier = 2 ** sum(1 for block in self.generator.blocks if block.upsample)
+        multiplier = self.generator.upsample_factor
         *_, max_length = spectrograms.shape
         return F.pad(spectrograms, (0, multiplier - max_length % multiplier))
 

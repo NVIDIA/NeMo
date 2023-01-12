@@ -248,10 +248,6 @@ class Generator(torch.nn.Module):
         filters = [init_channels, *filters]
 
         in_out_pairs = zip(filters[:-1], filters[1:])
-        initial_block_size = n_bands // 2 ** (self.num_layers - 1), 800
-        self.initial_block = torch.nn.Parameter(
-            torch.randn((1, init_channels, *initial_block_size)), requires_grad=False
-        )
 
         self.initial_conv = torch.nn.Conv2d(filters[0], filters[0], 3, padding=1)
         self.blocks = torch.nn.ModuleList([])
@@ -274,6 +270,11 @@ class Generator(torch.nn.Module):
             torch.nn.init.zeros_(block.to_noise2.weight)
             torch.nn.init.zeros_(block.to_noise2.bias)
 
+        initial_block_size = n_bands // self.upsample_factor, 800
+        self.initial_block = torch.nn.Parameter(
+            torch.randn((1, init_channels, *initial_block_size)), requires_grad=False
+        )
+
     def add_scaled_condition(self, target: torch.Tensor, condition: torch.Tensor, condition_lengths: torch.Tensor):
         *_, target_height, _ = target.shape
         *_, height, _ = condition.shape
@@ -289,11 +290,15 @@ class Generator(torch.nn.Module):
 
         return result
 
+    @property
+    def upsample_factor(self):
+        return 2 ** sum(1 for block in self.blocks if block.upsample)
+
     def forward(self, condition: torch.Tensor, lengths: torch.Tensor, ws: List[torch.Tensor], noise: torch.Tensor):
         batch_size, _, _, max_length = condition.shape
 
         x = self.initial_block.expand(batch_size, -1, -1, -1)
-        x = x[:, :, :, : max_length // 16]
+        x = x[:, :, :, : max_length // self.upsample_factor]
 
         rgb = None
         x = self.initial_conv(x)
