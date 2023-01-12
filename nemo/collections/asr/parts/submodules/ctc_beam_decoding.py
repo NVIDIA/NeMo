@@ -184,7 +184,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         kenlm_path: str = None,
-        flashlight_cfg: Optional['FlashlightConfig'] = None,
+        flashlight: Optional['FlashlightConfig'] = None,
         # pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
@@ -224,9 +224,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         #     pyctcdecode_cfg = PyCTCDecodeConfig()
         # self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
         
-        if flashlight_cfg is None:
-            flashlight_cfg = FlashlightConfig()
-        self.flashlight_cfg = flashlight_cfg
+        if flashlight is None:
+            flashlight = FlashlightConfig()
+        self.flashlight = flashlight
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -476,23 +476,22 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 lm_path=self.kenlm_path,
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
-                lexicon_path=self.flashlight_cfg.lexicon_path,
-                nbest=self.flashlight_cfg.nbest,
+                lexicon_path=self.flashlight.lexicon_path,
+                nbest=self.flashlight.nbest,
                 beam_size=self.beam_size,
-                beam_size_token=self.flashlight_cfg.beam_size_token,
-                beam_threshold=self.flashlight_cfg.beam_threshold,
-                lm_weight=self.alpha,
-                word_score=self.beta,
-                unk_weight=self.flashlight_cfg.unk_weight,
-                sil_weight=self.flashlight_cfg.sil_weight,
-                unit_lm=self.flashlight_cfg.unit_lm,
+                beam_size_token=self.flashlight.beam_size_token,
+                beam_threshold=self.flashlight.beam_threshold,
+                lm_weight=self.beam_alpha,
+                word_score=self.beam_beta,
+                unk_weight=self.flashlight.unk_weight,
+                sil_weight=self.flashlight.sil_weight,
+                unit_lm=self.flashlight.unit_lm,
             )
 
         x = x.to('cpu')
 
         with typecheck.disable_checks():
-            data = [x[sample_id, : out_len[sample_id], :].softmax(dim=-1) for sample_id in range(len(x))]
-            beams_batch = self.flashlight_beam_scorer.forward(log_probs=torch.nn.utils.rnn.pad_sequence(data, batch_first=True, padding_value=-1))
+            beams_batch = self.flashlight_beam_scorer.forward(log_probs=x)
 
         # For each sample in the batch
         nbest_hypotheses = []
@@ -583,4 +582,4 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None
 
     # pyctcdecode_cfg: PyCTCDecodeConfig = PyCTCDecodeConfig()
-    flashlight_cfg: Optional[FlashlightConfig] = FlashlightConfig()
+    flashlight: Optional[FlashlightConfig] = FlashlightConfig()

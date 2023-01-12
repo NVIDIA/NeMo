@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "FlashLightKenLMBeamSearchDecoder requires the installation of flashlight python bindings "
-                "from https://github.com/flashlight/text"
+                "from https://github.com/flashlight/text. Please follow the build instructions there."
             )
 
         super().__init__()
@@ -141,7 +141,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 _, score = self.lm.score(start_state, word_idx)
                 for spelling in spellings:
                     spelling_idxs = [self.tokenizer.token_to_id(token) for token in spelling]
-                    #assert (self.tokenizer.unk_id not in spelling_idxs), f"{spelling} {spelling_idxs}"
                     if self.tokenizer.unk_id in spelling_idxs:
                         print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
                         continue
@@ -171,10 +170,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 self.unit_lm,
             )
         else:
-            assert unit_lm, "lexicon free decoding can only be done with a unit language model"
+            assert self.unit_lm, "lexicon free decoding can only be done with a unit language model"
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
 
-            d = {w: [[w]] for w in self.tokenizer.vocab}
+            d = {w: [[w]] for w in self.tokenizer.vocab + ([] if '<unk>' in self.tokenizer.vocab else ['<unk>'])}
             self.word_dict = create_word_dict(d)
             self.lm = KenLM(lm_path, self.word_dict)
             self.decoder_opts = LexiconFreeDecoderOptions(
