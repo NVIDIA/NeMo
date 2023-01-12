@@ -18,6 +18,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+import random
+
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.helpers.helpers import mas_width1 as mas
 from nemo.collections.tts.helpers.helpers import regulate_len
