@@ -438,14 +438,12 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
 
     def _get_linear_warmup_with_cosine_annealing_lr(self, step):
         # Cosine Schedule for Megatron LM, slightly different warmup schedule + constant LR at the end.
-        # Constant step is not used in the method below, so adding it back to the decay steps
-        decay_steps = self.decay_steps + self.constant_steps
         new_lrs = [
             _linear_warmup_with_cosine_annealing(
                 max_lr=self.base_lrs[0],
                 warmup_steps=self.warmup_steps,
                 step=step,
-                decay_steps=decay_steps,
+                decay_steps=self.decay_steps,
                 min_lr=self.min_lr,
             )
             for _ in self.base_lrs

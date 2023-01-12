@@ -525,6 +525,12 @@ class ModelPT(LightningModule, Model):
                     ) / app_state.model_parallel_size
             elif 'max_steps' not in optim_config['sched']:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
+            else:
+                logging.warning(
+                    f"Setting max_steps in the optimizer scheduler config is experimental and "
+                    f"not recommended. The scheduler can use max_steps automatically from "
+                    f"trainer.max_steps."
+                )
 
         # Force into DictConfig from nested structure
         optim_config = OmegaConf.create(optim_config)
