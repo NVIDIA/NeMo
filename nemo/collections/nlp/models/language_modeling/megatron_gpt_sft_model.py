@@ -16,7 +16,7 @@ import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
@@ -105,19 +105,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
 
-    def _build_dataset(self, data_cfg, check_implict_grad_acc=False, is_train=True):
-        if (
-            check_implict_grad_acc
-            and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
-        ):
-            raise ValueError(
-                (
-                    f'You are trying to use "implicit gradient accumulation" of',
-                    f'{data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())}',
-                    f'in your validation/test datasets. This is not supported.',
-                    f'Please set global_batch_size equal to micro_batch_size * data_parallel_world_size.',
-                )
-            )
+    def _build_dataset(self, data_cfg, is_train=True):
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
         is_list_config = isinstance(data_cfg.file_names, ListConfig)
@@ -168,10 +156,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 min_seq_length=data_cfg.min_seq_length,
                 add_bos=data_cfg.get('add_bos', False),
                 add_eos=data_cfg.get('add_eos', True),
-                add_sep=data_cfg.get('add_sep', True),
+                add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
                 max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
+                context_key=data_cfg.get('context_key', 'text'),
+                label_key=data_cfg.get('label_key', 'answer'),
+                separate_prompt_and_response_with_newline=data_cfg.get('separate_prompt_and_response_with_newline', True),
+                answer_only_loss=self.cfg.get('answer_only_loss', True),
             )
             datasets.append(dataset)
 
@@ -206,7 +198,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(
-                self.cfg.data.validation_ds, check_implict_grad_acc=True, is_train=False
+                self.cfg.data.validation_ds, is_train=False
             )
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
@@ -214,13 +206,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if hasattr(self.cfg.data, 'test_ds'):
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
-                self._test_ds = self._build_dataset(self.cfg.data.test_ds, check_implict_grad_acc=True, is_train=False)
+                self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
                 logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
 
         if stage == 'validate' or stage == 'test':
             return
         logging.info('Building GPT SFT traing datasets.')
-        self._train_ds = self._build_dataset(self.cfg.data.train_ds, check_implict_grad_acc=False)
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
@@ -262,3 +254,48 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
             dataloaders.append(eval_dl)
         return dataloaders
+
+    def on_validation_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.global_batch_size,
+            micro_batch_size=self.cfg.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_validation_epoch_start()
+
+    def on_test_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.global_batch_size,
+            micro_batch_size=self.cfg.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_test_epoch_start()
+
+    def on_test_epoch_end(self):
+        self.on_inference_epoch_end(self.cfg.data.test_ds)
+        return super().on_test_epoch_end()
+
+    def on_validation_epoch_end(self):
+        self.on_inference_epoch_end(self.cfg.data.validation_ds)
+        return super().on_validation_epoch_end()
+
+    def on_inference_epoch_end(self, ds):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.global_batch_size,
+            micro_batch_size=self.cfg.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def on_train_epoch_start(self) -> None:
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        self.on_validation_epoch_end()
+        return super().on_train_epoch_start()

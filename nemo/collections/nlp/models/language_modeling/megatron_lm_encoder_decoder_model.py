@@ -909,7 +909,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_enc_dec(
+            self.enc_dec_model
+        )
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
+            f'Total number of model parameters: {total_num_parameters:.2e}\n'
+        )
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -936,8 +953,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
             if (
-                self.cfg.encoder.get('position_embedding_type') != 'relative'
-                and self.cfg.decoder.get('position_embedding_type') != 'relative'
+                self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+                and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
             ):
                 self.enc_dec_model.sync_initial_position_embeddings()
             # Synchronize RPE embeddings across pipeline parallel ranks.

@@ -990,6 +990,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             super()._save_checkpoint(trainer, filepath)
 
+    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
+        super()._remove_checkpoint(trainer, filepath)
+        ema_callback = self._ema_callback(trainer)
+        if ema_callback is not None:
+            # remove EMA copy of the state dict as well.
+            filepath = self._ema_format_filepath(filepath)
+            super()._remove_checkpoint(trainer, filepath)
+
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
 
@@ -1041,7 +1049,7 @@ def configure_checkpointing(
                 f"). It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found "
                 "in the returned metrics. Please ensure that validation is run within trainer.max_epochs."
             )
-        elif trainer.max_steps is not None:
+        elif trainer.max_steps is not None and trainer.max_steps != -1:
             logging.warning(
                 "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
                 f"{trainer.max_steps}. Please ensure that max_steps will run for at least "

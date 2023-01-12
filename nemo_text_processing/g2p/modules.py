@@ -82,7 +82,7 @@ class EnglishG2p(BaseG2p):
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
-                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have an entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
@@ -189,7 +189,7 @@ class EnglishG2p(BaseG2p):
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
             return word, True
 
-        # punctuation
+        # punctuation or whitespace.
         if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
             return list(word), True
 
@@ -281,7 +281,7 @@ class IPAG2P(BaseG2p):
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or a IPA dict object with CMUdict-like entries.
                 a dictionary file example: scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt;
-                a dictionary object example: {..., "WIRE": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
+                a dictionary object example: {..., "Wire": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
             locale: Locale used to determine default tokenization logic.
                 Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
                 Specify None if implementing custom logic for a new locale.
@@ -292,7 +292,7 @@ class IPAG2P(BaseG2p):
             use_chars: Whether to include chars/graphemes in the token list. This should be set to True if phoneme_probability is used
                 or if apply_to_oov_word ever returns graphemes.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
-                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have an entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
             use_stresses (Optional[bool]): Whether or not to include the stress symbols (ˈ and ˌ).
             set_graphemes_upper (Optional[bool]): Whether or not to convert all graphemes to uppercase (if not converted to phonemes).
@@ -316,23 +316,7 @@ class IPAG2P(BaseG2p):
         else:
             self.use_chars = use_chars
 
-        # parse the dictionary, update it, and generate symbol set.
-        if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
-            # load the dictionary file where there may exist a digit suffix after a word, which
-            # represents the pronunciation variant of that word.
-            phoneme_dict_obj = defaultdict(list)
-            _alt_re = re.compile(r"\([0-9]+\)")
-            with open(phoneme_dict, "r") as fdict:
-                for line in fdict:
-                    if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
-                        parts = line.strip().split(maxsplit=1)
-                        word = re.sub(_alt_re, "", parts[0])
-                        prons = re.sub(r"\s+", "", parts[1])
-                        phoneme_dict_obj[word].append(list(prons))
-        else:
-            # Load phoneme_dict as dictionary object
-            logging.info("Loading phoneme_dict as a Dict object.")
-            phoneme_dict_obj = phoneme_dict
+        phoneme_dict_obj = self._parse_phoneme_dict(phoneme_dict)
 
         # verify if phoneme dict obj is empty
         if phoneme_dict_obj:
@@ -371,6 +355,33 @@ class IPAG2P(BaseG2p):
         )
         if set_graphemes_upper and heteronyms:
             self.heteronyms = [het.upper() for het in self.heteronyms]
+
+    @staticmethod
+    def _parse_phoneme_dict(phoneme_dict: Union[str, pathlib.Path]):
+        # parse the dictionary, update it, and generate symbol set.
+        if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
+            # load the dictionary file where there may exist a digit suffix after a word, which
+            # represents the pronunciation variant of that word.
+            phoneme_dict_obj = defaultdict(list)
+            _alt_re = re.compile(r"\([0-9]+\)")
+            with open(phoneme_dict, "r") as fdict:
+                for line in fdict:
+                    if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
+                        parts = line.strip().split(maxsplit=1)
+                        word = re.sub(_alt_re, "", parts[0])
+                        prons = re.sub(r"\s+", "", parts[1])
+                        phoneme_dict_obj[word].append(list(prons))
+        else:
+            # Load phoneme_dict as dictionary object
+            logging.info("Loading phoneme_dict as a Dict object.")
+            phoneme_dict_obj = phoneme_dict
+        return phoneme_dict_obj
+
+    def replace_dict(self, phoneme_dict: Union[str, pathlib.Path]):
+        """
+        Replace model's phoneme dictionary with a custom one
+        """
+        self.phoneme_dict = self._parse_phoneme_dict(phoneme_dict)
 
     @staticmethod
     def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:

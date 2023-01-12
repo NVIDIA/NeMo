@@ -36,6 +36,10 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
+        context_key: str = "text",
+        label_key: str = "answer",
+        separate_prompt_and_response_with_newline: bool = False,
+        answer_only_loss: bool = True
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -49,6 +53,10 @@ class GPTSFTDataset(Dataset):
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         seed: int = 1234,
+        context_key: Key to use for the context in your JSONL file
+        label_key: Key to use for the label in your JSONL file
+        separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -60,6 +68,10 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
+        self.context_key = context_key
+        self.label_key = label_key
+        self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
+        self.answer_only_loss = answer_only_loss
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
 
@@ -109,9 +121,13 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-
-        text_ids = self.tokenizer.text_to_ids(example['text'])
-        answer_ids = self.tokenizer.text_to_ids(example['answer'])
+        context = example[self.context_key]
+        if self.separate_prompt_and_response_with_newline:
+            context = context + '\n'
+        else:
+            context = context + ' '
+        text_ids = self.tokenizer.text_to_ids(context)
+        answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
 
         total_ids = len(text_ids) + len(answer_ids)
         if self.add_bos:
@@ -161,19 +177,21 @@ class GPTSFTDataset(Dataset):
             return [item.tolist() for item in x]
         return x
 
-    def _collate_item(self, item):
+    def _collate_item(self, item, pad_id=0):
         item = self._maybe_cast_to_list(item)
         # max_length = max([len(x) for x in item]) if item else 0
         # here [0] should be tokenizer.pad_id
-        item = [x + [0] * (self.max_seq_length - len(x)) for x in item]
+        item = [x + [pad_id] * (self.max_seq_length - len(x)) for x in item]
         return item
 
     def _build_loss_mask(self, processed_example):
         """ Pad input_ids in batch to max batch length while building loss mask """
         input_ids = processed_example['input_ids']
         answer_start_idx = processed_example['answer_start_idx']
-
-        loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
+        if self.answer_only_loss:
+            loss_mask = [float(idx > answer_start_idx) for idx in range(len(input_ids))]
+        else:
+            loss_mask = [1.0] * len(input_ids)
 
         return loss_mask
 
@@ -190,20 +208,17 @@ class GPTSFTDataset(Dataset):
         return attention_mask
 
     def collate_fn(self, batch):
-        """
-        """
-
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         attention_mask = [self._create_attention_mask() for _ in batch]
         attention_mask = torch.stack(attention_mask)
 
-        position_ids = [list(range(self.max_seq_length)) * len(batch)]
+        position_ids = [list(range(self.max_seq_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(self._collate_item(input_ids))
-        labels = torch.LongTensor(self._collate_item(labels))
-        loss_mask = torch.LongTensor(self._collate_item(loss_mask))
+        input_ids = torch.LongTensor(self._collate_item(input_ids, pad_id=self.tokenizer.eos_id))
+        labels = torch.LongTensor(self._collate_item(labels, pad_id=self.tokenizer.eos_id))
+        loss_mask = torch.LongTensor(self._collate_item(loss_mask, pad_id=0))
 
         processed_batch = {
             'tokens': input_ids,
