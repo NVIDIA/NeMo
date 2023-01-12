@@ -4,7 +4,7 @@
 
 name: Inpainter
 
-train_dataset:  data/LibriTTS/dev_clean.json
+train_dataset:  data/LibriTTS/train_clean_360.json
 validation_datasets: data/LibriTTS/dev_clean.json
 sup_data_path: data/LibriTTS/data_cache
 sup_data_types: [ "align_prior_matrix", "pitch" ]
