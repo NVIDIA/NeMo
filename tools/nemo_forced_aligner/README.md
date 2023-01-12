@@ -5,7 +5,7 @@ A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based model
 ## Usage example 
 
 ``` bash
-python <path_to_NeMo>/NeMo/tools/nemo_forced_aligner/align.py \
+python <path_to_NeMo>/tools/nemo_forced_aligner/align.py \
         pretrained_name="stt_en_citrinet_1024_gamma_0_25" \
         model_downsample_factor=8 \
         manifest_filepath=<path to manifest of utterances you want to align> \
@@ -37,7 +37,7 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
-* **[OPTIONAL]** `additional_ctm_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. If `additional_ctm_grouping_separator` is specified, an additional folder `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space, as space-separated word-level CTMs will always be saved in `<output_dir>/words/<utt_id>.ctm`.)
+* **[OPTIONAL]** `additional_ctm_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. If `additional_ctm_grouping_separator` is specified, an additional folder `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space-separated word-level CTMs will always be saved in `<output_dir>/words/<utt_id>.ctm`.)
 > Note: the `additional_ctm_grouping_separator` will be removed from the ground truth text and all the output CTMs, ie it is treated as a marker which is not part of the ground truth. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_ctm_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
 
 * **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False). 

@@ -17,8 +17,7 @@ import os
 
 import soundfile as sf
 import torch
-
-from .constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):

@@ -17,8 +17,7 @@ import os
 from pathlib import Path
 
 import soundfile as sf
-
-from .constants import BLANK_TOKEN, SPACE_TOKEN
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
