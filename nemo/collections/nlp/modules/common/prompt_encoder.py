@@ -240,6 +240,8 @@ class PromptEncoder(NeuralModule, Exportable):
         cs_scale: float,
         insert_tasknames: bool,
         max_embedding_norm: Optional[float],
+        max_prompt_norm: Optional[float],
+        final_layer_norm: bool,
     ):
         """
         Initializes the PromptEncoder module.
@@ -261,6 +263,13 @@ class PromptEncoder(NeuralModule, Exportable):
         self.cs_scale = cs_scale
         self.dropout = torch.nn.Dropout(dropout)
         self.insert_taskname_embeddings = insert_tasknames
+        self.final_layer_norm = final_layer_norm
+
+        if max_prompt_norm == "None":
+            self.max_prompt_norm = None
+        else:
+            self.max_prompt_norm = max_prompt_norm
+
         if max_embedding_norm == "None":
             self.max_embedding_norm = None
         else:
@@ -270,7 +279,10 @@ class PromptEncoder(NeuralModule, Exportable):
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
-        self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
+        self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim, max_norm=self.max_embedding_norm)
+
+        if self.final_layer_norm:
+            self.layer_norm = torch.nn.LayerNorm(self.token_dim)
 
         if self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             pass
@@ -366,7 +378,9 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
-        output_embeds = self.apply_max_norm(output_embeds, self.max_embedding_norm)
+        output_embeds = self.apply_max_norm(output_embeds, self.max_prompt_norm)
+        if self.final_layer_norm:
+            output_embeds = self.layer_norm(output_embeds)
         output_embeds = self.dropout(output_embeds)
         output_embeds = output_embeds.expand(batch_size, -1, -1)
         return output_embeds
