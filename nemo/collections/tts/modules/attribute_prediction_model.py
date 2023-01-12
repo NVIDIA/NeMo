@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import torch
-from torch import nn
-from torch.nn import functional as F
+import torch.nn as nn
+import torch.nn.functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.common import ConvLSTMLinear
@@ -60,6 +60,8 @@ class BottleneckLayerLayer(nn.Module):
                 norm_args = {"use_weight_norm": True}
             elif norm == 'instancenorm':
                 norm_args = {"norm_fn": MaskedInstanceNorm1d}
+            else:
+                norm_args = {}
             fn = ConvNorm(in_dim, reduced_dim, kernel_size=3, **norm_args)
             self.projection_fn = fn
             self.non_linearity = non_linearity
