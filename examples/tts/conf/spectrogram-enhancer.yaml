@@ -35,7 +35,7 @@ model:
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.torch.data.PairedRealFakeSpectrogramsDataset"
-      manifest_filepath: "/home/user/train-clean-100.manifest_mel.json"
+      manifest_filepath: ???
     dataloader_params:
       drop_last: true
       shuffle: true
