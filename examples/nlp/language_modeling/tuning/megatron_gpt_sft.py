@@ -14,6 +14,7 @@
 
 import os
 import tempfile
+import torch.multiprocessing as mp
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -35,6 +36,7 @@ from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
 
+mp.set_start_method("spawn", force=True)
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """

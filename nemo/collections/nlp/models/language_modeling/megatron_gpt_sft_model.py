@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import json
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -25,32 +26,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate, LengthParam, get_default_sampling_params
+from nemo.collections.common.metrics import MetricStringToTorchMetric
+
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
-        _forward_backward_pipelining_with_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
-try:
-    import transformer_engine
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
-
 
 __all__ = ['MegatronGPTSFTModel']
 
@@ -67,6 +53,71 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             )
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
+        self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+        self.val_metric = torch.nn.ModuleList(self.val_metric)
+        if hasattr(self.cfg.data, "test_ds"):
+            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
+            self.test_metric = torch.nn.ModuleList(self.test_metric)
+
+    def setup_metric(self, data_cfg):
+        metric_name = "exact_string_match"
+        if not hasattr(data_cfg, "metric"):
+            metric = MetricStringToTorchMetric["exact_string_match"]
+        else:
+            if not hasattr(data_cfg.metric, "name"):
+                raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name not in MetricStringToTorchMetric:
+                raise KeyError(
+                    f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                )
+            if data_cfg.metric.name in self._metrics_require_string2category_map:
+                if data_cfg.metric.average is None:
+                    raise ValueError(
+                        f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                    )
+            if (
+                data_cfg.metric.get('labels_are_strings', False)
+                and data_cfg.metric.name in self._metrics_require_string2category_map
+            ):
+                if data_cfg.metric.num_classes is None:
+                    raise ValueError(
+                        "Number of classes is not provided in the metric section within the data config. "
+                        f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                    data_cfg.metric.get('class_labels', None), ListConfig
+                ):
+                    raise ValueError(
+                        "Class labels are not provided properly in the metric section witnin the data config. "
+                        f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                    raise ValueError(
+                        f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
+                    )
+
+            metric_name = data_cfg.metric.name
+            metric = MetricStringToTorchMetric[metric_name]
+
+            if isinstance(data_cfg.file_names, ListConfig):
+                if 'rouge' not in data_cfg.metric.name:
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.file_names))
+                    ]
+                else:
+                    metric = [metric() for _ in range(len(data_cfg.file_names))]
+            else:
+                if 'rouge' not in data_cfg.metric.name:
+                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                else:
+                    metric = [metric()]
+
+        return metric, metric_name
+
+    @property
+    def _metrics_require_string2category_map(self):
+        return set(["f1", "accuracy", "average_precision"])
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -175,8 +226,249 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return datasets
 
-    # def training_step(self, batch, batch_idx):
-    #    return super(MegatronGPTModel, self).training_step(batch, batch_idx)
+    def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
+        # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
+        base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
+        # If the user provided names for each validation/test dataset, use those.
+        if hasattr(data_config, "names") and data_config.names is not None:
+            # With only a single validation/test dataset, the name is not a list.
+            if not isinstance(data_config.names, ListConfig):
+                name = data_config.names
+            else:
+                name = data_config.names[dataloader_idx]
+            return base_key + name
+        else:
+            return base_key + f"dataloader{dataloader_idx}"
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
+
+    def validation_epoch_end(self, outputs):
+        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
+
+    def test_epoch_end(self, outputs):
+        _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
+
+    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
+        # Call parent validation step to get the loss.
+        loss = super().validation_step(batch, batch_idx)
+
+        sampling_params = get_default_sampling_params()
+        length_params: LengthParam = {"min_length": 0, "max_length": batch['tokens'].size(1) - batch['context_lengths'].max()}
+
+        result = megatron_gpt_generate(
+            model=self,
+            inputs=(batch['tokens'].cuda(), (batch['context_lengths'] - 1).cuda()), # NOTE: We do -1 here to remove the space between context and response.
+            tokenizer=self.tokenizer,
+            sampling_params=sampling_params,
+            length_params=length_params,
+        )
+
+        preds_text = []
+        labels_text = []
+        input_text = []
+        for idx, item in enumerate(result['token_ids']):
+            pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1:])
+            input = self.tokenizer.ids_to_text(item[:batch['context_lengths'][idx] - 1])
+            label = self.tokenizer.ids_to_text(batch['tokens'][0][batch['context_lengths'][0]:].tolist())
+            preds_text.append(pred.strip())
+            labels_text.append(label.strip())
+            input_text.append(input.strip())
+
+        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+        assert len(preds_text) == len(labels_text) == len(input_text)
+        for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
+            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+            pred, label = self.cast_for_metric(
+                pred=pred.strip(),
+                label=label.strip(),
+                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
+                class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None)
+                if mode == 'validation'
+                else self.cfg.data.test_ds.metric.get('class_labels', None),
+                labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False)
+                if mode == 'validation'
+                else self.cfg.data.test_ds.metric.get('labels_are_strings', False),
+            )
+            _ = metric(pred, label)
+
+        return {
+            'loss': loss,
+            'preds': preds_text,
+            'labels': labels_text,
+            'inputs': input_text,
+        }
+
+    def inference_epoch_end(self, outputs, mode, data_cfg):
+        # Parent class will handle logging of the loss.
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
+        averaged_loss = []
+        averaged_metric = []
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            loss = super().validation_epoch_end([x['loss'] for x in output])
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            self.log(loss_log_key, loss)
+            metric_object = (
+                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            )
+            metric = metric_object.compute()
+            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
+            if isinstance(metric, dict):
+                if metric_name == 'rouge':
+                    metric = metric['rougeL_fmeasure']
+                else:
+                    metric = metric['acc']
+                self.log(metric_log_key, metric)
+                logging.info(f"{mode} {metric_name}: {metric}")
+            else:
+                self.log(metric_log_key, metric)
+                logging.info(f"{metric_log_key}: {metric}")
+            metric_object.reset()
+
+            averaged_loss.append(loss)
+            averaged_metric.append(metric)
+
+            # Write predictions, labels, and inputs to a file for each validation/test dataset.
+            if data_cfg.get("write_predictions_to_file", False):
+
+                # Check if the user provided a prefix path to the file(s) they want to write.
+                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                    raise ValueError(
+                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    )
+
+                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+                torch.distributed.all_gather_object(
+                    gathered_outputs,
+                    [
+                        {
+                            'preds': x['preds'],
+                            'labels': x['labels'],
+                            'inputs': x['inputs'],
+                        }
+                        for x in output
+                    ],
+                    group=parallel_state.get_data_parallel_group(),
+                )
+
+                # Figure out what the suffix of the file should be.
+                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+
+                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
+                gt_inp_set = set()
+                deduplicated_outputs = {
+                    'preds': [],
+                    'labels': [],
+                    'inputs': [],
+                }
+
+                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
+                if self.global_rank == 0:
+                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                        for batch in gathered_outputs[rank]:
+                            for pred, label, input in zip(
+                                batch['preds'], batch['labels'], batch['inputs']
+                            ):
+                                gt_inp_set.add(input + label)
+                                deduplicated_outputs['preds'].append(pred)
+                                deduplicated_outputs['labels'].append(label)
+                                deduplicated_outputs['inputs'].append(input)
+                    self.write_predictions_to_file(
+                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    )
+                torch.distributed.barrier()
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+
+        # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
+        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss)
+            self.log(f"validation_{self.val_metric_name}", averaged_metric)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss)
+            self.log(f"test_{self.test_metric_name}", averaged_metric)
+
+        return averaged_loss, averaged_metric
+
+    def write_predictions_to_file(self, outputs, output_file_path_prefix):
+        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
+            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels'])
+            for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
+                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
+
+    def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
+        if metric_name == 'exact_string_match' or 'rouge' in metric_name:
+            return pred, label
+        pred = pred.replace(' ', '')
+        label = label.replace(' ', '')
+
+        # Correlation metrics require casting to float.
+        if metric_name in ['pearson_corr_coef', 'spearman_corr_coef']:
+            # Text-to-text model predictions may not always be valid floating point numbers.
+            try:
+                pred = float(pred)
+            except ValueError:
+                pred = 0.0
+
+            try:
+                label = float(label)
+            except ValueError:
+                raise ValueError(f'Could not convert {label} to float.')
+
+            pred = torch.FloatTensor([pred]).to(self.device)
+            label = torch.FloatTensor([label]).to(self.device)
+
+        # Other metrics require casting to integers.
+        elif metric_name in self._metrics_require_string2category_map and not labels_are_strings:
+            # Text-to-text model predictions may not always be valid integers.
+            try:
+                pred = int(pred)
+            except ValueError:
+                pred = 0
+
+            try:
+                label = int(label)
+            except ValueError:
+                raise ValueError(f'Could not convert {label} to int.')
+
+            pred = torch.LongTensor([pred]).to(self.device)
+            label = torch.LongTensor([label]).to(self.device)
+
+        # If labels are strings, we need to convert them to indices for some metrics.
+        elif metric_name in self._metrics_require_string2category_map and labels_are_strings:
+            # Cast string labels to integers before computing the metric.
+            if pred not in class_labels:
+                pred = 0  # If the prediction is not in the class labels, use the first class label.
+            else:
+                pred = class_labels.index(pred)
+            if label not in class_labels:
+                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
+            label = class_labels.index(label)
+            pred = torch.LongTensor([pred]).to(self.device)
+            label = torch.LongTensor([label]).to(self.device)
+        else:
+            raise ValueError(f'Metric {metric_name} not supported.')
+
+        return pred, label
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch):
@@ -239,6 +531,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             collate_fn=collate_fn,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
+            persistent_workers=True
         )
 
     def setup_training_dataloader(self):

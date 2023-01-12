@@ -168,6 +168,8 @@ class GPTSFTDataset(Dataset):
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
+            'context_ids': text_ids,
+            'context_length': len(text_ids),
         }
 
         return processed_example
@@ -177,11 +179,14 @@ class GPTSFTDataset(Dataset):
             return [item.tolist() for item in x]
         return x
 
-    def _collate_item(self, item, pad_id=0):
+    def _round_to_nearest(self, n, m):
+        return (n + m - 1) // m * m
+
+    def _collate_item(self, item, max_length, pad_id):
         item = self._maybe_cast_to_list(item)
         # max_length = max([len(x) for x in item]) if item else 0
         # here [0] should be tokenizer.pad_id
-        item = [x + [pad_id] * (self.max_seq_length - len(x)) for x in item]
+        item = [x + [pad_id] * (max_length - len(x)) for x in item]
         return item
 
     def _build_loss_mask(self, processed_example):
@@ -196,29 +201,36 @@ class GPTSFTDataset(Dataset):
         return loss_mask
 
     @torch.no_grad()
-    def _create_attention_mask(self):
+    def _create_attention_mask(self, max_length):
         """Create `attention_mask`.
         Args:
             input_ids: A 1D tensor that holds the indices of tokens.
         """
         # seq_length = len(input_ids)
         # `attention_mask` has the shape of [1, seq_length, seq_length]
-        attention_mask = torch.tril(torch.ones((self.max_seq_length, self.max_seq_length))).unsqueeze(0)
+        attention_mask = torch.tril(torch.ones((max_length, max_length))).unsqueeze(0)
         attention_mask = attention_mask < 0.5
         return attention_mask
 
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
+        contexts = [item['context_ids'] for item in batch]
+        context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
-        attention_mask = [self._create_attention_mask() for _ in batch]
-        attention_mask = torch.stack(attention_mask)
 
-        position_ids = [list(range(self.max_seq_length)) for _ in batch]
+        max_length = max([len(x) for x in input_ids])
+        # increase max length to nearest multiple of 4 or 8
+        max_length = min(self.max_seq_length, self._round_to_nearest(max_length, 8))
+
+        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+        attention_mask = torch.stack(attention_mask)
+        position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(self._collate_item(input_ids, pad_id=self.tokenizer.eos_id))
-        labels = torch.LongTensor(self._collate_item(labels, pad_id=self.tokenizer.eos_id))
-        loss_mask = torch.LongTensor(self._collate_item(loss_mask, pad_id=0))
+        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
@@ -226,6 +238,8 @@ class GPTSFTDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
+            'contexts': contexts,
+            'context_lengths': context_lengths,
         }
 
         return processed_batch
