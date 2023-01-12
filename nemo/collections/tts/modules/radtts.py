@@ -599,9 +599,13 @@ class RadTTSModule(NeuralModule, Exportable):
         f0_std=0.0,
         energy_avg=None,
         voiced_mask=None,
+        pitch_shift=None,
     ):
 
         batch_size = text.shape[0]
+        n_tokens = text.shape[1]
+        if in_lens is None:
+            in_lens = text.new_ones((batch_size,), dtype=torch.int) * n_tokens
         spk_vec = self.encode_speaker(speaker_id)
         if speaker_id_text is None:
             speaker_id_text = speaker_id
@@ -617,15 +621,13 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
+        # text encoded removes padding tokens so shape of text_enc is changed
+        # need to adjust pace, pitch_shift to account for this
+        txt_len_pad_removed = torch.max(in_lens)
+        pace = pace[:, :txt_len_pad_removed]
+        pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
 
-        txt_enc_time_expanded, out_lens = regulate_len(
-            dur,
-            txt_enc.transpose(1, 2),
-            pace,
-            replicate_to_nearest_multiple=True,
-            group_size=self.n_group_size,
-            in_lens=in_lens,
-        )
+        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
 
@@ -633,11 +635,11 @@ class RadTTSModule(NeuralModule, Exportable):
         if voiced_mask is None:
             if self.use_vpred_module:
                 # get logits
-                voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
+                voiced_mask = self.v_pred_module.infer(
+                    txt_enc_time_expanded, spk_vec_attributes, lens=out_lens
+                )
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
-            else:
-                voiced_mask_bool = None
         else:
             voiced_mask_bool = voiced_mask.bool()
 
@@ -653,11 +655,15 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = -f0_bias[..., 0]
 
         if f0 is None:
-            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
+            n_f0_feature_channels = 2 if self.use_first_order_features else 1
+            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[
+                :, 0
+            ]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
 
         if energy_avg is None:
+            n_energy_feature_channels = 2 if self.use_first_order_features else 1
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
 
         # replication pad, because ungrouping with different group sizes
@@ -665,13 +671,22 @@ class RadTTSModule(NeuralModule, Exportable):
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
 
+        pitch_shift_spec_len = 0
+        if pitch_shift is not None:
+            pitch_shift_spec_len, _ = regulate_len(dur, pitch_shift, pace)
+            pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
+
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True
+            txt_enc_time_expanded,
+            spk_vec,
+            out_lens,
+            (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask,
+            energy_avg,
         )
 
-        residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
-        if sigma > 0.0:
-            residual = torch.normal(residual) * sigma
+        residual = (
+            torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
+        )
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
@@ -691,7 +706,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        return mel, out_lens, dur, f0, energy_avg
+        return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
     def infer_f0(self, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
         f0 = self.f0_pred_module.infer(txt_enc_time_expanded, spk_vec, lens)
@@ -777,33 +792,71 @@ class RadTTSModule(NeuralModule, Exportable):
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
 
-    def input_example(self, max_batch=1, max_dim=256):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
+    def input_example(self, max_batch=1, max_dim=400):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
-        inp = torch.randint(16, 32, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(max_dim // 8, max_dim // 4, (max_batch,), device=par.device, dtype=torch.int)
-        zeros_src = torch.zeros_like(inp)
-        inp.scatter_(1, lens.long().unsqueeze(-1) - 1, zeros_src)  # set the inp[i, lens[i]-1] elt to zero
+        # sz = (max_batch * max_dim,)
+        inp = torch.randint(0, 94, sz, device=par.device, dtype=torch.int64)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
+        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        # batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
+        # left_over_size = sz[0]
+        # batch_lengths[0] = 0
+        # for i in range(1, max_batch):
+        #     length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=par.device)
+        #     batch_lengths[i] = length + batch_lengths[i - 1]
+        #     left_over_size -= length.detach().cpu().numpy()[0]
+        # batch_lengths[-1] = left_over_size + batch_lengths[-2]
+        # sum = 0
+        # index = 1
+        # while index < len(batch_lengths):
+        #     sum += batch_lengths[index] - batch_lengths[index - 1]
+        #     index += 1
+        # assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
+
+        # TODO: Shouldn't hardcode but self.tokenizer isn't initlized yet so unsure how
+        # to get the pad_id
+        pad_id = 94
+        inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
+
+        lens = []
+        for i, _ in enumerate(inp):
+            len_i = random.randint(3, max_dim)
+            lens.append(len_i)
+            inp[i, len_i:] = pad_id
+        lens = torch.tensor(lens, device=par.device, dtype=torch.int)
+
         inputs = {
             'text': inp,
             'lens': lens,
+            # 'batch_lengths': batch_lengths,
             'speaker_id': speaker,
             'speaker_id_text': speaker,
             'speaker_id_attributes': speaker,
+            'pitch': pitch,
+            'pace': pace,
+            'volume': volume,
         }
         return (inputs,)
 
-    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
-        """
-        Runs the generator, for inputs and outputs see input_types, and output_types
-        """
-        mel, n_frames, dur, _, _ = self.infer(
+    def forward_for_export(
+        # self, text, batch_lengths, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume
+        self,
+        text,
+        lens,
+        speaker_id,
+        speaker_id_text,
+        speaker_id_attributes,
+        pitch,
+        pace,
+        volume,
+    ):
+        # text, pitch, pace, volume = create_batch(
+        #     text, pitch, pace, batch_lengths, padding_idx=self.tokenizer.pad, volume=volume
+        # )
+        (mel, n_frames, dur, _, _) = self.infer(
             speaker_id,
             text,
             speaker_id_text=speaker_id_text,
@@ -812,8 +865,18 @@ class RadTTSModule(NeuralModule, Exportable):
             sigma_txt=0.0,
             sigma_f0=1.0,
             sigma_energy=1.0,
-            f0_mean=145.0,
-            f0_std=30.0,
+            f0_mean=0.0,
+            f0_std=0.0,
             in_lens=lens,
+            pitch_shift=pitch,
+            pace=pace,
+        ).values()
+        volume_extended = volume
+        # Need to reshape as in infer patch
+        durs_predicted = dur.float()
+        truncated_length = torch.max(lens)
+        volume_extended, _ = regulate_len(
+            durs_predicted, volume[:, :truncated_length].unsqueeze(-1), pace[:, :truncated_length]
         )
-        return mel.float(), n_frames, dur.float()
+        volume_extended = volume_extended.squeeze(-1).float()
+        return mel.float(), n_frames, dur.float(), volume_extended

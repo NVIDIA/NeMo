@@ -29,7 +29,7 @@ from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RA
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex
+from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex, RegressionValuesType, TokenDurationType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
@@ -403,6 +403,28 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             k = k.replace("projection_fn.bias", "projection_fn.conv.bias")
             new_state_dict[k] = v
         super().load_state_dict(new_state_dict, strict=strict)
+
+    def _prepare_for_export(self, **kwargs):
+        super()._prepare_for_export(**kwargs)
+
+        # Define input_types and output_types as required by export()
+        self._input_types = {
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "lens": NeuralType(('B')),
+            # "batch_lengths": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_id": NeuralType(('B'), Index()),
+            "speaker_id_text": NeuralType(('B'), Index()),
+            "speaker_id_attributes": NeuralType(('B'), Index()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "pace": NeuralType(('B', 'T')),
+            "volume": NeuralType(('B', 'T'), optional=True),
+        }
+        self._output_types = {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "volume_aligned": NeuralType(('B', 'T_spec'), RegressionValuesType()),
+        }
 
     @property
     def input_module(self):
