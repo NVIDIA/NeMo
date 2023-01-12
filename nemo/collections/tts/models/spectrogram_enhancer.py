@@ -268,10 +268,12 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         )
 
     def setup_validation_data(self, val_data_config):
-        dataset = instantiate(val_data_config.dataset)
-        self._valid_dl = torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, **val_data_config.dataloader_params
-        )
+        """
+        There is no validation step for this model.
+        It is not clear whether any of used losses is a sensible metric for choosing between two models.
+        This might change in the future.
+        """
+        pass
 
     @classmethod
     def list_available_models(cls):
