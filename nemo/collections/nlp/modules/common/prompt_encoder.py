@@ -279,7 +279,9 @@ class PromptEncoder(NeuralModule, Exportable):
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
-        self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim, max_norm=self.max_embedding_norm)
+        self.embedding = torch.nn.Embedding(
+            self.total_virtual_tokens, self.token_dim, max_norm=self.max_embedding_norm
+        )
 
         if self.final_layer_norm:
             self.layer_norm = torch.nn.LayerNorm(self.token_dim)
