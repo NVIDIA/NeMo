@@ -29,7 +29,13 @@ from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RA
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex, RegressionValuesType, TokenDurationType
+from nemo.core.neural_types.elements import (
+    Index,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging

@@ -635,9 +635,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if voiced_mask is None:
             if self.use_vpred_module:
                 # get logits
-                voiced_mask = self.v_pred_module.infer(
-                    txt_enc_time_expanded, spk_vec_attributes, lens=out_lens
-                )
+                voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
         else:
@@ -656,9 +654,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if f0 is None:
             n_f0_feature_channels = 2 if self.use_first_order_features else 1
-            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[
-                :, 0
-            ]
+            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
 
@@ -677,16 +673,10 @@ class RadTTSModule(NeuralModule, Exportable):
             pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded,
-            spk_vec,
-            out_lens,
-            (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask,
-            energy_avg,
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask, energy_avg,
         )
 
-        residual = (
-            torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
-        )
+        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
