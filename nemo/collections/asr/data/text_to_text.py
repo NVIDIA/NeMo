@@ -269,6 +269,11 @@ class TextToTextDatasetBase:
 
         self.data = [dict() for _ in range(num_utterances)]
 
+        if len(asr_texts) == 0:
+            # no data was loaded
+            logging.warning("Text-to-text dataset is empty")
+            return
+
         if tokenizer_workers == 1:
             logging.warning(
                 "Preprocessing large text with tokenizer_workers=1 may be slow with TTS tokenizer. "
@@ -287,14 +292,14 @@ class TextToTextDatasetBase:
                 asr_bos_id_global = copy.deepcopy(bos_id)
                 asr_eos_id_global = copy.deepcopy(eos_id)
 
-            chunksize = 1000  # chunk size for pool map, higher is faster, but less responsive
             with concurrent.futures.ProcessPoolExecutor(
                 initializer=_init_asr_tokenize_process,
                 initargs=(asr_tokenizer, self.asr_bos_id, self.asr_eos_id),
                 max_workers=tokenizer_workers,
             ) as pool:
+                # chunk size for pool map is empirically chosen as a trade-off between speed and responsiveness
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=chunksize), total=len(asr_texts))
+                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=1000), total=len(asr_texts))
                 ):
                     self.data[i]["asr_text_tokens"] = tokenized_text
         # force free memory
@@ -328,6 +333,7 @@ class TextToTextDatasetBase:
             with concurrent.futures.ProcessPoolExecutor(
                 initializer=_init_tts_tokenize_process, initargs=(tts_parser,), max_workers=tokenizer_workers,
             ) as pool:
+                # chunk size for pool map is empirically chosen as a trade-off between speed and responsiveness
                 for i, tokenized_text in enumerate(
                     tqdm(pool.map(_tts_text_to_tokens, tts_texts, chunksize=1000), total=len(tts_texts))
                 ):
