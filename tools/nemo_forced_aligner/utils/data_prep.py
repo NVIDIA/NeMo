@@ -353,6 +353,7 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
     # turn log_probs, y, T, U into dense tensors for fast computation during Viterbi decoding
     T_max = max(T_list_batch)
     U_max = max(U_list_batch)
+    #  V = the number of tokens in the vocabulary + 1 for the blank token.
     V = len(model.decoder.vocabulary) + 1
     T_batch = torch.tensor(T_list_batch)
     U_batch = torch.tensor(U_list_batch)
@@ -364,6 +365,9 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
         log_probs_batch[b, :t, :] = log_probs_utt
 
     # make y tensor of shape (B x U_max)
+    # populate it initially with all 'V' numbers so that the 'V's will remain in the areas that
+    # are 'padding'. This will be useful for when we make 'log_probs_reorderd' during Viterbi decoding
+    # in a different function.
     y_batch = V * torch.ones((B, U_max), dtype=torch.int64)
     for b, y_utt in enumerate(y_list_batch):
         U_utt = U_batch[b]
