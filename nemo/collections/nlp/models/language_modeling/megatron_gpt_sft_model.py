@@ -555,8 +555,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=self.cfg.global_batch_size,
-            micro_batch_size=self.cfg.micro_batch_size,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         return super().on_validation_epoch_start()
@@ -566,8 +566,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=self.cfg.global_batch_size,
-            micro_batch_size=self.cfg.micro_batch_size,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         return super().on_test_epoch_start()
@@ -582,13 +582,24 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_inference_epoch_end(self, ds):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=self.cfg.global_batch_size,
-            micro_batch_size=self.cfg.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=ds.global_batch_size,
+                micro_batch_size=ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
