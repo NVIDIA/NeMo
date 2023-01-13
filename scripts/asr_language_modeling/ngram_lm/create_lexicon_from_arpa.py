@@ -26,7 +26,6 @@ import argparse
 import os
 import re
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Utility script for generating lexicon file from a KenLM arpa file")
     parser.add_argument("--arpa", required=True, help="path to your arpa file")
@@ -35,26 +34,27 @@ if __name__ == "__main__":
     parser.add_argument("--model", default=None, help="path to Nemo model for its tokeniser")
 
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.arpa):
         print("ARPA file not detected on disk, aborting!", flush=True)
         exit(255)
-    
+
     if args.dst is not None:
         save_path = args.dst
     else:
         save_path = os.path.dirname(args.arpa)
     os.makedirs(save_path, exist_ok=True)
-    
+
     tokenizer = None
     if args.model is not None:
         from nemo.collections.asr.models import ASRModel
+
         model = ASRModel.restore_from(restore_path=args.model, map_location='cpu')
         if hasattr(model, 'tokenizer'):
             tokenizer = model.tokenizer
         else:
             print('WARNING: supplied Nemo model does not contain a tokenizer', flush=True)
-    
+
     lex_file = os.path.join(save_path, os.path.splitext(os.path.basename(args.arpa))[0] + '.lexicon')
     print(f"Writing Lexicon file - {lex_file}...", flush=True)
     with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
