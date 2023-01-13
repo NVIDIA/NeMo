@@ -184,13 +184,18 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location
+            restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
+        if hasattr(cfg, "model_change"):
+            asr_model.change_attention_model(
+                self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
+                att_context_size=cfg.model_change.conformer.get("att_context_size", None),
+            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location
+            model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -329,13 +334,16 @@ def write_transcription(
 
 def transcribe_partial_audio(
     asr_model,
-    path2manifest: str,
+    path2manifest: str = None,
     batch_size: int = 4,
     logprobs: bool = False,
     return_hypotheses: bool = False,
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
+    augmentor: DictConfig = None,
 ) -> List[str]:
+    """
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
 
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
@@ -372,6 +380,8 @@ def transcribe_partial_audio(
             'num_workers': num_workers,
             'channel_selector': channel_selector,
         }
+        if augmentor:
+            config['augmentor'] = augmentor
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):

@@ -14,45 +14,36 @@
 # limitations under the License.
 
 """Transformer."""
-import math
 from contextlib import nullcontext
 from typing import Any, Callable, Optional
 
 import torch
-import torch.nn.functional as F
-from einops import rearrange, repeat
+from einops import rearrange
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
-    InfusedAdapterConfig,
-    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
+from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
     bias_dropout_add_fused_inference,
     bias_dropout_add_fused_train,
     dropout_add,
 )
-from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
-    from apex.transformer.utils import divide as safe_divide
-    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
     from apex.normalization import MixedFusedRMSNorm
 
     HAVE_APEX = True
@@ -100,6 +91,7 @@ except:
 """
 
 
+<<<<<<< HEAD
 class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """MLP.
 
@@ -1199,6 +1191,8 @@ class ParallelChunkedCrossAttention(MegatronModule):
         return out, bias
 
 
+=======
+>>>>>>> main
 def get_bias_dropout_add(training):
     def _bias_dropout_add(x, bias, residual, prob):
         return bias_dropout_add(x, bias, residual, prob, training)
@@ -2006,6 +2000,7 @@ class ParallelTransformer(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        reduce_amax=True,
         use_emha=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
@@ -2079,6 +2074,7 @@ class ParallelTransformer(MegatronModule):
         self.fp8_interval = fp8_interval
         self.fp8_amax_history_len = fp8_amax_history_len
         self.fp8_amax_compute_algo = fp8_amax_compute_algo
+        self.reduce_amax = reduce_amax
 
         self.fp8_recipe = None
 
@@ -2093,6 +2089,7 @@ class ParallelTransformer(MegatronModule):
                 fp8_format=fp8_format,
                 amax_history_len=self.fp8_amax_history_len,
                 amax_compute_algo=self.fp8_amax_compute_algo,
+                reduce_amax=reduce_amax,
             )
 
         self.is_first_microbatch = True
