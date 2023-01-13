@@ -21,7 +21,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
+from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, regulate_len
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
@@ -37,7 +37,6 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.helpers.helpers import regulate_len
 
 
 @experimental
@@ -481,15 +480,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         }
         return (inputs,)
 
-    def forward_for_export(self,
-        text,
-        lens,
-        speaker_id,
-        speaker_id_text,
-        speaker_id_attributes,
-        pitch,
-        pace,
-        volume,
+    def forward_for_export(
+        self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
     ):
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,
