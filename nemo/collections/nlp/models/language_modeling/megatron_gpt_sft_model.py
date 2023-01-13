@@ -215,7 +215,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 label_key=data_cfg.get('label_key', 'answer'),
                 separate_prompt_and_response_with_newline=data_cfg.get('separate_prompt_and_response_with_newline', True),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
-                truncation_field=data_cfg.get('truncation_field', 'text'),
+                truncation_field=data_cfg.get('truncation_field', 'context'),
             )
             datasets.append(dataset)
 
