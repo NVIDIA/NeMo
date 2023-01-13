@@ -66,7 +66,7 @@ def get_default_length_params():
     return length_params
 
 
-def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, **strategy_args):
+def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, check_sequence_parallel_and_checkpointing=True, **strategy_args):
     # reproduce the old compute_prob method
     # a very special case
     if sampling_params['compute_logprob']:
@@ -89,6 +89,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
+            check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing,
             **strategy_args,
         )
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
@@ -108,6 +109,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
+                check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing,
                 **strategy_args,
             )
             return output
@@ -317,6 +319,7 @@ def synced_generate(
     greedy=False,
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
+    check_sequence_parallel_and_checkpointing=True
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -346,6 +349,7 @@ def synced_generate(
                 "repetition_penalty": repetition_penalty,
                 "min_tokens_to_generate": min_tokens_to_generate,
             },
+            check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -396,6 +400,7 @@ def generate(
     greedy=False,
     repetition_penalty=1.0,
     min_tokens_to_generate=0,
+    check_sequence_parallel_and_checkpointing=True,
     **strategy_args,
 ) -> OutputType:
     """
@@ -473,6 +478,7 @@ def generate(
         greedy=greedy,
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
+        check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -553,6 +559,7 @@ def sample_sequence_batch(
     type_ids=None,
     temperature=None,
     extra={},
+    check_sequence_parallel_and_checkpointing=True,
 ):
     # Importing here to avoid circular import errors
 
@@ -565,15 +572,16 @@ def sample_sequence_batch(
         micro_batch_size=micro_batch_size,
         data_parallel_size=1,
     )
-    assert (
-        model.cfg.get('sequence_parallel', False) == False
-    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
-    assert (
-        model.cfg.get('activations_checkpoint_granularity', None) is None
-    ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
-    assert (
-        model.cfg.get('activations_checkpoint_method', None) is None
-    ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    if check_sequence_parallel_and_checkpointing:
+        assert (
+            model.cfg.get('sequence_parallel', False) == False
+        ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+        assert (
+            model.cfg.get('activations_checkpoint_granularity', None) is None
+        ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+        assert (
+            model.cfg.get('activations_checkpoint_method', None) is None
+        ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
 
     tokenizer = model.tokenizer
     # initialize the batch

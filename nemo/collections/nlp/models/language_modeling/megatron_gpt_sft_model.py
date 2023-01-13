@@ -58,6 +58,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric)
+        self.original_checkpointing_granularity = self.model.language_model.encoder.activations_checkpoint_granularity
+        self.original_checkpointing_num_layers = self.model.language_model.encoder.activations_checkpoint_num_layers
+        self.original_checkpointing_method = self.model.language_model.encoder.activations_checkpoint_method
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -266,6 +269,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             tokenizer=self.tokenizer,
             sampling_params=sampling_params,
             length_params=length_params,
+            check_sequence_parallel_and_checkpointing=False, # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
         )
 
         preds_text = []
@@ -551,7 +555,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             dataloaders.append(eval_dl)
         return dataloaders
 
+    def _reset_activation_checkpointing_args(self):
+        self.model.language_model.encoder.activations_checkpoint_granularity = None
+        self.model.language_model.encoder.activations_checkpoint_method = None
+        self.model.language_model.encoder.activations_checkpoint_num_layers = None
+
+    def _restore_activation_checkpointing_args(self):
+        self.model.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
+        self.model.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
+        self.model.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
+
     def on_validation_epoch_start(self):
+        self._reset_activation_checkpointing_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -564,6 +579,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_test_epoch_start(self):
         app_state = AppState()
+        self._reset_activation_checkpointing_args()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -583,6 +599,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_inference_epoch_end(self, ds):
         app_state = AppState()
+        self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
