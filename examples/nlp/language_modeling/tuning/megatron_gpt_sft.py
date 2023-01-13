@@ -57,7 +57,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.optim = cfg.model.optim
         gpt_cfg.precision = cfg.trainer.precision
         gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
-        gpt_cfg.nemo_path = cfg.model.nemo_path
         gpt_cfg.restore_from_path = cfg.model.restore_from_path
         gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
         gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
