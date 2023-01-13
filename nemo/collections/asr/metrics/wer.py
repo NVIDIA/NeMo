@@ -346,7 +346,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
             self.decoding.override_fold_consecutive_value = False
-        
+
         elif self.cfg.strategy == 'flashlight':
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
