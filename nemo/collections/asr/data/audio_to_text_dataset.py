@@ -473,7 +473,7 @@ def get_audio_to_text_bpe_dataset_from_config(
     preprocessor_cfg: Optional[DictConfig] = None,
 ):
     """
-    Construct Text-To-Text dataset from a config. Needed for CTC-BPE, RNNT-BPE and Hybrid ASR-TTS models
+    Construct Audio-To-Text dataset from a config. Needed for CTC-BPE, RNNT-BPE and Hybrid ASR-TTS models
     Args:
         config: BPE dataset config
         local_rank: model local rank
