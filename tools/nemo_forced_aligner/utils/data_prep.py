@@ -111,7 +111,40 @@ def get_char_tokens(text, model):
 
 def get_y_and_boundary_info_for_utt(text, model, separator):
     """
-    Get y, token_info, word_info and segment_info for the text provided, tokenized by the model provided.
+    Get y_token_ids_with_blanks, token_info, word_info and segment_info for the text provided, tokenized 
+    by the model provided.
+    y_token_ids_with_blanks is a list of the indices of the text tokens with the blank token id in between every
+    text token.
+    token_info, word_info and segment_info are lists of dictionaries containing information about 
+    where the tokens/words/segments start and end.
+    For example, 'hi world | hey ' with separator = '|' and tokenized by a BPE tokenizer can have token_info like:
+    token_info = [
+        {'text': '<b>', 's_start': 0, 's_end': 0},
+        {'text': '▁hi', 's_start': 1, 's_end': 1},
+        {'text': '<b>', 's_start': 2, 's_end': 2},
+        {'text': '▁world', 's_start': 3, 's_end': 3},
+        {'text': '<b>', 's_start': 4, 's_end': 4},
+        {'text': '▁he', 's_start': 5, 's_end': 5},
+        {'text': '<b>', 's_start': 6, 's_end': 6},
+        {'text': 'y', 's_start': 7, 's_end': 7},
+        {'text': '<b>', 's_start': 8, 's_end': 8},    
+    ]
+    's_start' and 's_end' indicate where in the sequence of tokens does each token start and end.
+
+    The word_info will be as follows:
+    word_info = [
+        {'text': 'hi', 's_start': 1, 's_end': 1},
+        {'text': 'world', 's_start': 3, 's_end': 3},
+        {'text': 'hey', 's_start': 5, 's_end': 7},
+    ]
+    's_start' and 's_end' indicate where in the sequence of tokens does each word start and end.
+
+    segment_info will be as follows:
+    segment_info = [
+        {'text': 'hi world', 's_start': 1, 's_end': 3},
+        {'text': 'hey', 's_start': 5, 's_end': 7},
+    ]
+    's_start' and 's_end' indicate where in the sequence of tokens does each segment start and end.
     """
 
     if not separator:  # if separator is not defined - treat the whole text as one segment
@@ -125,44 +158,41 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
     if hasattr(model, 'tokenizer'):
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
-        y_token_ids = []
+
         y_token_ids_with_blanks = [BLANK_ID]
-        y_tokens = []
-        y_tokens_with_blanks = [BLANK_TOKEN]
         token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
         word_info = []
         segment_info = []
 
-        segment_s_pointer = 1
-        word_s_pointer = 1
+        segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
+        word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
 
         for segment in segments:
-            words = segment.split(" ")
+            words = segment.split(" ")  # we define words to be space-separated sub-strings
             for word in words:
 
                 word_tokens = model.tokenizer.text_to_tokens(word)
                 word_ids = model.tokenizer.text_to_ids(word)
                 for token, id_ in zip(word_tokens, word_ids):
-                    y_token_ids.append(id_)
+                    # add the text token and the blank that follows it
+                    # to our token-based variables
                     y_token_ids_with_blanks.extend([id_, BLANK_ID])
-                    y_tokens.append(token)
-                    y_tokens_with_blanks.extend([token, BLANK_TOKEN])
-
-                    token_info.append(
-                        {
-                            "text": token,
-                            "s_start": len(y_tokens_with_blanks) - 2,
-                            "s_end": len(y_tokens_with_blanks) - 2,
-                        }
-                    )
-                    token_info.append(
-                        {
-                            "text": BLANK_TOKEN,
-                            "s_start": len(y_tokens_with_blanks) - 1,
-                            "s_end": len(y_tokens_with_blanks) - 1,
-                        }
+                    token_info.extend(
+                        [
+                            {
+                                "text": token,
+                                "s_start": len(y_token_ids_with_blanks) - 2,
+                                "s_end": len(y_token_ids_with_blanks) - 2,
+                            },
+                            {
+                                "text": BLANK_TOKEN,
+                                "s_start": len(y_token_ids_with_blanks) - 1,
+                                "s_end": len(y_token_ids_with_blanks) - 1,
+                            },
+                        ]
                     )
 
+                # add the word to word_info and increment the word_s_pointer
                 word_info.append(
                     {
                         "text": word,
@@ -172,6 +202,7 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
                 )
                 word_s_pointer += len(word_tokens) * 2  # TODO check this
 
+            # add the segment to segment_info and increment the segment_s_pointer
             segment_tokens = model.tokenizer.text_to_tokens(segment)
             segment_info.append(
                 {
@@ -184,68 +215,64 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
 
         return y_token_ids_with_blanks, token_info, word_info, segment_info
 
-    elif hasattr(model.decoder, "vocabulary"):
+    elif hasattr(model.decoder, "vocabulary"):  # i.e. tokenization is simply character-based
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
         SPACE_ID = model.decoder.vocabulary.index(" ")
-        y_token_ids = []
+
         y_token_ids_with_blanks = [BLANK_ID]
-        y_tokens = []
-        y_tokens_with_blanks = [BLANK_TOKEN]
         token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
         word_info = []
         segment_info = []
 
-        segment_s_pointer = 1
-        word_s_pointer = 1
+        segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
+        word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
 
         for i_segment, segment in enumerate(segments):
-            words = segment.split(" ")
+            words = segment.split(" ")  # we define words to be space-separated characters
             for i_word, word in enumerate(words):
 
+                # convert string to list of characters
                 word_tokens = list(word)
+                # convert list of characters to list of their ids in the vocabulary
                 word_ids = get_char_tokens(word, model)
                 for token, id_ in zip(word_tokens, word_ids):
-                    y_token_ids.append(id_)
+                    # add the text token and the blank that follows it
+                    # to our token-based variables
                     y_token_ids_with_blanks.extend([id_, BLANK_ID])
-                    y_tokens.append(token)
-                    y_tokens_with_blanks.extend([token, BLANK_TOKEN])
-
-                    token_info.append(
-                        {
-                            "text": token,
-                            "s_start": len(y_tokens_with_blanks) - 2,
-                            "s_end": len(y_tokens_with_blanks) - 2,
-                        }
-                    )
-                    token_info.append(
-                        {
-                            "text": BLANK_TOKEN,
-                            "s_start": len(y_tokens_with_blanks) - 1,
-                            "s_end": len(y_tokens_with_blanks) - 1,
-                        }
+                    token_info.extend(
+                        [
+                            {
+                                "text": token,
+                                "s_start": len(y_token_ids_with_blanks) - 2,
+                                "s_end": len(y_token_ids_with_blanks) - 2,
+                            },
+                            {
+                                "text": BLANK_TOKEN,
+                                "s_start": len(y_token_ids_with_blanks) - 1,
+                                "s_end": len(y_token_ids_with_blanks) - 1,
+                            },
+                        ]
                     )
 
-                # add space token unless this is the final word in the final segment
+                # add space token (and the blank after it) unless this is the final word in the final segment
                 if not (i_segment == len(segments) - 1 and i_word == len(words) - 1):
-                    y_token_ids.append(SPACE_ID)
                     y_token_ids_with_blanks.extend([SPACE_ID, BLANK_ID])
-                    y_tokens.append(SPACE_TOKEN)
-                    y_tokens_with_blanks.extend([SPACE_TOKEN, BLANK_TOKEN])
-                    token_info.append(
-                        {
-                            "text": SPACE_TOKEN,
-                            "s_start": len(y_tokens_with_blanks) - 2,
-                            "s_end": len(y_tokens_with_blanks) - 2,
-                        }
+                    token_info.extend(
+                        (
+                            {
+                                "text": SPACE_TOKEN,
+                                "s_start": len(y_token_ids_with_blanks) - 2,
+                                "s_end": len(y_token_ids_with_blanks) - 2,
+                            },
+                            {
+                                "text": BLANK_TOKEN,
+                                "s_start": len(y_token_ids_with_blanks) - 1,
+                                "s_end": len(y_token_ids_with_blanks) - 1,
+                            },
+                        )
                     )
-                    token_info.append(
-                        {
-                            "text": BLANK_TOKEN,
-                            "s_start": len(y_tokens_with_blanks) - 1,
-                            "s_end": len(y_tokens_with_blanks) - 1,
-                        }
-                    )
+                # add the word to word_info and increment the word_s_pointer
                 word_info.append(
                     {
                         "text": word,
@@ -255,6 +282,7 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
                 )
                 word_s_pointer += len(word_tokens) * 2 + 2  # TODO check this
 
+            # add the segment to segment_info and increment the segment_s_pointer
             segment_tokens = get_char_tokens(segment, model)
             segment_info.append(
                 {
