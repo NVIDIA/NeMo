@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, math
+import math
+import os
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple, Union
 
@@ -126,7 +127,7 @@ class AbstractBeamCTCInfer(Typing):
             )
 
         self.decoding_type = decoding_type
-    
+
     def set_tokenizer(self, tokenizer: TokenizerSpec):
         """
         Set the tokenizer of the decoding framework.
@@ -203,7 +204,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             self.search_algorithm = self.default_beam_search
         elif search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
-            
+
             raise NotImplementedError(f"The search type of `pyctcdecode` is currently not supported.\n" f"")
         elif search_type == "flashlight":
             self.search_algorithm = self._flashlight_beam_search
@@ -223,7 +224,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # if pyctcdecode_cfg is None:
         #     pyctcdecode_cfg = PyCTCDecodeConfig()
         # self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
-        
+
         if flashlight is None:
             flashlight = FlashlightConfig()
         self.flashlight = flashlight
@@ -435,7 +436,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         #     nbest_hypotheses.append(hypotheses)
         #
         # return nbest_hypotheses
-    
+
     @torch.no_grad()
     def _flashlight_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
@@ -463,9 +464,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            #if self.decoding_type == 'subword':
+            # if self.decoding_type == 'subword':
             #    vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
-            #else:
+            # else:
             #    # char models
             #    vocab = self.vocab
 
@@ -508,9 +509,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 # compress the size of the final KenLM ARPA / Binary file.
                 # In order to do double encoding, we shift the subword by some token offset.
                 # This step is ignored for character based models.
-                #if self.decoding_type == 'subword':
+                # if self.decoding_type == 'subword':
                 #    pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
-                #else:
+                # else:
                 #    pred_token_ids = candidate[1]
 
                 # We preserve the token ids and the score for this hypothesis
@@ -556,14 +557,14 @@ class PyCTCDecodeConfig:
 
 @dataclass
 class FlashlightConfig:
-    #kenlm_path: Optional[str] = None
+    # kenlm_path: Optional[str] = None
     lexicon_path: Optional[str] = None
     nbest: int = 1
-    #beam_size: int = 16
+    # beam_size: int = 16
     beam_size_token: int = 16
     beam_threshold: float = 20.0
-    #lm_weight: float = 0.2
-    #word_score: float = 0.2
+    # lm_weight: float = 0.2
+    # word_score: float = 0.2
     unk_weight: float = -math.inf
     sil_weight: float = 0.0
     unit_lm: bool = False
