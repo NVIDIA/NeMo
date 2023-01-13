@@ -68,18 +68,18 @@ An example script to prepare data for RETRO training is:
         --chunk_stride_size=64 \
         --workers=48
 
-The RETRO model processes chunked documents using 64 tokens as the default chunk size. The ``chunk_stride_size`` argument argument 
-determines the distance between consecutive chunks. To ensure the documents are a multiple of ``chunk_size``` tokens, the RETRO memory map dataset 
+The RETRO model processes chunked documents using 64 tokens as the default chunk size. The ``--chunk_stride_size`` argument argument 
+determines the distance between consecutive chunks. To ensure the documents are a multiple of ``--chunk_size``` tokens, the RETRO memory map dataset 
 adds padding tokens to the end of each document. The ``--need-pad-id`` argument adds a padding token to the tokenizer
 if it doesn't already have one. The ``--append-eod`` argument controls whether to add ``end-of-document`` tokens to the preprocessed 
 data, and the ``--retrieval-db`` argument indicates whether to create a retrieval database for the preprocessed data. If ``--retrieval-db``
-is used, it will add an additional ``chunk_size``` padding tokens at the end of the document. The ``--chunk_size`` and ``--workers`` arguments 
+is used, it will add an additional ``--chunk_size``` padding tokens at the end of the document. The ``--chunk_size`` and ``--workers`` arguments 
 control the size of the data chunks to be processed and the number of worker processes to use, respectively.
 
 Following is the retro memory map index data format:
 
 .. list-table::
-   :widths: 25 25 25 25 25 25
+   :widths: 25 25 25 25 25 25 25
 
    * - 'MMIDRET\x00\x00' (header 9 bytes)
      - 1 (version 4 byte)
@@ -93,6 +93,7 @@ Following is the retro memory map index data format:
      - start of sentence address in byte (int64 array)	
      - start of chunk id (int64 array)
      - chunk id address in byte (int64 array)
+     -
      -
 
 :sup:`1` 1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16
