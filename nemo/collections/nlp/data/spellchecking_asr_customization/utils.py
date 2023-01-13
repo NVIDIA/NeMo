@@ -18,7 +18,7 @@ import math
 import numpy as np
 import random
 import re
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from heapq import heappush, heapreplace
 from numba import jit
 from typing import Dict, List, Set, Tuple
@@ -234,6 +234,126 @@ def load_ngram_mappings(input_name: str, max_dst_freq: int=1000000000) -> Tuple[
                 ban_ngram.add(dst + " ")  # space at the end is required within get_index function 
             vocab[src][dst] = int(joint_freq) / int(src_freq)
     return vocab, ban_ngram
+
+
+def load_ngram_mappings_for_dp(input_name: str) -> Tuple[defaultdict, defaultdict, defaultdict, int]:
+    """Loads vocab from file
+    Input format:
+        u t o	u+i t o	49	8145	114
+        u t o	<DELETE> t e	63	8145	16970
+        u t o	o+_ t o	42	8145	1807
+    """
+    joint_vocab = defaultdict(int)
+    src_vocab = defaultdict(int)
+    dst_vocab = defaultdict(int)
+    max_len = 0
+    with open(input_name, "r", encoding="utf-8") as f:
+        for line in f:
+            src, dst, joint_freq, _, _ = line.strip().split("\t")
+            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
+            dst = dst.replace("<DELETE>", " ").replace("+", " ")
+            dst = " ".join(dst.split())
+            if dst == "":  # skip if resulting ngram doesn't contain any real character
+                continue
+            max_len = max(max_len, src.count(" ") + 1, dst.count(" ") + 1)
+            joint_vocab[(src, dst)] += int(joint_freq)
+            src_vocab[src] += int(joint_freq)
+            dst_vocab[dst] += int(joint_freq)
+    return joint_vocab, src_vocab, dst_vocab, max_len
+
+
+def get_alignment_by_dp(
+    hyp_phrase: str,
+    ref_phrase: str,
+    joint_vocab: defaultdict,
+    src_vocab: defaultdict,
+    dst_vocab: defaultdict,
+    max_len: int
+) -> List[Tuple[str, str, float, float, int, int, int]]:
+    hyp_letters = ["*"] + hyp_phrase.split()
+    ref_letters = ["*"] + ref_phrase.split()
+    DpInfo = namedtuple("DpInfo", ["hyp_pos", "ref_pos", "best_hyp_ngram_len", "best_ref_ngram_len", "score", "sum_score"])
+    history = defaultdict(DpInfo)
+    history[(0, 0)] = DpInfo(hyp_pos=0, ref_pos=0, best_hyp_ngram_len=1, best_ref_ngram_len=1, score=0.0, sum_score=0.0)
+    for hyp_pos in range(len(hyp_letters)):
+        for ref_pos in range(len(ref_letters)):
+            if hyp_pos == 0 and ref_pos == 0:  # cell (0, 0) is already defined
+                continue
+            # consider cell (hyp_pos, ref_pos) and find best path to get there
+            best_hyp_ngram_len = 0
+            best_ref_ngram_len = 0
+            best_ngram_score = float("-inf")
+            best_sum_score = float("-inf")
+            # loop over paths ending on non-empty ngram mapping
+            for hyp_ngram_len in range(1, 1 + min(max_len, hyp_pos + 1)):
+                hyp_ngram = " ".join(hyp_letters[(hyp_pos - hyp_ngram_len + 1):(hyp_pos+1)])
+                for ref_ngram_len in range(1, 1 + min(max_len, ref_pos + 1)):
+                    ref_ngram = " ".join(ref_letters[(ref_pos - ref_ngram_len + 1):(ref_pos+1)])
+                    if (hyp_ngram, ref_ngram) not in joint_vocab:
+                        continue
+                    joint_freq = joint_vocab[(hyp_ngram, ref_ngram)]
+                    src_freq = src_vocab.get(hyp_ngram, 1)
+                    ngram_score = math.log(joint_freq / src_freq)
+                    previous_score = 0.0
+                    previous_cell = (hyp_pos - hyp_ngram_len, ref_pos - ref_ngram_len)
+                    if previous_cell not in history:
+                        print("cell ", previous_cell, "does not exist")
+                        continue
+                    previous_score = history[previous_cell].sum_score
+                    sum_score = ngram_score + previous_score
+                    if sum_score > best_sum_score:
+                        best_sum_score = sum_score
+                        best_ngram_score = ngram_score
+                        best_hyp_ngram_len = hyp_ngram_len
+                        best_ref_ngram_len = ref_ngram_len
+            # loop over two variants with deletion of one character
+            deletion_score = -6.0
+            insertion_score = -6.0
+            if hyp_pos > 0:
+                previous_cell = (hyp_pos - 1, ref_pos)
+                previous_score = history[previous_cell].sum_score
+                sum_score = deletion_score + previous_score
+                if sum_score > best_sum_score:
+                    best_sum_score = sum_score
+                    best_ngram_score = deletion_score
+                    best_hyp_ngram_len = 1
+                    best_ref_ngram_len = 0
+
+            if ref_pos > 0:
+                previous_cell = (hyp_pos, ref_pos - 1)
+                previous_score = history[previous_cell].sum_score
+                sum_score = insertion_score + previous_score
+                if sum_score > best_sum_score:
+                    best_sum_score = sum_score
+                    best_ngram_score = insertion_score
+                    best_hyp_ngram_len = 0
+                    best_ref_ngram_len = 1
+
+            assert(best_hyp_ngram_len > 0 or best_ref_ngram_len > 0)
+
+            # save cell to history
+            history[(hyp_pos, ref_pos)] = DpInfo(hyp_pos=hyp_pos, ref_pos=ref_pos, best_hyp_ngram_len=best_hyp_ngram_len, best_ref_ngram_len=best_ref_ngram_len, score=best_ngram_score, sum_score=best_sum_score)
+    # now trace back on best path starting from last positions
+    path = []
+    hyp_pos = len(hyp_letters) - 1
+    ref_pos = len(ref_letters) - 1
+    cell_info = history[(hyp_pos, ref_pos)]
+    path.append(cell_info)
+    while hyp_pos > 0 and ref_pos > 0:
+        hyp_pos -= cell_info.best_hyp_ngram_len
+        ref_pos -= cell_info.best_ref_ngram_len 
+        cell_info = history[(hyp_pos, ref_pos)]
+        path.append(cell_info)
+
+    result = []    
+    for info in reversed(path):
+        hyp_ngram = " ".join(hyp_letters[(info.hyp_pos-info.best_hyp_ngram_len+1):(info.hyp_pos+1)])
+        ref_ngram = " ".join(ref_letters[(info.ref_pos-info.best_ref_ngram_len+1):(info.ref_pos+1)])
+        joint_freq = joint_vocab.get((hyp_ngram, ref_ngram), 0)
+        src_freq = src_vocab.get(hyp_ngram, 0)
+        dst_freq = dst_vocab.get(ref_ngram, 0)
+        result.append((hyp_ngram, ref_ngram, info.score, info.sum_score, joint_freq, src_freq, dst_freq))
+    return result
 
 
 def get_index(

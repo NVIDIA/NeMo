@@ -24,16 +24,19 @@ from nemo.collections.asr.parts.utils.manifest_utils import (
     read_manifest,
     write_manifest,
 )
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_ngram_mappings_for_dp, get_alignment_by_dp
 
 parser = ArgumentParser(
     description="Analyze custom phrases recognition after ASR"
 )
 parser.add_argument("--manifest", required=True, type=str, help="Path to manifest file with reference text and asr hypotheses")
 parser.add_argument("--vocab_dir", type=str, required=True, help="Path to directory with custom vocabularies")
+parser.add_argument("--ngram_mappings", type=str, required=True, help="File with ngram mappings")
 parser.add_argument("--output_name", type=str, required=True, help="Output file")
 
 args = parser.parse_args()
 
+joint_vocab, src_vocab, dst_vocab, max_len = load_ngram_mappings_for_dp(args.ngram_mappings)
 
 def get_changed_fragments(i_words, j_words):
     s = SequenceMatcher(None, i_words, j_words)
@@ -239,6 +242,9 @@ sum_worse = 0
 sum_unknown = 0
 print("BEFORE vs AFTER SPELLCHECKING")
 for k, v in diff_vocab_before_after_spellcheck.most_common(1000000):
+    path = get_alignment_by_dp(" ".join(list(k[1].replace(" ", "_"))), " ".join(list(k[2].replace(" ", "_"))), joint_vocab, src_vocab, dst_vocab, max_len)
+    if len(k[1]) > 0 and path[-1][3] / len(k[1]) < -1.0:  #sum_score
+        continue
     if k[3] == "!":
         sum_better += v
     elif k[3] == "*":
@@ -246,3 +252,6 @@ for k, v in diff_vocab_before_after_spellcheck.most_common(1000000):
     else:
         sum_unknown += v
     print(k, v, "sum_better=", sum_better, "; sum_worse=", sum_worse, "; sum_unknown=", sum_unknown)
+    for hyp_ngram, ref_ngram, score, sum_score, joint_freq, src_freq, dst_freq in path:
+        print("\t", "hyp=", hyp_ngram, "; ref=", ref_ngram, "; score=", score, "; sum_score=", sum_score, joint_freq, src_freq, dst_freq)
+

@@ -3,6 +3,7 @@ import json
 import os
 import pdb
 from collections import defaultdict
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_ngram_mappings_for_dp, get_alignment_by_dp
 
 from tqdm.auto import tqdm
 
@@ -22,6 +23,10 @@ parser.add_argument(
 parser.add_argument(
     "--min_real_cov", required=True, type=float, help="Minimum real coverage value"
 )
+parser.add_argument(
+    "--min_dp_score_per_symbol", required=True, type=float, help="Minimum dynamic programming sum score averaged by hypothesis length"
+)
+parser.add_argument("--ngram_mappings", type=str, required=True, help="File with ngram mappings")
 
 args = parser.parse_args()
 
@@ -228,6 +233,8 @@ def check_banned_replacements(src, dst):
     return False
 
 
+joint_vocab, src_vocab, dst_vocab, max_len = load_ngram_mappings_for_dp(args.ngram_mappings)
+
 final_corrections = defaultdict(str)
 banned_count = 0
 for name in os.listdir(args.spellchecker_results_folder):
@@ -309,6 +316,9 @@ for name in os.listdir(args.spellchecker_results_folder):
             for dst, freq in sorted(
                 full_sent2corrections[full_sent][src].items(), key=lambda item: item[1], reverse=True
             ):
+                path = get_alignment_by_dp(src, dst, joint_vocab, src_vocab, dst_vocab, max_len)
+                if path[-1][3] / (src.count(" ") + 1) < args.min_dp_score_per_symbol:  #sum_score
+                    continue
                 corrected_full_sent = corrected_full_sent.replace(src, dst)
                 # take only best variant
                 break
