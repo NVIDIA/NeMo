@@ -463,8 +463,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         #     index += 1
         # assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
 
-        # TODO: Shouldn't hardcode but self.tokenizer isn't initlized yet so unsure how
-        # to get the pad_id
         pad_id = self.tokenizer.pad
         inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
 
