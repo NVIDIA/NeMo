@@ -2,8 +2,6 @@
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-# TODO: remove unnecessary arguments, refactoring
-
 name: VITS
 
 train_dataset: ???
@@ -98,7 +96,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 2
+      batch_size: 32
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -127,7 +125,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 2
+      batch_size: 32
       num_workers: 4
       pin_memory: false
 
@@ -202,12 +200,18 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ???
+  exp_dir: ../exps/vits_hifitts
   name: ${name}
-  create_tensorboard_logger: true
+  create_tensorboard_logger: false
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: loss_gen_all
     mode: min
+  create_wandb_logger: true
+  wandb_logger_kwargs:
+    name: vits_fp16_local
+    project: ${name}
+    entity: nvidia
+    resume: "allow"
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
