@@ -31,9 +31,9 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
 
-* **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). (Default: 'cpu').
+* **[OPTIONAL]** `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). If None, NFA will set it to 'cuda' if it is available (otherwise will set it to 'cpu'). If specified `transcribe_device` needs to be a string that can be input to the `torch.device()` method. (Default: `None`).
 
-* **[OPTIONAL]** `viterbi_device`: The device that will be used for doing Viterbi decoding. (Default: 'cpu').
+* **[OPTIONAL]** `viterbi_device`: The device that will be used for doing Viterbi decoding. If None, NFA will set it to 'cuda' if it is available (otherwise will set it to 'cpu'). If specified `transcribe_device` needs to be a string that can be input to the `torch.device()` method.(Default: `None`).
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 

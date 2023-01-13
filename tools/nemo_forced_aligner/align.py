@@ -57,10 +57,12 @@ Arguments:
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
     align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
         as the 'ground truth' for the forced alignment. 
-    transcribe_device: string specifying the device that will be used for generating log-probs (i.e. "transcribing").
-        The string needs to be in a format recognized by torch.device().
-    viterbi_device: string specifying the device that will be used for doing Viterbi decoding. 
-        The string needs to be in a format recognized by torch.device().
+    transcribe_device: None, or a string specifying the device that will be used for generating log-probs (i.e. "transcribing").
+        The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
+        (otherwise will set it to 'cpu').
+    viterbi_device: None, or string specifying the device that will be used for doing Viterbi decoding. 
+        The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
+        (otherwise will set it to 'cpu').
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
     additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
@@ -95,8 +97,8 @@ class AlignmentConfig:
 
     # General configs
     align_using_pred_text: bool = False
-    transcribe_device: str = "cpu"
-    viterbi_device: str = "cpu"
+    transcribe_device: Optional[str] = None
+    viterbi_device: Optional[str] = None
     batch_size: int = 1
     additional_ctm_grouping_separator: Optional[str] = None
     remove_blank_tokens_from_ctm: bool = False
@@ -159,8 +161,23 @@ def main(cfg: AlignmentConfig):
             )
 
     # init devices
-    transcribe_device = torch.device(cfg.transcribe_device)
-    viterbi_device = torch.device(cfg.viterbi_device)
+    if cfg.transcribe_device is None:
+        transcribe_device = torch.device("cuda" if torch.cuda.is_available else "cpu")
+    else:
+        transcribe_device = torch.device(cfg.transcribe_device)
+    logging.info(f"Device to be used for transcription step (`transcribe_device`) is {transcribe_device}")
+
+    if cfg.viterbi_device is None:
+        viterbi_device = torch.device("cuda" if torch.cuda.is_available else "cpu")
+    else:
+        viterbi_device = torch.device(cfg.viterbi_device)
+    logging.info(f"Device to be used for viterbi step (`viterbi_device`) is {viterbi_device}")
+
+    if transcribe_device.type == 'cuda' or viterbi_device.type == 'cuda':
+        logging.warning(
+            'One or both of transcribe_device and viterbi_device are GPUs. If you run into OOM errors '
+            'it may help to change both devices to be the CPU.'
+        )
 
     # load model
     model, _ = setup_model(cfg, transcribe_device)
