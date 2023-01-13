@@ -77,14 +77,14 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
     return arr
 
 
-def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_directory, dataset):
+def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, dataset):
     """
     Create new CTM alignments using input LibriSpeech word alignments. 
 
     Args:
         input_manifest_filepath (str): Path to the input LibriSpeech manifest file
         base_alignment_path (str): Path to the base directory containing the LibriSpeech word alignments
-        ctm_directory (str): Directory to write the CTM files to
+        ctm_output_directory (str): Directory to write the CTM files to
         dataset (str): Which split of the LibriSpeech dataset is being used
     """
     manifest = read_manifest(input_manifest_filepath)
@@ -93,9 +93,10 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_dire
     unaligned = get_unaligned_examples(unaligned_path, dataset)
 
     # delete output directory if it exists or throw warning
-    if os.path.isdir(ctm_directory):
-        shutil.rmtree(ctm_directory)
-    os.mkdir(ctm_directory)
+    if os.path.isdir(ctm_output_directory):
+        shutil.rmtree(ctm_output_directory)
+    if not os.path.exists(ctm_output_directory):
+        os.mkdir(ctm_output_directory)
 
     idx = 0
     while idx < len(manifest):
@@ -131,7 +132,7 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_dire
             end_times = [float(e) for e in end_times.replace('\"', '').split(',')]
 
             ctm_list = create_new_ctm_entry(line_id, speaker_id, words, end_times)
-            write_ctm(os.path.join(ctm_directory, line_id + '.ctm'), ctm_list)
+            write_ctm(os.path.join(ctm_output_directory, line_id + '.ctm'), ctm_list)
             idx += 1
         alignment_file.close()
 
@@ -188,14 +189,14 @@ def breakdown_manifest(target_manifest, breakdown_thres=20000):
     return output_manifest_list
 
 def create_manifest_with_alignments(
-    input_manifest_filepath, ctm_directory, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
+    input_manifest_filepath, ctm_output_directory, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
 ):
     """
     Create new manifest file with word alignments using CTM files
 
     Args:
         input_manifest_filepath (str): Path to the input manifest file
-        ctm_directory (str): Directory to read the CTM files from
+        ctm_output_directory (str): Directory to read the CTM files from
         output_manifest_filepath (str): Path to the output manifest file containing word alignments
         precision (int): How many decimal places to keep in the manifest file
     """
@@ -211,9 +212,9 @@ def create_manifest_with_alignments(
         if "voxceleb" in data_format_style:
             fn_split = f['audio_filepath'].split('/')
             filename = fn_split[-3] + '-' + fn_split[-2] + '-' + fn_split[-1].split('.')[0]
-            ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
+            ctm_filepath = os.path.join(ctm_output_directory, filename + '.ctm')
         else:
-            ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
+            ctm_filepath = os.path.join(ctm_output_directory, filename + '.ctm')
 
         if not os.path.isfile(ctm_filepath):
             logging.info(f"Skipping {filename}.wav as there is no corresponding CTM file")
@@ -281,26 +282,26 @@ def main():
     input_manifest_filepath = args.input_manifest_filepath
     base_alignment_path = args.base_alignment_path
     output_manifest_filepath = args.output_manifest_filepath
-    ctm_directory = args.ctm_directory
-    dataset = args.dataset
-    use_ctm = args.use_ctm
+    ctm_output_directory = args.ctm_output_directory
+    libri_dataset_split = args.libri_dataset_split
+    use_ctm_alignment_source = args.use_ctm_alignment_source
     output_precision = args.output_precision
 
     # args.base_alignment_path is containing the ctm files
-    if use_ctm:
-        ctm_directory = args.base_alignment_path
+    if use_ctm_alignment_source:
+        ctm_output_directory = args.base_alignment_path
+    
     # args.base_alignment_path is containing *.lab style alignments for the dataset
     else:
-        create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_directory, dataset)
+        create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split)
 
     create_manifest_with_alignments(
         input_manifest_filepath, 
-        ctm_directory, 
+        ctm_output_directory, 
         output_manifest_filepath, 
         data_format_style=args.data_format_style,
         silence_dur_threshold=args.silence_dur_threshold,
         output_precision=output_precision, 
-        breakdown_thres=args.breakdown_thres,
     )
 
 
@@ -322,28 +323,29 @@ if __name__ == "__main__":
                                    both the LibriSpeech folder as well as the unaligned.txt file) 
                                    or to a directory containing the requisite CTM files
         output_manifest_filepath (str): Path to output manifest file
-        ctm_directory (str): Path to output CTM directory (only used for LibriSpeech)
+        ctm_output_directory (str): Path to output CTM directory (only used for LibriSpeech)
         dataset (str): Which dataset split to create a combined manifest file for
-        use_ctm (bool): If true, base_alignment_path points to a directory containing ctm files
+        use_ctm_alignment_source (bool): If true, base_alignment_path points to a directory containing ctm files
     """
     parser = argparse.ArgumentParser(description="LibriSpeech Alignment Manifest Creator")
     parser.add_argument("--input_manifest_filepath", help="path to input manifest file", type=str, required=True)
     parser.add_argument("--base_alignment_path", help="path to alignments (LibriSpeech)", type=str, required=False)
     parser.add_argument("--output_manifest_filepath", help="path to output manifest file", type=str, required=True)
     parser.add_argument(
-        "--ctm_directory",
+        "--ctm_output_directory",
         help="path to output ctm directory for LibriSpeech (or to input CTM directory)",
         type=str,
         required=True,
     )
     parser.add_argument(
-        "--dataset",
+        "--libri_dataset_split",
         help="which test/dev/training set to create a manifest for (only used for LibriSpeech)",
         type=str,
         required=False,
+        default="",
     )
     parser.add_argument(
-        "--use_ctm",
+        "--use_ctm_alignment_source",
         help="if true, base_alignment_path points to a directory containing ctm files",
         action='store_true',
         required=False,
