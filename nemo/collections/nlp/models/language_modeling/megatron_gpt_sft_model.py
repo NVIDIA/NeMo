@@ -307,110 +307,112 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if not outputs:
             return
 
-        if isinstance(outputs[0], dict):
-            outputs = [outputs]
+        try:
+            if isinstance(outputs[0], dict):
+                outputs = [outputs]
 
-        averaged_loss = []
-        averaged_metric = []
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-        # Log metrics for each provided validation/test dataset.
-        for dataloader_idx, output in enumerate(outputs):
-            loss = super().validation_epoch_end([x['loss'] for x in output])
-            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
-            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
-            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            self.log(loss_log_key, loss)
-            metric_object = (
-                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            )
-            metric = metric_object.compute()
-            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
-            if isinstance(metric, dict):
-                if metric_name == 'rouge':
-                    metric = metric['rougeL_fmeasure']
-                else:
-                    metric = metric['acc']
-                self.log(metric_log_key, metric)
-                logging.info(f"{mode} {metric_name}: {metric}")
-            else:
-                self.log(metric_log_key, metric)
-                logging.info(f"{metric_log_key}: {metric}")
-            metric_object.reset()
-
-            averaged_loss.append(loss)
-            averaged_metric.append(metric)
-
-            # Write predictions, labels, and inputs to a file for each validation/test dataset.
-            if data_cfg.get("write_predictions_to_file", False):
-
-                # Check if the user provided a prefix path to the file(s) they want to write.
-                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                    raise ValueError(
-                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                    )
-
-                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-                torch.distributed.all_gather_object(
-                    gathered_outputs,
-                    [
-                        {
-                            'preds': x['preds'],
-                            'labels': x['labels'],
-                            'inputs': x['inputs'],
-                        }
-                        for x in output
-                    ],
-                    group=parallel_state.get_data_parallel_group(),
+            averaged_loss = []
+            averaged_metric = []
+            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            # Log metrics for each provided validation/test dataset.
+            for dataloader_idx, output in enumerate(outputs):
+                loss = super().validation_epoch_end([x['loss'] for x in output])
+                # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+                loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+                # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                self.log(loss_log_key, loss)
+                metric_object = (
+                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
                 )
+                metric = metric_object.compute()
+                # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
+                if isinstance(metric, dict):
+                    if metric_name == 'rouge':
+                        metric = metric['rougeL_fmeasure']
+                    else:
+                        metric = metric['acc']
+                    self.log(metric_log_key, metric)
+                    logging.info(f"{mode} {metric_name}: {metric}")
+                else:
+                    self.log(metric_log_key, metric)
+                    logging.info(f"{metric_log_key}: {metric}")
+                metric_object.reset()
 
-                # Figure out what the suffix of the file should be.
-                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                averaged_loss.append(loss)
+                averaged_metric.append(metric)
 
-                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
-                gt_inp_set = set()
-                deduplicated_outputs = {
-                    'preds': [],
-                    'labels': [],
-                    'inputs': [],
-                }
+                # Write predictions, labels, and inputs to a file for each validation/test dataset.
+                if data_cfg.get("write_predictions_to_file", False):
 
-                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
-                if self.global_rank == 0:
-                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                        for batch in gathered_outputs[rank]:
-                            for pred, label, input in zip(
-                                batch['preds'], batch['labels'], batch['inputs']
-                            ):
-                                gt_inp_set.add(input + label)
-                                deduplicated_outputs['preds'].append(pred)
-                                deduplicated_outputs['labels'].append(label)
-                                deduplicated_outputs['inputs'].append(input)
-                    self.write_predictions_to_file(
-                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    # Check if the user provided a prefix path to the file(s) they want to write.
+                    if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                        raise ValueError(
+                            f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                        )
+
+                    # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+                    gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+                    torch.distributed.all_gather_object(
+                        gathered_outputs,
+                        [
+                            {
+                                'preds': x['preds'],
+                                'labels': x['labels'],
+                                'inputs': x['inputs'],
+                            }
+                            for x in output
+                        ],
+                        group=parallel_state.get_data_parallel_group(),
                     )
-                torch.distributed.barrier()
 
-        # Logging of the averaged metrics:
-        averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+                    # Figure out what the suffix of the file should be.
+                    filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
 
-        # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
-            app_state = AppState()
-            monitor_mode = app_state.checkpoint_callback_params.mode
-            assert monitor_mode in ['min', 'max']
-            averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+                    # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
+                    gt_inp_set = set()
+                    deduplicated_outputs = {
+                        'preds': [],
+                        'labels': [],
+                        'inputs': [],
+                    }
 
-        if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric)
-        elif mode == 'test':
-            self.log("test_loss", averaged_loss)
-            self.log(f"test_{self.test_metric_name}", averaged_metric)
+                    # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
+                    if self.global_rank == 0:
+                        for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                            for batch in gathered_outputs[rank]:
+                                for pred, label, input in zip(
+                                    batch['preds'], batch['labels'], batch['inputs']
+                                ):
+                                    gt_inp_set.add(input + label)
+                                    deduplicated_outputs['preds'].append(pred)
+                                    deduplicated_outputs['labels'].append(label)
+                                    deduplicated_outputs['inputs'].append(input)
+                        self.write_predictions_to_file(
+                            deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                        )
+                    torch.distributed.barrier()
 
-        return averaged_loss, averaged_metric
+            # Logging of the averaged metrics:
+            averaged_loss = sum(averaged_loss) / len(averaged_loss)
+            averaged_metric = sum(averaged_metric) / len(averaged_metric)
+
+            # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
+            if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+                app_state = AppState()
+                monitor_mode = app_state.checkpoint_callback_params.mode
+                assert monitor_mode in ['min', 'max']
+                averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+
+            if mode == 'validation':
+                self.log("validation_loss", averaged_loss)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric)
+            elif mode == 'test':
+                self.log("test_loss", averaged_loss)
+                self.log(f"test_{self.test_metric_name}", averaged_metric)
+            return averaged_loss, averaged_metric
+        except:
+            return
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
