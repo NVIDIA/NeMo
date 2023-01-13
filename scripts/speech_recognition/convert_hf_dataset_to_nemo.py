@@ -408,12 +408,3 @@ ConfigStore.instance().store(name='hfds_config', node=HFDatasetConversionConfig)
 
 if __name__ == '__main__':
     main()
-
-"""
-python scripts/speech_recognition/convert_hf_dataset_to_nemo.py \
-        output_dir=/data/commonvoice/ \
-        path="mozilla-foundation/common_voice_11_0" \
-        name="eo" \
-        split="dev" \
-        use_auth_token=True
-"""
