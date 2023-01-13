@@ -13,7 +13,9 @@
 # limitations under the License.
 
 """
-Training the model from scratch
+Training hybrid ASR-TTS model using text-only data and/or audio-text pairs.
+Provide ASR model config, add options related to TTS and text-only data.
+
 ```shell
 python speech_to_text_bpe_with_text.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
@@ -43,9 +45,6 @@ python speech_to_text_bpe_with_text.py \
     exp_manager.exp_dir=<experiment dir> \
     exp_manager.name=<name of experiment>
 ```
-
-For documentation on fine-tuning this model, please visit -
-https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
 
 
@@ -60,6 +59,10 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="examples/asr/conf/conformer", config_name="conformer_transducer_bpe")
 def main(cfg):
+    """
+    Training hybrid ASR-TTS model using text-only data and/or audio-text pairs.
+    Provide ASR model config, add options related to TTS and text-only data.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     OmegaConf.resolve(cfg)
 
