@@ -114,15 +114,15 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
     Get y, token_info, word_info and segment_info for the text provided, tokenized by the model provided.
     """
 
+    if not separator:  # if separator is not defined - treat the whole text as one segment
+        segments = [text]
+    else:
+        segments = text.split(separator)
+
+    # remove any spaces at start and end of segments
+    segments = [seg.strip() for seg in segments]
+
     if hasattr(model, 'tokenizer'):
-
-        if not separator:  # if separator is not defined - treat the whole text as one segment
-            segments = [text]
-        else:
-            segments = text.split(separator)
-
-        # remove any spaces at start and end of segments
-        segments = [seg.strip() for seg in segments]
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
         y_token_ids = []
@@ -185,11 +185,6 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         return y_token_ids_with_blanks, token_info, word_info, segment_info
 
     elif hasattr(model.decoder, "vocabulary"):
-
-        segments = text.split(separator)
-
-        # remove any spaces at start and end of segments
-        segments = [seg.strip() for seg in segments]
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
         SPACE_ID = model.decoder.vocabulary.index(" ")
