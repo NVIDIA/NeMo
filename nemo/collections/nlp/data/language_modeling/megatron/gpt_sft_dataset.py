@@ -152,6 +152,7 @@ class GPTSFTDataset(Dataset):
         if len(text_ids) > self.max_seq_length:
             text_ids = text_ids[: self.max_seq_length]
 
+        assert len(text_ids) <= self.max_seq_length
         input_ids = text_ids
 
         answer_start_idx = len(input_ids) - 1
