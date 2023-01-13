@@ -195,6 +195,12 @@ def main(cfg: AlignmentConfig):
         "timestamps in output CTM."
     )
 
+    if cfg.minimum_timestamp_duration > 0:
+        logging.warning(
+            f"cfg.minimum_timestamp_duration has been set to {cfg.minimum_timestamp_duration} seconds. "
+            "This may cause the alignments for some tokens/words/additional segments to be overlapping."
+        )
+
     # get start and end line IDs of batches
     starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
