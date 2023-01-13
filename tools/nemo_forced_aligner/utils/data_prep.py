@@ -301,16 +301,20 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
 
 def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, align_using_pred_text):
     """
-    Preparing some tensors to be used during Viterbi decoding.
     Returns:
-        log_probs, y, T, U (y and U are s.t. every other token is a blank),
-        token_info_list, word_info_list, segment_info_list,
-        pred_text_list
+        log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
+            during Viterbi decoding.
+        token_info_list, word_info_list, segment_info_list - these are lists of dictionaries which we will need
+            for writing the CTM files with the human-readable alignments.
+        pred_text_list - this is a list of the transcriptions from our model which we will save to our output JSON
+            file if align_using_pred_text is True.
     """
 
+    # get hypotheses by calling 'transcribe'
+    # we will use the output log_probs, the duration of the log_probs,
+    # and (optionally) the predicted ASR text from the hypotheses
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
-
     with torch.no_grad():
         hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
 
@@ -322,6 +326,9 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
         T_list_batch.append(hypothesis.y_sequence.shape[0])
         pred_text_batch.append(hypothesis.text)
 
+    # we loop over every line in the manifest that is in our current batch,
+    # and record the y (list of tokens, including blanks), U (list of lengths of y) and
+    # token_info_batch, word_info_batch, segment_info_batch
     y_list_batch = []
     U_list_batch = []
     token_info_batch = []
@@ -343,6 +350,7 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
         word_info_batch.append(word_info_utt)
         segment_info_batch.append(segment_info_utt)
 
+    # turn log_probs, y, T, U into dense tensors for fast computation during Viterbi decoding
     T_max = max(T_list_batch)
     U_max = max(U_list_batch)
     V = len(model.decoder.vocabulary) + 1
