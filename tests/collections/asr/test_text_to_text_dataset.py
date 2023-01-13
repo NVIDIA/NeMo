@@ -34,7 +34,7 @@ def set_multiprocessing_method():
     """
     Try to set 'fork' multiprocessing method to avoid problems with multiprocessing in PyTest on MacOS
     """
-    if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    if multiprocessing.get_start_method(allow_none=True) != "fork":
         multiprocessing.set_start_method("fork", force=True)
 
 
@@ -129,6 +129,9 @@ class TestTextToTextDataset:
         tts_normalizer,
         set_multiprocessing_method,
     ):
+        """
+        Test map-style text-to-text dataset with ASR and TTS tokenizers with normalized text
+        """
         dataset = TextToTextDataset(
             manifest_filepath=textonly_manifest_path,
             speakers_filepath=speakers_path,
@@ -148,6 +151,9 @@ class TestTextToTextDataset:
     def test_text_to_text_dataset_unnormalized(
         self, textonly_unnormalized_manifest_path, speakers_path, asr_tokenizer, tts_tokenizer, tts_normalizer
     ):
+        """
+        Test TextToTextDataset with ASR and TTS tokenizers with non-normalized text
+        """
         dataset = TextToTextDataset(
             manifest_filepath=textonly_unnormalized_manifest_path,
             speakers_filepath=speakers_path,
@@ -172,6 +178,9 @@ class TestTextToTextDataset:
         tts_normalizer,
         set_multiprocessing_method,
     ):
+        """
+        Test iterable text-to-text dataset with ASR and TTS tokenizers with normalized text
+        """
         dataset = TextToTextIterableDataset(
             manifest_filepath=textonly_manifest_path,
             speakers_filepath=speakers_path,
