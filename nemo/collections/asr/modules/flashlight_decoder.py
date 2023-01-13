@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools as it
+import itertools
 import math
 from typing import Iterable, List, Optional, Tuple, Union
 
@@ -22,6 +22,47 @@ import torch
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
+
+
+class _TokensWrapper:
+    def __init__(self, vocabulary: List[str], tokenizer: TokenizerSpec):
+        self.vocabulary = vocabulary
+        self.tokenizer = tokenizer
+
+        if tokenizer is None:
+            self.reverse_map = {vocabulary[i]: i for i in range(len(vocabulary))}
+
+    @property
+    def blank(self):
+        return len(self.vocabulary)
+
+    @property
+    def unk_id(self):
+        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id'):
+            return self.tokenizer.unk_id
+
+        if '<unk>' in self.vocabulary:
+            return self.token_to_id('<unk>')
+        else:
+            return -1
+
+    @property
+    def vocab(self):
+        return self.vocabulary
+
+    @property
+    def vocab_size(self):
+        # the +1 is because we add the blank id
+        return len(self.vocabulary) + 1
+
+    def token_to_id(self, token: str):
+        if token == self.blank:
+            return -1
+
+        if self.tokenizer is not None:
+            return self.tokenizer.token_to_id(token)
+        else:
+            return self.reverse_map[token]
 
 
 class FlashLightKenLMBeamSearchDecoder(NeuralModule):
@@ -41,52 +82,12 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         return {"hypos": NeuralType(('B'), PredictionsType())}
     '''
 
-    class TokensWrapper:
-        def __init__(self, vocabulary: List[str], tokenizer: TokenizerSpec):
-            self.vocabulary = vocabulary
-            self.tokenizer = tokenizer
-
-            if tokenizer is None:
-                self.reverse_map = {vocabulary[i]: i for i in range(len(vocabulary))}
-
-        @property
-        def blank(self):
-            return len(self.vocabulary)
-
-        @property
-        def unk_id(self):
-            if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id'):
-                return self.tokenizer.unk_id
-
-            if '<unk>' in self.vocabulary:
-                return self.token_to_id('<unk>')
-            else:
-                return -1
-
-        @property
-        def vocab(self):
-            return self.vocabulary
-
-        @property
-        def vocab_size(self):
-            return len(self.vocabulary) + 1
-
-        def token_to_id(self, token: str):
-            if token == self.blank:
-                return -1
-
-            if self.tokenizer is not None:
-                return self.tokenizer.token_to_id(token)
-            else:
-                return self.reverse_map[token]
-
     def __init__(
         self,
         lm_path: str,
         vocabulary: List[str],
         tokenizer: Optional[TokenizerSpec] = None,
         lexicon_path: Optional[str] = None,
-        nbest: int = 1,
         beam_size: int = 32,
         beam_size_token: int = 32,
         beam_threshold: float = 25.0,
@@ -119,11 +120,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         super().__init__()
 
         self.criterion_type = CriterionType.CTC
-        self.nbest = nbest
-        self.tokenizer = self.TokensWrapper(vocabulary, tokenizer)
-        self.vocab_size = self.tokenizer.vocab_size
-        self.blank = self.tokenizer.blank
-        self.silence = self.tokenizer.unk_id
+        self.tokenizer_wrapper = _TokensWrapper(vocabulary, tokenizer)
+        self.vocab_size = self.tokenizer_wrapper.vocab_size
+        self.blank = self.tokenizer_wrapper.blank
+        self.silence = self.tokenizer_wrapper.unk_id
         self.unit_lm = unit_lm
 
         if lexicon_path is not None:
@@ -131,6 +131,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             self.word_dict = create_word_dict(self.lexicon)
             self.unk_word = self.word_dict.get_index("<unk>")
 
+            # loads in the kenlm binary and combines in with the dictionary object from the lexicon
+            # this gives a mapping between each entry in the kenlm binary and its mapping to whatever
+            # numeraire is used by the AM, which is explicitly mapped via the lexicon
+            # this information is ued to build a vocabulary trie for decoding
             self.lm = KenLM(lm_path, self.word_dict)
             self.trie = Trie(self.vocab_size, self.silence)
 
@@ -139,8 +143,8 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 word_idx = self.word_dict.get_index(word)
                 _, score = self.lm.score(start_state, word_idx)
                 for spelling in spellings:
-                    spelling_idxs = [self.tokenizer.token_to_id(token) for token in spelling]
-                    if self.tokenizer.unk_id in spelling_idxs:
+                    spelling_idxs = [self.tokenizer_wrapper.token_to_id(token) for token in spelling]
+                    if self.tokenizer_wrapper.unk_id in spelling_idxs:
                         print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
                         continue
                     self.trie.insert(spelling_idxs, word_idx, score)
@@ -165,7 +169,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             assert self.unit_lm, "lexicon free decoding can only be done with a unit language model"
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
 
-            d = {w: [[w]] for w in self.tokenizer.vocab + ([] if '<unk>' in self.tokenizer.vocab else ['<unk>'])}
+            d = {
+                w: [[w]]
+                for w in self.tokenizer_wrapper.vocab + ([] if '<unk>' in self.tokenizer_wrapper.vocab else ['<unk>'])
+            }
             self.word_dict = create_word_dict(d)
             self.lm = KenLM(lm_path, self.word_dict)
             self.decoder_opts = LexiconFreeDecoderOptions(
@@ -182,7 +189,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
     def _get_tokens(self, idxs: List[int]):
         """Normalize tokens by handling CTC blank, ASG replabels, etc."""
 
-        idxs = (g[0] for g in it.groupby(idxs))
+        idxs = (g[0] for g in itertools.groupby(idxs))
         idxs = filter(lambda x: x != self.blank and x != self.silence, idxs)
 
         return torch.LongTensor(list(idxs))
@@ -220,11 +227,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
         B, T, N = emissions.size()
         hypos = []
+        # we iterate over the batch dimension of our input tensor log probabilities
         for b in range(B):
+            # the flashlight C++ expects a C style pointer, so the memory address
+            # which is what we obtain here. Then we pass it to pybinding method which
+            # is bound to the underlying C++ code
             emissions_ptr = emissions.data_ptr() + 4 * b * emissions.stride(0)
             results = self.decoder.decode(emissions_ptr, T, N)
 
-            nbest_results = results[: self.nbest]
             hypos.append(
                 [
                     {
@@ -233,7 +243,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                         "timesteps": self._get_timesteps(result.tokens),
                         "words": [self.word_dict.get_entry(x) for x in result.words if x >= 0],
                     }
-                    for result in nbest_results
+                    for result in results
                 ]
             )
 
