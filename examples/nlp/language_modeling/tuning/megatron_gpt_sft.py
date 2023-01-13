@@ -36,8 +36,6 @@ from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-mp.set_start_method("spawn", force=True)
-
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
     This function modifies the original gpt pre-training config (t5_cfg) with attributes from the finetuning config (cfg).
