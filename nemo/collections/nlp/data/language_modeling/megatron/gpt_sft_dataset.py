@@ -39,7 +39,8 @@ class GPTSFTDataset(Dataset):
         context_key: str = "text",
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
-        answer_only_loss: bool = True
+        answer_only_loss: bool = True,
+        truncation_field: str = "answer",
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -57,6 +58,7 @@ class GPTSFTDataset(Dataset):
         label_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -72,6 +74,8 @@ class GPTSFTDataset(Dataset):
         self.label_key = label_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
+        self.truncation_field = truncation_field
+        assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
 
@@ -140,7 +144,13 @@ class GPTSFTDataset(Dataset):
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+            if self.truncation_field == "answer":
+                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+            elif self.truncation_field == "context":
+                text_ids = text_ids[: -min(truncation_length, len(text_ids))]
+
+        if len(text_ids) > self.max_seq_length:
+            text_ids = text_ids[: self.max_seq_length]
 
         input_ids = text_ids
 
@@ -222,6 +232,7 @@ class GPTSFTDataset(Dataset):
         max_length = max([len(x) for x in input_ids])
         # increase max length to nearest multiple of 4 or 8
         max_length = min(self.max_seq_length, self._round_to_nearest(max_length, 8))
+        assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]
         attention_mask = torch.stack(attention_mask)
