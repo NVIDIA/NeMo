@@ -304,6 +304,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
+        if not outputs:
+            return
+
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
