@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import multiprocessing
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +29,16 @@ from nemo.collections.common import tokenizers
 BASE_DIR = Path(__file__).parent.parent.parent.parent
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
+def init_multiprocessing():
+    """
+    This is necessary to fix PyTest problem with multiprocessing on MacOS,
+    e.g. see https://stackoverflow.com/a/73185098
+    """
+    multiprocessing.set_start_method("fork")
+
+
+@pytest.fixture(scope="module")
 def speakers_path(tmp_path_factory):
     path = tmp_path_factory.mktemp("textonly") / "speakers.txt"
     with open(path, "w", encoding="utf-8") as f:
@@ -37,7 +47,7 @@ def speakers_path(tmp_path_factory):
     return path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def textonly_manifest_path(tmp_path_factory):
     path = tmp_path_factory.mktemp("textonly") / "manifest.json"
     texts = [
@@ -50,7 +60,7 @@ def textonly_manifest_path(tmp_path_factory):
     return path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def textonly_unnormalized_manifest_path(tmp_path_factory):
     path = tmp_path_factory.mktemp("textonly") / "manifest_nonorm.json"
     texts = [
@@ -75,14 +85,14 @@ def tts_normalizer():
     return normalizer
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def asr_tokenizer(test_data_dir):
     tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
     tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
     return tokenizer
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def tts_tokenizer():
     @dataclass
     class G2PConfig:
@@ -108,8 +118,16 @@ def tts_tokenizer():
 
 class TestTextToTextDataset:
     @pytest.mark.unit
+    @pytest.mark.parametrize("tokenizer_workers", [1, 2])
     def test_text_to_text_dataset(
-        self, textonly_manifest_path, speakers_path, asr_tokenizer, tts_tokenizer, tts_normalizer
+        self,
+        textonly_manifest_path,
+        tokenizer_workers,
+        speakers_path,
+        asr_tokenizer,
+        tts_tokenizer,
+        tts_normalizer,
+        init_multiprocessing,
     ):
         dataset = TextToTextDataset(
             manifest_filepath=textonly_manifest_path,
@@ -120,6 +138,7 @@ class TestTextToTextDataset:
             tts_text_pad_id=0,
             tts_text_normalizer=tts_normalizer,
             tts_text_normalizer_call_kwargs=dict(),
+            tokenizer_workers=tokenizer_workers,
         )
         assert len(dataset) == 2
         item = dataset[0]
@@ -142,8 +161,16 @@ class TestTextToTextDataset:
         assert len(dataset) == 2
 
     @pytest.mark.unit
+    @pytest.mark.parametrize("tokenizer_workers", [1, 2])
     def test_text_to_text_iterable_dataset(
-        self, textonly_manifest_path, speakers_path, asr_tokenizer, tts_tokenizer, tts_normalizer
+        self,
+        textonly_manifest_path,
+        tokenizer_workers,
+        speakers_path,
+        asr_tokenizer,
+        tts_tokenizer,
+        tts_normalizer,
+        init_multiprocessing,
     ):
         dataset = TextToTextIterableDataset(
             manifest_filepath=textonly_manifest_path,
@@ -154,6 +181,7 @@ class TestTextToTextDataset:
             tts_text_pad_id=0,
             tts_text_normalizer=tts_normalizer,
             tts_text_normalizer_call_kwargs=dict(),
+            tokenizer_workers=tokenizer_workers,
         )
         assert len(dataset) == 2
         item = next(iter(dataset))
