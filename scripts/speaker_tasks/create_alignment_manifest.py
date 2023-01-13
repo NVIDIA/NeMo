@@ -135,7 +135,7 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_dire
             idx += 1
         alignment_file.close()
 
-def breakdown_manifest(target_manifest, breakdown_thres=15):
+def breakdown_manifest(target_manifest, breakdown_thres=20000):
     """
     Breakdown manifest into smaller chunks if the number of words exceeds the threshold.
 
@@ -208,7 +208,6 @@ def create_manifest_with_alignments(
         f = manifest[src_i]
         fn = f['audio_filepath'].split('/')[-1]
         filename = fn.split('.')[0]  # assuming that there is only one period in the input filenames
-
         if "voxceleb" in data_format_style:
             fn_split = f['audio_filepath'].split('/')
             filename = fn_split[-3] + '-' + fn_split[-2] + '-' + fn_split[-1].split('.')[0]
@@ -271,7 +270,6 @@ def create_manifest_with_alignments(
         src_i += 1
         tgt_i += 1
 
-    target_manifest = breakdown_manifest(target_manifest, breakdown_thres)
     logging.info(f"Writing output manifest file to {output_manifest_filepath}")
     write_manifest(output_manifest_filepath, target_manifest)
 
@@ -353,15 +351,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_format_style",
         help="Use specific format for speaker IDs and utterance IDs. e.g. 'voxceleb', 'librispeech', 'swbd'",
-        default=False,
+        default="",
         type=str,
         required=False,
     )
     parser.add_argument(
         "--output_precision", help="precision for output alignments", type=int, required=False, default=3
-    )
-    parser.add_argument(
-        "--breakdown_thres", help="threshold for breaking-down the source utterances", type=int, required=False, default=15
     )
     parser.add_argument(
         "--silence_dur_threshold", help="threshold for inserting silence", type=float, required=False, default=0.1

@@ -14,15 +14,13 @@
 
 from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
 from nemo.core.config import hydra_runner
-
-
+from multiprocessing import set_start_method
 """
 This script creates a synthetic diarization session using the LibriSpeech dataset.
 Usage:
   python create_diarization_dataset_librispeech.py
 Check out parameters in ./conf/data_simulator.yaml.
 """
-
 
 @hydra_runner(config_path="conf", config_name="data_simulator.yaml")
 def main(cfg):
@@ -32,6 +30,6 @@ def main(cfg):
         lg = MultiSpeakerSimulator(cfg=cfg)
     lg.generate_sessions()
 
-
 if __name__ == "__main__":
+    set_start_method('spawn')
     main()
