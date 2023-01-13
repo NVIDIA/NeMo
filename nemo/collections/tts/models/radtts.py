@@ -508,7 +508,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         durs_predicted = dur.float()
         truncated_length = torch.max(lens)
         volume_extended, _ = regulate_len(
-            durs_predicted, volume[:, :truncated_length].unsqueeze(-1), pace[:, :truncated_length], replicate_to_nearest_multiple=True,
+            durs_predicted,
+            volume[:, :truncated_length].unsqueeze(-1),
+            pace[:, :truncated_length],
+            replicate_to_nearest_multiple=True,
             group_size=self.model.n_group_size,
             in_lens=lens,
         )
