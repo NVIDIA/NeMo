@@ -164,6 +164,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             use_torchaudio: Whether to use the `torchaudio` implementation.
             stft_exact_pad: Deprecated argument, kept for compatibility with older checkpoints.
             stft_conv: Deprecated argument, kept for compatibility with older checkpoints.
+            mel_norm: Normalization used for filterbanks in librosa.filters.mel.
+                Defaults to 'slaney' (area normalization)
         """
 
     def save_to(self, save_path: str):
@@ -229,6 +231,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
         use_torchaudio: bool = False,
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
+        mel_norm='slaney',
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -274,6 +277,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             nb_max_freq=nb_max_freq,
             stft_exact_pad=stft_exact_pad,  # Deprecated arguments; kept for config compatibility
             stft_conv=stft_conv,  # Deprecated arguments; kept for config compatibility
+            mel_norm=mel_norm,
         )
 
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
@@ -924,6 +928,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     use_torchaudio: bool = False
     stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
     stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
+    mel_norm: str = 'slaney'
 
 
 @dataclass

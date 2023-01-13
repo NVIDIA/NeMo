@@ -257,6 +257,7 @@ class FilterbankFeatures(nn.Module):
         nb_max_freq=4000,
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
+        mel_norm='slaney',
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -322,7 +323,9 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+            librosa.filters.mel(
+                sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq, norm=mel_norm
+            ),
             dtype=torch.float,
         ).unsqueeze(0)
         self.register_buffer("fb", filterbanks)
