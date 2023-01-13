@@ -22,7 +22,7 @@ class PrettyStrEnum(Enum):
     Converting to string will show the actual string value, which makes serialization/deserialization straightforward
 
     Example:
-        class ModelType(PrettyStrEnum):
+        class ASRModelType(PrettyStrEnum):
             CTC = "ctc"
             RNNT = "rnnt"
         ...
