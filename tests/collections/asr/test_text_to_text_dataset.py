@@ -30,12 +30,12 @@ BASE_DIR = Path(__file__).parent.parent.parent.parent
 
 
 @pytest.fixture(scope="module")
-def init_multiprocessing():
+def set_multiprocessing_method():
     """
-    This is necessary to fix PyTest problem with multiprocessing on MacOS,
-    e.g. see https://stackoverflow.com/a/73185098
+    Try to set 'fork' multiprocessing method to avoid problems with multiprocessing in PyTest on MacOS
     """
-    multiprocessing.set_start_method("fork")
+    if multiprocessing.get_start_method(allow_none=True) != 'fork':
+        multiprocessing.set_start_method("fork", force=True)
 
 
 @pytest.fixture(scope="module")
@@ -127,7 +127,7 @@ class TestTextToTextDataset:
         asr_tokenizer,
         tts_tokenizer,
         tts_normalizer,
-        init_multiprocessing,
+        set_multiprocessing_method,
     ):
         dataset = TextToTextDataset(
             manifest_filepath=textonly_manifest_path,
@@ -170,7 +170,7 @@ class TestTextToTextDataset:
         asr_tokenizer,
         tts_tokenizer,
         tts_normalizer,
-        init_multiprocessing,
+        set_multiprocessing_method,
     ):
         dataset = TextToTextIterableDataset(
             manifest_filepath=textonly_manifest_path,
