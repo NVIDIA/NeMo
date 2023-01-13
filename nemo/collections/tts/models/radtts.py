@@ -11,11 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ##########################################################################
-
-
 import contextlib
+import random
 
 import torch
 from hydra.utils import instantiate
@@ -40,6 +37,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.collections.tts.helpers.helpers import regulate_len
 
 
 @experimental
@@ -410,7 +408,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             new_state_dict[k] = v
         super().load_state_dict(new_state_dict, strict=strict)
 
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
+        self.model.remove_norms()
         super()._prepare_for_export(**kwargs)
 
         # Define input_types and output_types as required by export()
@@ -432,13 +432,85 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "volume_aligned": NeuralType(('B', 'T_spec'), RegressionValuesType()),
         }
 
-    @property
-    def input_module(self):
-        return self.model
+    def input_example(self, max_batch=1, max_dim=400):
+        par = next(self.parameters())
+        sz = (max_batch, max_dim)
+        # sz = (max_batch * max_dim,)
+        inp = torch.randint(0, 94, sz, device=par.device, dtype=torch.int64)
+        speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
+        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        # batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
+        # left_over_size = sz[0]
+        # batch_lengths[0] = 0
+        # for i in range(1, max_batch):
+        #     length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=par.device)
+        #     batch_lengths[i] = length + batch_lengths[i - 1]
+        #     left_over_size -= length.detach().cpu().numpy()[0]
+        # batch_lengths[-1] = left_over_size + batch_lengths[-2]
+        # sum = 0
+        # index = 1
+        # while index < len(batch_lengths):
+        #     sum += batch_lengths[index] - batch_lengths[index - 1]
+        #     index += 1
+        # assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
 
-    @property
-    def output_module(self):
-        return self.model
+        # TODO: Shouldn't hardcode but self.tokenizer isn't initlized yet so unsure how
+        # to get the pad_id
+        pad_id = self.tokenizer.pad
+        inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
 
-    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
-        return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
+        lens = []
+        for i, _ in enumerate(inp):
+            len_i = random.randint(3, max_dim)
+            lens.append(len_i)
+            inp[i, len_i:] = pad_id
+        lens = torch.tensor(lens, device=par.device, dtype=torch.int)
+
+        inputs = {
+            'text': inp,
+            'lens': lens,
+            # 'batch_lengths': batch_lengths,
+            'speaker_id': speaker,
+            'speaker_id_text': speaker,
+            'speaker_id_attributes': speaker,
+            'pitch': pitch,
+            'pace': pace,
+            'volume': volume,
+        }
+        return (inputs,)
+
+    def forward_for_export(self,
+        text,
+        lens,
+        speaker_id,
+        speaker_id_text,
+        speaker_id_attributes,
+        pitch,
+        pace,
+        volume,
+    ):
+        (mel, n_frames, dur, _, _) = self.model.infer(
+            speaker_id,
+            text,
+            speaker_id_text=speaker_id_text,
+            speaker_id_attributes=speaker_id_attributes,
+            sigma=0.0,
+            sigma_txt=0.0,
+            sigma_f0=1.0,
+            sigma_energy=1.0,
+            f0_mean=0.0,
+            f0_std=0.0,
+            in_lens=lens,
+            pitch_shift=pitch,
+            pace=pace,
+        ).values()
+        # Need to reshape as in infer patch
+        durs_predicted = dur.float()
+        truncated_length = torch.max(lens)
+        volume_extended, _ = regulate_len(
+            durs_predicted, volume[:, :truncated_length].unsqueeze(-1), pace[:, :truncated_length]
+        )
+        volume_extended = volume_extended.squeeze(-1).float()
+        return mel.float(), n_frames, dur.float(), volume_extended
