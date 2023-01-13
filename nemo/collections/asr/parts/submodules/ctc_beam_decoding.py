@@ -185,7 +185,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         kenlm_path: str = None,
-        flashlight: Optional['FlashlightConfig'] = None,
+        flashlight_cfg: Optional['FlashlightConfig'] = None,
         # pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
@@ -207,7 +207,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
             raise NotImplementedError(f"The search type of `pyctcdecode` is currently not supported.\n" f"")
         elif search_type == "flashlight":
-            self.search_algorithm = self._flashlight_beam_search
+            self.search_algorithm = self.flashlight_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -225,9 +225,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         #     pyctcdecode_cfg = PyCTCDecodeConfig()
         # self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
 
-        if flashlight is None:
-            flashlight = FlashlightConfig()
-        self.flashlight = flashlight
+        if flashlight_cfg is None:
+            flashlight_cfg = FlashlightConfig()
+        self.flashlight_cfg = flashlight_cfg
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -438,7 +438,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # return nbest_hypotheses
 
     @torch.no_grad()
-    def _flashlight_beam_search(
+    def flashlight_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
     ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
         """
@@ -477,16 +477,15 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 lm_path=self.kenlm_path,
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
-                lexicon_path=self.flashlight.lexicon_path,
-                nbest=self.flashlight.nbest,
+                lexicon_path=self.flashlight_cfg.lexicon_path,
                 beam_size=self.beam_size,
-                beam_size_token=self.flashlight.beam_size_token,
-                beam_threshold=self.flashlight.beam_threshold,
+                beam_size_token=self.flashlight_cfg.beam_size_token,
+                beam_threshold=self.flashlight_cfg.beam_threshold,
                 lm_weight=self.beam_alpha,
                 word_score=self.beam_beta,
-                unk_weight=self.flashlight.unk_weight,
-                sil_weight=self.flashlight.sil_weight,
-                unit_lm=self.flashlight.unit_lm,
+                unk_weight=self.flashlight_cfg.unk_weight,
+                sil_weight=self.flashlight_cfg.sil_weight,
+                unit_lm=self.flashlight_cfg.unit_lm,
             )
 
         x = x.to('cpu')
@@ -503,16 +502,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 hypothesis = rnnt_utils.Hypothesis(
                     score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
                 )
-
-                # For subword encoding, NeMo will double encode the subword (multiple tokens) into a
-                # singular unicode id. In doing so, we preserve the semantic of the unicode token, and
-                # compress the size of the final KenLM ARPA / Binary file.
-                # In order to do double encoding, we shift the subword by some token offset.
-                # This step is ignored for character based models.
-                # if self.decoding_type == 'subword':
-                #    pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
-                # else:
-                #    pred_token_ids = candidate[1]
 
                 # We preserve the token ids and the score for this hypothesis
                 hypothesis.y_sequence = candidate['tokens'].tolist()
@@ -557,14 +546,9 @@ class PyCTCDecodeConfig:
 
 @dataclass
 class FlashlightConfig:
-    # kenlm_path: Optional[str] = None
     lexicon_path: Optional[str] = None
-    nbest: int = 1
-    # beam_size: int = 16
     beam_size_token: int = 16
     beam_threshold: float = 20.0
-    # lm_weight: float = 0.2
-    # word_score: float = 0.2
     unk_weight: float = -math.inf
     sil_weight: float = 0.0
     unit_lm: bool = False
@@ -583,4 +567,4 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None
 
     # pyctcdecode_cfg: PyCTCDecodeConfig = PyCTCDecodeConfig()
-    flashlight: Optional[FlashlightConfig] = FlashlightConfig()
+    flashlight_cfg: Optional[FlashlightConfig] = FlashlightConfig()
