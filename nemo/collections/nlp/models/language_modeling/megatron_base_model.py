@@ -349,6 +349,17 @@ class MegatronBaseModel(NLPModel):
     def configure_optimizers(self):
         self.setup_optimization()
 
+        if hasattr(self._cfg.optim, 'sched') and hasattr(self._cfg.optim.sched, 'max_steps'):
+            logging.warning(
+                f"Setting max_steps in the optimizer scheduler config is experimental and "
+                f"not recommended. The scheduler can use max_steps automatically from "
+                f"trainer.max_steps."
+            )
+            sched_config = self._cfg.optim.sched
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
         # Wrap the baseline optimizer with the optimizer class with master parameters
         if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.cfg.precision == 'bf16':
