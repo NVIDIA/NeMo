@@ -293,6 +293,9 @@ class MultiSpeakerSimulator(object):
             and self._params.data_simulator.session_params.window_type != None
         ):
             raise Exception("Incorrect window type provided")
+        
+        if len(self._manifest) == 0:
+            raise Exception("Manifest file is empty. Check that the source path is correct.")
 
     def _get_speaker_ids(self) -> List[str]:
         """
@@ -1045,6 +1048,7 @@ class MultiSpeakerSimulator(object):
 
     def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int = 2):
         """
+        _generate_session function without RIR simulation.
         Generate a multispeaker audio session and corresponding label files.
 
         Args:
@@ -1189,22 +1193,22 @@ class MultiSpeakerSimulator(object):
         num_workers = self._params.get("num_workers", 1)
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self._params.get("num_workers", 1))
         futures = []
-
         for i in range(self._params.data_simulator.session_config.num_sessions):
             self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
             self._missing_overlap = 0
             self._audio_read_buffer_dict = {}
-            filename = self._params.data_simulator.outputs.output_filename
+            filename = self._params.data_simulator.outputs.output_filename + f"_{i}"
             if num_workers > 1:
                 futures.append([tp.submit(self._generate_session, i, basepath, filename), (basepath, filename)])
             else:
-                futures.append([self._generate_session(i, basepath, filename), (basepath, filename)])
+                futures.append([None, (basepath, filename)])
 
-
-        for future in tqdm(futures, desc="Waiting for sessions to finish", unit="jobs"):
+        for future in tqdm(futures, desc="Waiting for generators to finish", unit="jobs"):
+            basepath, filename = future[1]
             if num_workers > 1:
                 future[0].result()
-            basepath, filename = future[1]
+            else:
+                self._generate_session(i, basepath, filename)
             wavlist.write(os.path.join(basepath, filename + '.wav\n'))
             rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
             jsonlist.write(os.path.join(basepath, filename + '.json\n'))

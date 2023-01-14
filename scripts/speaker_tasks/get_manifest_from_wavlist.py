@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# USAGE: python get_librispeech_data.py --data_root=<where to put data>
-#        --data_set=<datasets_to_download> --num_workers=<number of parallel workers>
-# where <datasets_to_download> can be: dev_clean, dev_other, test_clean,
-# test_other, train_clean_100, train_clean_360, train_other_500 or ALL
-# You can also put more than one data_set comma-separated:
-# --data_set=dev_clean,train_clean_100
+
 import argparse
 import fnmatch
 import functools
