@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate, LengthParam, get_default_sampling_params
+from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate, LengthParam, SamplingParam
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 
 from nemo.utils import AppState, logging
@@ -260,9 +260,17 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Call parent validation step to get the loss.
         loss = super().validation_step(batch, batch_idx)
 
-        sampling_params = get_default_sampling_params()
         length_params: LengthParam = {"min_length": 0, "max_length": batch['tokens'].size(1) - batch['context_lengths'].max()}
-
+        sampling_params: SamplingParam = {
+            "use_greedy": True,
+            "temperature": 1.0,
+            "top_k": 0,
+            "top_p": 0.94,
+            "repetition_penalty": 1.2,
+            "add_BOS": False,
+            "all_probs": False,
+            "compute_logprob": False,
+        }
         result = megatron_gpt_generate(
             model=self,
             inputs=(batch['tokens'].cuda(), (batch['context_lengths'] - 1).cuda()), # NOTE: We do -1 here to remove the space between context and response.
