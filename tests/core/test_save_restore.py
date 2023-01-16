@@ -636,7 +636,7 @@ class TestSaveRestore:
         Model is constructed using saved child models (.nemo checkpoints)
 
         Args:
-            change_child_resource: if change_child_number is True, child model changes its config
+            change_child_number: if change_child_number is True, child model changes its config
                 without notifying parent model, and saved parent model should handle this correctly.
             child2_model_from_path: if child2_model_from_path is True, child2 model is restored from .nemo checkpoint,
                 otherwise constructed directly from config. Child1 model always loaded from checkpoint.
@@ -696,8 +696,8 @@ class TestSaveRestore:
         child models and parent model itself contain resources
 
         Args:
-            change_child_resource: if change_child_number is True, child model changes its config
-                without notifying parent model, and saved parent model should handle this correctly.
+            change_child_resource: if change_child_resource is True,
+                child model resources are changed after instantiation parent model.
             child2_model_from_path: if child2_model_from_path is True, child2 model is restored from .nemo checkpoint,
                 otherwise constructed directly from config. Child1 model always loaded from checkpoint.
         """
