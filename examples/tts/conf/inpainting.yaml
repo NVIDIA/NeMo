@@ -37,7 +37,6 @@ model:
   bin_loss_warmup_epochs: 100
 
   n_speakers: 1
-  # max_token_duration: 75
   symbols_embedding_dim: 384
   symbols_embedding_dim_twice: 768
   max_token_duration: 75
@@ -76,18 +75,18 @@ model:
   #   add_blank_at: null
   #   pad_with_space: false
   #   non_default_punct_list: []
-    text_tokenizer:
-      _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
-      punct: true
-      stresses: true
-      chars: true
-      apostrophe: true
-      pad_with_space: true
-      g2p:
-        _target_: nemo_text_processing.g2p.modules.EnglishG2p
-        phoneme_dict: ${phoneme_dict_path}
-        heteronyms: ${heteronyms_path}
-        phoneme_probability: 0.5
+  text_tokenizer:
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
+    punct: true
+    stresses: true
+    chars: true
+    apostrophe: true
+    pad_with_space: true
+    g2p:
+      _target_: nemo_text_processing.g2p.modules.EnglishG2p
+      phoneme_dict: ${phoneme_dict_path}
+      heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
 
   train_ds:
     dataset:
