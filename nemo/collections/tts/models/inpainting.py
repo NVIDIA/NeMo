@@ -327,8 +327,11 @@ class InpainterModel(ModelPT, Exportable):
         # at the edge of the spectrogram
         mel_masks = self.make_spectrogram_mask(mels, spec_len)
         mels_masked = mels * mel_masks
-        negative_mask = -14 * (1 - mel_masks)
-        mels_masked += negative_mask
+
+        # below code to make the blank spectrogram "quiet" instead of 0
+        # intensity which is essentially max volume for a mel spectrogram
+        # negative_mask = -14 * (1 - mel_masks)
+        # mels_masked += negative_mask
 
         mels_pred, alignment_outputs = self(
             transcripts=text,
@@ -345,7 +348,7 @@ class InpainterModel(ModelPT, Exportable):
         mse_loss = self.mse_loss(
             spect_predicted=mels_pred, spect_tgt=mels)
         # TODO make this a parameter
-        reconstruction_loss = (1000 * gap_loss) + mse_loss
+        reconstruction_loss = (100 * gap_loss) + mse_loss
 
         (attn_logprob, attn_soft, attn_hard) = alignment_outputs
         ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
