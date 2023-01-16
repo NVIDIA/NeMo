@@ -39,14 +39,14 @@ class SaveRestoreConnector:
         self._model_weights_ckpt = "model_weights.ckpt"
         self._model_extracted_dir = None
 
-    def save_to(self, model: nemo_classes.ModelPT, save_path: str):
+    def save_to(self, model: "nemo_classes.ModelPT", save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file.
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_wights.ckpt - model checkpoint
 
         Args:
             model: ModelPT object to be saved.
@@ -58,6 +58,7 @@ class SaveRestoreConnector:
                 config_yaml = os.path.join(tmpdir, self.model_config_yaml)
                 model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 model.to_config_file(path2yaml_file=config_yaml)
+                # update subconfigs, if there are child model, since child model can change its config
                 self._update_subconfigs(model, path2yaml_file=config_yaml)
                 if model.has_native_or_submodules_artifacts():
                     self._handle_artifacts(model, nemo_file_folder=tmpdir)
@@ -454,9 +455,9 @@ class SaveRestoreConnector:
                 submodule_restoration_path = app_state.get_model_metadata_from_guid(module.model_guid).restoration_path
                 if submodule_restoration_path is not None:
                     restoration_paths.append(submodule_restoration_path)
-        if tarfile_artifacts and not restoration_paths:
+        if len(tarfile_artifacts) > 0 and len(restoration_paths) == 0:
             logging.warning("Model contains registered artifacts, but no restoration paths found")
-        if tarfile_artifacts and restoration_paths:
+        if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
@@ -488,7 +489,8 @@ class SaveRestoreConnector:
                 # change back working directory
                 os.chdir(cwd)
 
-    def _update_subconfigs(self, model, path2yaml_file):
+    @staticmethod
+    def _update_subconfigs(model, path2yaml_file):
         """
         Update subconfigs of the model if ModelPT has submodules
         Should be called before updating artifacts paths

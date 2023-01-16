@@ -114,11 +114,17 @@ class MockModelWithChildren(MockModel):
     def __init__(self, cfg, trainer=None):
         super().__init__(cfg=cfg, trainer=trainer)
 
+        # variant 1 for creating nested NeMo model:
+        # - create a child model from .nemo checkpoint (from `*_model_path`)
+        # - assign config to indicate that this model should be saved/restored
+        # - when model is restored, parent and children will be restored from a signle parent `.nemo` checkpoint
+        # variant 2 for creating nested NeMo model: load directly from config
+
         # child 1
         if cfg.get('child1_model_path') is None and cfg.get('child1_model') is None:
             self.child1_model = None
         else:
-            # if `child1_model_path` is set, model should be restored from nemo checkpoint
+            # if `child1_model_path` is set, model should be restored from .nemo model checkpoint
             # otherwise model is constructed from config in `child1_model`
             if cfg.get('child1_model_path') is not None:
                 self.child1_model = ModelPT.restore_from(cfg.child1_model_path)
@@ -133,7 +139,7 @@ class MockModelWithChildren(MockModel):
         if cfg.get('child2_model_path') is None and cfg.get('child2_model') is None:
             self.child2_model = None
         else:
-            # if `child2_model_path` is set, model should be restored from nemo checkpoint
+            # if `child2_model_path` is set, model should be restored from .nemo model checkpoint
             # otherwise model is constructed from config in `child2_model`
             if cfg.get('child2_model_path') is not None:
                 self.child2_model = ModelPT.restore_from(cfg.child2_model_path)
@@ -152,13 +158,15 @@ def _mock_model_config():
     return conf
 
 
-def _mock_model_with_children_config(child1_model_path: Optional[str], child2_model_path: Optional[str]) -> DictConfig:
+def _mock_model_with_children_config(
+    child1_model_path: Optional[str], child2_model_path: Optional[str], child2_model_cfg: Optional[DictConfig] = None
+) -> DictConfig:
     conf = {
         'temp_file': None,
         'target': classpath(MockModelWithChildren),
         'child1_model': None,
         'child1_model_path': child1_model_path,
-        'child2_model': None,
+        'child2_model': child2_model_cfg,
         'child2_model_path': child2_model_path,
     }
     conf = OmegaConf.create({'model': conf})
@@ -621,10 +629,17 @@ class TestSaveRestore:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("change_child_number", [False, True])
-    def test_mock_model_nested(self, change_child_number: bool):
+    @pytest.mark.parametrize("child2_model_from_path", [False, True])
+    def test_mock_model_nested(self, change_child_number: bool, child2_model_from_path: bool):
         """
         Test model with 2 children: model and each child can be saved/restored separately
-        model is constructed from presaved models
+        Model is constructed using saved child models (.nemo checkpoints)
+
+        Args:
+            change_child_resource: if change_child_number is True, child model changes its config
+                without notifying parent model, and saved parent model should handle this correctly.
+            child2_model_from_path: if child2_model_from_path is True, child2 model is restored from .nemo checkpoint,
+                otherwise constructed directly from config. Child1 model always loaded from checkpoint.
         """
         # children - simple mock models
         cfg_child1 = _mock_model_config()
@@ -633,21 +648,27 @@ class TestSaveRestore:
         # Create models
         child1 = MockModel(cfg=cfg_child1.model, trainer=None)
         child1 = child1.to('cpu')
-        child2 = MockModel(cfg=cfg_child2.model, trainer=None)
-        child2 = child2.to('cpu')
         with tempfile.TemporaryDirectory() as tmpdir_parent:
             parent_path = os.path.join(tmpdir_parent, "parent.nemo")
             with tempfile.TemporaryDirectory() as tmpdir_child:
                 # save children
                 child1_path = os.path.join(tmpdir_child, 'child1.nemo')
                 child1.save_to(child1_path)
-                child2_path = os.path.join(tmpdir_child, 'child2.nemo')
-                child2.save_to(child2_path)
+                if child2_model_from_path:
+                    child2 = MockModel(cfg=cfg_child2.model, trainer=None)
+                    child2 = child2.to('cpu')
+                    child2_path = os.path.join(tmpdir_child, 'child2.nemo')
+                    child2.save_to(child2_path)
 
-                # create model with children using saved "nemo" checkpoints
-                cfg_parent = _mock_model_with_children_config(
-                    child1_model_path=child1_path, child2_model_path=child2_path
-                )
+                    # create model with children using saved .nemo model checkpoints
+                    cfg_parent = _mock_model_with_children_config(
+                        child1_model_path=child1_path, child2_model_path=child2_path
+                    )
+                else:
+                    # child 2 model will be directly constructed from subconfig
+                    cfg_parent = _mock_model_with_children_config(
+                        child1_model_path=child1_path, child2_model_path=None, child2_model_cfg=cfg_child2.get("model")
+                    )
 
                 parent = MockModelWithChildren(cfg_parent.model)
                 if change_child_number:
@@ -668,12 +689,17 @@ class TestSaveRestore:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("change_child_resource", [False, True])
-    def test_mock_model_nested_with_resources(self, change_child_resource: bool):
+    @pytest.mark.parametrize("child2_model_from_path", [False, True])
+    def test_mock_model_nested_with_resources(self, change_child_resource: bool, child2_model_from_path: bool):
         """
         Test nested model with 2 children: model and each child can be saved/restored separately
         child models and parent model itself contain resources
-        model is constructed from presaved models
-        if change_child_resource is True, child model resources are changed after instantiation parent model
+
+        Args:
+            change_child_resource: if change_child_number is True, child model changes its config
+                without notifying parent model, and saved parent model should handle this correctly.
+            child2_model_from_path: if child2_model_from_path is True, child2 model is restored from .nemo checkpoint,
+                otherwise constructed directly from config. Child1 model always loaded from checkpoint.
         """
         with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile(
             'w'
@@ -703,8 +729,6 @@ class TestSaveRestore:
             # create child models
             child1 = MockModel(cfg=cfg_child1.model, trainer=None)
             child1 = child1.to('cpu')
-            child2 = MockModel(cfg=cfg_child2.model, trainer=None)
-            child2 = child2.to('cpu')
 
             with tempfile.TemporaryDirectory() as tmpdir_parent:
                 parent_path = os.path.join(tmpdir_parent, "parent.nemo")
@@ -712,13 +736,24 @@ class TestSaveRestore:
                     # save children
                     child1_path = os.path.join(tmpdir_child, 'child1.nemo')
                     child1.save_to(child1_path)
-                    child2_path = os.path.join(tmpdir_child, 'child2.nemo')
-                    child2.save_to(child2_path)
+                    if child2_model_from_path:
+                        child2 = MockModel(cfg=cfg_child2.model, trainer=None)
+                        child2 = child2.to('cpu')
+                        child2_path = os.path.join(tmpdir_child, 'child2.nemo')
+                        child2.save_to(child2_path)
 
-                    # create model with children using saved "nemo" checkpoints
-                    cfg_parent = _mock_model_with_children_config(
-                        child1_model_path=child1_path, child2_model_path=child2_path
-                    )
+                        # create model with children using saved .nemo model checkpoints
+                        cfg_parent = _mock_model_with_children_config(
+                            child1_model_path=child1_path, child2_model_path=child2_path
+                        )
+                    else:
+                        # child 2 model will be directly constructed from subconfig
+                        cfg_parent = _mock_model_with_children_config(
+                            child1_model_path=child1_path,
+                            child2_model_path=None,
+                            child2_model_cfg=cfg_child2.get("model"),
+                        )
+
                     cfg_parent.model.temp_file = file_parent.name  # add resource
                     parent = MockModelWithChildren(cfg_parent.model)
                     if change_child_resource:
