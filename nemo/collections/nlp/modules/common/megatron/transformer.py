@@ -554,8 +554,14 @@ class CoreAttention(MegatronModule):
 
         if relative_position_bias is not None:
             # attention_scores += relative_position_bias[
-            # FIXME: test effect on alibi
-            attention_scores += attention_scores * relative_position_bias[
+            #     :,
+            #     self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
+            #     + self.num_attention_heads_per_partition,
+            #     : attention_scores.size(2),
+            #     : attention_scores.size(3),
+            # ]
+            
+            attention_mask = attention_mask + relative_position_bias[
                 :,
                 self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
                 + self.num_attention_heads_per_partition,
