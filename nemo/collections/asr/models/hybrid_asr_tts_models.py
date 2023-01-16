@@ -67,6 +67,7 @@ class TextDataConfig:
     """
     Text dataset subconfig for text-only dataset
     """
+
     manifest_filepath: MISSING
     speakers_filepath: MISSING
     min_words = 1
