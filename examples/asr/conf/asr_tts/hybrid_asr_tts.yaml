@@ -1,6 +1,6 @@
-# It contains the default values for training a Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
+# Hybrid ASR-TTS model config to instantiate model from pretrained asr_model_path and tts_model_path .nemo checkpoints
 
-name: "Conformer-Transducer-BPE-With-TTS"
+name: "Hybrid-Model-ASR-With-TTS"
 
 model:
   sample_rate: 16000
@@ -16,15 +16,15 @@ model:
   enhancer_model: null
 
   # options
-  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if intantiating from config, otherwise type is auto inferred
-  asr_model_fuse_bn: false  # only ConformerEncoder supported now, replace with false for other models
+  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if instantiating from config, otherwise type is auto inferred
+  asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
 
   train_ds:
     text_data:
       manifest_filepath: ???
       speakers_filepath: ???
       min_words: 1
-      max_words: 45
+      max_words: 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
       tokenizer_workers: 1
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}

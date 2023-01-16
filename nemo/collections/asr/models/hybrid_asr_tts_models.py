@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
@@ -55,9 +55,8 @@ def _fuse_bn_in_conformer(asr_model: ASRModel):
     if "conv_norm_type" not in asr_model.cfg.encoder:
         # old CTC models from NGC don't have such param
         logging.warning("conv_norm_type not in encoder config, adding parameter")
-        OmegaConf.set_struct(asr_model.cfg, False)
-        asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
-        OmegaConf.set_struct(asr_model.cfg, True)
+        with open_dict(asr_model.cfg):
+            asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
     else:
         asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
 
@@ -104,13 +103,12 @@ class ASRWithTTSModel(ASRModel):
         # setup datasets and optimizer after model is fully initialized
         # since it's done automatically, remove options from config
         cfg = copy.deepcopy(cfg)
-        OmegaConf.set_struct(cfg, False)
         # avoid dataset and optim setup here
-        train_ds_cfg = cfg.pop("train_ds", None)
-        validation_ds_cfg = cfg.pop("validation_ds", None)
-        test_ds_cfg = cfg.pop("test_ds", None)
-        optim_cfg = cfg.pop("optim", None)
-        OmegaConf.set_struct(cfg, True)
+        with open_dict(cfg):
+            train_ds_cfg = cfg.pop("train_ds", None)
+            validation_ds_cfg = cfg.pop("validation_ds", None)
+            test_ds_cfg = cfg.pop("test_ds", None)
+            optim_cfg = cfg.pop("optim", None)
 
         super().__init__(cfg, trainer=trainer)
 
@@ -154,22 +152,21 @@ class ASRWithTTSModel(ASRModel):
 
         # initialize optimizer and datasets, asr/tts models are initialized here
         if optim_cfg:
-            OmegaConf.set_struct(self.cfg, False)
-            self.cfg.optim = optim_cfg
+            with open_dict(self.cfg):
+                self.cfg.optim = optim_cfg
             self.setup_optimization(optim_config=optim_cfg)
         if train_ds_cfg:
-            OmegaConf.set_struct(self.cfg, False)
-            self.cfg.train_ds = train_ds_cfg
+            with open_dict(self.cfg):
+                self.cfg.train_ds = train_ds_cfg
             self.setup_training_data(train_data_config=train_ds_cfg)
         if validation_ds_cfg:
-            OmegaConf.set_struct(self.cfg, False)
-            self.cfg.validation_ds = validation_ds_cfg
+            with open_dict(self.cfg):
+                self.cfg.validation_ds = validation_ds_cfg
             self.setup_multiple_validation_data(val_data_config=validation_ds_cfg)
         if test_ds_cfg:
-            OmegaConf.set_struct(self.cfg, False)
-            self.cfg.test_ds = test_ds_cfg
+            with open_dict(self.cfg):
+                self.cfg.test_ds = test_ds_cfg
             self.setup_test_data(test_data_config=test_ds_cfg)
-        OmegaConf.set_struct(self.cfg, True)
 
     @classmethod
     def from_asr_config(
@@ -201,10 +198,10 @@ class ASRWithTTSModel(ASRModel):
         )
 
         asr_cfg = copy.deepcopy(asr_cfg)  # copy not to avoid original config
-        OmegaConf.set_struct(asr_cfg, False)
-        for subconfig_path in ["optim", "train_ds", "validation_ds", "test_ds"]:
-            if subconfig_path in asr_cfg:
-                cfg[subconfig_path] = asr_cfg.pop(subconfig_path)
+        with open_dict(asr_cfg):
+            for subconfig_path in ["optim", "train_ds", "validation_ds", "test_ds"]:
+                if subconfig_path in asr_cfg:
+                    cfg[subconfig_path] = asr_cfg.pop(subconfig_path)
         cfg.asr_model = asr_cfg
         return cls(cfg=cfg, trainer=trainer)
 
@@ -407,7 +404,7 @@ class ASRWithTTSModel(ASRModel):
             concat_kwargs = dict()
             if "asr_tts_sampling_technique" in text_data_config:
                 concat_kwargs["sampling_technique"] = text_data_config.asr_tts_sampling_technique
-            if "asr_tts_sampling_technique" in text_data_config:
+            if "asr_tts_sampling_temperature" in text_data_config:
                 concat_kwargs["sampling_temperature"] = text_data_config.asr_tts_sampling_temperature
             if "asr_tts_sampling_probabilities" in text_data_config:
                 concat_kwargs["sampling_probabilities"] = text_data_config.asr_tts_sampling_probabilities
@@ -440,7 +437,7 @@ class ASRWithTTSModel(ASRModel):
         )
 
     def _setup_text_dataset_from_config(
-        self, train_data_config: Optional[Union[DictConfig, Dict]], iterable=True
+        self, train_data_config: DictConfig, iterable=True
     ) -> Union[TextToTextDataset, TextToTextIterableDataset]:
         """
         Construct text-to-text (text-only) dataset from config.
