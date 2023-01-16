@@ -14,11 +14,12 @@
 
 import copy
 import itertools
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
@@ -59,6 +60,21 @@ def _fuse_bn_in_conformer(asr_model: ASRModel):
             asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
     else:
         asr_model.cfg.encoder.conv_norm_type = "fused_batch_norm"
+
+
+@dataclass
+class TextDataConfig:
+    """
+    Text dataset subconfig for text-only dataset
+    """
+    manifest_filepath: MISSING
+    speakers_filepath: MISSING
+    min_words = 1
+    max_words = 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
+    tokenizer_workers = 1
+    asr_tts_sampling_technique: Optional[str] = None
+    asr_tts_sampling_temperature: Optional[int] = None
+    asr_tts_sampling_probabilities: Optional[List[float]] = None
 
 
 class ASRWithTTSModel(ASRModel):
@@ -400,13 +416,13 @@ class ASRWithTTSModel(ASRModel):
             tts_dataset = None
 
         if tts_dataset and asr_dataset:
-            text_data_config = train_data_config.text_data
+            text_data_config: TextDataConfig = OmegaConf.structured(TextDataConfig).merge(train_data_config.text_data)
             concat_kwargs = dict()
-            if "asr_tts_sampling_technique" in text_data_config:
+            if text_data_config.asr_tts_sampling_technique is not None:
                 concat_kwargs["sampling_technique"] = text_data_config.asr_tts_sampling_technique
-            if "asr_tts_sampling_temperature" in text_data_config:
+            if text_data_config.asr_tts_sampling_temperature is not None:
                 concat_kwargs["sampling_temperature"] = text_data_config.asr_tts_sampling_temperature
-            if "asr_tts_sampling_probabilities" in text_data_config:
+            if text_data_config.asr_tts_sampling_probabilities:
                 concat_kwargs["sampling_probabilities"] = text_data_config.asr_tts_sampling_probabilities
 
             if dataset_iterable:
@@ -449,9 +465,7 @@ class ASRWithTTSModel(ASRModel):
         Returns:
             text-to-text dataset of TextToTextDataset or TextToTextIterableDataset type
         """
-        # expected fields for text_data: manifest_filepath, speakers_filepath, min_words, max_words
-        # + optional tokenizer_workers
-        text_data_config = train_data_config.text_data
+        text_data_config: TextDataConfig = OmegaConf.structured(TextDataConfig).merge(train_data_config.text_data)
         if iterable:
             textonly_ds = TextToTextIterableDataset(
                 manifest_filepath=text_data_config.manifest_filepath,
@@ -464,7 +478,7 @@ class ASRWithTTSModel(ASRModel):
                 tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
                 min_words=text_data_config.min_words,
                 max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
-                tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
+                tokenizer_workers=text_data_config.tokenizer_workers,
                 num_parts=self.world_size,
                 current_part_index=self.global_rank,
             )
@@ -480,7 +494,7 @@ class ASRWithTTSModel(ASRModel):
                 tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
                 min_words=text_data_config.min_words,
                 max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
-                tokenizer_workers=text_data_config.get('tokenizer_workers', 1),
+                tokenizer_workers=text_data_config.tokenizer_workers,
             )
         return textonly_ds
 
