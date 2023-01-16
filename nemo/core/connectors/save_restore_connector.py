@@ -19,7 +19,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Optional, Union
+from typing import Optional, Set, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -445,16 +445,16 @@ class SaveRestoreConnector:
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
         # artifacts can be native (from the model itself) and from submodules
-        restoration_paths = []  # model + submodules restoration paths
+        restoration_paths: Set[str] = set()  # model + submodules restoration paths, handle only unique paths
         model_metadata = app_state.get_model_metadata_from_guid(model.model_guid)
         if model_metadata.restoration_path is not None:
-            restoration_paths.append(model_metadata.restoration_path)
+            restoration_paths.add(model_metadata.restoration_path)
         # aggregate restoration paths for all submodules recursively
         for module in model.modules():
             if isinstance(module, nemo_classes.ModelPT):  # if NeMo model
                 submodule_restoration_path = app_state.get_model_metadata_from_guid(module.model_guid).restoration_path
                 if submodule_restoration_path is not None:
-                    restoration_paths.append(submodule_restoration_path)
+                    restoration_paths.add(submodule_restoration_path)
         if len(tarfile_artifacts) > 0 and len(restoration_paths) == 0:
             logging.warning("Model contains registered artifacts, but no restoration paths found")
         if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
