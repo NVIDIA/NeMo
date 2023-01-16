@@ -52,12 +52,13 @@ You can use the NeMo script to download MCV dataset from Hugging Face and get Ne
     
     # Repeat script execution three times for variable SPLIT = test, validation, and train.
     
-    python ${NEMO_ROOT}/docs/source/asr/examples/esperanto_asr/scripts/convert_hf_dataset_to_nemo_v2.py \
+    python ${NEMO_ROOT}/scripts/speech_recognition/convert_hf_dataset_to_nemo.py \
         output_dir=${OUTPUT_DIR} \
         path="mozilla-foundation/common_voice_11_0" \
         name="eo" \
         split=${SPLIT} \
-        use_auth_token=True
+        use_auth_token=True \
+        +mcv_asr_dataset=True
 
 You will get the next data structure:
 
