@@ -45,17 +45,9 @@ __all__ = ['MegatronNMTRetrievalModel']
 
 class MegatronNMTRetrievalModel(MegatronNMTModel):
     """
-    Proposed Retrieval-Model for NMT by conditioning on Perceiver embeddings
-    Things to implement:
-    > condition on perceiver embeddings during val/test
-    > condition on raw text only
-    > Figure out max_seq_length constraint is satisfied or not
-
-    Second step
-    > Implement cross attention style
-    > Do monolingual stuff using retro
+    Retrieval-Model for NMT by conditioning on neighbors as "text" or "perceiver-embeddings"
     """
-
+    
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         
@@ -96,13 +88,13 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             encoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
             decoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
             no_oversample=True,
-            )
+        )
         self._train_ds = RetrievalSeq2Seq(
             self._train_without_neighbors_ds,
             self._retrieval_ds,
             self._cfg.train_ds.nn_mapping,
             self._cfg.train_ds.num_neighbors,
-            text_append_mode=self._cfg.retriever.type =='text',
+            text_append_mode=self._cfg.retriever.type == 'text',
             copy_prob=self._cfg.retriever.copy_prob,
             mask_prob=self._cfg.retriever.mask_prob,
         )
@@ -110,7 +102,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
             raise ValueError(f"Validation dataset must be text_memmap for RetrievalNMT models, found {self._cfg.validation_ds.dataset_type}")
         
-        #! FIX tHIS
         self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(
             self._cfg.validation_ds,
             no_oversample=True
@@ -345,10 +336,13 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             predicted_tokens_ids, _ = self.decode(
                 tokens_enc,
                 enc_mask,
-                min(self._cfg.train_ds.max_seq_length, tokens_enc.size(1)
-                + self._cfg.max_generation_delta),  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                min(
+                    self._cfg.train_ds.max_seq_length, 
+                    tokens_enc.size(1) + self._cfg.max_generation_delta
+                ),  #TODO: Implement better stopping when everything hits <EOS>.
                 tokenizer=self.decoder_tokenizer,
             )
+            # BUG here as <nn_tgt> appended is processed using the source processor
             encoder_inputs = self.postprocess_outputs(
                 outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
             )
@@ -408,6 +402,141 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             'loss': reduced_loss,
         }
 
+    @torch.no_grad()
+    def translate(
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
+        neighbors: List[int] = None, # list of neighbor indices
+    ) -> List[str]:
+        """
+        Translates list of sentences from source language to target language.
+        Should be regular text, this method performs its own tokenization/de-tokenization
+        !NOTE!: For retrieval models, Assumptions
+        1. shared src/tgt tokenizer so nn_src and nn_tgt can be tokenized by src tokenizer only
+        2. retrieval_db_src/tgt are moses-tokenized ( TODO: Work on generalization)
+        Args:
+            text: list of strings to translate
+            source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not "ignore", corresponding MosesDecokenizer will be run
+            return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            log_timing: if True, prints timing information.
+        Returns:
+            list of translated strings
+        """
+        # __TODO__: This will reset both source and target processors even if you want to reset just one.
+        # NOTE: This will also set up appropriate source and target processors for a given src/tgt language for multilingual models instead of creating a list of them.
+        if source_lang is not None or target_lang is not None:
+            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
+                source_lang, target_lang, self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            )
+        
+        # Check if retrieval_ds exists
+        assert self._retrieval_ds is not None, "Retrieval dataset not found. Please run setup_retrieval_dataset() first."
+
+        mode = self.training
+        prepend_ids = []
+        if self.multilingual:
+            if source_lang is None or target_lang is None:
+                raise ValueError("Expect source_lang and target_lang to run inference for multilingual model.")
+            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+            if src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
+            elif tgt_symbol in self.multilingual_ids:
+                prepend_ids = [tgt_symbol]
+
+        if log_timing:
+            timer = timers.NamedTimer()
+        else:
+            timer = None
+
+        cache = {
+            "timer": timer,
+        }
+
+        try:
+            self.eval()
+            # Using old code so it has legacy retrieval implementation
+            ret_enc_add = []
+            for i in range(len(text)):
+                to_add = []
+                for neighbor in neighbors[i]:
+                    element = self._retrieval_ds[neighbor]
+                    to_add.extend([self.nn_start_tag] + element['text_enc'].tolist()[1:-1]) # remove start and end tags
+                    to_add.extend([self.nn_end_tag] + element['text_dec'].tolist()[1:]) # remove start tag
+                ret_enc_add.append(to_add)
+            
+            src, src_mask, _ = MTEncDecModel.prepare_inference_batch(
+                text=text,
+                prepend_ids=prepend_ids,
+                target=False,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device,
+                ret_enc_add=ret_enc_add,
+            )
+            # add logic to add neighbors to the src here or modify prepare_inference_batch
+            predicted_tokens_ids, _ = self.decode(
+                src,
+                src_mask,
+                min(
+                    self._cfg.train_ds.max_seq_length, # might not exist substitute with 512
+                    src.size(1) + self._cfg.max_generation_delta
+                ),  #TODO: Implement better stopping when everything hits <EOS>.
+                tokenizer=self.decoder_tokenizer,
+            )
+            
+            best_translations = self.postprocess_outputs(
+                outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
+            )
+            ret_enc_add = self.postprocess_outputs(
+                outputs=[i for i in ret_enc_add] , tokenizer=self.encoder_tokenizer, processor=self.source_processor
+            )
+            return_val = best_translations, ret_enc_add
+        finally:
+            self.train(mode=mode)
+
+        if log_timing:
+            timing = timer.export()
+            timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            tgt, tgt_mask = self.prepare_inference_batch(
+                text=best_translations,
+                prepend_ids=prepend_ids,
+                target=True,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device,
+            )
+            timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
+
+            if type(return_val) is tuple:
+                return_val = return_val + (timing,)
+            else:
+                return_val = (return_val, timing)
+
+        return return_val
+
+    def setup_retrieval_dataset(self, cfg: DictConfig):
+        """Setup the retrieval dataset during inference"""
+        # TODO: For 'perceiver' check if retrieval_encoder exisits
+        self._retrieval_ds = self.build_memmap_dataset_from_config(
+            cfg.retrieval_ds,
+            encoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
+            decoder_tokenizer=self.retrieval_encoder.tokenizer if self._cfg.retriever.type =='perceiver' else None,
+            no_oversample=True,
+        )
+        self.nn_start_tag = self._retrieval_ds.src_tokenizer.token_to_id('▁<extra_id_0>')
+        self.nn_end_tag = self._retrieval_ds.src_tokenizer.token_to_id('▁<extra_id_1>')
+        return
+
 class RetrievalSeq2Seq(Dataset):
     """
     This class defines dataset for retrieval Seq2Seq model.    
@@ -466,7 +595,9 @@ class RetrievalSeq2Seq(Dataset):
         nn_src_list = []
         nn_tgt_list = []
         num_iters = self.num_neighbors
-        if np.random.uniform(0,1) < self.copy_prob:
+        
+        if (idx_mapped % 100 + 1)/100 <= self.copy_prob:
+        # if np.random.uniform(0,1) < self.copy_prob:
             # Add copy example
             nn_src_list.append(data_item['text_enc'].tolist())
             # 'text_dec' doesn't have eos
@@ -482,16 +613,16 @@ class RetrievalSeq2Seq(Dataset):
         
         # If text_append_mode add the original text to the end of the neighbors and remove neighbors
         if self.text_append_mode:
-            data_item['text_enc']= data_item['text_enc'].tolist()
+            data_item['text_enc'] = data_item['text_enc'].tolist()
             data_item['text_dec'] = data_item['text_dec'].tolist()
             # Add neighbors only if not masking
-            if np.random.uniform(0,1) >= self.mask_prob:
+            if (idx_mapped % 100 + 1)/100 <= 1 - self.mask_prob:
                 # Need to remove <eos> from src and <bos> and <eos> from the neighbors
                 assert self.seq2seq_text_memmap_dataset.tgt_tokenizer.eos_id == data_item['text_enc'][-1]
                 # Remove eos_id
                 data_item['text_enc'] = data_item['text_enc'][:-1]
                 shuffled_idxes = list(range(self.num_neighbors))
-                random.shuffle(shuffled_idxes)
+                # random.shuffle(shuffled_idxes)
                 for idx in shuffled_idxes:
                     data_item['text_enc'].extend([self.nn_start_tag] + nn_src_list[idx][1:-1])
                     data_item['text_enc'].extend([self.nn_end_tag] + nn_tgt_list[idx][1:-1])

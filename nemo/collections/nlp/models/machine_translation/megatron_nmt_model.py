@@ -243,8 +243,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
         # Convert ids to lists.
-        outputs = outputs.cpu().numpy().tolist()
-
+        try:
+            outputs = outputs.cpu().numpy().tolist()
+        except:
+            # hack if outputs is a list of lists of token_ids
+            pass
         # Filter out the special tokens and de-tokenize.
         results = []
         for item in outputs:

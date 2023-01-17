@@ -1120,8 +1120,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         decoder_tokenizer=None,
         device=None,
     ):
-        print('preparing inference batch')
+        """
+        Prepares a batch of text for inference
+        Additionally for retrieval & only for "text" mode for now:
+        ret_enc_add: List of lists of ids to prepend to encoder input
+        ret_dec_add: List of lists of ids to prepend to decoder input (Legacy. Better to add everything to encoder only)
         # TODO: Right now assuming `ret_enc_add` & `ret_dec_add` are processed and tokenized. Can change later
+        """
+        print('preparing inference batch')
+       
         inputs = []
         decoder_inputs = []
         processor = source_processor if not target else target_processor
@@ -1132,15 +1139,14 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 txt = processor.tokenize(txt)
             ids = tokenizer.text_to_ids(txt)
             if ret_enc_add:
-                # TODO: Handle multiple nn case
-                ids =  prepend_ids + ret_enc_add[i] + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
+                ids =  prepend_ids + [tokenizer.bos_id] + ids + ret_enc_add[i] + [tokenizer.eos_id]
             else:
                 ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
             inputs.append(ids)
 
             # Add decoder input for decoder initialization
             if ret_dec_add:
-                decoder_inputs.append(ret_dec_add[i] + [tokenizer.bos_id])
+                decoder_inputs.append(ret_dec_add[i] + [tokenizer.bos_id]) # this seems weird. adding bos later
 
         max_len = max(len(txt) for txt in inputs)
         src_ids_ = np.ones((len(inputs), max_len)) * tokenizer.pad_id
@@ -1150,6 +1156,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         src_mask = torch.FloatTensor((src_ids_ != tokenizer.pad_id)).to(device)
         src = torch.LongTensor(src_ids_).to(device)
         if ret_dec_add:
+            # Legacy. Better to add everything to encoder only
             decoder_max_len = max(len(txt) for txt in decoder_inputs)
             decoder_src_ids_ = np.ones((len(decoder_inputs), decoder_max_len)) * tokenizer.pad_id
             for i, txt in enumerate(decoder_inputs):
