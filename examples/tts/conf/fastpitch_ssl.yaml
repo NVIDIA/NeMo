@@ -8,6 +8,7 @@ train_dataset: ???
 validation_datasets: ???
 ssl_model_ckpt_path: ???
 hifi_ckpt_path: ???
+sup_data_dir: null
 
 # LJSpeech stats (per frame)
 # ignored if pitch_normalization: speaker_wise
@@ -78,6 +79,7 @@ model:
       max_duration: 16.0
       pad_multiple: 1024
       speaker_conditioning_type: ${speaker_conditioning_type}
+      sup_data_dir: ${sup_data_dir}
 
     dataloader_params:
       drop_last: false
@@ -101,6 +103,7 @@ model:
       max_duration: 16.0
       pad_multiple: 1024
       speaker_conditioning_type: ${speaker_conditioning_type}
+      sup_data_dir: ${sup_data_dir}
 
     dataloader_params:
       drop_last: false

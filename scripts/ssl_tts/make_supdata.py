@@ -27,7 +27,6 @@ import torch
 from omegaconf import open_dict
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
@@ -36,18 +35,29 @@ from nemo.utils import logging
 
 
 class AudioDataset(Dataset):
-    def __init__(self, manifest_path, min_duration=0.5, max_duration=16.0, pad_multiple=1024, sample_rate=22050):
-        self.manifest_path = manifest_path
+    def __init__(
+        self,
+        manifest_paths,
+        min_duration=0.5,
+        max_duration=16.0,
+        pad_multiple=1024,
+        sample_rate=22050,
+        sup_data_dir=None,
+    ):
         self.data = []
-        with open(manifest_path, "r") as f:
-            for line in f:
-                record = json.loads(line)
-                if record['duration'] < min_duration or record['duration'] > max_duration:
-                    continue
-                self.data.append(json.loads(line))
+        for manifest_path in manifest_paths:
+            with open(manifest_path, "r") as f:
+                for line in f:
+                    record = json.loads(line)
+                    if record['duration'] < min_duration or record['duration'] > max_duration:
+                        continue
+                    self.data.append(json.loads(line))
 
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
-        self.sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
+        if sup_data_dir is not None:
+            self.sup_data_dir = sup_data_dir
+        else:
+            self.sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
         if not os.path.exists(self.sup_data_dir):
             os.makedirs(self.sup_data_dir)
 
@@ -261,7 +271,8 @@ def main():
     parser.add_argument(
         '--ssl_model_ckpt_path', type=str, required=True,
     )
-    parser.add_argument('--manifest_path', type=str, required=True)
+    parser.add_argument('--manifest_paths', type=str, required=True)
+    parser.add_argument('--sup_data_dir', type=str, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
     parser.add_argument('--use_unique_tokens', type=int, default=1)
@@ -287,10 +298,12 @@ def main():
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-    manifest_path = args.manifest_path
+    manifest_paths = args.manifest_paths.split(",")
     ssl_model_ckpt_path = args.ssl_model_ckpt_path
 
-    dataset = AudioDataset(manifest_path, pad_multiple=args.pad_multiple, sample_rate=args.sample_rate)
+    dataset = AudioDataset(
+        manifest_paths, pad_multiple=args.pad_multiple, sample_rate=args.sample_rate, sup_data_dir=args.sup_data_dir
+    )
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -428,7 +441,6 @@ def main():
                     unique_content_embedding = torch.stack(unique_content_embeddings)
                     final_content_embedding = unique_content_embedding.t()
                     duration = torch.tensor(durations).float()
-                    encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
                 mel_len = int(batch['audio_len'][idx].item() / stft_params['hop_length'])
                 item_mel = batch_mel_specs[idx][:, :mel_len]

@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import random
-from logging import ERROR, getLogger
-from typing import Iterable, Optional
+from typing import Iterable
 
 import torch
 from hydra.utils import instantiate
@@ -22,16 +20,12 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
-from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_features
 from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import MelSpectrogramType
-from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 

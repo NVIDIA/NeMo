@@ -1393,6 +1393,7 @@ class FastPitchSSLDataset(Dataset):
 
         if pitch_contour is not None:
             if self.pitch_normalization in ["speaker_wise", "global"]:
+                mean, std = self.pitch_mean, self.pitch_std
                 if self.pitch_normalization == "speaker_wise":
                     mean = self.speaker_stats[sample["speaker"]]["pitch_mean"]
                     std = self.speaker_stats[sample["speaker"]]["pitch_std"]

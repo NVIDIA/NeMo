@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from concurrent.futures import process
 from dataclasses import dataclass
 from typing import Dict, Iterable, Optional, Union
 
@@ -21,18 +20,16 @@ import librosa
 import torch
 import torch.nn as nn
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.supporters import CombinedLoader
 
 import nemo.collections.tts.torch.data as TTSData
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
-from nemo.collections.asr.models import ssl_models
-from nemo.collections.asr.parts.preprocessing import features
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -425,8 +422,8 @@ class SSLDisentangler(ModelPT):
             sch2.step()
 
         if self.trainer.global_step % 10 == 0:
-            self.log("lr backbone", optim_backbone.param_groups[0]['lr'])
-            self.log("lr downstream", optim_downstream.param_groups[0]['lr'])
+            self.log("lr_backbone", optim_backbone.param_groups[0]['lr'])
+            self.log("lr_downstream", optim_downstream.param_groups[0]['lr'])
             self.log("t_loss", loss)
 
     def validation_step(self, batch, batch_idx):
