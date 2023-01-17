@@ -27,10 +27,6 @@ def load_prompt_model(virtual_prompt_model_file):
         prompt_learning_cfg.save_nemo_on_validation_end = False
         prompt_learning_cfg.micro_batch_size = 1
         prompt_learning_cfg.global_batch_size = 1
-        if prompt_learning_cfg.language_model_path.startswith("/home/adithyare"):
-            pass
-        else:
-            prompt_learning_cfg.language_model_path = "/home/adithyare" + prompt_learning_cfg.language_model_path
 
     model = MegatronGPTPromptLearningModel.restore_from(
         restore_path=virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
