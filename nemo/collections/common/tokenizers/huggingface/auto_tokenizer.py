@@ -62,9 +62,6 @@ class AutoTokenizer(TokenizerSpec):
         """
         try:
             # this logic deals with different huggingface tokenizers having different positional args
-            print("vocab_file: ", vocab_file)
-            print("pretrained_model_name_or_path: ", pretrained_model_name_or_path)
-            print("merges_file: ", merges_file)
             if vocab_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
                     pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast,
