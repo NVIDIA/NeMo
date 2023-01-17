@@ -113,7 +113,7 @@ class HFDatasetConvertionConfig:
     streaming: bool = False  # Whether to use Streaming dataset API. [NOT RECOMMENDED]
     num_proc: int = -1
     mcv_asr_dataset: bool = False  # use "True" for Mozilla Common Voice ASR dataset in "streaming"=False mode
-    # it preserves only free fields for nemo manifest: ["audio_filepath", "duration", "sentence"] and uses ensure_ascii=False for json.dumps
+                                   # it preserves only free fields for nemo manifest: ["audio_filepath", "duration", "sentence"] and uses ensure_ascii=False for json.dumps  
 
     # Placeholders. Generated internally.
     resolved_output_dir: str = ''
