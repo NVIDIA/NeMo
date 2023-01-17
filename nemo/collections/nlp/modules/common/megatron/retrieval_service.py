@@ -225,9 +225,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                 index = self.index
                 if hasattr(faiss, 'index_gpu_to_cpu'):
                     index = faiss.index_gpu_to_cpu(index)
-                faiss.write_index(
-                    index,
-                    data['index_name'] + '_' + self.output_filename + '.index')
+                faiss.write_index(index, data['index_name'] + '_' + self.output_filename + '.index')
                 # save the data
                 with open(self.output_filename + '.pkl', 'bw') as f:
                     pickle.dump(self.ds, f)
@@ -413,7 +411,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         store_file: str = None,
         ctx_bert: str = None,
         query_bert: str = None,
-        output_filename: str = 'dynamic_db'
+        output_filename: str = 'dynamic_db',
     ):
         self.updatable = True
         self.tokenizer = tokenizer
@@ -440,7 +438,15 @@ class DynamicFaissRetrievalService(RetrievalService):
             torch.distributed.barrier()
         else:
             server = DynamicRetrievalServer(
-                faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file, ctx_bert_port, query_bert_port, output_filename,
+                faiss_devices,
+                tokenizer,
+                chunk_size,
+                stride,
+                faiss_index,
+                store_file,
+                ctx_bert_port,
+                query_bert_port,
+                output_filename,
             )
             server.run("0.0.0.0")
 
