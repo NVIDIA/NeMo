@@ -15,7 +15,6 @@
 import argparse
 import os
 import shutil
-import math
 from pathlib import Path
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest
@@ -106,10 +105,10 @@ def create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_pa
 
     # delete output directory if it exists or throw warning
     if os.path.isdir(ctm_output_directory):
-        logging.info(f"Found existing output dir, removing: {ctm_output_directory}")
+        logging.info(f"Removing existing output directory: {ctm_output_directory}")
         shutil.rmtree(ctm_output_directory)
     if not os.path.exists(ctm_output_directory):
-        logging.info(f"Creating output dir: {ctm_output_directory}")
+        logging.info(f"Creating output directory: {ctm_output_directory}")
         os.mkdir(ctm_output_directory)
 
     if len(manifest) == 0:
