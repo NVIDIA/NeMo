@@ -112,8 +112,6 @@ class HFDatasetConvertionConfig:
     sampling_rate: int = 16000
     streaming: bool = False  # Whether to use Streaming dataset API. [NOT RECOMMENDED]
     num_proc: int = -1
-    mcv_asr_dataset: bool = False  # use "True" for Mozilla Common Voice ASR dataset in "streaming"=False mode
-                                   # it preserves only free fields for nemo manifest: ["audio_filepath", "duration", "sentence"] and uses ensure_ascii=False for json.dumps  
 
     # Placeholders. Generated internally.
     resolved_output_dir: str = ''
@@ -253,23 +251,11 @@ def convert_offline_dataset_to_nemo(
             )
         ):
             # remove large components from sample
-            if not cfg.mcv_asr_dataset:
-                del sample['audio']
-                if 'file' in sample:
-                    del sample['file']
+            del sample['audio']
+            if 'file' in sample:
+                del sample['file']
 
-                manifest_f.write(f"{json.dumps(sample)}\n")
-            else:
-                manifest_f.write(
-                    json.dumps(
-                        {
-                            "audio_filepath": sample["audio_filepath"],
-                            "duration": sample["duration"],
-                            "text": sample["sentence"],
-                        },
-                        ensure_ascii=False,
-                    )
-                )
+            manifest_f.write(f"{json.dumps(sample)}\n")
 
 
 def convert_streaming_dataset_to_nemo(
@@ -372,7 +358,6 @@ def main(cfg: HFDatasetConvertionConfig):
             cache_dir=None,
             streaming=cfg.streaming,
             use_auth_token=cfg.use_auth_token,
-            mcv_asr_dataset=cfg.mcv_asr_dataset,
         )
 
     except Exception as e:
