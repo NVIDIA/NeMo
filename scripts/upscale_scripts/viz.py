@@ -38,8 +38,11 @@ def load_prompt_model(virtual_prompt_model_file):
     return model
 
 
-def norm(embs):
-    print(torch.norm(embs, dim=1, keepdim=True))
+def norm(embs, sv):
+    n = torch.norm(embs, dim=1, keepdim=True).cpu().numpy()
+    with open(sv, 'w', encoding='utf-8') as f:
+        f.write(f"{n}")
+        f.close()
     return embs / torch.norm(embs, dim=1, keepdim=True)
 
 
@@ -49,7 +52,7 @@ def main(cfg):
     model = load_prompt_model(prompt_model_file)
 
     prompts = model.prompt_table.prompt_table["squad"].prompt_embeddings.weight.data
-    prompt_norm = norm(prompts)  # 10 X 768
+    prompt_norm = norm(prompts, cfg.viz.viz_file + '.norm')  # 10 X 768
     cs_mat = prompt_norm @ prompt_norm.transpose(0, 1)
 
     plt.imshow(cs_mat.cpu().numpy())
