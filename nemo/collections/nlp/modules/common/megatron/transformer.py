@@ -560,14 +560,17 @@ class CoreAttention(MegatronModule):
             #     : attention_scores.size(2),
             #     : attention_scores.size(3),
             # ]
-            
-            attention_mask = attention_mask + relative_position_bias[
-                :,
-                self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
-                + self.num_attention_heads_per_partition,
-                : attention_scores.size(2),
-                : attention_scores.size(3),
-            ]
+
+            attention_mask = (
+                attention_mask
+                + relative_position_bias[
+                    :,
+                    self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
+                    + self.num_attention_heads_per_partition,
+                    : attention_scores.size(2),
+                    : attention_scores.size(3),
+                ]
+            )
 
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
