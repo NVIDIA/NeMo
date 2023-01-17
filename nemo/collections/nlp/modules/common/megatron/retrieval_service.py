@@ -195,7 +195,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
     The PUT method is to get KNN tokens, add new chunks, reset index.
     """
 
-    def __init__(self, index, tokenizer, chunk_size, stride, store, ctx_bert_port, query_bert_port):
+    def __init__(self, index, tokenizer, chunk_size, stride, store, ctx_bert_port, query_bert_port, output_filename):
         self.index = index
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
@@ -204,6 +204,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         self.ds = store
         self.ctx_bert_port = ctx_bert_port
         self.query_bert_port = query_bert_port
+        self.output_filename = output_filename
 
     def put(self):
         data = request.get_json()
@@ -224,9 +225,11 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                 index = self.index
                 if hasattr(faiss, 'index_gpu_to_cpu'):
                     index = faiss.index_gpu_to_cpu(index)
-                faiss.write_index(index, data['index_name'])
+                faiss.write_index(
+                    index,
+                    data['index_name'] + '_' + self.output_filename + '.index')
                 # save the data
-                with open(data['store_name'], 'bw') as f:
+                with open(self.output_filename + '.pkl', 'bw') as f:
                     pickle.dump(self.ds, f)
         else:
             sentences = data['sentences']
@@ -284,6 +287,7 @@ class DynamicRetrievalServer(object):
         store_file: str = None,
         ctx_bert_port: int = 0,
         query_bert_port: int = 0,
+        output_filename: str = 'dynamic_db',
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
@@ -331,6 +335,7 @@ class DynamicRetrievalServer(object):
                 self.store,
                 ctx_bert_port,
                 query_bert_port,
+                output_filename,
             ],
         )
 
@@ -408,6 +413,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         store_file: str = None,
         ctx_bert: str = None,
         query_bert: str = None,
+        output_filename: str = 'dynamic_db'
     ):
         self.updatable = True
         self.tokenizer = tokenizer
@@ -428,12 +434,13 @@ class DynamicFaissRetrievalService(RetrievalService):
                     store_file,
                     ctx_bert_port,
                     query_bert_port,
+                    output_filename,
                 )
                 server.run("0.0.0.0")
             torch.distributed.barrier()
         else:
             server = DynamicRetrievalServer(
-                faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file, ctx_bert_port, query_bert_port
+                faiss_devices, tokenizer, chunk_size, stride, faiss_index, store_file, ctx_bert_port, query_bert_port, output_filename,
             )
             server.run("0.0.0.0")
 
