@@ -16,7 +16,7 @@ import copy
 import itertools
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
@@ -68,11 +68,11 @@ class TextDataConfig:
     Text dataset subconfig for text-only dataset
     """
 
-    manifest_filepath: MISSING
-    speakers_filepath: MISSING
-    min_words = 1
-    max_words = 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
-    tokenizer_workers = 1
+    manifest_filepath: str = MISSING
+    speakers_filepath: str = MISSING
+    min_words: int = 1
+    max_words: int = 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
+    tokenizer_workers: int = 1
     asr_tts_sampling_technique: Optional[str] = None
     asr_tts_sampling_temperature: Optional[int] = None
     asr_tts_sampling_probabilities: Optional[List[float]] = None
@@ -417,7 +417,9 @@ class ASRWithTTSModel(ASRModel):
             tts_dataset = None
 
         if tts_dataset and asr_dataset:
-            text_data_config: TextDataConfig = OmegaConf.structured(TextDataConfig).merge(train_data_config.text_data)
+            text_data_config: TextDataConfig = cast(
+                TextDataConfig, OmegaConf.merge(OmegaConf.structured(TextDataConfig), train_data_config.text_data)
+            )
             concat_kwargs = dict()
             if text_data_config.asr_tts_sampling_technique is not None:
                 concat_kwargs["sampling_technique"] = text_data_config.asr_tts_sampling_technique
@@ -466,7 +468,9 @@ class ASRWithTTSModel(ASRModel):
         Returns:
             text-to-text dataset of TextToTextDataset or TextToTextIterableDataset type
         """
-        text_data_config: TextDataConfig = OmegaConf.structured(TextDataConfig).merge(train_data_config.text_data)
+        text_data_config: TextDataConfig = cast(
+            TextDataConfig, OmegaConf.merge(OmegaConf.structured(TextDataConfig), train_data_config.text_data)
+        )
         if iterable:
             textonly_ds = TextToTextIterableDataset(
                 manifest_filepath=text_data_config.manifest_filepath,
