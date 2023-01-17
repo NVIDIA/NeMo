@@ -249,12 +249,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         # embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
         # context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
 
-        if not self.turn_off_rop:
-            cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
-
         if inference_max_sequence_len is not None and not set_inference_key_value_memory:
-            if not self.turn_off_rop:
-                cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
             embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> n (b k r) d', n=pos_beg + 1, r=r)
             context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg + 1, r=r)
         else:
@@ -264,10 +259,13 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             context_attn_mask = repeat(
                 context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r
             )
-            if not self.turn_off_rop:
-                cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, offset=0)
 
         if not self.turn_off_rop:
+            if inference_max_sequence_len is not None and not set_inference_key_value_memory:
+                cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
+            else:
+                cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, offset=0)
+            cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
             attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         else:
             attn_pos_emb = None
@@ -488,24 +486,18 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         else:
             _, n, _ = dec_input.shape
 
-        if set_inference_key_value_memory == True:
+        if set_inference_key_value_memory:
             # seq_index = (n // chunk_size) * chunk_size
             self.current_len = n
             num_seq_chunks = self.current_len // self.chunk_size
-            if not self.turn_off_rop:
-                self_attn_emb = self.rotary_pos_emb(self.current_len)
         elif inference_max_sequence_len is not None:
             # only handles single token increment
             assert n == 1
             self.current_len += n
-            if not self.turn_off_rop:
-                self_attn_emb = self.rotary_pos_emb(self.current_len)
             num_seq_chunks = self.current_len // self.chunk_size
         else:
             # this is normal forward without inference
             num_seq_chunks = n // self.chunk_size
-            if not self.turn_off_rop:
-                self_attn_emb = self.rotary_pos_emb(n)
 
         if retrieved_emb is not None:
             b, k, r, rn, dim = retrieved_emb.shape
@@ -514,6 +506,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             ), f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'  # need to add extra chunk size, since it will be shifted
 
         if not self.turn_off_rop:
+            if set_inference_key_value_memory:
+                self_attn_emb = self.rotary_pos_emb(self.current_len)
+            elif inference_max_sequence_len is not None:
+                self_attn_emb = self.rotary_pos_emb(self.current_len)
+            else:
+                self_attn_emb = self.rotary_pos_emb(n)
             if retrieved_emb is not None:
                 # -63, -62, ... 63  will be cut into -> [0, ... 63] in the chunk cross attention layer
                 cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, offset=-self.chunk_size + 1)
@@ -523,6 +521,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
                     # the first 64 tokens in retrieved is from the last chunk, align the continuation part with the query tokens
                     # use the following in the future. [-63, -62, ..., 63, 64]
                     cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=-self.chunk_size + 1)
+                else:
+                    raise ValueError(f'incorrect version number {self.version}')
                 attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
             else:
                 attn_pos_emb = (self_attn_emb, None, None)

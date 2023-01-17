@@ -552,7 +552,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
             # only handles single token increment
             assert n == 1
             self.current_len += n
-            token_pos = (self.current_len - 1) % chunk_size
             chunk_id = self.current_len // chunk_size
             if chunk_id <= 0:
                 # if sequence length less than chunk size, do an early return
@@ -600,6 +599,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             # q need to extend to causal_padding, and just do
             # q_pos_emb = F.pad(q_pos_emb, (0, 0, -causal_padding, 0), value = 0.)
             if inference_max_sequence_len is not None and not set_inference_key_value_memory:
+                token_pos = (self.current_len - 1) % chunk_size
                 q_pos_emb = F.pad(
                     q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding - token_pos, -causal_padding + token_pos), value=0.0
                 )
