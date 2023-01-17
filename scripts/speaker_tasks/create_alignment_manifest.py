@@ -140,58 +140,6 @@ def create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_pa
         write_ctm(os.path.join(ctm_output_directory, file_id + '.ctm'), ctm_list)
 
 
-def breakdown_manifest(target_manifest, breakdown_thres=20000):
-    """
-    Breakdown manifest into smaller chunks if the number of words exceeds the threshold.
-
-    Args:
-        target_manifest (list): 
-            List of dictionaries containing the manifest information.
-        breakdown_thres (int):
-            Threshold for the number of words in a line. If the number of words exceeds this threshold, 
-            the json line will be broken down into multiple lines.
-
-    Returns:
-        output_manifest_list (list): 
-            List of dictionaries containing the manifest information.
-    """
-    output_manifest_list = []
-    for json_dict in target_manifest:
-        audio_filepath = json_dict['audio_filepath']
-        duration = json_dict['duration']
-        speaker_id = json_dict['speaker_id']
-        words = json_dict['words']
-        alignments = json_dict['alignments']
-        assert len(words) == len(alignments), f"Mismatch between words {len(words)} and alignments {len(alignments)} for {audio_filepath}"
-        last_alignment = alignments[0]
-        if len(words) > breakdown_thres:
-            # split the line into multiple lines
-            num_lines = math.ceil(len(words) / breakdown_thres)
-            for i in range(num_lines):
-                start = i * breakdown_thres
-                end = (i + 1) * breakdown_thres
-                if end > len(words):
-                    end = len(words)
-                if i > 0:
-                    add_offset_sil = [""]
-                    add_offset_stamp = [last_alignment]
-                else:
-                    add_offset_sil = []
-                    add_offset_stamp = []
-
-                new_json_dict = {
-                    'audio_filepath': audio_filepath,
-                    'duration': duration,
-                    'speaker_id': speaker_id,
-                    'words': add_offset_sil + words[start:end],
-                    'alignments': add_offset_stamp + alignments[start:end],
-                }
-                last_alignment = alignments[end - 1]
-                output_manifest_list.append(new_json_dict)
-        else:
-            output_manifest_list.append(json_dict)
-    return output_manifest_list
-
 def create_manifest_with_alignments(
     input_manifest_filepath, ctm_source_dir, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
 ):
