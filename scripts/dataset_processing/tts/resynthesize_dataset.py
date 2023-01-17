@@ -31,13 +31,13 @@ manifest.json has two entries for "/dataset/1/foo.wav" and "/dataset/2/bar.wav"
 
 Our script call is
 $ python scripts/dataset_processing/tts/resynthesize_dataset.py \
-    --model_path ./models/fastpitch/multi_spk/FastPitch--val_loss\=1.4473-epoch\=209.ckpt \
+    --model-path ./models/fastpitch/multi_spk/FastPitch--val_loss\=1.4473-epoch\=209.ckpt \
     --input-json-manifest "/dataset/manifest.json" \
     --input-sup-data-path "/dataset/sup_data/" \
     --output-folder "/output/" \
     --device "cuda:0" \
-    --batch_size 1 \
-    --num_workers 1
+    --batch-size 1 \
+    --num-workers 1
 
 Then we get output dataset with following directory structure:
 /output/manifest_mel.json
@@ -207,7 +207,7 @@ def argument_parser() -> argparse.ArgumentParser:
         description="Resynthesize TTS dataset using a pretrained text-to-spectrogram model",
     )
     parser.add_argument(
-        "--model_path", required=True, type=Path, help="Path to a checkpoint (either .nemo or .ckpt)",
+        "--model-path", required=True, type=Path, help="Path to a checkpoint (either .nemo or .ckpt)",
     )
     parser.add_argument(
         "--input-json-manifest", required=True, type=Path, help="Path to the input JSON manifest",
@@ -222,8 +222,8 @@ def argument_parser() -> argparse.ArgumentParser:
         help="Path to the output folder. Will contain updated manifest and mels/ folder with spectrograms in .npy files",
     )
     parser.add_argument("--device", required=True, type=torch.device, help="Device ('cpu', 'cuda:0', ...)")
-    parser.add_argument("--batch_size", required=True, type=int, help="Batch size in the DataLoader")
-    parser.add_argument("--num_workers", required=True, type=int, help="Num workers in the DataLoader")
+    parser.add_argument("--batch-size", required=True, type=int, help="Batch size in the DataLoader")
+    parser.add_argument("--num-workers", required=True, type=int, help="Num workers in the DataLoader")
     return parser
 
 
