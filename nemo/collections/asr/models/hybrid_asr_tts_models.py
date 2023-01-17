@@ -68,8 +68,8 @@ class TextDataConfig:
     Text dataset subconfig for text-only dataset
     """
 
-    manifest_filepath: str = MISSING
-    speakers_filepath: str = MISSING
+    manifest_filepath: Any = MISSING  # actual Union[str, List[str]], but this type is not supported by OmegaConf
+    speakers_filepath: Any = MISSING
     min_words: int = 1
     max_words: int = 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
     tokenizer_workers: int = 1
