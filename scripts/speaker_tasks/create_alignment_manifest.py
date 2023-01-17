@@ -87,7 +87,9 @@ def load_librispeech_alignment(alignment_filepath: str) -> dict:
     return alignments
 
 
-def create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split):
+def create_librispeech_ctm_alignments(
+    input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+):
     """
     Create new CTM alignments using input LibriSpeech word alignments. 
 
@@ -113,7 +115,7 @@ def create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_pa
 
     if len(manifest) == 0:
         raise Exception(f"Input manifest is empty: {input_manifest_filepath}")
-    
+
     for entry in manifest:
         audio_file = entry['audio_filepath']
         file_id = Path(audio_file).stem
@@ -140,7 +142,13 @@ def create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_pa
 
 
 def create_manifest_with_alignments(
-    input_manifest_filepath, ctm_source_dir, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
+    input_manifest_filepath,
+    ctm_source_dir,
+    output_manifest_filepath,
+    data_format_style,
+    silence_dur_threshold=0.1,
+    output_precision=3,
+    breakdown_thres=15,
 ):
     """
     Create new manifest file with word alignments using CTM files
@@ -191,7 +199,7 @@ def create_manifest_with_alignments(
             end = float(ctm[2]) + float(ctm[3])
             start = round(start, output_precision)
             end = round(end, output_precision)
-            interval = start - prev_end 
+            interval = start - prev_end
 
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
                 words.append("")
@@ -243,16 +251,18 @@ def main():
         ctm_source_dir = args.base_alignment_path
     # args.base_alignment_path is containing *.lab style alignments for the dataset
     else:
-        create_librispeech_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split)
+        create_librispeech_ctm_alignments(
+            input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+        )
         ctm_source_dir = ctm_output_directory
 
     create_manifest_with_alignments(
-        input_manifest_filepath, 
-        ctm_source_dir, 
-        output_manifest_filepath, 
+        input_manifest_filepath,
+        ctm_source_dir,
+        output_manifest_filepath,
         data_format_style=args.data_format_style,
         silence_dur_threshold=args.silence_dur_threshold,
-        output_precision=output_precision, 
+        output_precision=output_precision,
     )
 
 
