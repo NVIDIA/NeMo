@@ -560,7 +560,7 @@ class CoreAttention(MegatronModule):
                 : attention_scores.size(2),
                 : attention_scores.size(3),
             ]
-            
+
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
