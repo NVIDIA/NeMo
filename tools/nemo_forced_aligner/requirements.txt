@@ -1,2 +1,2 @@
-nemo_toolkit[asr]
+nemo_toolkit[all]
 pytest
