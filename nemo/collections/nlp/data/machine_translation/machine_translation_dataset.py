@@ -66,6 +66,12 @@ class TranslationDataConfig:
     concat_sampling_technique: Optional[str] = 'temperature'
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
+    # Indices can be a list but the retrieval-dbs are singular
+    retrieval: bool = False # train retrieval augmented model
+    retrieval_db_src: Optional[Any] = None  # Any = str  # file with src of nns to retrieve
+    retrieval_db_tgt: Optional[Any] = None  # Any = str  # file with tgt of nns to retrieve
+    retrieval_nns: int = 1  # number of nearest neighbors to retrieve
+    retrieval_indices: Optional[Any] = None  # Any = str or List[str] # file with indices of neighbors
 
 class TranslationDataset(Dataset):
     def __init__(
