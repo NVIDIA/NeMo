@@ -129,13 +129,16 @@ class FaissRetrievalResource(Resource):
         emb = request_data(query, self.query_bert_port)
         emb_data = base64.b64decode(emb.encode())
         emb = pickle.loads(emb_data)
-        D, knn = self.index.search(emb, neighbors)
+        if self.index.ntotal == 0:
+            # A workaround to fix searching an empty Faiss index
+            knn = [[-1] * neighbors for i in range(len(emb))]
+        else:
+            _, knn = self.index.search(emb, neighbors)
         results = []
         for sentence_neighbors in knn:
             chunks = []
             for neighbor_chunk_id in sentence_neighbors:
                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
-                # To query an empty Faiss index for 1 neighbor, it will return 0 instead of -1. a workaround fix
                 if self.index.ntotal == 0:
                     chunk_id = -1
                 chunks.append(chunk_id)
