@@ -14,3 +14,4 @@
 
 
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
+from nemo.collections.nlp.parts.megatron_lr_schedulers import CosineAnnealingExp
