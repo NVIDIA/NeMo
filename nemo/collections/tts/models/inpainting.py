@@ -17,6 +17,8 @@ import torch
 import logging
 import torch.nn.functional as F
 import random
+from nemo.collections.tts.models.aligner import AlignerModel
+
 from nemo.core.neural_types.elements import (
     LengthsType,
     LossType,
@@ -72,48 +74,50 @@ class BaselineModule(NeuralModule):
     def __init__(
         self,
         num_mels,
-        text_encoder,
-        aligner,
+        token_encoder,
         decoder,
     ):
         """TODO"""
         super().__init__()
-        self.text_encoder = text_encoder
+        self.token_encoder = token_encoder
 
-        internal_dim = decoder.d_model - text_encoder.d_model
+        internal_dim = decoder.d_model - token_encoder.embedding_dim
         self.spectrogram_projection = BidirectionalLinear(
             num_mels, internal_dim)
 
-        self.aligner = aligner
-
         self.decoder = decoder
 
+    # def forward(
+    #     self, transcripts, transcripts_len, input_mels, input_mels_len,
+    #     align_prior=None
+    # ):
     def forward(
-        self, transcripts, transcripts_len, input_mels, input_mels_len,
-        align_prior=None
+        self, input_mels, input_mels_len, aligned_tokens
     ):
         """TODO"""
+        assert input_mels.shape[1] == aligned_tokens.shape[1]
         # TODO check masking is done correctly here
-        text_encodings, text_mask = self.text_encoder(transcripts)
+        # text_encodings, text_mask = self.text_encoder(transcripts)
 
         spectrogram_projections = self.spectrogram_projection(input_mels)
 
-        attn_soft, attn_logprob = self.aligner(
-            queries=input_mels.permute(0, 2, 1),  # aligner assumes time last axis
-            keys=text_encodings.permute(0, 2, 1),
-            mask=text_mask == 0,
-            attn_prior=align_prior
-        )
-        attn_hard = binarize_attention_parallel(
-            attn_soft, transcripts_len, input_mels_len)
-        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
-
-        # repeat each text encoding the number of mel FFTs the model expects
-        text_encodings_repeated, _ = regulate_len(
-            attn_hard_dur, text_encodings, pace=1.0)
+        # attn_soft, attn_logprob = self.aligner(
+        #     queries=input_mels.permute(0, 2, 1),  # aligner assumes time last axis
+        #     # keys=text_encodings.permute(0, 2, 1),
+        #     mask=text_mask == 0,
+        #     attn_prior=align_prior
+        # )
+        # attn_hard = binarize_attention_parallel(
+        #     attn_soft, transcripts_len, input_mels_len)
+        # attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+        #
+        # # repeat each text encoding the number of mel FFTs the model expects
+        # text_encodings_repeated, _ = regulate_len(
+        #     attn_hard_dur, text_encodings, pace=1.0)
+        token_embeddings = self.token_encoder(aligned_tokens)
 
         both_encodings = torch.concatenate(
-            (spectrogram_projections, text_encodings_repeated), axis=-1)
+            (spectrogram_projections, token_embeddings), axis=-1)
 
         output_decodings, _ = self.decoder(
             input=both_encodings,
@@ -125,9 +129,10 @@ class BaselineModule(NeuralModule):
         spectrogram_preds = self.spectrogram_projection.reverse(
             output_decodings_trimmed)
 
-        alignment_outputs = (attn_logprob, attn_soft, attn_hard)
+        # alignment_outputs = (attn_logprob, attn_soft, attn_hard)
 
-        return spectrogram_preds, alignment_outputs
+        # return spectrogram_preds, alignment_outputs
+        return spectrogram_preds
 
 
 class InpaintingMSELoss(Loss):
@@ -166,39 +171,57 @@ class InpainterModel(ModelPT, Exportable):
     """TODO"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.normalizer = self._setup_normalizer(cfg)
+        aligner = AlignerModel.from_pretrained("tts_en_radtts_aligner")
+
+        # self.normalizer = self._setup_normalizer(cfg)
+        self.normalizer = aligner.normalizer
+
         self.text_normalizer_call = self.normalizer.normalize
         if "text_normalizer_call_kwargs" in cfg:
             self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
-        self.vocab = self._setup_tokenizer(cfg)
+
+        # self.vocab = self._setup_tokenizer(cfg)
+        self.vocab = aligner.tokenizer
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = instantiate(cfg.preprocessor)
+
+        # self.preprocessor = instantiate(cfg.preprocessor)
+        self.preprocessor = aligner.preprocessor
         text_encoder_kwargs = {
             "n_embed": len(self.vocab.tokens),
             "padding_idx": self.vocab.pad,
         }
 
-        aligner = instantiate(cfg.alignment_module)
+        # aligner = instantiate(cfg.alignment_module)
         self.forward_sum_loss_fn = ForwardSumLoss()
         self.bin_loss_fn = BinLoss()
         self.bin_loss_warmup_epochs = cfg.bin_loss_warmup_epochs
 
-        text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
+        # text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
         decoder = instantiate(cfg.decoder)
-
+        token_encoder = torch.nn.Embedding(
+            num_embeddings=len(self.vocab.tokens),
+            embedding_dim=cfg.symbols_embedding_dim,
+        )
         self.module = BaselineModule(
             num_mels=cfg.n_mel_channels,
-            text_encoder=text_encoder,
-            aligner=aligner,
+            token_encoder=token_encoder,
+            # text_encoder=text_encoder,
+            # aligner=aligner.alignment_encoder,
             decoder=decoder,
         )
 
         # TODO - review this loss to only look at the reconstructed part
         self.gap_loss = InpaintingMSELoss()
         self.mse_loss = MelLoss()
-        self.audio_sample_rate = cfg.sample_rate
-        self.spectrogram_sample_stride = cfg.n_window_stride
+
+        self.aligner = aligner
+        spectrogrammer = self.preprocessor.featurizer
+
+        # self.audio_sample_rate = self.preprocessor._sample_rate
+        # self.spectrogram_sample_stride = cfg.n_window_stride
+        self.audio_sample_rate = spectrogrammer.sample_rate
+        self.spectrogram_sample_stride = spectrogrammer.hop_length
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -333,12 +356,32 @@ class InpainterModel(ModelPT, Exportable):
         # negative_mask = -14 * (1 - mel_masks)
         # mels_masked += negative_mask
 
-        mels_pred, alignment_outputs = self(
-            transcripts=text,
-            transcripts_len=text_lens,
-            input_mels=mels_masked,
+        # run the pretrained aligner
+        attn_soft, attn_logprob = self.aligner(
+            spec=mels.transpose(2, 1),  # aligner wants B X freq X time
+            spec_len=spec_len,
+            text=text,
+            text_len=text_lens
+        )
+
+        attn_hard = binarize_attention_parallel(
+            attn_soft, text_lens, spec_len)
+        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+
+        # repeat each token the number of mel FFTs the model expects
+        tokens_repeated, _ = regulate_len(
+            attn_hard_dur, text.unsqueeze(-1), pace=1.0)
+        tokens_repeated = tokens_repeated.squeeze(-1)
+
+        mels_pred = self(
+            # transcripts=text,
+            # transcripts_len=text_lens,
+            # input_mels=mels_masked,
+            # input_mels_len=spec_len,
+            # align_prior=align_prior_matrix
+            input_mels=mels,
             input_mels_len=spec_len,
-            align_prior=align_prior_matrix
+            aligned_tokens=tokens_repeated
         )
 
         gap_loss = self.gap_loss(
@@ -350,25 +393,26 @@ class InpainterModel(ModelPT, Exportable):
         # TODO make this a parameter
         reconstruction_loss = (100 * gap_loss) + mse_loss
 
-        (attn_logprob, attn_soft, attn_hard) = alignment_outputs
-        ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
-        bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
-        bin_loss = self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
-        alignment_loss = ctc_loss + bin_loss
+        # (attn_logprob, attn_soft, attn_hard) = alignment_outputs
+        # ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+        # bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
+        # bin_loss = self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
+        # alignment_loss = ctc_loss + bin_loss
 
         outputs = (text, text_lens, mels, mels_masked, mels_pred, spec_len, attn_soft)
 
-        return reconstruction_loss, alignment_loss, outputs
+        return reconstruction_loss, outputs
 
     def training_step(self, batch, batch_idx):
-        loss_spec, loss_alignment, specs = self.forward_pass(batch, batch_idx)
-        train_loss = loss_spec + loss_alignment
+        loss_spec, specs = self.forward_pass(batch, batch_idx)
+        train_loss = loss_spec
         self.log("train_loss", train_loss)
 
         if self.log_train_spectrograms:
             (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_soft) = specs
             self._log_spectrograms(
                 mels_len[:3],
+                text_lens[:3],
                 mels[:3],
                 mels_masked[:3],
                 mels_pred[:3],
@@ -380,12 +424,11 @@ class InpainterModel(ModelPT, Exportable):
         return train_loss
 
     def validation_step(self, batch, batch_idx):
-        loss_spec, loss_alignment, specs = self.forward_pass(batch, batch_idx)
+        loss_spec, specs = self.forward_pass(batch, batch_idx)
         (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_soft) = specs
-        self.log("validation_loss", loss_spec + loss_alignment)
+        self.log("validation_loss", loss_spec)
         return {
             'loss_spec': loss_spec,
-            'loss_alignment': loss_alignment,
             'texts': texts,
             'text_lens': text_lens,
             'input_spectrogram': mels,
@@ -396,7 +439,7 @@ class InpainterModel(ModelPT, Exportable):
         }
 
     def validation_epoch_end(self, outputs):
-        losses = [o['loss_spec'] + o['loss_alignment'] for o in outputs]
+        losses = [o['loss_spec'] for o in outputs]
         self.log("validation_mean_loss", sum(losses) / len(losses))
         if self.tb_logger is None or len(outputs) == 0:
             return
@@ -404,6 +447,7 @@ class InpainterModel(ModelPT, Exportable):
         batch = outputs[0]
         self._log_spectrograms(
             batch['spectrogram_lens'][:3],
+            batch['text_lens'][:3],
             batch['input_spectrogram'][:3],
             batch['input_spectrogram_masked'][:3],
             batch['pred_spectrogram'][:3],
@@ -415,30 +459,35 @@ class InpainterModel(ModelPT, Exportable):
     def _log_spectrograms(
         self,
         spectrogram_lens,
+        text_lens,
         input_spectrograms,
         input_spectrograms_masked,
         pred_spectrograms,
         attn_soft,
         name_prefix
     ):
+        attn_hard = binarize_attention_parallel(
+            attn_soft, text_lens, spectrogram_lens)
         for i, (
             l,
+            text_len,
             input_spectrogram,
             input_spectrogram_masked,
             pred_spectrogram,
             text_alignment,
         ) in enumerate(zip(
             spectrogram_lens,
+            text_lens,
             input_spectrograms,
             input_spectrograms_masked,
             pred_spectrograms,
-            attn_soft,
+            attn_hard,
         )):
             f, axarr = plt.subplots(4)
             f.suptitle('input text TBD')
             axarr[0].imshow(input_spectrogram[:l].cpu().numpy().T)
             axarr[1].imshow(input_spectrogram_masked[:l].cpu().numpy().T)
-            axarr[2].imshow(text_alignment[0][:l].cpu().detach().numpy().T)
+            axarr[2].imshow(text_alignment[0][:l, :text_len].cpu().detach().numpy().T)
             axarr[3].imshow(pred_spectrogram[:l].cpu().detach().numpy().T)
             self.tb_logger.add_figure(
                 f'{name_prefix}_{i+1}', f, global_step=self.global_step)
