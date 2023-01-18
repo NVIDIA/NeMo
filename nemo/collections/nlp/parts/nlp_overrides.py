@@ -22,10 +22,10 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Opti
 
 import pytorch_lightning as pl
 import torch
-from lightning_fabric.plugins import ClusterEnvironment
 from lightning_fabric.utilities.types import _PATH
 from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
