@@ -16,7 +16,7 @@ import os
 import tempfile
 
 import torch.multiprocessing as mp
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+from lightning_fabric.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector

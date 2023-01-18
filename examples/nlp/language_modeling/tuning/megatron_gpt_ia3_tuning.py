@@ -14,7 +14,7 @@
 
 
 import torch.multiprocessing as mp
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+from lightning_fabric.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 

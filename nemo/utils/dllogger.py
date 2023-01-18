@@ -15,10 +15,10 @@
 from argparse import Namespace
 from pathlib import Path
 
+from lightning_fabric.utilities.logger import _convert_params, _flatten_dict, _sanitize_callable_params
 from lightning_utilities.core.apply_func import apply_to_collection
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning.loggers import Logger
-from pytorch_lightning.utilities.logger import _convert_params, _flatten_dict, _sanitize_callable_params
 from pytorch_lightning.utilities.parsing import AttributeDict
 
 from nemo.utils import logging
