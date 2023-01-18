@@ -82,7 +82,7 @@ class EnglishG2p(BaseG2p):
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
-                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have an entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
@@ -189,7 +189,7 @@ class EnglishG2p(BaseG2p):
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
             return word, True
 
-        # punctuation
+        # punctuation or whitespace.
         if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
             return list(word), True
 
@@ -281,7 +281,7 @@ class IPAG2P(BaseG2p):
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or a IPA dict object with CMUdict-like entries.
                 a dictionary file example: scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt;
-                a dictionary object example: {..., "WIRE": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
+                a dictionary object example: {..., "Wire": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
             locale: Locale used to determine default tokenization logic.
                 Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
                 Specify None if implementing custom logic for a new locale.
@@ -292,7 +292,7 @@ class IPAG2P(BaseG2p):
             use_chars: Whether to include chars/graphemes in the token list. This should be set to True if phoneme_probability is used
                 or if apply_to_oov_word ever returns graphemes.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
-                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have an entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
             use_stresses (Optional[bool]): Whether or not to include the stress symbols (ˈ and ˌ).
             set_graphemes_upper (Optional[bool]): Whether or not to convert all graphemes to uppercase (if not converted to phonemes).
@@ -551,6 +551,7 @@ class ChineseG2p(BaseG2p):
             None,
             'jieba',
         ], f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
+
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
@@ -572,12 +573,21 @@ class ChineseG2p(BaseG2p):
             mapping_file=mapping_file,
         )
         self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
-        self.word_segmenter = word_segmenter
+
+        if word_segmenter == "jieba":
+            try:
+                import jieba
+            except ImportError as e:
+                logging.error(e)
+
+            # Cut sentences into words to improve polyphone disambiguation
+            self.word_segmenter = jieba.cut
+        else:
+            self.word_segmenter = lambda x: [x]
 
         try:
             from pypinyin import lazy_pinyin, Style
             from pypinyin_dict.pinyin_data import cc_cedict
-            import jieba
         except ImportError as e:
             logging.error(e)
 
@@ -612,13 +622,7 @@ class ChineseG2p(BaseG2p):
         'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']
         """
         pinyin_seq = []
-        if self.word_segmenter == 'jieba':
-            # Cut sentences into words to improve polyphone disambiguation
-            words_list = list(jieba.cut(text))
-        elif self.word_segmenter is None:
-            words_list = [text]
-        else:
-            raise NotImplementedError
+        words_list = self.word_segmenter(text)
 
         for word in words_list:
             pinyin_seq += self._lazy_pinyin(
