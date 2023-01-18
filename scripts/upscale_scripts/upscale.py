@@ -113,7 +113,7 @@ class UpscaleTokenDataset(Dataset):
 
             position_and_type = position_and_type[num_prompts:]  # skip prompts
             if len(position_and_type) > 0:
-                assert max([t for p,t in position_and_type]) < self.word_embeds_x.shape[0]
+                assert max([t for p, t in position_and_type]) < self.word_embeds_x.shape[0]
             promptless_input_ids = input_ids[num_prompts:]
             if len(promptless_input_ids) > 0:
                 assert max(promptless_input_ids) < self.word_embeds_x.shape[0]
@@ -126,7 +126,7 @@ class UpscaleTokenDataset(Dataset):
                     (idx % num_prompts, id)
                     for idx, id in enumerate(promptless_input_ids)
                     if id not in self.discard_vocabs
-                ]  #place all regular words in the position of the prompts i.e. 0-num_prompts.
+                ]  # place all regular words in the position of the prompts i.e. 0-num_prompts.
 
             self.examples += position_and_type
             self.examples += promptless_position_and_type
@@ -152,7 +152,7 @@ class UpscaleTokenDataset(Dataset):
         n_pos_embed_y = self.pos_embds_y[n_idx]
         n_word_embed_y = self.word_embeds_y[n_id]
         nty = n_pos_embed_y + n_word_embed_y
-        
+
         if self.norm:
             tx = tx / tx.norm()
             ty = ty / ty.norm()
@@ -207,7 +207,7 @@ class UpscaleDataset(Dataset):
             tx = tx / tx.norm()
             ty = ty / ty.norm()
             nty = nty / nty.norm()
-        return tx, ty , nty
+        return tx, ty, nty
 
 
 def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_file_path):
@@ -330,8 +330,8 @@ def main(cfg) -> None:
     lg_word_embeddings = lg_model.frozen_model.model.language_model.embedding.word_embeddings.weight.data
     lg_pos_embeddings = lg_model.frozen_model.model.language_model.embedding.position_embeddings.weight.data
     lg_prompt_learning_embs = lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
-    sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[:cfg.upscaler.data.num_virtual_prompts, :]
-    lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[:cfg.upscaler.data.num_virtual_prompts, :]
+    sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[: cfg.upscaler.data.num_virtual_prompts, :]
+    lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[: cfg.upscaler.data.num_virtual_prompts, :]
 
     if cfg.upscaler.data.token_based_training:
         train_dataset = get_dataset(sm_model, [cfg.upscaler.data.train_dataset])
@@ -366,19 +366,29 @@ def main(cfg) -> None:
             val, batch_size=cfg.upscaler.data.batch_size, shuffle=False
         )  # , collate_fn=UpscaleTokenDataset.collate_fn)
 
-       
         test = UpscaleDataset(torch.float16, sm_prompt_tokens, lg_prompt_tokens, norm=cfg.upscaler.normalize)
-        test2 = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize)
+        test2 = UpscaleDataset(
+            torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize
+        )
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader2 = DataLoader(test2, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
     else:
         train = UpscaleDataset(
-            torch.float16, sm_word_embeddings[train_type_ids, :], lg_word_embeddings[train_type_ids, :],
-        norm=cfg.upscaler.normalize,
+            torch.float16,
+            sm_word_embeddings[train_type_ids, :],
+            lg_word_embeddings[train_type_ids, :],
+            norm=cfg.upscaler.normalize,
         )
-        val = UpscaleDataset(torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :], norm=cfg.upscaler.normalize)
-        test = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize)
+        val = UpscaleDataset(
+            torch.float16,
+            sm_word_embeddings[val_type_ids, :],
+            lg_word_embeddings[val_type_ids, :],
+            norm=cfg.upscaler.normalize,
+        )
+        test = UpscaleDataset(
+            torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize
+        )
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
         val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
@@ -411,6 +421,7 @@ def main(cfg) -> None:
 
     lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
     lg_model.save_to(cfg.projected_prompt_learning_model)
-    
+
+
 if __name__ == '__main__':
     main()
