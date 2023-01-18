@@ -587,7 +587,7 @@ class RadTTSModule(NeuralModule, Exportable):
         sigma_energy=0.8,
         speaker_id_text=None,
         speaker_id_attributes=None,
-        pace=1.0,
+        pace=None,
         token_duration_max=100,
         in_lens=None,
         dur=None,
@@ -604,6 +604,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if in_lens is None:
             in_lens = text.new_ones((batch_size,), dtype=torch.int) * n_tokens
         spk_vec = self.encode_speaker(speaker_id)
+
         if speaker_id_text is None:
             speaker_id_text = speaker_id
         if speaker_id_attributes is None:
@@ -621,8 +622,10 @@ class RadTTSModule(NeuralModule, Exportable):
         # text encoded removes padding tokens so shape of text_enc is changed
         # need to adjust pace, pitch_shift to account for this
         txt_len_pad_removed = torch.max(in_lens)
-        pace = pace[:, :txt_len_pad_removed]
-        pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
+        if pace is None:
+            pace = 1.0
+        else:
+            pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
