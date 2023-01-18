@@ -407,13 +407,11 @@ class SaveRestoreConnector:
 
         # aggregate artifacts from self and all children recursively
         artifacts_containers = []
-        for name, module in model.named_modules():
-            if isinstance(module, nemo_classes.ModelPT) and module.has_artifacts():  # NeMo model with artifacts
-                # select artifacts only if registered in config
-                if name == "" or OmegaConf.select(model.cfg, name) is not None:
-                    artifacts_containers.append((name, module.artifacts))
+        for name, module in model.named_cfg_nemo_modules():
+            if module.has_artifacts():  # NeMo model with artifacts
+                artifacts_containers.append((name, module.artifacts))
 
-        if artifacts_containers and (not hasattr(model, "artifacts") or model.artifacts is None):
+        if len(artifacts_containers) > 0 and (not hasattr(model, "artifacts") or model.artifacts is None):
             # model has no artifacts, but submodules have some
             model.artifacts = dict()
         for module_name, artifacts in artifacts_containers:
@@ -490,22 +488,23 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
 
     @staticmethod
-    def _update_subconfigs(model, path2yaml_file):
+    def _update_subconfigs(model: "nemo_classes.ModelPT", path2yaml_file):
         """
         Update subconfigs of the model if ModelPT has submodules
         Should be called before updating artifacts paths
         """
+        # check if there are submodules
+        if len(model.nemo_submodule_name_to_config_field) == 0:
+            return
         conf = OmegaConf.load(path2yaml_file)
-        updated = False
-        for conf_path, module in model.named_modules():
-            if not conf_path:
-                continue  # model itself
-            if isinstance(module, nemo_classes.ModelPT):
-                OmegaConf.update(conf, conf_path, module.cfg)
-                updated = True
-        if updated:
-            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
-                OmegaConf.save(config=conf, f=fout, resolve=True)
+        # update subconfigs for all children recoursively
+        # parent configs updated before children
+        for conf_path, submodule in model.named_cfg_nemo_modules():
+            if not conf_path:  # self
+                continue
+            OmegaConf.update(conf, conf_path, submodule.cfg)
+        with open(path2yaml_file, 'w', encoding='utf-8') as fout:
+            OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _update_artifact_paths(self, model, path2yaml_file):
         if hasattr(model, "artifacts") and model.artifacts is not None and len(model.artifacts) > 0:

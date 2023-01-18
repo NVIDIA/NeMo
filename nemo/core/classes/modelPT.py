@@ -20,7 +20,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
 import torch
@@ -36,6 +36,7 @@ from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
+from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
 
 __all__ = ['ModelPT']
@@ -110,6 +111,9 @@ class ModelPT(LightningModule, Model):
                 cfg.nemo_version = package_info.__version__
 
         self._cfg = cfg
+
+        # init mapping submodule attribute -> config_field for nested NeMo models
+        self.nemo_submodule_name_to_config_field = dict()
 
         self.save_hyperparameters("cfg")
         self._train_dl = None
@@ -256,6 +260,59 @@ class ModelPT(LightningModule, Model):
             ):
                 return True
         return False
+
+    def register_nemo_submodule(self, name: str, config_field: str, model: "ModelPT") -> None:
+        """
+        Adds NeMo model as a submodule. Submodule can be accessed via the `name` attribute on self.
+        In the saving process, the whole parent model (self) is held as a solid model with artifacts
+        from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
+
+        Args:
+            name: name of the attribute for the submodule
+            config_field: field in config, where submodule config should be saved
+            model: NeMo model, instance of ModelPT
+        """
+        # check it is a real NeMo model
+        if not isinstance(model, ModelPT):
+            raise NeMoBaseException(
+                f"Model is not and instance of ModelPT, so can't be registered. Got {type(model).__name__}"
+            )
+        # check if it is called after __init__
+        if not hasattr(self, "nemo_submodule_name_to_config_field"):
+            raise NeMoBaseException(
+                "You are trying to register a submodule before the model is initialized. This is not allowed. "
+                "Did you forget to call `super().__init__`?"
+            )
+        # assign attribute to self
+        setattr(self, name, model)
+        # add to the submodules mapping
+        self.nemo_submodule_name_to_config_field[name] = config_field
+
+    def named_cfg_nemo_modules(self, prefix: str = "") -> Iterator[Tuple[str, "ModelPT"]]:
+        """
+        Returns an iterator over all NeMo submodules recursively, yielding
+        tuples of (path in the config, submodule), starting from the core module
+
+        Args:
+            prefix: prefix for the path in config
+
+        Returns:
+            Iterator over (path in config, submodule), starting from (prefix, self)
+        """
+        if not hasattr(self, "nemo_submodule_name_to_config_field"):
+            raise NeMoBaseException(
+                "Model is not fully initialized. Calling `named_cfg_nemo_modules` before __init__ not allowed. "
+                "Did you forget to call `super().__init__`?"
+            )
+
+        yield prefix, self
+
+        # recursive iteration over all NeMo submodules
+        for attribute, config_field in self.nemo_submodule_name_to_config_field.items():
+            config_path = f"{prefix}.{config_field}" if prefix else config_field
+            module: ModelPT = getattr(self, attribute)
+            for subconfig_path, submodule in module.named_cfg_nemo_modules(prefix=config_path):
+                yield subconfig_path, submodule
 
     def save_to(self, save_path: str):
         """
