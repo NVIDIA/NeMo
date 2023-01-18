@@ -128,31 +128,25 @@ def run(dtype, seq_len, bs, hidden_size, benchmark, memory_efficient):
         m = benchmark_forward_backward(
             shape=(bs, seq_len, 80), dtype=dtype, hidden_size=hidden_size, memory_efficient=memory_efficient,
         )
-    measurement = m.timeit(100)
+    measurement = m.timeit(50)
 
     torch.cuda.synchronize()
     memory = torch.cuda.max_memory_allocated() / 2 ** 20 - mem_begin
 
     time_unit, time_scale = select_unit(measurement.median)
-    time = f"{measurement.median / time_scale:.2f} {time_unit}"
+    time = f"{measurement.median / time_scale:.2f}{time_unit}"
     return memory, time
 
 
-bs = 32
+batch_sizes = (48, 80)
+hidden_dims = (1024, 512)
 seq_len = 1500
-for name in (
-    "FWD/BWD",
-    "FWD",
-    "BWD",
-):
+for name in ("FWD/BWD",):
     print(f'\nRunning {name} tests')
-    for hidden_size in (512, 1024):
+    for bs, hidden_size in zip(batch_sizes, hidden_dims):
         for dtype in (torch.bfloat16, torch.float16):
             memory, time = run(dtype, seq_len, bs, hidden_size, benchmark=name, memory_efficient=False)
-            print(f"Standard Attention T={seq_len} dtype={dtype} MiB={memory} ms={time}")
+            print(f"Standard Attention hidden_dim={hidden_size} T={seq_len} dtype={dtype} MiB={memory} ms={time}")
 
-            if dtype == torch.float32:
-                print(f"Triton Attention T={seq_len} dtype={dtype} MiB=N/A ms=N/A\n")
-                continue
             memory, time = run(dtype, seq_len, bs, hidden_size, benchmark=name, memory_efficient=True)
-            print(f"Triton Attention T={seq_len} dtype={dtype} MiB={memory} ms={time}\n")
+            print(f"Triton Attention hidden_dim={hidden_size} T={seq_len} dtype={dtype} MiB={memory} ms={time}\n")

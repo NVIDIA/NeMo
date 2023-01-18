@@ -66,9 +66,12 @@ For documentation on fine-tuning this model, please visit -
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 
 """
+import time
 
 import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
+from pytorch_lightning import Callback
 
 from nemo.collections.asr.models import EncDecRNNTModel
 from nemo.core.config import hydra_runner
@@ -76,11 +79,25 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
+class CudaCallback(Callback):
+    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+        self.mem_begin = torch.cuda.max_memory_allocated() / 2 ** 20
+        self.start = time.time()
+
+    def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        torch.cuda.synchronize()
+        time_taken = time.time() - self.start
+        memory = torch.cuda.max_memory_allocated() / 2 ** 20 - self.mem_begin
+        print(f"Time taken {time_taken:0.2f} memory {memory}MiB")
+
+
 @hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(**cfg.trainer, callbacks=CudaCallback())
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecRNNTModel(cfg=cfg.model, trainer=trainer)
 
