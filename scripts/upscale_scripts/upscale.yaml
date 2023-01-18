@@ -1,4 +1,4 @@
-name: 'wts${upscaler.cs_loss_weight}_${upscaler.csn_loss_weight}_${upscaler.sl1_loss_weight}_hs${upscaler.hidden_size}_bs${upscaler.data.batch_size}_co${upscaler.data.high_freq_cutoff}_nx${upscaler.data.num_examples}'
+name: 'wts${upscaler.cs_loss_weight}_${upscaler.csn_loss_weight}_${upscaler.sl1_loss_weight}_hs${upscaler.hidden_size}_bs${upscaler.data.batch_size}_co${upscaler.data.high_freq_cutoff}_nx${upscaler.data.num_examples}_norm${upscaler.normalize}_tokbased${upscaler.data.token_based_training}'
 
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
