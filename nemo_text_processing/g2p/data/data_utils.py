@@ -131,6 +131,25 @@ def english_text_preprocessing(text, lower=True):
 
 def any_locale_text_preprocessing(text: str) -> str:
     """
+    Normalize unicode text with "NFC", and convert right single quotation mark (U+2019, decimal 8217) as an apostrophe.
+
+    Args:
+        text (str): the original input sentence.
+
+    Returns: normalized text (str).
+    """
+    res = []
+    for c in normalize_unicode_text(text):
+        if c in ['’']:  # right single quotation mark (U+2019, decimal 8217) as an apostrophe
+            res.append("'")
+        else:
+            res.append(c)
+
+    return ''.join(res)
+
+
+def normalize_unicode_text(text: str) -> str:
+    """
     TODO @xueyang: Apply NFC form may be too aggressive since it would ignore some accented characters that do not exist
       in predefined German alphabet (nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon.IPA_CHARACTER_SETS),
       such as 'é'. This is not expected. A better solution is to add an extra normalization with NFD to discard the
@@ -149,17 +168,6 @@ def any_locale_text_preprocessing(text: str) -> str:
     Returns:
         NFC normalized sentence (str).
     """
-    res = []
-    for c in normalize_unicode_text(text):
-        if c in ['’']:  # right single quotation mark as an apostrophe, U+2019, decimal 8217
-            res.append("'")
-        else:
-            res.append(c)
-
-    return ''.join(res)
-
-
-def normalize_unicode_text(text: str) -> str:
     # normalize word with NFC form
     if not unicodedata.is_normalized("NFC", text):
         text = unicodedata.normalize("NFC", text)
