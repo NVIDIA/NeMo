@@ -23,7 +23,6 @@ from nemo_text_processing.g2p.data.data_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
-    german_text_preprocessing,
     spanish_text_preprocessing,
 )
 
@@ -216,7 +215,7 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=_PUNCT_LIST,
-        text_preprocessing_func=german_text_preprocessing,
+        text_preprocessing_func=any_locale_text_preprocessing,
     ):
         """German grapheme-based tokenizer.
         Args:
@@ -285,7 +284,7 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=None,
-        text_preprocessing_func=german_text_preprocessing,
+        text_preprocessing_func=any_locale_text_preprocessing,
     ):
         """Deutsch phoneme-based tokenizer.
         Args:

@@ -24,7 +24,6 @@ __all__ = [
     "read_wordids",
     "chinese_text_preprocessing",
     "english_text_preprocessing",
-    "german_text_preprocessing",
     "any_locale_text_preprocessing",
     "spanish_text_preprocessing",
     "any_locale_word_tokenize",
@@ -130,7 +129,7 @@ def english_text_preprocessing(text, lower=True):
     return text
 
 
-def german_text_preprocessing(text: str) -> str:
+def any_locale_text_preprocessing(text: str) -> str:
     """
     TODO @xueyang: Apply NFC form may be too aggressive since it would ignore some accented characters that do not exist
       in predefined German alphabet (nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon.IPA_CHARACTER_SETS),
@@ -158,10 +157,6 @@ def german_text_preprocessing(text: str) -> str:
             res.append(c)
 
     return ''.join(res)
-
-
-def any_locale_text_preprocessing(text: str) -> str:
-    return german_text_preprocessing(text)
 
 
 def normalize_unicode_text(text: str) -> str:
