@@ -115,7 +115,7 @@ def get_demo(share, username, password):
                 top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.02, value=0.9, label='Top P')
                 top_k = gr.Slider(minimum=0, maximum=10000, step=2, value=0, label='Top K')
                 repetition_penality = gr.Slider(
-                    minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
+                    minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
@@ -155,7 +155,7 @@ def get_retro_demo(share, username, password):
                 top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.02, value=0.9, label='Top P')
                 top_k = gr.Slider(minimum=0, maximum=10000, step=2, value=0, label='Top K')
                 repetition_penality = gr.Slider(
-                    minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
+                    minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
                 k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
                 weights = gr.Slider(
