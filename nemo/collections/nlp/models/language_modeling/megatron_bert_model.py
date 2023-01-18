@@ -75,9 +75,9 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        if self.trainer.precision == 32:
+        if int(self.trainer.precision) == 32:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
+        elif int(self.trainer.precision) == 16:
             self.autocast_dtype = torch.half
         elif self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16

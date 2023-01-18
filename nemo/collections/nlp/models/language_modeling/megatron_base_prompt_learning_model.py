@@ -128,9 +128,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision == 32:
+        if int(self.trainer.precision) == 32:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
+        elif int(self.trainer.precision) == 16:
             self.autocast_dtype = torch.half
         elif self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
