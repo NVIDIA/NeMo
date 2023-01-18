@@ -1,0 +1,45 @@
+trainer:
+  devices: 1
+  num_nodes: 1
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: gpu
+
+model_file: null
+checkpoint_dir: null
+checkpoint_name: null
+hparams_file: null
+srctext: ???
+tgtout: ???
+batch_size: 128
+source_lang: null
+target_lang: null
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: 0
+
+retrieval: False
+num_neighbors: 2
+nn_mapping: null # file with indices of nns to retrieve corresponding to srctext
+
+retriever:
+  type: 'text' # choices 'perceiver' 'text' * 'perceiver_text' (src is text, nns is perceiver)
+  latent_size: 16 # perceiver latents size to use
+  encoder_path: str = None # path to retrieval-encoder
+  mask_prob: 0.10 # retriever mask prob
+  copy_prob: 0.15 # retriever copy prob
+  precision: 32 # retriever precision
+
+retrieval_ds:
+  src_file_name: null
+  tgt_file_name: null
+  dataset_type: 'text_memmap' # Options ['bin_memmap', 'text_memmap']
+  sampler: 'megatron' # Options ['megatron']. Note megatron samplers do not shuffle across epochs.
+  micro_batch_size: 32
+  global_batch_size: 512
+  # config for preprocessing training data and creating a tarred datset automatically
+  max_seq_length: 512
+  num_samples: -1
+  drop_last: false
+  pin_memory: false
+  num_workers: 8
+  concat_sampling_probabilities: null # only used with ConcatTranslationDataset
