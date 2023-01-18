@@ -58,6 +58,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         pos_bias_u=None,
         pos_bias_v=None,
         att_context_size=[-1, -1],
+        memory_efficient=False,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -65,12 +66,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.n_heads = n_heads
         self.fc_factor = 0.5
 
+        from xformers.triton.layer_norm import FusedLayerNorm
+
         # first feed forward module
-        self.norm_feed_forward1 = LayerNorm(d_model)
+        self.norm_feed_forward1 = FusedLayerNorm(d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         # convolution module
-        self.norm_conv = LayerNorm(d_model)
+        self.norm_conv = FusedLayerNorm(d_model)
         self.conv = ConformerConvolution(
             d_model=d_model,
             kernel_size=conv_kernel_size,
@@ -79,7 +82,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         )
 
         # multi-headed self-attention module
-        self.norm_self_att = LayerNorm(d_model)
+        self.norm_self_att = FusedLayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
@@ -103,7 +106,11 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                max_cache_len=MHA_max_cache_len,
+                memory_efficient=memory_efficient,
             )
         else:
             raise ValueError(
@@ -344,7 +351,7 @@ class ConformerConvolution(nn.Module):
             x = self.pointwise_activation(x)
 
         if pad_mask is not None:
-            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
+            x = x.masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         if cache is not None:
             x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)

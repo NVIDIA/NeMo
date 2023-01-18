@@ -31,7 +31,6 @@
 """
 Part of this code is adopted from https://github.com/espnet/espnet
 """
-
 import math
 from functools import lru_cache
 from typing import List
@@ -39,6 +38,7 @@ from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import xformers.ops as xops
 
 from nemo.utils import avoid_float16_autocast_context
 
@@ -66,7 +66,7 @@ class MultiHeadAttention(nn.Module):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, memory_efficient: bool = False):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.cache_drop_size = None
@@ -80,6 +80,7 @@ class MultiHeadAttention(nn.Module):
         self.linear_v = nn.Linear(n_feat, n_feat)
         self.linear_out = nn.Linear(n_feat, n_feat)
         self.dropout = nn.Dropout(p=dropout_rate)
+        self.memory_efficient = memory_efficient
 
         self._max_cache_len = max_cache_len
         self._cache_id = None
@@ -149,8 +150,19 @@ class MultiHeadAttention(nn.Module):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-            out = self.forward_attention(v, scores, mask)
+
+            if self.memory_efficient:
+                n_batch = value.size(0)
+                q = q.permute(0, 2, 1, 3)
+                k = k.permute(0, 2, 1, 3)
+                v = v.permute(0, 2, 1, 3)
+                attn = xops.memory_efficient_attention(q, k, v)
+                attn = attn.reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(attn)  # (batch, time1, d_model)
+                # print((mem_out - out).abs().max() < 4e-3, ((mem_out - out).abs().max()))
+            else:
+                scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+                out = self.forward_attention(v, scores, mask)
 
         return out
 
@@ -625,7 +637,7 @@ class PositionalEncoding(torch.nn.Module):
         pos_emb = self.pe[:, : x.size(1)]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
-        x = x + pos_emb
+        x = x + pos_emb.type(x.type())
         return self.dropout(x), pos_emb
 
 

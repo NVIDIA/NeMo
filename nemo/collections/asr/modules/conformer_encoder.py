@@ -192,6 +192,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         dropout_pre_encoder=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
+        memory_efficient=False,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -202,6 +203,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
         self.self_attention_model = self_attention_model
+        self.memory_efficient = memory_efficient
 
         if att_context_size:
             self.att_context_size = list(att_context_size)
@@ -347,6 +349,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 att_context_size=self.att_context_size,
+                memory_efficient=self.memory_efficient,
             )
             self.layers.append(layer)
 
