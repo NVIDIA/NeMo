@@ -139,8 +139,6 @@ class FaissRetrievalResource(Resource):
             chunks = []
             for neighbor_chunk_id in sentence_neighbors:
                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
-                if self.index.ntotal == 0:
-                    chunk_id = -1
                 chunks.append(chunk_id)
             chunks = np.stack(chunks, axis=0).astype(np.int64)
             results.append(chunks)
