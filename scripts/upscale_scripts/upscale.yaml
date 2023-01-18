@@ -28,6 +28,8 @@ upscaler:
   cs_loss_weight: 1.0
   csn_loss_weight: 1.0
   sl1_loss_weight: 1.0
+  evaluation: "score"
+  normalize: False
 
   trainer:
     max_epochs: 2
@@ -42,8 +44,8 @@ upscaler:
     batch_size: 256
     high_freq_cutoff: 0
     num_examples: 40000
-    train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_1k.jsonl"
-    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_val_100.jsonl"
+    train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_10k.jsonl"
+    eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_val_1k.jsonl"
     token_based_training: False
     num_virtual_prompts: 10
   

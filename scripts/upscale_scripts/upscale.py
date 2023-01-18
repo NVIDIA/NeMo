@@ -60,8 +60,8 @@ def get_dataset(model, data_paths: List[AnyStr]):
         pad_token_id=model.pad_token_id,
         max_seq_length=model.frozen_model.cfg.encoder_seq_length,
         min_seq_length=1,
-        add_bos=True,
-        add_eos=True,
+        add_bos=model.cfg.data.get('add_bos', False),
+        add_eos=model.cfg.data.get('add_eos', True),
         for_train=True,
         tokens_to_generate=None,
         cache_data_path=None,
@@ -91,6 +91,7 @@ class UpscaleTokenDataset(Dataset):
         word_embeds_y,
         pos_embeds_y,
         is_training,
+        norm=None,
     ) -> None:
         super().__init__()
         self.discard_vocabs = set(discard_vocabs)
@@ -101,29 +102,34 @@ class UpscaleTokenDataset(Dataset):
         self.tokenizer = tokenizer
         self.examples = []
         self.is_training = is_training
+        self.norm = norm
         for _, input_ids, _ in prompt_learning_dataset.examples:
             if self.is_training:
-                type_and_position = [(idx, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs]
+                position_and_type = [(idx, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs]
             else:
-                type_and_position = [
+                position_and_type = [
                     (idx % num_prompts, id) for idx, id in enumerate(input_ids) if id not in self.discard_vocabs
                 ]
 
-            type_and_position = type_and_position[num_prompts:]  # skip prompts
+            position_and_type = position_and_type[num_prompts:]  # skip prompts
+            if len(position_and_type) > 0:
+                assert max([t for p,t in position_and_type]) < self.word_embeds_x.shape[0]
             promptless_input_ids = input_ids[num_prompts:]
+            if len(promptless_input_ids) > 0:
+                assert max(promptless_input_ids) < self.word_embeds_x.shape[0]
             if self.is_training:
-                promptless_type_and_position = [
+                promptless_position_and_type = [
                     (idx, id) for idx, id in enumerate(promptless_input_ids) if id not in self.discard_vocabs
                 ]
             else:
-                promptless_type_and_position = [
+                promptless_position_and_type = [
                     (idx % num_prompts, id)
                     for idx, id in enumerate(promptless_input_ids)
                     if id not in self.discard_vocabs
-                ]
+                ]  #place all regular words in the position of the prompts i.e. 0-num_prompts.
 
-            self.examples += type_and_position
-            self.examples += promptless_type_and_position
+            self.examples += position_and_type
+            self.examples += promptless_position_and_type
         self.examples = list(set(self.examples))
         self.total_examples = len(self.examples)
         print(f"total examples {self.total_examples}")
@@ -146,6 +152,11 @@ class UpscaleTokenDataset(Dataset):
         n_pos_embed_y = self.pos_embds_y[n_idx]
         n_word_embed_y = self.word_embeds_y[n_id]
         nty = n_pos_embed_y + n_word_embed_y
+        
+        if self.norm:
+            tx = tx / tx.norm()
+            ty = ty / ty.norm()
+            nty = nty / nty.norm()
 
         # return word_embed_x, pos_embed_x, word_embed_y, pos_embed_y, n_word_embed_y, n_pos_embed_y
         return tx, ty, nty
@@ -170,7 +181,7 @@ class UpscaleTokenDataset(Dataset):
 
 
 class UpscaleDataset(Dataset):
-    def __init__(self, precision: torch.dtype, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor) -> None:
+    def __init__(self, precision: torch.dtype, x_embeddings: torch.Tensor, y_embeddings: torch.Tensor, norm) -> None:
         super().__init__()
         self.x_embs = x_embeddings.type(precision)
         self.y_embs = y_embeddings.type(precision)
@@ -183,6 +194,7 @@ class UpscaleDataset(Dataset):
         y_cs = y_embeddings_norm @ y_embeddings_norm.transpose(0, 1)
         y_cs.fill_diagonal_(-float('inf'))
         self.y_sim_probs = torch.softmax(y_cs, dim=1).cpu().numpy()
+        self.norm = norm
 
     def __len__(self,):
         return self.x_embs.shape[0]
@@ -190,7 +202,12 @@ class UpscaleDataset(Dataset):
     def __getitem__(self, idx):
         k_neighbors = np.random.choice(self.vocab, 1, p=self.y_sim_probs[idx], replace=False)
         assert idx not in k_neighbors
-        return self.x_embs[idx], self.y_embs[idx], self.y_embs[k_neighbors[0]]
+        tx, ty, nty = self.x_embs[idx], self.y_embs[idx], self.y_embs[k_neighbors[0]]
+        if self.norm:
+            tx = tx / tx.norm()
+            ty = ty / ty.norm()
+            nty = nty / nty.norm()
+        return tx, ty , nty
 
 
 def do_inference(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_file_path):
@@ -267,7 +284,7 @@ def do_scoring(model, trainer_cfg, inference_cfg, eval_dataset, projected_pred_f
     )
 
     prompts = [json.loads(s) for s in open(cfg.data_paths[0], 'r', encoding='utf8').readlines()]
-    model.total_new_task_virtual_tokens = cfg.get("total_new_task_virtual_tokens", 10)
+    model.total_new_task_virtual_tokens = cfg.upscaler.data.num_virtual_prompts
     print("***************************")
     with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for i, batch in enumerate(score_dl):
@@ -313,6 +330,8 @@ def main(cfg) -> None:
     lg_word_embeddings = lg_model.frozen_model.model.language_model.embedding.word_embeddings.weight.data
     lg_pos_embeddings = lg_model.frozen_model.model.language_model.embedding.position_embeddings.weight.data
     lg_prompt_learning_embs = lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
+    sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[:cfg.upscaler.data.num_virtual_prompts, :]
+    lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[:cfg.upscaler.data.num_virtual_prompts, :]
 
     if cfg.upscaler.data.token_based_training:
         train_dataset = get_dataset(sm_model, [cfg.upscaler.data.train_dataset])
@@ -326,6 +345,7 @@ def main(cfg) -> None:
             lg_word_embeddings,
             lg_pos_embeddings,
             True,
+            norm=cfg.upscaler.normalize,
         )
         train_dataloader = DataLoader(
             train, batch_size=cfg.upscaler.data.batch_size, shuffle=True
@@ -340,28 +360,29 @@ def main(cfg) -> None:
             lg_word_embeddings,
             lg_pos_embeddings,
             False,
+            norm=cfg.upscaler.normalize,
         )
         val_dataloader = DataLoader(
             val, batch_size=cfg.upscaler.data.batch_size, shuffle=False
         )  # , collate_fn=UpscaleTokenDataset.collate_fn)
 
-        sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[:10, :]
-        lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[:10, :]
-        test = UpscaleDataset(torch.float16, sm_prompt_tokens, lg_prompt_tokens)
-        test2 = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs)
+       
+        test = UpscaleDataset(torch.float16, sm_prompt_tokens, lg_prompt_tokens, norm=cfg.upscaler.normalize)
+        test2 = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         test_dataloader2 = DataLoader(test2, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
     else:
         train = UpscaleDataset(
-            torch.float16, sm_word_embeddings[train_type_ids, :], lg_word_embeddings[train_type_ids, :]
+            torch.float16, sm_word_embeddings[train_type_ids, :], lg_word_embeddings[train_type_ids, :],
+        norm=cfg.upscaler.normalize,
         )
-        val = UpscaleDataset(torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :])
-        test = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs)
+        val = UpscaleDataset(torch.float16, sm_word_embeddings[val_type_ids, :], lg_word_embeddings[val_type_ids, :], norm=cfg.upscaler.normalize)
+        test = UpscaleDataset(torch.float16, sm_prompt_learning_embs, lg_prompt_learning_embs, norm=cfg.upscaler.normalize)
         test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
         train_dataloader = DataLoader(train, batch_size=cfg.upscaler.data.batch_size, shuffle=True)
         val_dataloader = DataLoader(val, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
-        test_dataloader = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
+        test_dataloader2 = DataLoader(test, batch_size=cfg.upscaler.data.batch_size, shuffle=False)
 
     projector = EmbeddingProjector(sm_word_embeddings.shape[1], lg_word_embeddings.shape[1], cfg.upscaler)
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=10, verbose=True, mode="min")
@@ -389,16 +410,7 @@ def main(cfg) -> None:
     y_hat = best_projector(sm_prompt_learning_embs)
 
     lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data = y_hat
-    if cfg.evaluation == 'generation':
-        do_inference(
-            lg_model, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
-        )
-    elif cfg.evaluation == 'score':
-        do_scoring(
-            lg_model, cfg.nemo_trainer, cfg.inference, cfg.upscaler.data.eval_dataset, cfg.projected_pred_file_path
-        )
     lg_model.save_to(cfg.projected_prompt_learning_model)
-
-
+    
 if __name__ == '__main__':
     main()
