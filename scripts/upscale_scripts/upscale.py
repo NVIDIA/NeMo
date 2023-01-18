@@ -35,7 +35,7 @@ def load_prompt_learning_model(virtual_prompt_model_file, trainer_cfg, base_mode
     with open_dict(prompt_learning_cfg):
         prompt_learning_cfg.save_nemo_on_validation_end = False
         prompt_learning_cfg.micro_batch_size = 1
-        prompt_learning_cfg.global_batch_size = 1
+        prompt_learning_cfg.global_batch_size = trainer_cfg.devices
         prompt_learning_cfg.language_model_path = base_model_path
 
     model = MegatronGPTPromptLearningModel.restore_from(
