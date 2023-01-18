@@ -135,6 +135,9 @@ class FaissRetrievalResource(Resource):
             chunks = []
             for neighbor_chunk_id in sentence_neighbors:
                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
+                # To query an empty Faiss index for 1 neighbor, it will return 0 instead of -1. a workaround fix
+                if self.index.ntotal == 0:
+                    chunk_id = 0
                 chunks.append(chunk_id)
             chunks = np.stack(chunks, axis=0).astype(np.int64)
             results.append(chunks)
