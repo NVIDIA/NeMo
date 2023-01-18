@@ -83,6 +83,7 @@ model:
       use_chars: true
       use_stresses: true
       grapheme_case: mixed
+      grapheme_prefix: '#'
 
   train_ds:
     dataset:

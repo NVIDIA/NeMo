@@ -278,7 +278,7 @@ class IPAG2P(BaseG2p):
         phoneme_probability: Optional[float] = None,
         use_stresses: Optional[bool] = True,
         grapheme_case: Optional[str] = "upper",
-        grapheme_prefix: Optional[str] = "#",
+        grapheme_prefix: Optional[str] = "",
         mapping_file: Optional[str] = None,
     ) -> None:
         """
@@ -311,11 +311,13 @@ class IPAG2P(BaseG2p):
                 dict, it will be kept as graphemes. If a word has multiple pronunciations as shown in the g2p dict and
                 `ignore_ambiguous_words` is True, it will be kept as graphemes as well.
             use_stresses (Optional[bool]): Whether to include the stress symbols (ˈ and ˌ).
-            grapheme_case (Optional[str]): Trigger converting all graphemes to uppercase, lowercase, or mix-cases.
-                You may want to use this feature to distinguish the grapheme set from the phoneme set if there is an
-                overlap in between. Defaults to `upper` because phoneme set only uses lowercase symbols.
+            grapheme_case (Optional[str]): Trigger converting all graphemes to uppercase, lowercase, or keeping them as
+                original mix-cases. You may want to use this feature to distinguish the grapheme set from the phoneme
+                set if there is an overlap in between. Defaults to `upper` because phoneme set only uses lowercase
+                symbols.
             grapheme_prefix (Optional[str]): Prepend a special symbol to any graphemes in order to distinguish graphemes
-                from phonemes because there may be overlaps between the two set. Default to "#".
+                from phonemes because there may be overlaps between the two set. It is suggested to choose a prefix that
+                is not used or preserved somewhere else. "#" could be a good candidate. Default to "".
             TODO @borisfom: add docstring for newly added `mapping_file` argument.
         """
         self.use_stresses = use_stresses
