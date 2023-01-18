@@ -534,8 +534,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
-            # ! invoke model embedding lookup 
-            # concentate 
+
             output = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask
@@ -1073,6 +1072,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
         # Reset microbatch calculator to what it was before decoding.
+        # Not resetting caused a bug in retrieval-nmt-perciever
         global_batch_per_gpu = self.cfg.get('global_batch_per_gpu', 512) # 512 for local and 32 for 16-gpu machine
 
         if reconfigure_microbatch:
