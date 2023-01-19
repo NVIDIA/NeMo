@@ -110,7 +110,9 @@ class WERBPE_TS(WERBPE):
         token_list = self.decoding.tokenizer.ids_to_tokens(tokens)
         return token_list
 
-    def get_ts_from_decoded_prediction(self, decoded_prediction: List[str], hypothesis: str, char_ts: List[str]) -> Tuple[List[List[float]], List[str]]:
+    def get_ts_from_decoded_prediction(
+        self, decoded_prediction: List[str], hypothesis: str, char_ts: List[str]
+    ) -> Tuple[List[List[float]], List[str]]:
         decoded_char_list = self.decoding.tokenizer.ids_to_tokens(decoded_prediction)
         stt_idx, end_idx = 0, len(decoded_char_list) - 1
         stt_ch_idx, end_ch_idx = 0, 0
@@ -130,7 +132,7 @@ class WERBPE_TS(WERBPE):
                 _stt = char_ts[idx]
                 stt_ch_idx = idx
                 word_open_flag = True
-            
+
             # If this char has `word_open_flag=True` and meets any of one of the following condition:
             # (1) last word (2) unknown word (3) start symbol in the following word,
             # close the `word_open_flag` and add the word to the `word_seq` list.
