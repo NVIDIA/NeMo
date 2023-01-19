@@ -1,4 +1,4 @@
-name: 'wts${upscaler.cs_loss_weight}_${upscaler.csn_loss_weight}_${upscaler.sl1_loss_weight}_hs${upscaler.hidden_size}_bs${upscaler.data.batch_size}_co${upscaler.data.high_freq_cutoff}_nx${upscaler.data.num_examples}_vt${upscaler.data.num_virtual_prompts}_norm${upscaler.normalize}_tokbased${upscaler.data.token_based_training}'
+name: 'wts${linear_combiner.cs_loss_weight}_${linear_combiner.sl1_loss_weight}_${linear_combiner.l1_loss_weight}_${linear_combiner.l2_loss_weight}_co${linear_combiner.data.high_freq_cutoff}_nx${linear_combiner.data.num_examples}_norm${linear_combiner.normalize}'
 
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
@@ -8,7 +8,7 @@ inference:
   add_BOS: True # add the bos token at the begining of the prompt
   tokens_to_generate: 30 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
-  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  repetition_penalty: 1.2  # The parameter for repetition nalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   batch_size: 10
@@ -21,43 +21,39 @@ nemo_trainer:
   precision: 16 # 16, 32, or bf16
 
 
-upscaler:
-  save_checkpoint_prefix: "upscaler_checkpoints"
-  save_checkpoint_path: '${upscaler.save_checkpoint_prefix}/${name}/'
+linear_combiner:
+  save_checkpoint_prefix: "linear_combiner_checkpoints"
+  save_checkpoint_path: '${linear_combiner.save_checkpoint_prefix}/${name}/'
   hidden_size: 164
   cs_loss_weight: 1.0
-  csn_loss_weight: 1.0
   sl1_loss_weight: 1.0
-  evaluation: "score"
+  l1_loss_weight: 1.0
+  l2_loss_weight: 1.0
   normalize: False
 
   trainer:
-    max_epochs: 2
+    max_epochs: 200
     num_sanity_val_steps: 0
-    val_check_interval: 0.25
+    check_val_every_n_epoch: 10
     devices: 1
     num_nodes: 1
     accelerator: gpu
     precision: 16 # 16, 32, or bf16
 
   data:
-    batch_size: 256
     high_freq_cutoff: 0
     num_examples: 40000
     train_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_train_10k.jsonl"
     eval_dataset: "/home/adithyare/datasets/tasks/prompt-learning-data/squad/squad_val_1k.jsonl"
-    token_based_training: False
-    num_virtual_prompts: 10
   
   wandb:
-    name: ${name}
-    project: 'upscaler'
-    group: 'test'
+    name: ${name}_lstm
+    project: 'linear_combiner'
 
 taskname: "squad"
 small_model_path: "/home/adithyare/pretrained_models/megatron_gpt_125m/tp1pp1/megatron_gpt.nemo"
 small_prompt_learning_model: "/home/adithyare/exp/125m_squad_prompt_tuning/prompt_learning.nemo"
 large_model_path: "/home/adithyare/pretrained_models/megatron_gpt_1.3b/tp1pp1/megatron_gpt.nemo"
 large_prompt_learning_model: "/home/adithyare/exp/1_3b_squad_prompt_tuning/prompt_learning.nemo"
-projected_prompt_learning_model: '${upscaler.save_checkpoint_path}/projected_prompt_learning_model.nemo'
-projected_pred_file_path: '${upscaler.save_checkpoint_path}/projected_predictions.txt'
+projected_prompt_learning_model: '${linear_combiner.save_checkpoint_path}/projected_prompt_learning_model.nemo'
+projected_pred_file_path: '${linear_combiner.save_checkpoint_path}/projected_predictions.txt'
