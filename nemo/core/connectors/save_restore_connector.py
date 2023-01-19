@@ -454,6 +454,7 @@ class SaveRestoreConnector:
                 if submodule_restoration_path is not None:
                     restoration_paths.add(submodule_restoration_path)
         if len(tarfile_artifacts) > 0 and len(restoration_paths) == 0:
+            # TODO: see cases when this can occur, and if we can fix them
             logging.warning("Model contains registered artifacts, but no restoration paths found")
         if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
             # Need to step into nemo archive to extract file
