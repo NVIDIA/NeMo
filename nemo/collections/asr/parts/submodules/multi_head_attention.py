@@ -180,6 +180,97 @@ class MultiHeadAttention(nn.Module):
         return key, value, query
 
 
+class ALiBiMultiHeadAttention(MultiHeadAttention):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, memory_efficient: bool = False):
+        """Construct an MultiHeadedAttention object."""
+        super().__init__(n_head, n_feat, dropout_rate, max_cache_len)
+        self.memory_efficient = memory_efficient
+        self.alibi_attn_bias = None  # create attn_bias lazily
+        self.saved_seq_len = None
+
+    def _get_slopes(self, n):
+        def get_slopes_power_of_2(n):
+            start = 2 ** (-(2 ** -(math.log2(n) - 3)))
+            ratio = start
+            return [start * ratio ** i for i in range(n)]
+
+        if math.log2(n).is_integer():
+            return get_slopes_power_of_2(
+                n
+            )  # In the paper, we only train models that have 2^a heads for some a. This function has
+        else:  # some good properties that only occur when the input is a power of 2. To maintain that even
+            closest_power_of_2 = 2 ** math.floor(
+                math.log2(n)
+            )  # when the number of heads is not a power of 2, we use this workaround.
+            return (
+                get_slopes_power_of_2(closest_power_of_2)
+                + self._get_slopes(2 * closest_power_of_2)[0::2][: n - closest_power_of_2]
+            )
+
+    def _initialize_attn_bias(self, query: torch.Tensor, mask: torch.Tensor):
+        b, seq_len = mask.shape[0], mask.shape[1]
+        context_position = torch.arange(seq_len)[:, None]
+        memory_position = torch.arange(seq_len)[None, :]
+        relative_position = memory_position - context_position
+        relative_position = torch.abs(relative_position).unsqueeze(0).expand(self.h, -1, -1)
+
+        slopes = torch.Tensor(self._get_slopes(self.h)) * -1
+        alibi = slopes.unsqueeze(1).unsqueeze(1) * relative_position
+        return alibi.view(1, self.h, seq_len, seq_len).expand(b, -1, -1, -1).type_as(query)
+
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
+        """Compute 'Scaled Dot Product Attention'.
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+
+        returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
+        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+
+        if torch.is_autocast_enabled():
+            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
+
+        seq_len = query.size(1)
+        if not self.saved_seq_len:
+            self.saved_seq_len = seq_len
+        if self.saved_seq_len != seq_len:
+            print(f"sequence lengths changed {self.saved_seq_len}, {seq_len}")
+
+        # temporary until we solve this more gracefully
+        with avoid_float16_autocast_context():
+            q, k, v = self.forward_qkv(query, key, value)
+            # alibi_attn_bias = self._initialize_attn_bias(query=q, mask=mask)
+
+            batch_size, num_heads = query.size(0), self.h
+            attn_bias = torch.randn((batch_size * num_heads, 1, seq_len), device=q.device, dtype=q.dtype) * 3
+            attn_bias = attn_bias.expand(batch_size * num_heads, seq_len, seq_len)
+            if self.memory_efficient:
+                n_batch = value.size(0)
+                q = q.permute(0, 2, 1, 3)
+                k = k.permute(0, 2, 1, 3)
+                v = v.permute(0, 2, 1, 3)
+                # mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
+                import pdb
+
+                pdb.set_trace()
+                attn = xops.memory_efficient_attention(q, k, v, attn_bias=attn_bias)
+                attn = attn.reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(attn)  # (batch, time1, d_model)
+
+                # print((mem_out - out).abs().max() < 4e-3, ((mem_out - out).abs().max()))
+            else:
+                scores = torch.matmul(q / self.s_d_k, k.transpose(-2, -1)) + alibi_attn_bias
+                out = self.forward_attention(v, scores, mask)
+
+        return out
+
+
 class RelPositionMultiHeadAttention(MultiHeadAttention):
     """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
     Paper: https://arxiv.org/abs/1901.02860

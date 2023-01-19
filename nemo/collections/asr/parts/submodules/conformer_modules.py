@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pdb
 
 import torch
 from torch import nn as nn
@@ -19,6 +20,7 @@ from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    ALiBiMultiHeadAttention,
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
     RelPositionMultiHeadAttentionLongformer,
@@ -106,6 +108,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len,
+            )
+        elif self_attention_model == 'alibi_pos':
+            self.self_attn = ALiBiMultiHeadAttention(
                 n_head=n_heads,
                 n_feat=d_model,
                 dropout_rate=dropout_att,
@@ -175,7 +181,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 cache=cache_last_channel,
                 cache_next=cache_last_channel_next,
             )
-        elif self.self_attention_model == 'abs_pos':
+        elif self.self_attention_model in ('abs_pos', 'alibi_pos'):
             x = self.self_attn(
                 query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel, cache_next=cache_last_channel_next
             )

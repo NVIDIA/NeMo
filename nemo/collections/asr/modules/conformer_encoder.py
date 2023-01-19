@@ -331,6 +331,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.pos_enc = PositionalEncoding(
                 d_model=d_model, dropout_rate=dropout_pre_encoder, max_len=pos_emb_max_len, xscale=self.xscale
             )
+        elif self_attention_model == "alibi_pos":
+            self.pos_enc = None
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
@@ -385,7 +387,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        self.pos_enc.extend_pe(max_audio_length, device)
+        if self.pos_enc:
+            self.pos_enc.extend_pe(max_audio_length, device)
 
         if self.self_attention_model != "rel_pos_local_attn":
             att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
@@ -459,6 +462,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         if self.self_attention_model == 'abs_pos':
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
+        elif self.self_attention_model == 'alibi_pos':
+            pos_emb = None
+            # pad x to a multiple of 8
+            padding = 8 - (max_audio_length % 8)
+            max_audio_length = max_audio_length + padding
+            audio_signal = (
+                nn.functional.pad(audio_signal.transpose(1, 2), (0, padding), value=0).transpose(1, 2).contiguous()
+            )
         else:
             audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
