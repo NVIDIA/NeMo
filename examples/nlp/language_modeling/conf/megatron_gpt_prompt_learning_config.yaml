@@ -45,7 +45,7 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   global_batch_size: 8
   micro_batch_size: 4
-  drop_last: True
+  drop_last: False
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: ${model.drop_last}
