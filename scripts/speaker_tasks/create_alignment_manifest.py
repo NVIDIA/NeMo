@@ -23,7 +23,16 @@ from nemo.utils import logging
 
 def get_unaligned_files(unaligned_path):
     """
-    Get files without alignments in order to filter them out (as they cannot be used for data simulation))
+    Get files without alignments in order to filter them out (as they cannot be used for data simulation).
+    In the unaligned file, each line contains the file name and the reason for the unalignment, if necessary to specify.
+
+    Example: unaligned.txt
+
+    <utterance_id> <comment>
+    1272-128104-0000 (no such file)
+    2289-152257-0025 (no such file)
+    2289-152257-0026 (mapping failed)
+    ...
 
     Args:
         unaligned_path (str): Path to the file containing unaligned examples
@@ -101,9 +110,14 @@ def create_librispeech_ctm_alignments(
     """
     manifest = read_manifest(input_manifest_filepath)
     unaligned_path = os.path.join(base_alignment_path, "unaligned.txt")
+
+    if os.path.exists(unaligned_path):
+        unaligned_file_ids = set(get_unaligned_files(unaligned_path))
+    else:
+        unaligned_file_ids = set()
+
     libri_dataset_split = libri_dataset_split.replace("_", "-")
 
-    unaligned_file_ids = set(get_unaligned_files(unaligned_path))
 
     # delete output directory if it exists or throw warning
     if os.path.isdir(ctm_output_directory):
