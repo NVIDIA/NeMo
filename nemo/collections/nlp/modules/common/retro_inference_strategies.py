@@ -24,6 +24,7 @@ import torch.distributed as dist
 import torch
 from typing import List, Tuple
 import numpy as np
+import pickle
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
@@ -250,8 +251,8 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         all_lookups = self.service.get_knn(questions, 1 + self.neighbors)
-        self.reuse_neighbors = all_lookups[:, 1:] 
-
+        reuse_neighbors = all_lookups[:, 1:] 
+        self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
@@ -273,6 +274,7 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         self.retrieved = []
         self.retrieved_text = []
+        self.reuse_neighbors = pickle.loads(self.store.get('reuse_neighbors'))
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer
