@@ -445,12 +445,14 @@ class ASRWithTTSModel(ASRModel):
                 collate_fn = asr_dataset.collate_fn
             else:
                 collate_fn = asr_dataset.datasets[0].collate_fn
+
+        shuffle = train_data_config.get("shuffle", True) and not dataset_iterable
         self._train_dl = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=train_data_config['batch_size'],
             collate_fn=collate_fn,
             drop_last=train_data_config.get('drop_last', False),
-            shuffle=train_data_config.get('shuffle', True),
+            shuffle=shuffle,
             num_workers=train_data_config.get('num_workers', 0),
             pin_memory=train_data_config.get('pin_memory', False),
         )
