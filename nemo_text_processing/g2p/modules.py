@@ -628,7 +628,7 @@ class IPAG2P(BaseG2p):
             else:
                 assert (
                     len(words) == 1
-                ), f"{words} should only has a single item when `without_changes` is False, but found {len(words)}."
+                ), f"{words} should only have a single item when `without_changes` is False, but found {len(words)}."
 
                 word = words[0]
                 pron, is_handled = self.parse_one_word(word)
