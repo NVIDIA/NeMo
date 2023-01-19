@@ -407,16 +407,16 @@ class SaveRestoreConnector:
 
         # aggregate artifacts from self and all children recursively
         artifacts_containers = []
-        for name, module in model.named_cfg_nemo_modules():
+        for _, config_path, module in model.named_nemo_modules():
             if module.has_artifacts():  # NeMo model with artifacts
-                artifacts_containers.append((name, module.artifacts))
+                artifacts_containers.append((config_path, module.artifacts))
 
         if len(artifacts_containers) > 0 and (not hasattr(model, "artifacts") or model.artifacts is None):
             # model has no artifacts, but submodules have some
             model.artifacts = dict()
-        for module_name, artifacts in artifacts_containers:
+        for config_path, artifacts in artifacts_containers:
             for subconf_path, artiitem in artifacts.items():
-                conf_path = f"{module_name}.{subconf_path}" if module_name else f"{subconf_path}"
+                conf_path = f"{config_path}.{subconf_path}" if config_path else f"{subconf_path}"
                 if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
                     if not os.path.exists(artiitem.path):
                         raise FileNotFoundError(f"Artifact {conf_path} not found at location: {artiitem.path}")
@@ -500,7 +500,7 @@ class SaveRestoreConnector:
         conf = OmegaConf.load(path2yaml_file)
         # update subconfigs for all children recoursively
         # parent configs updated before children
-        for conf_path, submodule in model.named_cfg_nemo_modules():
+        for _, conf_path, submodule in model.named_nemo_modules():
             if not conf_path:  # self
                 continue
             OmegaConf.update(conf, conf_path, submodule.cfg)

@@ -305,31 +305,37 @@ class ModelPT(LightningModule, Model):
         # add to the submodules mapping
         self.nemo_submodule_name_to_config_field[name] = config_field
 
-    def named_cfg_nemo_modules(self, prefix: str = "") -> Iterator[Tuple[str, "ModelPT"]]:
+    def named_nemo_modules(
+        self, prefix_name: str = "", prefix_config: str = ""
+    ) -> Iterator[Tuple[str, str, "ModelPT"]]:
         """
         Returns an iterator over all NeMo submodules recursively, yielding
-        tuples of (path in the config, submodule), starting from the core module
+        tuples of (attribute path, path in the config, submodule), starting from the core module
 
         Args:
-            prefix: prefix for the path in config
+            prefix_name: prefix for the path in name
+            prefix_config: prefix for the path in config
 
         Returns:
             Iterator over (path in config, submodule), starting from (prefix, self)
         """
         if not hasattr(self, "nemo_submodule_name_to_config_field"):
             raise NeMoBaseException(
-                "Model is not fully initialized. Calling `named_cfg_nemo_modules` before __init__ not allowed. "
+                "Model is not fully initialized. Calling `named_nemo_modules` before __init__ not allowed. "
                 "Did you forget to call `super().__init__`?"
             )
 
-        yield prefix, self
+        yield prefix_name, prefix_config, self
 
         # recursive iteration over all NeMo submodules
-        for attribute, config_field in self.nemo_submodule_name_to_config_field.items():
-            config_path = f"{prefix}.{config_field}" if prefix else config_field
-            module: ModelPT = getattr(self, attribute)
-            for subconfig_path, submodule in module.named_cfg_nemo_modules(prefix=config_path):
-                yield subconfig_path, submodule
+        for name, config_field in self.nemo_submodule_name_to_config_field.items():
+            attribute_path = f"{prefix_name}.{name}" if prefix_name else name
+            config_path = f"{prefix_config}.{config_field}" if prefix_config else config_field
+            module: ModelPT = getattr(self, name)
+            for submodule_name, subconfig_path, submodule in module.named_nemo_modules(
+                prefix_name=attribute_path, prefix_config=config_path
+            ):
+                yield submodule_name, subconfig_path, submodule
 
     def save_to(self, save_path: str):
         """

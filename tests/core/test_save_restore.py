@@ -1038,6 +1038,20 @@ class TestSaveRestore:
                 assert parent.child2_model.temp_data == child_with_child_data
                 assert parent.child2_model.child2_model.temp_data == child_data
 
+                # check named_nemo_modules: parent -> child2 -> child2.child2,
+                # tuples of (attribute_path, cfg_path, module)
+                named_nemo_modules = list(parent.named_nemo_modules())
+                etalon_nemo_modules = [
+                    ("", "", parent),
+                    ("child2_model", "child2_model", parent.child2_model),
+                    ("child2_model.child2_model", "child2_model.child2_model", parent.child2_model.child2_model),
+                ]
+                assert len(named_nemo_modules) == len(etalon_nemo_modules)
+                for etalon, actual in zip(etalon_nemo_modules, named_nemo_modules):
+                    assert etalon[0] == actual[0]
+                    assert etalon[1] == actual[1]
+                    assert etalon[2] is actual[2]
+
     @pytest.mark.unit
     @pytest.mark.with_downloads
     def test_mock_model_nested_child_from_pretrained(self):
@@ -1095,6 +1109,15 @@ class TestSaveRestore:
                 # check data
                 assert parent.temp_data == parent_data
                 assert parent.child1_model.temp_data == child1_data
+
+                # check named_nemo_modules: parent -> child, tuples of (attribute_path, cfg_path, module)
+                named_nemo_modules = list(parent.named_nemo_modules())
+                etalon_nemo_modules = [("", "", parent), ("child1_model", "child1_model_config", parent.child1_model)]
+                assert len(named_nemo_modules) == len(etalon_nemo_modules)
+                for etalon, actual in zip(etalon_nemo_modules, named_nemo_modules):
+                    assert etalon[0] == actual[0]
+                    assert etalon[1] == actual[1]
+                    assert etalon[2] is actual[2]
 
     @pytest.mark.unit
     def test_using_nemo_checkpoint_as_artifact_disallowed(self):
