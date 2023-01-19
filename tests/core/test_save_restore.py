@@ -127,7 +127,7 @@ class MockModelWithChildren(MockModel):
             self.register_nemo_submodule(
                 "child1_model", config_field="child1_model", model=MockModel(self.cfg.child1_model),
             )
-        elif cfg.get('child1_model_path') is not None:
+        elif cfg.get("child1_model_path") is not None:
             self.register_nemo_submodule(
                 "child1_model", config_field="child1_model", model=MockModel.restore_from(self.cfg.child1_model_path),
             )
@@ -141,7 +141,7 @@ class MockModelWithChildren(MockModel):
             self.register_nemo_submodule(
                 "child2_model", config_field="child2_model", model=MockModelWithChildren(self.cfg.child2_model),
             )
-        elif cfg.get('child2_model_path') is not None:
+        elif cfg.get("child2_model_path") is not None:
             self.register_nemo_submodule(
                 "child2_model",
                 config_field="child2_model",
@@ -180,6 +180,27 @@ class MockModelWithChildEncDecCTCBPE(MockModel):
             )
 
 
+class MockModelWithChildCustomConfigPath(MockModel):
+    """
+    Mock Model, can contain 1 child
+    Path in config is not equal to name of the attribute
+    Config is stored in `child1_model_config`
+    Child model is stored in `child1_model` attribute
+    NB: This is not recommended if it's not necessary. But here we test that it works.
+    """
+
+    def __init__(self, cfg, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.child1_model: Optional[MockModel]  # annotate type for IDE autocompletion and type checking
+        if cfg.get("child1_model_config") is not None:
+            self.register_nemo_submodule(
+                "child1_model", config_field="child1_model_config", model=MockModel(self.cfg.child1_model_config),
+            )
+        else:
+            self.child1_model = None
+
+
 def _mock_model_config():
     conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
@@ -212,6 +233,18 @@ def _mock_model_with_children_config(
 
 def _mock_model_with_child_encdecctcbpe_config(pretrained_model_name: str) -> DictConfig:
     conf = {'temp_file': None, 'ctc_model_pretrained': pretrained_model_name, 'stub_number': 1}
+    conf = OmegaConf.create({'model': conf})
+    OmegaConf.set_struct(conf, True)
+    return conf
+
+
+def _mock_model_with_child_custom_config_path_config():
+    conf = {
+        'temp_file': None,
+        'child1_model_config': _mock_model_config().model,
+        'target': classpath(MockModelWithChildCustomConfigPath),
+        'stub_number': 1,
+    }
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -1002,6 +1035,43 @@ class TestSaveRestore:
             # test parent can be saved/restored
             parent = self.__test_restore_elsewhere(parent, map_location='cpu')
             assert isinstance(parent.ctc_model, EncDecCTCModel)
+
+    @pytest.mark.unit
+    def test_mock_model_nested_custom_config_field(self):
+        """
+        Test nested model with custom config field not equal to attribute name
+        Config is stored in `child1_model_config`
+        Child model is stored in `child1_model` attribute
+        """
+        with tempfile.NamedTemporaryFile('w') as file_child1, tempfile.NamedTemporaryFile('w') as file_parent:
+            # write text data, use these files as resources
+            parent_data = ["*****\n"]
+            child1_data = ["+++++\n"]
+            file_parent.writelines(parent_data)
+            file_parent.flush()
+            file_child1.writelines(child1_data)
+            file_child1.flush()
+
+            cfg = _mock_model_with_child_custom_config_path_config()
+            cfg.model.temp_file = file_parent.name
+            cfg.model.child1_model_config.temp_file = file_child1.name
+
+            # construct parent model
+            parent = MockModelWithChildCustomConfigPath(cfg=cfg.model, trainer=None)
+            with tempfile.TemporaryDirectory() as tmpdir_parent:
+                parent_path = os.path.join(tmpdir_parent, "parent.nemo")
+
+                # save, then restore
+                parent.save_to(parent_path)
+                parent = ModelPT.restore_from(parent_path)
+                # test child can be saved/restored
+                _ = self.__test_restore_elsewhere(parent.child1_model, map_location='cpu')
+                # test parent can be saved/restored
+                parent = self.__test_restore_elsewhere(parent, map_location='cpu')
+
+                # check data
+                assert parent.temp_data == parent_data
+                assert parent.child1_model.temp_data == child1_data
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
