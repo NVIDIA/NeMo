@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -138,6 +139,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # configuration used for inference
         self._inference_config = None
+
+        # Convert the global-batch-based profile index to micro-batch index
+        if hasattr(self, '_nsys_profile_enabled'):
+            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // mp_size
+            grad_accum_steps = (
+                cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
+            )
+            self._nsys_profile_start_step *= grad_accum_steps
+            self._nsys_profile_end_step *= grad_accum_steps
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -991,3 +1002,41 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
+
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler_cfg in scheduler_cfgs:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
+
+                    # Removing the line below because it messes up train_valid_test_num_samples calculation.
+                    # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
