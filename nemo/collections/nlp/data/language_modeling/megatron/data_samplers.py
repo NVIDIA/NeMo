@@ -50,13 +50,13 @@ class BaseMegatronSampler:
                 )
             )
         if global_batch_size is not None:
-            if global_batch_size % (self.micro_batch_size * data_parallel_size) != 0:
+            if global_batch_size % (micro_batch_size * data_parallel_size) != 0:
                 raise RuntimeError(
-                    f"`global_batch_size` ({self._global_batch_size}) is not divisible by "
-                    f"`micro_batch_size ({self.micro_batch_size}) x data_parallel_size "
+                    f"`global_batch_size` ({global_batch_size}) is not divisible by "
+                    f"`micro_batch_size ({micro_batch_size}) x data_parallel_size "
                     f"({data_parallel_size})`"
                 )
-        if self.pad_samples_to_global_batch_size and self.global_batch_size is None:
+        if pad_samples_to_global_batch_size and global_batch_size is None:
             raise RuntimeError(
                 f"`pad_samples_to_global_batch_size` can be `True` only when "
                 f"`global_batch_size` is set to an integer value"
@@ -145,7 +145,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
         assert (
-            self.pad_samples_to_global_batch_size == False
+            pad_samples_to_global_batch_size == False
         ), "`MegatronPretrainingRandomSampler` does not support sample padding"
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
 

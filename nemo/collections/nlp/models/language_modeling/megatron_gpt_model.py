@@ -516,7 +516,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
-    def get_forward_output_and_loss_func(self):
+    def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             # GPT3 uses only causal mask, which doesn't need attention mask
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
