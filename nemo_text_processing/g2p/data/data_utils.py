@@ -31,6 +31,9 @@ __all__ = [
     "LATIN_CHARS_ALL",
     "set_grapheme_case",
     "normalize_unicode_text",
+    "GRAPHEME_CASE_UPPER",
+    "GRAPHEME_CASE_LOWER",
+    "GRAPHEME_CASE_MIXED",
 ]
 
 # Derived from LJSpeech

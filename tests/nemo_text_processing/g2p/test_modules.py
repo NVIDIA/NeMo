@@ -57,7 +57,9 @@ class TestIPAG2P:
             'ˈ', 'w', 'ɝ', 'ɫ', 'd',
             'ˈ', 'l', 'ɛ', 'd',
             'ˈ', 'l', 'i', 'd',
-            'ɛ', 'n', 'ˈ', 'v', 'ɪ', 'd', 'i', 'ə'
+            'ɛ', 'n', 'ˈ', 'v', 'ɪ', 'd', 'i', 'ə',
+            'ˈ', 'd', 'ʒ', 'o', 'ʊ', 'n', 'z',
+            'ˈ', 'ɛ', 'ɹ', 'ˌ', 'p', 'ɔ', 'ɹ', 't',
         }
         # fmt: on
         g2p = self._create_g2p()
@@ -67,10 +69,14 @@ class TestIPAG2P:
         assert len(g2p.phoneme_dict["WORLD"]) == 1
         assert len(g2p.phoneme_dict["LEAD"]) == 2
         assert len(g2p.phoneme_dict["NVIDIA"]) == 1
+        assert len(g2p.phoneme_dict["JONES"]) == 1
+        assert len(g2p.phoneme_dict["AIRPORT"]) == 1
         assert g2p.phoneme_dict["HELLO"][0] == list("həˈɫoʊ")
         assert g2p.phoneme_dict["WORLD"][0] == list("ˈwɝɫd")
         assert g2p.phoneme_dict["LEAD"] == [list("ˈlɛd"), list("ˈlid")]
         assert g2p.phoneme_dict["NVIDIA"][0] == list("ɛnˈvɪdiə")
+        assert g2p.phoneme_dict["JONES"][0] == list("ˈdʒoʊnz")
+        assert g2p.phoneme_dict["AIRPORT"][0] == list("ˈɛɹˌpɔɹt")
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -83,6 +89,8 @@ class TestIPAG2P:
                 'W', 'O', 'R', 'L', 'D',
                 'L', 'E', 'A', 'D',
                 'N', 'V', 'I', 'D', 'I', 'A',
+                'J', 'O', 'N', 'E', 'S',
+                'A', 'I', 'R', 'P', 'O', 'R', 'T',
             }
         }.union(
                 {
@@ -91,6 +99,8 @@ class TestIPAG2P:
                     'ˈ', 'l', 'ɛ', 'd',
                     'ˈ', 'l', 'i', 'd',
                     'ɛ', 'n', 'ˈ', 'v', 'ɪ', 'd', 'i', 'ə',
+                    'ˈ', 'd', 'ʒ', 'o', 'ʊ', 'n', 'z',
+                    'ˈ', 'ɛ', 'ɹ', 'ˌ', 'p', 'ɔ', 'ɹ', 't',
                 }
             )
         # fmt: on
@@ -102,10 +112,14 @@ class TestIPAG2P:
         assert len(g2p.phoneme_dict["WORLD"]) == 1
         assert len(g2p.phoneme_dict["LEAD"]) == 2
         assert len(g2p.phoneme_dict["NVIDIA"]) == 1
+        assert len(g2p.phoneme_dict["JONES"]) == 1
+        assert len(g2p.phoneme_dict["AIRPORT"]) == 1
         assert g2p.phoneme_dict["HELLO"][0] == list("həˈɫoʊ")
         assert g2p.phoneme_dict["WORLD"][0] == list("ˈwɝɫd")
         assert g2p.phoneme_dict["LEAD"] == [list("ˈlɛd"), list("ˈlid")]
         assert g2p.phoneme_dict["NVIDIA"][0] == list("ɛnˈvɪdiə")
+        assert g2p.phoneme_dict["JONES"][0] == list("ˈdʒoʊnz")
+        assert g2p.phoneme_dict["AIRPORT"][0] == list("ˈɛɹˌpɔɹt")
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -284,12 +298,42 @@ class TestIPAG2P:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_forward_call_en_us(self):
-        input_text = "Hello Kitty!"
-        expected_output = [char for char in "həˈɫoʊ KITTY!"]
-        g2p = self._create_g2p(locale="en-US")
+        input_text = "Hello NVIDIA'S airport's Jones's airports worlds Kitty!"
 
-        phonemes = g2p(input_text)
-        assert phonemes == expected_output
+        g2p_upper = self._create_g2p(locale="en-US", grapheme_case=GRAPHEME_CASE_UPPER)
+        expected_output_upper = [char for char in "həˈɫoʊ ɛnˈvɪdiəz ˈɛɹˌpɔɹts ˈdʒoʊnzɪz ˈɛɹˌpɔɹts ˈwɝɫdz KITTY!"]
+
+        g2p_lower = self._create_g2p(
+            locale="en-US",
+            grapheme_case=GRAPHEME_CASE_LOWER,
+            grapheme_prefix=self.GRAPHEME_PREFIX,
+            apply_to_oov_word=None,
+        )
+        expected_output_lower = (
+            [char for char in "həˈɫoʊ ɛnˈvɪdiəz ˈɛɹˌpɔɹts ˈdʒoʊnzɪz ˈɛɹˌpɔɹts ˈwɝɫdz"]
+            + [" "]
+            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "kitty"]
+            + ["!"]
+        )
+
+        g2p_mixed = self._create_g2p(
+            locale="en-US",
+            grapheme_case=GRAPHEME_CASE_MIXED,
+            grapheme_prefix=self.GRAPHEME_PREFIX,
+            apply_to_oov_word=None,
+        )
+        expected_output_mixed = (
+            [char for char in "həˈɫoʊ ɛnˈvɪdiəz ˈɛɹˌpɔɹts ˈdʒoʊnzɪz ˈɛɹˌpɔɹts ˈwɝɫdz"]
+            + [" "]
+            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "Kitty"]
+            + ["!"]
+        )
+
+        for g2p, expected_output in zip(
+            [g2p_upper, g2p_lower, g2p_mixed], [expected_output_upper, expected_output_lower, expected_output_mixed]
+        ):
+            phonemes = g2p(input_text)
+            assert phonemes == expected_output
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

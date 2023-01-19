@@ -552,38 +552,46 @@ class IPAG2P(BaseG2p):
         # TODO @xueyang: add special cases for any other languages upon new findings.
         if self.locale == "en-US":
             # `'s` suffix (with apostrophe) - not in phoneme dict
-            if (
-                len(word) > 2
-                and word.endswith("'s")
-                and (word not in self.phoneme_dict)
-                and (word[:-2] in self.phoneme_dict)
-                and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-2]))
-            ):
-                if word[-3] == 'T':
-                    # example: "airport's" doesn't exist in the dict while "airport" exists. So append a phoneme /s/ at
-                    # the end of "airport"'s first pronunciation.
-                    return self.phoneme_dict[word[:-2]][0] + ["s"], True
-                elif word[-3] == 'S':
-                    # example: "jones's" doesn't exist in the dict while "jones" exists. So append two phonemes, /ɪ/
-                    # and /z/ at the end of "jones"'s first pronunciation.
-                    return self.phoneme_dict[word[:-2]][0] + ["ɪ", "z"], True
-                else:
-                    return self.phoneme_dict[word[:-2]][0] + ["z"], True
+            if len(word) > 2 and (word.endswith("'s") or word.endswith("'S")):
+                word_found = None
+                if (word not in self.phoneme_dict) and (word.upper() not in self.phoneme_dict):
+                    if word[:-2] in self.phoneme_dict:
+                        word_found = word[:-2]
+                    elif word[:-2].upper() in self.phoneme_dict:
+                        word_found = word[:-2].upper()
+
+                if word_found is not None and (
+                    not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                ):
+                    if word_found[-1] in ['T', 't']:
+                        # for example, "airport's" doesn't exist in the dict while "airport" exists. So append a phoneme
+                        # /s/ at the end of "airport"'s first pronunciation.
+                        return self.phoneme_dict[word_found][0] + ["s"], True
+                    elif word_found[-1] in ['S', 's']:
+                        # for example, "jones's" doesn't exist in the dict while "jones" exists. So append two phonemes,
+                        # /ɪ/ and /z/ at the end of "jones"'s first pronunciation.
+                        return self.phoneme_dict[word_found][0] + ["ɪ", "z"], True
+                    else:
+                        return self.phoneme_dict[word_found][0] + ["z"], True
 
             # `s` suffix (without apostrophe) - not in phoneme dict
-            if (
-                len(word) > 1
-                and word.endswith("s")
-                and (word not in self.phoneme_dict)
-                and (word[:-1] in self.phoneme_dict)
-                and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-1]))
-            ):
-                if word[-2] == 'T':
-                    # example: "airports" doesn't exist in the dict while "airport" exists. So append a phoneme /s/ at
-                    # the end of "airport"'s first pronunciation.
-                    return self.phoneme_dict[word[:-1]][0] + ["s"], True
-                else:
-                    return self.phoneme_dict[word[:-1]][0] + ["z"], True
+            if len(word) > 1 and (word.endswith("s") or word.endswith("S")):
+                word_found = None
+                if (word not in self.phoneme_dict) and (word.upper() not in self.phoneme_dict):
+                    if word[:-1] in self.phoneme_dict:
+                        word_found = word[:-1]
+                    elif word[:-1].upper() in self.phoneme_dict:
+                        word_found = word[:-1].upper()
+
+                if word_found is not None and (
+                    not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                ):
+                    if word_found[-1] in ['T', 't']:
+                        # for example, "airports" doesn't exist in the dict while "airport" exists. So append a phoneme
+                        # /s/ at the end of "airport"'s first pronunciation.
+                        return self.phoneme_dict[word_found][0] + ["s"], True
+                    else:
+                        return self.phoneme_dict[word_found][0] + ["z"], True
 
         # For the words that have a single pronunciation, directly look it up in the phoneme_dict; for the
         # words that have multiple pronunciation variants, if we don't want to ignore them, then directly choose their
