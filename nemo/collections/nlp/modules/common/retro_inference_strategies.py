@@ -25,6 +25,7 @@ import torch
 from typing import List, Tuple
 import numpy as np
 import pickle
+import json
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
@@ -360,3 +361,61 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
+
+class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy):
+    def __init__(self, model, **args):
+        super().__init__(model, **args)
+        # load the DPR to memory
+        self.context_db = {}
+        with open('/dataset/FiD/test.shu.jsonl', 'r') as f:
+            for line in f:
+                obj = json.loads(line)
+                self.context_db[hash(obj['question'])] = obj
+
+    def tokenize_batch(self, questions, max_len, add_BOS):
+        """
+        convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
+        Args:
+            questions (List[str]): list of input questions in str format.
+            max_len (int): max number of tokens to generate.
+            add_BOS (bool): whether to add the BOS token at the beginning
+        Returns:
+            Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
+        """
+
+        tokenizer = self.model.tokenizer
+
+        # get context from memory
+        chunks = []
+        for question in questions:
+            hash_code = hash(question)
+            if hash_code not in self.context_db:
+                raise ValueError(f"wrong question is fed: {question}")
+            contexts = self.context_db[hash_code]['ctxs']
+            for neighbor in contexts[: self.neighbors + 1]:
+                tokens = tokenizer.text_to_ids(neighbor)
+                tokens = tokens[:128]
+                if len(tokens) < 128:
+                    tokens = tokens + [tokenizer.pad_id] * (128 - len(tokens))
+                chunks.append(tokens)
+        all_lookups = np.array(chunks).reshape(1, self.neighbors + 1, -1).astype(np.int64)
+
+        reuse_neighbors = all_lookups[:, 1:] 
+        self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
+        neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
+
+        # combine question and context
+        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + '\nanswer:') for n, q in zip(neighbor_tokens, questions) ]
+
+        if add_BOS:
+            context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
+        if self.pad_token_for_retrieval:
+            padded = []
+            for line in context_tokens:
+                pad_len = (self.chunk_size - len(line) % self.chunk_size) % self.chunk_size
+                padded.append([tokenizer.pad_id] * pad_len + line)
+            context_tokens = padded
+        context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor

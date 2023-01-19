@@ -273,7 +273,7 @@ def model_inference_strategy_dispatcher(model, **args):
     )
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    from nemo.collections.nlp.modules.common.retro_inference_strategies import RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy
+    from nemo.collections.nlp.modules.common.retro_inference_strategies import RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy, RetroFileQAModelTextGenerationStrategy
 
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
@@ -286,6 +286,8 @@ def model_inference_strategy_dispatcher(model, **args):
             return RetroModelTextGenerationStrategy(model, **args)
         elif strategy_name == 'RetroQAModelTextGenerationStrategy':
             return RetroQAModelTextGenerationStrategy(model, **args)
+        elif strategy_name == 'RetroFileQAModelTextGenerationStrategy':
+            return RetroFileQAModelTextGenerationStrategy(model, **args)
         else:
             raise ValueError(f'{strategy_name} is not supported for inference')
     else:
