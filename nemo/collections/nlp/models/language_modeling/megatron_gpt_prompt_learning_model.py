@@ -572,7 +572,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
-        _mbs = self.cfg.validation_micro_batch_size if forward_only else self.cfg.micro_batch_size
+        if forward_only:
+            _mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        else:
+            _mbs = self.cfg.micro_batch_size
         tensor_shape = [seq_length, _mbs, self.hidden_size]
 
         if self.pipeline_parallel:
