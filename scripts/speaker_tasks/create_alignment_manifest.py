@@ -148,7 +148,6 @@ def create_manifest_with_alignments(
     data_format_style,
     silence_dur_threshold=0.1,
     output_precision=3,
-    breakdown_thres=15,
 ):
     """
     Create new manifest file with word alignments using CTM files
@@ -204,7 +203,7 @@ def create_manifest_with_alignments(
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
                 words.append("")
                 end_times.append(start)
-            elif i > 0 and interval <= silence_dur_threshold:
+            elif i > 0:
                 end_times[-1] = start
 
             words.append(ctm[4])
@@ -246,10 +245,10 @@ def main():
     use_ctm_alignment_source = args.use_ctm_alignment_source
     output_precision = args.output_precision
 
-    # args.base_alignment_path is containing the ctm files
+    # Case 1: args.base_alignment_path is containing the ctm files
     if use_ctm_alignment_source:
         ctm_source_dir = args.base_alignment_path
-    # args.base_alignment_path is containing *.lab style alignments for the dataset
+    # Case 2: args.base_alignment_path is containing *.lab style alignments for the dataset
     else:
         create_librispeech_ctm_alignments(
             input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
