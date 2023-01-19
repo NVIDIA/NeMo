@@ -51,7 +51,8 @@ def remove_newline_and_detokenize(x, detokenizer):
 
 def detokenize(x, detokenizer):
     x = x.strip()
-    x = detokenizer.detokenize([x])
+    # NOTE: Commenting this out since sacremoses seems to remove \n as part of detokenization.
+    # x = detokenizer.detokenize([x])
     return x
 
 def is_empty(x, tokenizer):
@@ -116,6 +117,7 @@ def process_folder(data_folder, output_folder, splits_file, remove_newline):
         output_file_name = os.path.join(output_folder, file_name.replace('.json', '.jsonl'))
         pool_args.append((os.path.join(data_folder, file_name), output_file_name, detokenizer, tokenizer, idx, len(splits_file_names), remove_newline))
 
+    write_dataset_to_file(os.path.join(data_folder, file_name), output_file_name, detokenizer, tokenizer, idx, len(splits_file_names), remove_newline)
     pool = Pool(42)
     pool.starmap(write_dataset_to_file, pool_args)
 

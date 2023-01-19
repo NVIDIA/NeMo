@@ -65,7 +65,9 @@ def remove_newline_and_detokenize(x, detokenizer, remove_newlines):
         x = re.sub(r'\\r+', ' ', x)
         x = re.sub(r'\r+', ' ', x)
     x = x.strip()
-    x = detokenizer.detokenize([x])
+    # NOTE: Moving the detokenizer inside this condition since sacremoses detokenize seems to remove \n as well.
+    if remove_newlines:
+        x = detokenizer.detokenize([x])
     return x
 
 

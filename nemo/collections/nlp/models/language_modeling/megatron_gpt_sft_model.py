@@ -286,7 +286,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         for idx, item in enumerate(result['token_ids']):
             pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1:])
             input = self.tokenizer.ids_to_text(item[:batch['context_lengths'][idx] - 1])
-            label = self.tokenizer.ids_to_text(batch['tokens'][0][batch['context_lengths'][0]:].tolist())
+            label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx]:].tolist())
             preds_text.append(pred.strip())
             labels_text.append(label.strip())
             input_text.append(input.strip())
@@ -344,11 +344,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     metric = metric['rougeL_fmeasure']
                 else:
                     metric = metric['acc']
-                self.log(metric_log_key, metric)
-                logging.info(f"{mode} {metric_name}: {metric}")
-            else:
-                self.log(metric_log_key, metric)
-                logging.info(f"{metric_log_key}: {metric}")
+            torch.distributed.all_reduce(metric, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group())
+            metric = metric / parallel_state.get_data_parallel_world_size()
+            self.log(metric_log_key, metric)
+            logging.info(f"{mode} {metric_name}: {metric}")
+
             metric_object.reset()
 
             averaged_loss.append(loss)
