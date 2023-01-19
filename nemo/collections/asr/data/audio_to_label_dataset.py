@@ -127,7 +127,7 @@ def get_tarred_classification_label_dataset(
     return get_chain_dataset(datasets=datasets, ds_config=config)
 
 
-def get_concat_tarred_dataset(
+def get_concat_tarred_speech_label_dataset(
     featurizer, config: dict, shuffle_n: int, global_rank: int, world_size: int,
 ):
     tarred_audio_filepaths = config['tarred_audio_filepaths']
