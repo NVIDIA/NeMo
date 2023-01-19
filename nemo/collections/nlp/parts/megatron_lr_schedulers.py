@@ -10,5 +10,6 @@ class CosineAnnealingExp(CosineAnnealing):
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
         if max_steps_for_lr_sched:
             self.max_steps = max_steps_for_lr_sched
+            self.decay_steps = self.max_steps - (self.constant_steps + self.warmup_steps)
 
 AVAILABLE_SCHEDULERS['CosineAnnealingExp'] = CosineAnnealingExp
