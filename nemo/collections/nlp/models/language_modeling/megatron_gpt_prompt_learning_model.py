@@ -612,6 +612,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def training_step(self, batch, batch_idx):
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        current_bs = batch[0].size(0)
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
@@ -631,6 +636,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -647,30 +654,39 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return
 
     def validation_step(self, batch, batch_idx):
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        current_bs = batch[0].size(0)
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
-    def _reconfigure_batch_sizes(self, is_train:bool):
-        _gbs = self.cfg.global_batch_size if is_train else self.cfg.validation_global_batch_size
-        _mbs = self.cfg.micro_batch_size if is_train else self.cfg.validation_micro_batch_size
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=_gbs,
-            micro_batch_size=_mbs,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
     def on_train_epoch_start(self) -> None:
-        self._reconfigure_batch_sizes(True)
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_train_epoch_start()
 
     def on_validation_epoch_start(self) -> None:
-        self._reconfigure_batch_sizes(False) 
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_validation_epoch_start()
 
     def validation_epoch_end(self, outputs):
@@ -692,7 +708,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
         
-        self._reconfigure_batch_sizes(True)
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -798,7 +816,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('validation_ds', None):
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.validation_global_batch_size,
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
@@ -816,7 +834,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('test_ds', None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.test_ds,
-                batch_size=self.cfg.validation_global_batch_size,
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
@@ -864,9 +882,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             cache_data_path=cache_data_path,
             load_cache=load_cache,
         )
-
-        if not drop_last:
-            assert len(dataset) % batch_size == 0, "batch size and drop_last not compatible with dataset size, either adjust batch size or set drop_last=True"
 
         if get_dataset_only:
             return dataset
