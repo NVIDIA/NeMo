@@ -31,7 +31,7 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -40,6 +40,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 
@@ -190,7 +191,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Get seq length of batch
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        if forward_only:
+            _mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        else:
+            _mbs = self.cfg.micro_batch_size
+        tensor_shape = [seq_length, _mbs, self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -271,7 +276,34 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         forward_step_func"""
         self.frozen_model.enc_dec_model.set_input_tensor(input_tensor)
 
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def on_train_epoch_start(self) -> None:
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_train_epoch_start()
+    
+    def on_validation_epoch_start(self) -> None:
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_validation_epoch_start()
+
     def training_step(self, batch, batch_idx):
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        current_bs = batch[0].size(0)
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
@@ -290,7 +322,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
     def validation_step(self, batch, batch_idx, inference=False):
@@ -298,7 +331,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         mode = self.training
         self.eval()
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        current_bs = input_ids.size(0)
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         if self.first_stage_of_pipeline():
@@ -331,6 +368,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.train(mode=mode)
         self.frozen_model.eval()
+        if gbs != current_bs:
+            self._reconfigure_batch_sizes(gbs, mbs)
         return {
             'loss': loss_mean,
             'predicted_token_ids': preds_text,
@@ -398,6 +437,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
+        
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
