@@ -151,7 +151,7 @@ class MockModelWithChildren(MockModel):
             self.child2_model = None
 
 
-class MockModelWithChildEncDecCTC(MockModel):
+class MockModelWithChildEncDecCTCBPE(MockModel):
     """
     Mock Model, will contain EncDecCTC model as a child
     Useful for testing nested models with children initialized from pretrained NeMo models
@@ -164,11 +164,11 @@ class MockModelWithChildEncDecCTC(MockModel):
         # - initialize child model from pretrained NeMo model, subconfig will be automatically saved
         # - after saving model will be restored directly from subconfig (attribute `config_field` of self.cfg)
 
-        self.ctc_model: EncDecCTCModel  # annotate type for IDE autocompletion and type checking
+        self.ctc_model: EncDecCTCModelBPE  # annotate type for IDE autocompletion and type checking
 
         if cfg.get("ctc_model", None) is not None:
             self.register_nemo_submodule(
-                "ctc_model", config_field="ctc_model", model=EncDecCTCModel(self.cfg.ctc_model),
+                "ctc_model", config_field="ctc_model", model=EncDecCTCModelBPE(self.cfg.ctc_model),
             )
         else:
             # model is mandatory
@@ -176,7 +176,7 @@ class MockModelWithChildEncDecCTC(MockModel):
             self.register_nemo_submodule(
                 "ctc_model",
                 config_field="ctc_model",
-                model=EncDecCTCModel.from_pretrained(self.cfg.ctc_model_pretrained),
+                model=EncDecCTCModelBPE.from_pretrained(self.cfg.ctc_model_pretrained),
             )
 
 
@@ -210,8 +210,8 @@ def _mock_model_with_children_config(
     return conf
 
 
-def _mock_model_with_child_encdecctc_config(pretrained_model_name: str) -> DictConfig:
-    conf = {'temp_file': None, 'ctc_model_pretrained': pretrained_model_name}
+def _mock_model_with_child_encdecctcbpe_config(pretrained_model_name: str) -> DictConfig:
+    conf = {'temp_file': None, 'ctc_model_pretrained': pretrained_model_name, 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -988,8 +988,8 @@ class TestSaveRestore:
         """
         Test nested model with child initialized from pretrained model
         """
-        cfg = _mock_model_with_child_encdecctc_config("QuartzNet15x5Base-En")
-        parent = MockModelWithChildEncDecCTC(cfg=cfg.model, trainer=None)
+        cfg = _mock_model_with_child_encdecctcbpe_config("stt_en_conformer_ctc_small")
+        parent = MockModelWithChildEncDecCTCBPE(cfg=cfg.model, trainer=None)
         with tempfile.TemporaryDirectory() as tmpdir_parent:
             parent_path = os.path.join(tmpdir_parent, "parent.nemo")
 
