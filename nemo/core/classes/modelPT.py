@@ -226,10 +226,14 @@ class ModelPT(LightningModule, Model):
                 str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
         """
 
-        app_state = AppState()
-
         if src is None or src == "":
             return src
+
+        if Path(src).suffix == ".nemo":
+            raise NeMoBaseException(
+                "Registering .nemo files as artifacts not supported. "
+                "If you are trying to make a nested model, use `register_nemo_submodule`."
+            )
 
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
@@ -266,6 +270,19 @@ class ModelPT(LightningModule, Model):
         Adds NeMo model as a submodule. Submodule can be accessed via the `name` attribute on self.
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
+        This method is necessary to create a nested model, e.g.
+            ```python
+            class ParentModel(ModelPT):
+                def __init__(self, cfg, trainer=None):
+                    super().__init__(cfg=cfg, trainer=trainer)
+
+                    self.child_model: Optional[ChildModel] = None  # annotate type for autocompletion and type checking
+                    if cfg.get("child_model") is not None:
+                        self.register_nemo_submodule(
+                            "child_model", config_field="child_model", model=ChildModel(self.cfg.child_model),
+                        )
+                    # ... other code
+            ```
 
         Args:
             name: name of the attribute for the submodule

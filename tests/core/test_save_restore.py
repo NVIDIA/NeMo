@@ -19,14 +19,15 @@ from typing import Dict, Optional, Set, Union
 
 import pytest
 import torch
-from huggingface_hub.hf_api import ModelFilter, ModelInfo
+from huggingface_hub.hf_api import ModelFilter
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
+from nemo.utils.exceptions import NeMoBaseException
 
 
 def classpath(cls):
@@ -201,6 +202,21 @@ class MockModelWithChildCustomConfigPath(MockModel):
             self.child1_model = None
 
 
+class MockModelIncorrectWithNemoArtifact(MockModel):
+    """
+    Incorrect model that tries to use .nemo model checkpoint as an artifact
+    Expected to fail, since it is not supported
+    """
+
+    def __init__(self, cfg, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        assert cfg.get("child_model_path") is not None
+        # this will fail, since .nemo model checkpoint is not supported as an artifact
+        child_model_path = self.register_artifact("child_model_path", cfg.child_model_path)
+        self.child_model = ModelPT.restore_from(child_model_path)
+
+
 def _mock_model_config():
     conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
@@ -245,6 +261,13 @@ def _mock_model_with_child_custom_config_path_config():
         'target': classpath(MockModelWithChildCustomConfigPath),
         'stub_number': 1,
     }
+    conf = OmegaConf.create({'model': conf})
+    OmegaConf.set_struct(conf, True)
+    return conf
+
+
+def _mock_model_incorrect_with_nemo_artifact_config(child_model_path: str):
+    conf = {'temp_file': None, 'child_model_path': child_model_path, 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -1072,6 +1095,23 @@ class TestSaveRestore:
                 # check data
                 assert parent.temp_data == parent_data
                 assert parent.child1_model.temp_data == child1_data
+
+    @pytest.mark.unit
+    def test_using_nemo_checkpoint_as_artifact_disallowed(self):
+        """
+        Test that using nemo checkpoint as artifact is disallowed
+        """
+        cfg_child = _mock_model_config()
+        child = MockModel(cfg=cfg_child.model, trainer=None).to("cpu")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            child_path = os.path.join(tmpdir, "child.nemo")
+            child.save_to(child_path)
+
+            cfg_parent = _mock_model_incorrect_with_nemo_artifact_config(child_path)
+            with pytest.raises(NeMoBaseException):
+                # registering .nemo checkpoint as an artifact is not allowed
+                _ = MockModelIncorrectWithNemoArtifact(cfg=cfg_parent.model, trainer=None)
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
