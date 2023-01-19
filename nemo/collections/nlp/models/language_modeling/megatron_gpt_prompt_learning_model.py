@@ -653,7 +653,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return loss_mean
 
-    def _reconfigure_batch_sizes(self, is_train:bool):
+    def _reconfigure_batch_sizes(self, is_train: bool):
         _gbs = self.cfg.global_batch_size if is_train else self.cfg.validation_global_batch_size
         _mbs = self.cfg.micro_batch_size if is_train else self.cfg.validation_micro_batch_size
         app_state = AppState()
@@ -670,7 +670,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return super().on_train_epoch_start()
 
     def on_validation_epoch_start(self) -> None:
-        self._reconfigure_batch_sizes(False) 
+        self._reconfigure_batch_sizes(False)
         return super().on_validation_epoch_start()
 
     def validation_epoch_end(self, outputs):
@@ -691,7 +691,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
-        
+
         self._reconfigure_batch_sizes(True)
 
     def test_step(self, batch, batch_idx):
@@ -866,7 +866,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         if not drop_last:
-            assert len(dataset) % batch_size == 0, "batch size and drop_last not compatible with dataset size, either adjust batch size or set drop_last=True"
+            assert (
+                len(dataset) % batch_size == 0
+            ), "batch size and drop_last not compatible with dataset size, either adjust batch size or set drop_last=True"
 
         if get_dataset_only:
             return dataset
