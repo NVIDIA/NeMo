@@ -96,8 +96,8 @@ def main(cfg) -> None:
     lg_pos_embeddings = lg_model.frozen_model.model.language_model.embedding.position_embeddings.weight.data
     lg_prompt_learning_embs = lg_model.prompt_table.prompt_table[cfg.taskname].prompt_embeddings.weight.data
 
-    sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[:sm_prompt_learning_embs.shape[0], :]
-    lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[:lg_prompt_learning_embs.shape[0], :]
+    sm_prompt_tokens = sm_prompt_learning_embs + sm_pos_embeddings[: sm_prompt_learning_embs.shape[0], :]
+    lg_prompt_tokens = lg_prompt_learning_embs + lg_pos_embeddings[: lg_prompt_learning_embs.shape[0], :]
 
     y_prompts = sm_prompt_tokens
     x_prompts = torch.cat((sm_word_embeddings, sm_pos_embeddings))
@@ -106,22 +106,19 @@ def main(cfg) -> None:
     val_x_prompts = torch.cat((lg_word_embeddings, lg_pos_embeddings))
     train = LinearCombinationDataset(y_prompts, x_prompts, 100)
     val = LinearCombinationDataset(val_y_prompts, val_x_prompts, 1)
-    train_dataloader = DataLoader(
-        train, batch_size=1, shuffle=False
+    train_dataloader = DataLoader(train, batch_size=1, shuffle=False)
+    val_dataloader = DataLoader(val, batch_size=1, shuffle=False)
+    linear_combiner = EmbeddingLinearCombination(
+        x_prompts.shape[0], x_prompts.shape[1], y_prompts.shape[0], cfg.linear_combiner
     )
-    val_dataloader = DataLoader(
-        val, batch_size=1, shuffle=False
-    )  
-    linear_combiner = EmbeddingLinearCombination(x_prompts.shape[0], x_prompts.shape[1], y_prompts.shape[0], cfg.linear_combiner)
     wblogger = WandbLogger(**cfg.linear_combiner.wandb)
     # saves top-K checkpoints based on "val_loss" metric
     with open_dict(cfg.linear_combiner.trainer):
-        cfg.linear_combiner.trainer.val_check_interval=1
+        cfg.linear_combiner.trainer.val_check_interval = 1
 
-    trainer = ptl.Trainer(
-        **cfg.linear_combiner.trainer, logger=wblogger,
-    )
+    trainer = ptl.Trainer(**cfg.linear_combiner.trainer, logger=wblogger,)
     trainer.fit(model=linear_combiner, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+
 
 if __name__ == '__main__':
     main()
