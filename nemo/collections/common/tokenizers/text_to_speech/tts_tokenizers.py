@@ -622,7 +622,7 @@ class IPATokenizer(BaseTokenizer):
             elif (p in self.punct_list) and self.punct:
                 # Add punct
                 ps.append(p)
-            else:
+            elif p != space:
                 message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."

@@ -316,7 +316,7 @@ class IPAG2P(BaseG2p):
             grapheme_case (Optional[str]): Trigger converting all graphemes to uppercase, lowercase, or keeping them as
                 original mix-cases. You may want to use this feature to distinguish the grapheme set from the phoneme
                 set if there is an overlap in between. Defaults to `upper` because phoneme set only uses lowercase
-                symbols.
+                symbols. You could explicitly prepend `grapheme_prefix` to distinguish them.
             grapheme_prefix (Optional[str]): Prepend a special symbol to any graphemes in order to distinguish graphemes
                 from phonemes because there may be overlaps between the two set. It is suggested to choose a prefix that
                 is not used or preserved somewhere else. "#" could be a good candidate. Default to "".
@@ -485,7 +485,6 @@ class IPAG2P(BaseG2p):
             # add grapheme symbols if `use_chars=True`.
             if self.use_chars:
                 # remove punctuations within a word. Punctuations can exist at the start, middle, and end of a word.
-                # TODO @xueyang: is the removal of a hyphen within a word expected, e.g. up-to-date -> uptodate?
                 word_no_punct = self.PUNCT_REGEX.sub('', word_new)
 
                 # add prefix to distinguish graphemes from phonemes.
