@@ -118,7 +118,6 @@ def create_librispeech_ctm_alignments(
 
     libri_dataset_split = libri_dataset_split.replace("_", "-")
 
-
     # delete output directory if it exists or throw warning
     if os.path.isdir(ctm_output_directory):
         logging.info(f"Removing existing output directory: {ctm_output_directory}")
