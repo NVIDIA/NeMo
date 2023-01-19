@@ -27,7 +27,6 @@ from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
-from nemo.utils.exceptions import NeMoBaseException
 
 
 def classpath(cls):
