@@ -59,6 +59,11 @@ _WORDS_RE_ANY_LOCALE = re.compile(
     fr"([{LATIN_CHARS_ALL}]+(?:[{LATIN_CHARS_ALL}\-']*[{LATIN_CHARS_ALL}]+)*)|(\|[^|]*\|)|([^{LATIN_CHARS_ALL}|]+)"
 )
 
+# define grapheme cases.
+GRAPHEME_CASE_UPPER = "upper"
+GRAPHEME_CASE_LOWER = "lower"
+GRAPHEME_CASE_MIXED = "mixed"
+
 
 def read_wordids(wordid_map: str):
     """

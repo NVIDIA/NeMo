@@ -24,6 +24,8 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 import nltk
 import torch
 from nemo_text_processing.g2p.data.data_utils import (
+    GRAPHEME_CASE_MIXED,
+    GRAPHEME_CASE_UPPER,
     LATIN_CHARS_ALL,
     any_locale_word_tokenize,
     english_word_tokenize,
@@ -277,7 +279,7 @@ class IPAG2P(BaseG2p):
         use_chars: bool = False,
         phoneme_probability: Optional[float] = None,
         use_stresses: Optional[bool] = True,
-        grapheme_case: Optional[str] = "upper",
+        grapheme_case: Optional[str] = GRAPHEME_CASE_UPPER,
         grapheme_prefix: Optional[str] = "",
         mapping_file: Optional[str] = None,
     ) -> None:
@@ -466,7 +468,7 @@ class IPAG2P(BaseG2p):
 
         Args:
             phoneme_dict_obj (Dict[str, List[List[str]]]): a dictionary object.
-                e.g. {..., "WIRE": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
+                e.g. {..., "Wire": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
 
         Returns:
             g2p_dict (dict): processed dict.
@@ -505,6 +507,16 @@ class IPAG2P(BaseG2p):
             # update dict entry
             g2p_dict[word_new] = prons_new
 
+            # duplicate word entries if grapheme_case is mixed. Even though grapheme_case is set to mixed, the words in
+            # the original input text and the g2p_dict remain unchanged, so they could still be either lowercase,
+            # uppercase, or mixed-case as defined in `set_grapheme_case` func. When mapping an uppercase word, e.g.
+            # "HELLO", into phonemes using the g2p_dict with {"Hello": [["həˈɫoʊ"]]}, "HELLO" can't find its
+            # pronunciations in the g2p_dict due to the case-mismatch of the words. Augmenting the g2p_dict with its
+            # uppercase word entry, e.g. {"Hello": [["həˈɫoʊ"]], "HELLO": [["həˈɫoʊ"]]} would provide possibility to
+            # find "HELLO"'s pronunciations rather than directly considering it as an OOV.
+            if self.grapheme_case == GRAPHEME_CASE_MIXED and not word_new.isupper():
+                g2p_dict[word_new.upper()] = prons_new
+
         return g2p_dict, symbols
 
     # TODO @xueyang: deprecate this function because it is useless. If unknown graphemes appear, then apply_to_oov_words
@@ -524,13 +536,13 @@ class IPAG2P(BaseG2p):
         """
         word = set_grapheme_case(word, case=self.grapheme_case)
 
-        # Keep graphemes of a word with a probability.
-        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
-            return self._prepend_prefix_for_one_word(word), True
-
         # Punctuation (assumes other chars have been stripped)
         if self.CHAR_REGEX.search(word) is None:
             return list(word), True
+
+        # Keep graphemes of a word with a probability.
+        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+            return self._prepend_prefix_for_one_word(word), True
 
         # Heteronyms
         if self.heteronyms and word in self.heteronyms:
@@ -573,11 +585,23 @@ class IPAG2P(BaseG2p):
                 else:
                     return self.phoneme_dict[word[:-1]][0] + ["z"], True
 
-        # For the words that do not have any pronunciation variants, directly look it up in the phoneme_dict; for the
+        # For the words that have a single pronunciation, directly look it up in the phoneme_dict; for the
         # words that have multiple pronunciation variants, if we don't want to ignore them, then directly choose their
         # first pronunciation variant as the target phonemes.
+        # TODO @xueyang: this is a temporary solution, but it is not optimal if always choosing the first pronunciation
+        #  variant as the target if a word has multiple pronunciation variants. We need explore better approach to
+        #  select its optimal pronunciation variant aligning with its reference audio.
         if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
             return self.phoneme_dict[word][0], True
+
+        if (
+            self.grapheme_case == GRAPHEME_CASE_MIXED
+            and word not in self.phoneme_dict
+            and word.upper() in self.phoneme_dict
+        ):
+            word = word.upper()
+            if not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word):
+                return self.phoneme_dict[word][0], True
 
         if self.apply_to_oov_word is not None:
             return self.apply_to_oov_word(word), True
@@ -585,7 +609,8 @@ class IPAG2P(BaseG2p):
             return self._prepend_prefix_for_one_word(word), False
 
     def __call__(self, text: str) -> List[str]:
-        words_list_of_tuple = self.word_tokenize_func(text.strip())
+        text = normalize_unicode_text(text)
+        words_list_of_tuple = self.word_tokenize_func(text)
 
         prons = []
         for words, without_changes in words_list_of_tuple:
