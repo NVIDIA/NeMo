@@ -140,11 +140,7 @@ def get_concat_tarred_dataset(
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
         dataset = get_tarred_speech_label_dataset(
-            config=conf,
-            featurizer=featurizer,
-            shuffle_n=shuffle_n,
-            global_rank=global_rank,
-            world_size=world_size,
+            config=conf, featurizer=featurizer, shuffle_n=shuffle_n, global_rank=global_rank, world_size=world_size,
         )
         datasets.append(dataset)
 

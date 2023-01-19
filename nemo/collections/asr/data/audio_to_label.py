@@ -19,7 +19,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths, cache_datastore_manifests
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
