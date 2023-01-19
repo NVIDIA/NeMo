@@ -249,8 +249,8 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
             Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
         """
         tokenizer = self.model.tokenizer
-        all_lookups = [self.service.get_knn(question, 1 + self.neighbors) for question in questions]
-        self.reuse_neighbors = [neighbors[1:] for neighbors in all_lookups] 
+        all_lookups = self.service.get_knn(questions, 1 + self.neighbors)
+        self.reuse_neighbors = all_lookups[:, 1:] 
 
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
