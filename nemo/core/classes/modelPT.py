@@ -229,12 +229,6 @@ class ModelPT(LightningModule, Model):
         if src is None or src == "":
             return src
 
-        if Path(src).suffix == ".nemo":
-            raise NeMoBaseException(
-                "Registering .nemo files as artifacts not supported. "
-                "If you are trying to make a nested model, use `register_nemo_submodule`."
-            )
-
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
 
@@ -310,14 +304,14 @@ class ModelPT(LightningModule, Model):
     ) -> Iterator[Tuple[str, str, "ModelPT"]]:
         """
         Returns an iterator over all NeMo submodules recursively, yielding
-        tuples of (attribute path, path in the config, submodule), starting from the core module
+        tuples of (attribute path, path in config, submodule), starting from the core module
 
         Args:
-            prefix_name: prefix for the path in name
+            prefix_name: prefix for the name path
             prefix_config: prefix for the path in config
 
         Returns:
-            Iterator over (path in config, submodule), starting from (prefix, self)
+            Iterator over (attribute path, path in config, submodule), starting from (prefix, self)
         """
         if not hasattr(self, "nemo_submodule_name_to_config_field"):
             raise NeMoBaseException(

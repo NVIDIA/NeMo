@@ -202,21 +202,6 @@ class MockModelWithChildCustomConfigPath(MockModel):
             self.child1_model = None
 
 
-class MockModelIncorrectWithNemoArtifact(MockModel):
-    """
-    Incorrect model that tries to use .nemo model checkpoint as an artifact
-    Expected to fail, since it is not supported
-    """
-
-    def __init__(self, cfg, trainer=None):
-        super().__init__(cfg=cfg, trainer=trainer)
-
-        assert cfg.get("child_model_path") is not None
-        # this will fail, since .nemo model checkpoint is not supported as an artifact
-        child_model_path = self.register_artifact("child_model_path", cfg.child_model_path)
-        self.child_model = ModelPT.restore_from(child_model_path)
-
-
 def _mock_model_config():
     conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
@@ -261,13 +246,6 @@ def _mock_model_with_child_custom_config_path_config():
         'target': classpath(MockModelWithChildCustomConfigPath),
         'stub_number': 1,
     }
-    conf = OmegaConf.create({'model': conf})
-    OmegaConf.set_struct(conf, True)
-    return conf
-
-
-def _mock_model_incorrect_with_nemo_artifact_config(child_model_path: str):
-    conf = {'temp_file': None, 'child_model_path': child_model_path, 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -1118,23 +1096,6 @@ class TestSaveRestore:
                     assert etalon[0] == actual[0]
                     assert etalon[1] == actual[1]
                     assert etalon[2] is actual[2]
-
-    @pytest.mark.unit
-    def test_using_nemo_checkpoint_as_artifact_disallowed(self):
-        """
-        Test that using nemo checkpoint as artifact is disallowed
-        """
-        cfg_child = _mock_model_config()
-        child = MockModel(cfg=cfg_child.model, trainer=None).to("cpu")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            child_path = os.path.join(tmpdir, "child.nemo")
-            child.save_to(child_path)
-
-            cfg_parent = _mock_model_incorrect_with_nemo_artifact_config(child_path)
-            with pytest.raises(NeMoBaseException):
-                # registering .nemo checkpoint as an artifact is not allowed
-                _ = MockModelIncorrectWithNemoArtifact(cfg=cfg_parent.model, trainer=None)
 
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
