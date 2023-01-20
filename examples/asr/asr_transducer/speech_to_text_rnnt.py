@@ -80,13 +80,13 @@ from nemo.utils.exp_manager import exp_manager
 
 
 class CudaCallback(Callback):
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         torch.cuda.synchronize()
         torch.cuda.reset_peak_memory_stats()
         self.mem_begin = torch.cuda.max_memory_allocated() / 2 ** 20
         self.start = time.time()
 
-    def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         torch.cuda.synchronize()
         time_taken = time.time() - self.start
         memory = torch.cuda.max_memory_allocated() / 2 ** 20 - self.mem_begin
