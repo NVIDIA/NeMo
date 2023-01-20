@@ -341,6 +341,7 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.decoder.num_classes=2 \
             trainer.max_epochs=10 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
@@ -984,6 +985,22 @@ pipeline {
             output_filename="stt_test_res.json" \
             amp=true'
             sh 'rm -rf stt_test_res.json'
+          }
+        }
+      }
+    }
+    stage('L2: Transducer alignment') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Running pytest') {
+          steps {
+            sh 'pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1'
           }
         }
       }

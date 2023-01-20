@@ -114,12 +114,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-        if self.trainer.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.trainer.precision == 'bf16':
+        if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.trainer.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -848,7 +848,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
