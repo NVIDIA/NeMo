@@ -54,7 +54,10 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_micro_batch_size,
+    )
 
     HAVE_APEX = True
 
@@ -572,11 +575,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
-        if forward_only:
-            _mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
-        else:
-            _mbs = self.cfg.micro_batch_size
-        tensor_shape = [seq_length, _mbs, self.hidden_size]
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
 
         if self.pipeline_parallel:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -649,18 +648,26 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         return
 
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
     def validation_step(self, batch, batch_idx):
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
-        current_bs = batch[0].size(0)
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
+        self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
     def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
