@@ -370,7 +370,7 @@ class ASRWithTTSModel(ASRModel):
             transcript = batch.transcripts
             transcript_len = batch.transcript_lengths
         elif isinstance(batch, TextOrAudioToTextBatch):
-            tts_spectrogram, tts_spectrogram_len = self.get_tts_spectrogram(batch.tts_texts, batch.speakers)
+            tts_spectrogram, tts_spectrogram_len = self._get_tts_spectrogram(batch.tts_texts, batch.speakers)
             asr_spectrogram, asr_spectrogram_len = self.preprocessor(
                 input_signal=batch.audio_signals, length=batch.audio_signal_lengths,
             )
