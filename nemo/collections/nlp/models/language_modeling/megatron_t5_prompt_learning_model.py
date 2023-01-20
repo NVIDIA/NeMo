@@ -291,7 +291,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_train_epoch_start()
-    
+
     def on_validation_epoch_start(self) -> None:
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
@@ -437,7 +437,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
-        
+
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
