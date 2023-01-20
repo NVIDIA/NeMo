@@ -117,8 +117,6 @@ class MultiHeadAttention(nn.Module):
         """
         n_batch = value.size(0)
         if mask is not None:
-            mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -10000.0)
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
             attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
@@ -249,7 +247,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
                 self._initialize_attn_bias(query=q, mask=mask)
 
             mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
-            attn_bias = self.alibi_attn_bias + mask
+            attn_bias = self.alibi_attn_bias.masked_fill(mask, -10000.0)
             if self.memory_efficient:
                 n_batch = value.size(0)
                 q = q.permute(0, 2, 1, 3)

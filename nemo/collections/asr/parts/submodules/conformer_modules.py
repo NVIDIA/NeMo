@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pdb
-
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
@@ -68,14 +66,12 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.n_heads = n_heads
         self.fc_factor = 0.5
 
-        from xformers.triton.layer_norm import FusedLayerNorm
-
         # first feed forward module
-        self.norm_feed_forward1 = FusedLayerNorm(d_model)
+        self.norm_feed_forward1 = torch.nn.LayerNorm(d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         # convolution module
-        self.norm_conv = FusedLayerNorm(d_model)
+        self.norm_conv = torch.nn.LayerNorm(d_model)
         self.conv = ConformerConvolution(
             d_model=d_model,
             kernel_size=conv_kernel_size,
@@ -84,7 +80,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         )
 
         # multi-headed self-attention module
-        self.norm_self_att = FusedLayerNorm(d_model)
+        self.norm_self_att = torch.nn.LayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
