@@ -668,27 +668,27 @@ To register a child model, use the ``register_child_model`` method of the parent
                 # either if config provided initially, or automatically
                 # after model restoration
                 self.register_nemo_submodule(
-                    "child_model",
+                    name="child_model",
                     config_field="child_model",
-                    model=ChildModel(self.cfg.child_model),
+                    model=ChildModel(self.cfg.child_model, trainer=trainer),
                 )
             elif cfg.get('child_model_path') is not None:
                 # load from .nemo model checkpoint
                 # while saving, config will be automatically assigned/updated
                 # in cfg.child_model
                 self.register_nemo_submodule(
-                    "child_model",
+                    name="child_model",
                     config_field="child_model",
-                    model=ChildModel.restore_from(self.cfg.child_model_path),
+                    model=ChildModel.restore_from(self.cfg.child_model_path, trainer=trainer),
                 )
             elif cfg.get('child_model_name') is not None:
                 # load from pretrained model
                 # while saving, config will be automatically assigned/updated
                 # in cfg.child_model
                 self.register_nemo_submodule(
-                    "child_model",
+                    name="child_model",
                     config_field="child_model",
-                    model=ChildModel.from_pretrained(self.cfg.child_model_name),
+                    model=ChildModel.from_pretrained(self.cfg.child_model_name, trainer=trainer),
                 )
             else:
                 self.child_model = None
