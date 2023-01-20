@@ -615,11 +615,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def training_step(self, batch, batch_idx):
-        gbs = self.cfg.global_batch_size
-        mbs = self.cfg.micro_batch_size
-        current_bs = batch[0].size(0)
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
@@ -639,8 +634,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -807,7 +800,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
-                drop_last=self.cfg.get('drop_last', True),
+                drop_last=True,
                 shuffle=True,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,

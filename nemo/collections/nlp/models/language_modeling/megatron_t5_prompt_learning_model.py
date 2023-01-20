@@ -299,11 +299,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return super().on_validation_epoch_start()
 
     def training_step(self, batch, batch_idx):
-        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
-        current_bs = batch[0].size(0)
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(current_bs * parallel_state.get_data_parallel_world_size(), current_bs)
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
@@ -322,8 +317,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        if gbs != current_bs:
-            self._reconfigure_batch_sizes(gbs, mbs)
         return loss_mean
 
     def validation_step(self, batch, batch_idx, inference=False):
