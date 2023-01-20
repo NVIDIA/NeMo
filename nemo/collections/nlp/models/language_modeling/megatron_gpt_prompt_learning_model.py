@@ -710,7 +710,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
-        
+
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
@@ -819,7 +819,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('validation_ds', None):
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
@@ -837,7 +837,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('test_ds', None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.test_ds,
-                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
