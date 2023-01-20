@@ -145,6 +145,7 @@ class Exportable(ABC):
                 input_names = self.input_names
                 output_names = self.output_names
                 output_example = tuple(self.forward(*input_list, **input_dict))
+                print(f"DEBUG len(input_example): {len(input_example)}")
 
                 if check_trace:
                     if isinstance(check_trace, bool):
@@ -188,7 +189,7 @@ class Exportable(ABC):
                     )
 
                     if check_trace:
-                        verify_runtime(self, output, check_trace_input, input_names)
+                        verify_runtime(self, output, check_trace_input, input_names, check_tolerance=check_tolerance)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

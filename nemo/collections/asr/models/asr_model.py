@@ -21,6 +21,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
+from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
 
@@ -155,7 +156,19 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input, length=None, cache_last_channel=None, cache_last_time=None):
+    @property
+    def output_names(self):
+        if hasattr(self.input_module, 'export_cache_support') and self.input_module.export_cache_support:
+            out_types = self.output_module.output_types
+            in_types = self.input_module.output_types
+            otypes = {n: t for (n, t) in list(out_types.items())[:1]}
+            for (n, t) in list(in_types.items())[1:]:
+                otypes[n] = t
+            return get_io_names(otypes, self.disabled_deployment_output_names)
+
+    def forward_for_export(
+        self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+    ):
         """
         This forward is used when we need to export the model to ONNX format.
         Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
@@ -177,13 +190,19 @@ class ExportableEncDecModel(Exportable):
                 encoder_output = self.input_module.forward_for_export(input, length)
             else:
                 encoder_output = self.input_module.forward_for_export(
-                    input, length, cache_last_channel, cache_last_time
+                    audio_signal=input,
+                    length=length,
+                    cache_last_channel=cache_last_channel,
+                    cache_last_time=cache_last_time,
+                    cache_last_channel_len=cache_last_channel_len,
                 )
         else:
             if cache_last_channel is None and cache_last_time is None:
                 encoder_output = self.input_module(input, length)
             else:
-                encoder_output = self.input_module(input, length, cache_last_channel, cache_last_time)
+                encoder_output = self.input_module(
+                    input, length, cache_last_channel, cache_last_time, cache_last_channel_len
+                )
         if isinstance(encoder_output, tuple):
             decoder_input = encoder_output[0]
         else:
@@ -192,14 +211,19 @@ class ExportableEncDecModel(Exportable):
             if cache_last_channel is None and cache_last_time is None:
                 ret = self.output_module.forward_for_export(decoder_input)
             else:
-                # TODO: update this part to support full encoder/decoder export
-                ret = encoder_output
+                ret = self.output_module.forward_for_export(decoder_input)
         else:
             if cache_last_channel is None and cache_last_time is None:
                 ret = self.output_module(decoder_input)
             else:
-                # TODO: update this part to support full encoder/decoder export
-                ret = encoder_output
+                ret = self.output_module(encoder_output=decoder_input)
+        if cache_last_channel is None and cache_last_time is None:
+            pass
+        else:
+            if isinstance(ret, tuple):
+                ret = (ret[0], encoder_output[1], encoder_output[2], encoder_output[3], encoder_output[4])
+            else:
+                ret = (ret, encoder_output[1], encoder_output[2], encoder_output[3], encoder_output[4])
         return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)
 
     @property

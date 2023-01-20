@@ -1337,7 +1337,7 @@ class CacheAwareStreamingAudioBuffer:
                 return
 
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.chunk_size, list):
-                chunk_size = self.streaming_cfg.chunk_size[0]
+                chunk_size = self.streaming_cfg.chunk_size[1]
             else:
                 chunk_size = (
                     self.streaming_cfg.chunk_size[1]
@@ -1346,7 +1346,7 @@ class CacheAwareStreamingAudioBuffer:
                 )
 
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
-                shift_size = self.streaming_cfg.shift_size[0]
+                shift_size = self.streaming_cfg.shift_size[1]
             else:
                 shift_size = (
                     self.streaming_cfg.shift_size[1]
@@ -1372,7 +1372,7 @@ class CacheAwareStreamingAudioBuffer:
             zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                 cache_pre_encode = torch.zeros(
-                    (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[0]),
+                    (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[1]),
                     device=audio_chunk.device,
                     dtype=audio_chunk.dtype,
                 )
