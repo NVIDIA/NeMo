@@ -229,6 +229,12 @@ class ModelPT(LightningModule, Model):
         if src is None or src == "":
             return src
 
+        if Path(src).suffix == ".nemo":
+            raise NeMoBaseException(
+                "Registering .nemo files as artifacts not supported. "
+                "If you are trying to make a nested model, use `register_nemo_submodule`."
+            )
+
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
 
