@@ -256,9 +256,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
                 k = k.permute(0, 2, 1, 3)
                 v = v.permute(0, 2, 1, 3)
                 # mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
-                import pdb
 
-                pdb.set_trace()
                 attn = xops.memory_efficient_attention(q, k, v, attn_bias=attn_bias)
                 attn = attn.reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(attn)  # (batch, time1, d_model)
