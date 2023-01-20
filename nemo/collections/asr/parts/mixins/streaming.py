@@ -44,6 +44,7 @@ class StreamingEncoder(ABC):
         processed_signal_length=None,
         cache_last_channel=None,
         cache_last_time=None,
+        cache_last_channel_len=None,
         keep_all_outputs=True,
         drop_extra_pre_encoded=None,
     ):
