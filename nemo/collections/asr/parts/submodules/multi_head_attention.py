@@ -216,7 +216,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
 
         slopes = torch.Tensor(self._get_slopes(self.h)) * -1
         alibi = slopes.unsqueeze(1).unsqueeze(1) * relative_position
-        return alibi.view(1, self.h, seq_len, seq_len).expand(b, -1, -1, -1).type_as(query)
+        self.alibi_attn_bias = alibi.view(1, self.h, seq_len, seq_len).expand(b, -1, -1, -1).type_as(query)
 
     def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention'.
@@ -245,17 +245,16 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            # alibi_attn_bias = self._initialize_attn_bias(query=q, mask=mask)
+            if self.alibi_attn_bias is None:
+                self._initialize_attn_bias(query=q, mask=mask)
 
-            batch_size, num_heads = query.size(0), self.h
-            attn_bias = torch.randn((batch_size * num_heads, 1, seq_len), device=q.device, dtype=q.dtype) * 3
-            attn_bias = attn_bias.expand(batch_size * num_heads, seq_len, seq_len)
+            mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
+            attn_bias = self.alibi_attn_bias + mask
             if self.memory_efficient:
                 n_batch = value.size(0)
                 q = q.permute(0, 2, 1, 3)
                 k = k.permute(0, 2, 1, 3)
                 v = v.permute(0, 2, 1, 3)
-                # mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
 
                 attn = xops.memory_efficient_attention(q, k, v, attn_bias=attn_bias)
                 attn = attn.reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
@@ -263,7 +262,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
 
                 # print((mem_out - out).abs().max() < 4e-3, ((mem_out - out).abs().max()))
             else:
-                scores = torch.matmul(q / self.s_d_k, k.transpose(-2, -1)) + alibi_attn_bias
+                scores = torch.matmul(q / self.s_d_k, k.transpose(-2, -1)) + attn_bias
                 out = self.forward_attention(v, scores, mask)
 
         return out
