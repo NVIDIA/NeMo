@@ -367,7 +367,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         super().__init__(model, **args)
         # load the DPR to memory
         self.context_db = {}
-        with open('/dataset/FiD/test.shu.jsonl', 'r') as f:
+        with open('/dataset/FiD/test.jsonl', 'r') as f:
             for line in f:
                 obj = json.loads(line)
                 self.context_db[obj['question']] = obj
