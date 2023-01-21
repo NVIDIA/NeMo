@@ -58,9 +58,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric)
-        self.original_checkpointing_granularity = self.model.language_model.encoder.activations_checkpoint_granularity
-        self.original_checkpointing_num_layers = self.model.language_model.encoder.activations_checkpoint_num_layers
-        self.original_checkpointing_method = self.model.language_model.encoder.activations_checkpoint_method
+
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+
+        self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
+        self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
+        self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -564,14 +570,23 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return dataloaders
 
     def _reset_activation_checkpointing_args(self):
-        self.model.language_model.encoder.activations_checkpoint_granularity = None
-        self.model.language_model.encoder.activations_checkpoint_method = None
-        self.model.language_model.encoder.activations_checkpoint_num_layers = None
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+
+        base_module.language_model.encoder.activations_checkpoint_granularity = None
+        base_module.language_model.encoder.activations_checkpoint_method = None
+        base_module.language_model.encoder.activations_checkpoint_num_layers = None
 
     def _restore_activation_checkpointing_args(self):
-        self.model.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        self.model.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
-        self.model.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
+        base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
+        base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()

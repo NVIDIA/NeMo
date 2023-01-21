@@ -148,7 +148,6 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    print(plugins)
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
@@ -177,7 +176,6 @@ def main(cfg) -> None:
             model = load_from_checkpoint_dir(
                 MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config
             )
-    print(model.cfg)
     trainer.fit(model)
 
 
