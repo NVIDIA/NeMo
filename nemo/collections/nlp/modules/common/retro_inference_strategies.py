@@ -370,7 +370,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         with open('/dataset/FiD/test.shu.jsonl', 'r') as f:
             for line in f:
                 obj = json.loads(line)
-                self.context_db[hash(obj['question'])] = obj
+                self.context_db[obj['question']] = obj
 
     def tokenize_batch(self, questions, max_len, add_BOS):
         """
@@ -388,7 +388,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         # get context from memory
         chunks = []
         for question in questions:
-            hash_code = hash(question)
+            hash_code = question
             if hash_code not in self.context_db:
                 raise ValueError(f"wrong question is fed: {question}")
             contexts = self.context_db[hash_code]['ctxs']
