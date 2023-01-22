@@ -467,6 +467,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             # pad x to a multiple of 8
             padding = 8 - (max_audio_length % 8)
             max_audio_length = max_audio_length + padding
+            padding = 512 - max_audio_length
             audio_signal = (
                 nn.functional.pad(audio_signal.transpose(1, 2), (0, padding), value=0).transpose(1, 2).contiguous()
             )

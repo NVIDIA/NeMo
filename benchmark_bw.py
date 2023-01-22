@@ -28,8 +28,8 @@ def _create_model(dtype, hidden_size, memory_efficient):
         subsampling_conv_channels=-1,
         causal_downsampling=False,
         ff_expansion_factor=4,
-        self_attention_model='abs_pos',  # should be rel pos, but mem efficient does not support.
-        n_heads=8,
+        self_attention_model='alibi_pos',  # should be rel pos, but mem efficient does not support.
+        n_heads=16,
         att_context_size=[-1, -1],
         att_context_style='regular',
         xscaling=True,
@@ -138,13 +138,14 @@ def run(dtype, seq_len, bs, hidden_size, benchmark, memory_efficient):
     return memory, time
 
 
-batch_sizes = (48, 80)
-hidden_dims = (1024, 512)
-seq_len = 1500
+batch_sizes = (16,)
+hidden_dims = (512,)
+seq_len = 512
 for name in ("FWD/BWD",):
     print(f'\nRunning {name} tests')
     for bs, hidden_size in zip(batch_sizes, hidden_dims):
-        for dtype in (torch.bfloat16, torch.float16):
+        print(f"running {bs} {hidden_size}")
+        for dtype in (torch.bfloat16,):
             memory, time = run(dtype, seq_len, bs, hidden_size, benchmark=name, memory_efficient=False)
             print(f"Standard Attention hidden_dim={hidden_size} T={seq_len} dtype={dtype} MiB={memory} ms={time}")
 
