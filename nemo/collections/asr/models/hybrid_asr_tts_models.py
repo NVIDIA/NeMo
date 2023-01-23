@@ -431,9 +431,9 @@ class ASRWithTTSModel(ASRModel):
                 concat_kwargs["sampling_probabilities"] = text_data_config.asr_tts_sampling_probabilities
 
             if dataset_iterable:
-                dataset = ConcatDataset(datasets=[tts_dataset, asr_dataset], **concat_kwargs)
+                dataset = ConcatDataset(datasets=[asr_dataset, tts_dataset], **concat_kwargs)
             else:
-                dataset = ConcatMapDataset(datasets=[tts_dataset, asr_dataset], **concat_kwargs)
+                dataset = ConcatMapDataset(datasets=[asr_dataset, tts_dataset], **concat_kwargs)
         else:
             dataset = tts_dataset or asr_dataset
 
