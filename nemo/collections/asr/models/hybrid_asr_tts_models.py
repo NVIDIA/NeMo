@@ -392,7 +392,9 @@ class ASRWithTTSModel(ASRModel):
             transcript_len = batch.transcript_lengths
         else:
             audio_signal, audio_signal_len, transcript, transcript_len, *_ = batch  # audio batch: 4 or 5 elements
-            spectrogram, spectrogram_len = self.asr_model.preprocessor(input_signal=audio_signal, length=audio_signal_len)
+            spectrogram, spectrogram_len = self.asr_model.preprocessor(
+                input_signal=audio_signal, length=audio_signal_len
+            )
         spectrogram = clean_spectrogram_batch(spectrogram, spectrogram_len)
         return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
 
