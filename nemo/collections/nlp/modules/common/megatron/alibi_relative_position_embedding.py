@@ -115,4 +115,4 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             relative_position = torch.tril(relative_position)
 
         # shape (1, num_heads, query_length, key_length)
-        return relative_position.unsqueeze(0) * self.slopes * self.scales
+        return relative_position.unsqueeze(0) * self.slopes
