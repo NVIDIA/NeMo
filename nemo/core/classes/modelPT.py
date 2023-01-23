@@ -267,7 +267,7 @@ class ModelPT(LightningModule, Model):
 
     def register_nemo_submodule(self, name: str, config_field: str, model: "ModelPT") -> None:
         """
-        Adds NeMo model as a submodule. Submodule can be accessed via the `name` attribute on self.
+        Adds a NeMo model as a submodule. Submodule can be accessed via the `name` attribute on the parent NeMo model this submodule was registered on (`self`).
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
         This method is necessary to create a nested model, e.g.
