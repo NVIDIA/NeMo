@@ -20,6 +20,7 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -92,6 +93,32 @@ def asr_model(test_data_dir):
 
     model_instance = EncDecRNNTBPEModel(cfg=modelConfig)
     return model_instance
+
+
+class NestedRNNTModel(ASRModel):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        if 'inner_model' in self.cfg:
+            self.register_nemo_submodule(
+                "inner_model", config_field="inner_model", model=EncDecRNNTBPEModel(self.cfg.inner_model)
+            )
+        else:
+            # Restore a model from pretrained checkpoint
+            self.register_nemo_submodule(
+                "inner_model",
+                config_field="inner_model",
+                model=ASRModel.from_pretrained('stt_en_conformer_transducer_small', map_location='cpu'),
+            )
+
+        self.linear = torch.nn.Linear(
+            self.inner_model.tokenizer.vocab_size + 1, self.inner_model.tokenizer.vocab_size + 1
+        )
+        self.inner_model.freeze()
+
+    setup_training_data = lambda *args, **kwargs: None
+    setup_validation_data = lambda *args, **kwargs: None
+    transcribe = lambda *args, **kwargs: []
 
 
 class TestEncDecRNNTBPEModel:
@@ -278,3 +305,39 @@ class TestEncDecRNNTBPEModel:
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    def test_save_restore_nested_model(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model = NestedRNNTModel(cfg=DictConfig({}), trainer=None)
+            path = os.path.join(tmp_dir, 'rnnt_bpe.nemo')
+            model.save_to(path)
+
+            new_model = NestedRNNTModel.restore_from(path, map_location='cpu')
+            assert model.__class__.__name__ == NestedRNNTModel.__name__
+            assert new_model.__class__.__name__ == NestedRNNTModel.__name__
+            assert isinstance(new_model, type(model))
+
+            assert new_model.inner_model.vocab_path.endswith('_vocab.txt')
+            assert len(new_model.inner_model.tokenizer.tokenizer.get_vocab()) == 1024
+
+            # Unpack the nemo file
+            NestedRNNTModel._save_restore_connector._unpack_nemo_file(path, tmp_dir)
+
+            # Check size of the checkpoint, which contains weights from pretrained model + linear layer
+            fp_weights = os.path.join(tmp_dir, 'model_weights.ckpt')
+            assert os.path.getsize(fp_weights) > 50 * (2 ** 20)  # Assert the weights are more than 50 MB
+
+            # Check if param after restoration is exact match
+            original_state_dict = model.inner_model.state_dict()
+            new_state_dict = new_model.inner_model.state_dict()
+
+            for (old_name, old_param), (new_name, new_param) in zip(
+                original_state_dict.items(), new_state_dict.items()
+            ):
+                assert old_name == new_name
+                assert (old_param - new_param).float().abs().mean() < 1e-6
