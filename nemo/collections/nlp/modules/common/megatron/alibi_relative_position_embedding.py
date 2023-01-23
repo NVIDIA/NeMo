@@ -97,7 +97,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # cache the slopes
         self.slopes = build_slopes(num_attention_heads, alibi_num_heads)
         # a per-head learnable scale for alibi slopes
-        self.scales = torch.nn.Parameter(torch.ones(1, num_attention_heads, 1, 1))
+        self.scales = torch.nn.Parameter(torch.ones(1, num_attention_heads, 1, 1)).cuda()
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         self.relative_position = build_relative_position(max_seq_len, max_seq_len, num_attention_heads)
 
