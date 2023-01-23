@@ -177,8 +177,8 @@ def get_retro_demo(share, username, password):
                     lines=5,
                 )
                 output_box = gr.Textbox(value="", label="Output")
-                output_retrieval = gr.HTML()
                 btn = gr.Button(value="Submit")
+                output_retrieval = gr.HTML()
                 btn.click(
                     get_retro_generation,
                     inputs=[

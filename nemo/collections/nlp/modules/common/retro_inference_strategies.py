@@ -405,7 +405,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + '\nanswer:') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [n + tokenizer.text_to_ids('\nquestion:' + q + '\nanswer:') for n, q in zip(neighbor_tokens, questions) ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
