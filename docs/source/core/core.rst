@@ -648,7 +648,7 @@ There are 3 ways to instantiate child models inside parent models:
 - use the ``.nemo`` checkpoint path to load the child model
 - use a pretrained NeMo model
 
-To register a child model, use the ``register_child_model`` method of the parent model. This method will add the child model to a provided model attribute and, in the serialization process, will handle child artifacts correctly and store the child model config in the parent model config in ``config_field``.
+To register a child model, use the ``register_nemo_submodule`` method of the parent model. This method will add the child model to a provided model attribute and, in the serialization process, will handle child artifacts correctly and store the child model config in the parent model config in ``config_field``.
 
 .. code-block:: python
 
