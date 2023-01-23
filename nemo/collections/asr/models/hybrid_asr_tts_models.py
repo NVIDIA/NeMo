@@ -486,7 +486,7 @@ class ASRWithTTSModel(ASRModel):
                 tts_text_normalizer=self.tts_model.normalizer,
                 tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
                 min_words=text_data_config.min_words,
-                max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
+                max_words=text_data_config.max_words,
                 tokenizer_workers=text_data_config.tokenizer_workers,
                 num_parts=self.world_size,
                 current_part_index=self.global_rank,
@@ -502,7 +502,7 @@ class ASRWithTTSModel(ASRModel):
                 tts_text_normalizer=self.tts_model.normalizer,
                 tts_text_normalizer_call_kwargs=self.tts_model.text_normalizer_call_kwargs,
                 min_words=text_data_config.min_words,
-                max_words=text_data_config.max_words,  # 45 - recommended value, ~16.7 sec for LibriSpeech
+                max_words=text_data_config.max_words,
                 tokenizer_workers=text_data_config.tokenizer_workers,
             )
         return textonly_ds

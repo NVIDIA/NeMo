@@ -26,6 +26,9 @@ model:
       min_words: 1
       max_words: 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
       tokenizer_workers: 1
+      asr_tts_sampling_technique: round-robin  # random, round-robin, temperature
+      asr_tts_sampling_temperature: null
+      asr_tts_sampling_probabilities: null  # [0.5,0.5] – ASR,TTS
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
