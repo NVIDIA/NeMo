@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
 from typing import Any, Dict, List, Optional, Tuple, Union
-import io
 
 import numpy as np
 import torch
@@ -43,7 +43,7 @@ def get_features_infer(
     max_seq_length: int = 64,
     step: Optional[int] = 8,
     margin: Optional[int] = 16,
-    audio_queries: Optional[Union[List[bytes],List[str]]] = None,
+    audio_queries: Optional[Union[List[bytes], List[str]]] = None,
     target_sr: Optional[int] = None,
 ) -> Tuple[
     List[List[int]],
@@ -292,7 +292,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         max_seq_length: int = 64,
         step: int = 8,
         margin: int = 16,
-        audio_queries: Optional[Union[List[bytes],List[str]]] = None,
+        audio_queries: Optional[Union[List[bytes], List[str]]] = None,
         target_sr: Optional[int] = None,
     ):
         features = get_features_infer(

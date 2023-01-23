@@ -900,7 +900,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         step: int,
         margin: int,
         dataloader_kwargs: Optional[Dict[str, Any]],
-        audio_queries: Optional[Union[List[bytes],List[str]]] = None,
+        audio_queries: Optional[Union[List[bytes], List[str]]] = None,
         target_sr: Optional[int] = None,
     ) -> torch.utils.data.DataLoader:
         """

@@ -84,7 +84,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         if os.path.exists(cfg.audio_encoder.pretrained_model):
             audio_cfg = nemo_asr.models.ASRModel.restore_from(cfg.audio_encoder.pretrained_model, return_config=True)
         else:
-            audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.audio_encoder.pretrained_model, return_config=True)
+            audio_cfg = nemo_asr.models.ASRModel.from_pretrained(
+                cfg.audio_encoder.pretrained_model, return_config=True
+            )
 
         if cfg.audio_encoder.get('adapter', None):
             if cfg.audio_encoder.adapter.enable:
@@ -116,11 +118,13 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
         if hasattr(self.audio_encoder.cfg, 'decoder.feat_in'):
             self.audio_proj = Linear(
-                self.audio_encoder.cfg.decoder.feat_in, self.bert_model(**self.bert_model.input_example()[0]).size()[-1]
+                self.audio_encoder.cfg.decoder.feat_in,
+                self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
             )
         else:
             self.audio_proj = Linear(
-                self.audio_encoder.cfg.encoder.d_model, self.bert_model(**self.bert_model.input_example()[0]).size()[-1]
+                self.audio_encoder.cfg.encoder.d_model,
+                self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
             )
 
         if cfg.audio_encoder.freeze.get('is_enabled', False):
@@ -293,7 +297,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         margin: int = 16,
         return_labels: bool = False,
         dataloader_kwargs: Dict[str, Any] = None,
-        audio_queries: Optional[Union[List[bytes],List[str]]] = None,
+        audio_queries: Optional[Union[List[bytes], List[str]]] = None,
         target_sr: Optional[int] = None,
     ) -> List[str]:
         """
