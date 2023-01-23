@@ -110,9 +110,10 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)
         relative_position = relative_position[:, :query_seq_length, :key_seq_length]
+        # FIXME: remove bidirectional
         # if not bidirectional, mask out the future positions
-        if not self.bidirectional:
-            relative_position = torch.tril(relative_position)
+        # if not self.bidirectional:
+        #     relative_position = torch.tril(relative_position)
 
         # shape (1, num_heads, query_length, key_length)
         return relative_position.unsqueeze(0) * self.slopes
