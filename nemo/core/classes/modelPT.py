@@ -113,7 +113,7 @@ class ModelPT(LightningModule, Model):
         self._cfg = cfg
 
         # init mapping submodule attribute -> config_field for nested NeMo models
-        self.nemo_submodule_name_to_config_field = dict()
+        self._nemo_submodule_name_to_config_field = dict()
 
         self.save_hyperparameters("cfg")
         self._train_dl = None
@@ -265,6 +265,10 @@ class ModelPT(LightningModule, Model):
                 return True
         return False
 
+    def has_nemo_submodules(self) -> bool:
+        """Returns True if it has any registered NeMo submodules"""
+        return len(self._nemo_submodule_name_to_config_field) > 0
+
     def register_nemo_submodule(self, name: str, config_field: str, model: "ModelPT") -> None:
         """
         Adds a NeMo model as a submodule. Submodule can be accessed via the `name` attribute on the parent NeMo model this submodule was registered on (`self`).
@@ -298,7 +302,7 @@ class ModelPT(LightningModule, Model):
                 f"Model is not and instance of ModelPT, so can't be registered. Got {type(model).__name__}"
             )
         # check if it is called after __init__
-        if not hasattr(self, "nemo_submodule_name_to_config_field"):
+        if not hasattr(self, "_nemo_submodule_name_to_config_field"):
             raise NeMoBaseException(
                 "You are trying to register a submodule before the model is initialized. This is not allowed. "
                 "Did you forget to call `super().__init__`?"
@@ -306,7 +310,7 @@ class ModelPT(LightningModule, Model):
         # assign attribute to self
         setattr(self, name, model)
         # add to the submodules mapping
-        self.nemo_submodule_name_to_config_field[name] = config_field
+        self._nemo_submodule_name_to_config_field[name] = config_field
 
     def named_nemo_modules(
         self, prefix_name: str = "", prefix_config: str = ""
@@ -322,7 +326,7 @@ class ModelPT(LightningModule, Model):
         Returns:
             Iterator over (attribute path, path in config, submodule), starting from (prefix, self)
         """
-        if not hasattr(self, "nemo_submodule_name_to_config_field"):
+        if not hasattr(self, "_nemo_submodule_name_to_config_field"):
             raise NeMoBaseException(
                 "Model is not fully initialized. Calling `named_nemo_modules` before __init__ not allowed. "
                 "Did you forget to call `super().__init__`?"
@@ -331,7 +335,7 @@ class ModelPT(LightningModule, Model):
         yield prefix_name, prefix_config, self
 
         # recursive iteration over all NeMo submodules
-        for name, config_field in self.nemo_submodule_name_to_config_field.items():
+        for name, config_field in self._nemo_submodule_name_to_config_field.items():
             attribute_path = f"{prefix_name}.{name}" if prefix_name else name
             config_path = f"{prefix_config}.{config_field}" if prefix_config else config_field
             module: ModelPT = getattr(self, name)

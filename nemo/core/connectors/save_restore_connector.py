@@ -494,8 +494,8 @@ class SaveRestoreConnector:
         Update subconfigs of the model if ModelPT has submodules
         Should be called before updating artifacts paths
         """
-        # check if there are submodules
-        if len(model.nemo_submodule_name_to_config_field) == 0:
+        if not model.has_nemo_submodules():
+            # no submodules => nothing to update
             return
         conf = OmegaConf.load(path2yaml_file)
         # update subconfigs for all children recoursively
