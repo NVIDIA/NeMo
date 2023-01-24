@@ -33,6 +33,7 @@ parser.add_argument("--dest_json", required=True, default=None, type=str)
 parser.add_argument("--num_workers", default=4, type=int)
 args = parser.parse_args()
 
+
 def __process_transcript(file_path: str):
     """
     Converts flac files to wav from a given transcript, capturing the metadata.
@@ -55,7 +56,7 @@ def __process_transcript(file_path: str):
     entry["audio_filepath"] = os.path.abspath(wav_file)
     entry["duration"] = float(duration)
     entry["text"] = transcript_text
-    
+
     entries.append(entry)
     return entries
 
@@ -72,8 +73,8 @@ def __process_data(wav_list_path: str, manifest_file: str, num_workers: int):
     """
 
     _files = open(wav_list_path, "r").readlines()
-    files = [ x.strip() for x in _files ]
-    entry = __process_transcript(files[0]) 
+    files = [x.strip() for x in _files]
+    entry = __process_transcript(files[0])
     entries = []
 
     with multiprocessing.Pool(num_workers) as pool:
@@ -92,9 +93,7 @@ def main():
     num_workers = args.num_workers
 
     __process_data(
-        wav_list_path=wav_list,
-        manifest_file=dest_json,
-        num_workers=num_workers,
+        wav_list_path=wav_list, manifest_file=dest_json, num_workers=num_workers,
     )
     logging.info("Done!")
 
