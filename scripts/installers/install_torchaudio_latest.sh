@@ -26,16 +26,29 @@ LATEST_RELEASE=$(git -c 'versionsort.suffix=-' \
 # expected TORCHAUDIO_BUILD_VERSION=*.**.*
 TORCHAUDIO_BUILD_VERSION=${LATEST_RELEASE:8:1}${PYTORCH_VERSION:1:5}
 
+TORCH_MINOR_VERSION=$(python3 -c "minor_version = \"${PYTORCH_VERSION}\".split('.')[1]; print(minor_version)")
+TORCHAUDIO_MINOR_VERSION=$(python3 -c "minor_version = \"${LATEST_RELEASE}\".rsplit('.')[-1]; print(minor_version)")
+
 echo "Latest torchaudio release: ${LATEST_RELEASE:8:4}"
 echo "Pytorch version: ${PYTORCH_VERSION:0:6}"
 echo "Torchaudio build version: ${TORCHAUDIO_BUILD_VERSION}"
+
+if [[ "$TORCH_MINOR_VERSION" -lt "$TORCHAUDIO_MINOR_VERSION" ]]; then
+    # for old containers, we need to install matching torchaudio version
+    INSTALL_BRANCH="release/0.${TORCH_MINOR_VERSION}"
+else
+    # for new containers use latest release
+    INSTALL_BRANCH=${LATEST_RELEASE}
+fi
+
+echo "Installing torchaudio from branch: ${INSTALL_BRANCH}"
 
 # we need parameterized to run torchaudio tests
 # suppose that we do not have parameterized installed yet
 pip install parameterized
 
 # Build torchaudio and run MFCC test
-git clone --depth 1 --branch ${LATEST_RELEASE} https://github.com/pytorch/audio.git && \
+git clone --depth 1 --branch ${INSTALL_BRANCH} https://github.com/pytorch/audio.git && \
 cd audio && \
 git submodule update --init --recursive && \
 BUILD_SOX=1 BUILD_VERSION=${TORCHAUDIO_BUILD_VERSION} python setup.py install && \
