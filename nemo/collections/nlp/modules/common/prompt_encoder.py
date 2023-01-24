@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import torch
 from torch import nn
+from torch.nn import init
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
@@ -288,8 +289,9 @@ class PromptEncoder(NeuralModule, Exportable):
             self.layer_norm = torch.nn.LayerNorm(self.token_dim)
 
         if self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
-            pass
+            init.xavier_normal(self.embedding.weight.data)
         elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
+            init.xavier_normal(self.embedding.weight.data)
             self.scale =  torch.nn.parameter.Parameter(data=20 * (torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
