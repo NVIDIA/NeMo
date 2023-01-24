@@ -57,8 +57,8 @@ You can use the NeMo script to download MCV dataset from Hugging Face and get Ne
         path="mozilla-foundation/common_voice_11_0" \
         name="eo" \
         split=${SPLIT} \
-        use_auth_token=True \
-        +mcv_asr_dataset=True
+        ensure_ascii=False \
+        use_auth_token=True
 
 You will get the next data structure:
 
