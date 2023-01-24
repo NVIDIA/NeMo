@@ -131,41 +131,27 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         # self.layers = nn.ModuleList()
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
-        # self.load_task_templates(self.cfg.task_templates)
-        # self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
-        # self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
-        # self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        # self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
-        # self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        # # self.load_task_templates(self.cfg.task_templates)
+        # # self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
+        # # self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+        # # self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
+        # # self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
+        # # self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
 
-        # # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
-        # if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
-        #     self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
+        # # # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
+        # # if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
+        # #     self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
-        # # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
-        # elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-        #     self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
-        # elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
-        #     self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
-        # else:
-        #     raise ValueError(
-        #         f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
-        #     )
+        # # # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
+        # # elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+        # #     self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
+        # # elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
+        # #     self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
+        # # else:
+        # #     raise ValueError(
+        # #         f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+        # #     )
 
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """
-        Creates a state_dict using only the adapter parameters.
-        This ensures that this wrapper class will only checkpoint the adapter
-        weights and not the rest of the base GPT Model.
-        """
-        state_dict_ = {}
-        for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([name, adapter_key])
-                        state_dict_[state_adapter_key] = adapter_module.state_dict()
 
                 module.set_enabled_adapters(enabled=True)
         return state_dict_
@@ -224,15 +210,43 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #     for layer in self.layers:
     #         layer.set_enabled_adapters(name, enabled)
 
-    # def is_adapter_available(self) -> bool:
-    #     # call the same method on each `MLP` layer, collecting results
-    #     is_available = any([layer.is_adapter_available() for layer in self.layers])
-    #     return is_available
-        
-    # def setup(self, stage=None):
-    #     if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
-    #         self.frozen_model.freeze()
-    #         return
+    def build_virtual_prompt_dataset(
+        self,
+        data,
+        batch_size=None,
+        max_seq_length=2048,
+        min_seq_length=1,
+        add_bos=False,
+        add_eos=False,
+        for_train=True,
+        drop_last=False,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        tokens_to_generate=None,
+        get_dataset_only=False,
+        cache_data_path=None,
+        load_cache=False,
+    ):
+        dataset = GPTPromptLearningDataset(
+            data=data,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source=self.virtual_prompt_source,
+            task_templates=self.task_templates,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            for_train=for_train,
+            tokens_to_generate=tokens_to_generate,
+            cache_data_path=cache_data_path,
+            load_cache=load_cache,
+        )
+
+        if get_dataset_only:
+            return dataset
 
         # self.setup_test_data()
         # if stage == 'test':
@@ -509,9 +523,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
     # First we call forward on Adapter learning
 
-    # Take outputs from forward adapter learning function
 
-    # Feed inputs with retrieved_ids to retro model
+<<<<<<< HEAD
 
     # def load_task_templates(self, task_templates):
     #     """
@@ -553,6 +566,10 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #         ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
 
 
+#   def set_enabled_adapters(self, name: Optional[str], enabled: bool):
+#       # call the same method on each `MLP` layer, collecting results
+#       for layer in self.layers:
+#         layer.set_enabled_adapters(name, enabled)
 
 
 
