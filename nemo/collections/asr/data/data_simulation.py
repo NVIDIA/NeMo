@@ -428,7 +428,10 @@ class MultiSpeakerSimulator(object):
             prev_speaker = 0 if prev_speaker is None else prev_speaker
             return prev_speaker
         else:
-            if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker is not None:
+            if (
+                np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob
+                and prev_speaker is not None
+            ):
                 return prev_speaker
             else:
                 speaker_turn = prev_speaker
