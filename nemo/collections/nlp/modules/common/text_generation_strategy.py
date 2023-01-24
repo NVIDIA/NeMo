@@ -31,7 +31,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-
 class TextGenerationStrategy:
     """
     Base class for TextGeneration Strategy
@@ -125,13 +124,21 @@ class TextGenerationStrategy:
     @abc.abstractclassmethod
     def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):
         """
-        At the end of the inference, post process the inference results
+        At the end of the single step inference, post process the inference results
         Args:
             tokens  (torch.Tensor): the context tokens
             new_token (torch.Tensor): sampled new token id
             context_length (int): the new token position in the tokens
         """
         pass
+
+    def post_generation_process(self, output):
+        """
+        At the end of the text generation, post process the results
+        Args:
+            output  (dict): the text generation output dictionary
+        """
+        return output
 
 
 class GPTModelTextGenerationStrategy(TextGenerationStrategy):

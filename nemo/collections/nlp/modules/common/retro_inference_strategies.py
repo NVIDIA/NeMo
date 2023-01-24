@@ -252,12 +252,17 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         all_lookups = self.service.get_knn(questions, 1 + self.neighbors)
-        reuse_neighbors = all_lookups[:, 1:] 
+        # hack to add "source: " tag
+        prepend_ids = np.array(tokenizer.text_to_ids('source: '))
+        all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
+        all_lookups[:, :, :len(prepend_ids)] = prepend_ids
+        all_lookups = all_lookups[:, :, :-len(prepend_ids)]
+        reuse_neighbors = all_lookups[:, 1:]
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + '\nanswer:') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(neighbor_tokens, questions) ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
@@ -361,6 +366,15 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
+    def post_generation_process(self, output):
+        sentences = output['sentences']
+        modified = []
+        for sentence in sentences:
+            sentence = 'answer: ' + sentence.split(' \nanswer: ')[1]
+            modified.append(sentence)
+        output['sentences'] = modified
+        return output
+
 
 class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy):
     def __init__(self, model, **args):
@@ -399,13 +413,18 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
                     tokens = tokens + [tokenizer.pad_id] * (128 - len(tokens))
                 chunks.append(tokens)
         all_lookups = np.array(chunks).reshape(1, self.neighbors + 1, -1).astype(np.int64)
+        # hack to add "source: " tag
+        prepend_ids = np.array(tokenizer.text_to_ids('source: '))
+        all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
+        all_lookups[:, :, :len(prepend_ids)] = prepend_ids
+        all_lookups = all_lookups[:, :, :-len(prepend_ids)]
+        reuse_neighbors = all_lookups[:, 1:]
 
-        reuse_neighbors = all_lookups[:, 1:] 
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion:' + q + '\nanswer:') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(neighbor_tokens, questions) ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
