@@ -14,6 +14,7 @@
 
 
 import json
+import tempfile
 from typing import List, Optional
 
 import torch
@@ -48,17 +49,21 @@ class HeteronymClassificationModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_seq_length = cfg.max_seq_length
-        self.wordids = cfg.wordids
-
-        self.register_artifact("cfg.wordids", self.wordids)
-        self.homograph_dict, self.wordid_to_idx = read_wordids(cfg.wordids)
+        self.wordids = self.register_artifact("wordids", cfg.wordids)
+        self.homograph_dict, self.wordid_to_idx = read_wordids(self.wordids)
         self.idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
-
         self.supported_heteronyms = [h for h in self.homograph_dict.keys()]
+
+        # TODO use tempfile here
+        if cfg.class_labels.class_labels_file is None:
+            label_ids_file = "/tmp/label_ids.csv"
+            with open(label_ids_file, 'w') as f:
+                for idx in range(len(self.idx_to_wordid)):
+                    f.write(self.idx_to_wordid[idx] + "\n")
+            self.register_artifact("class_labels.class_labels_file", label_ids_file)
+
         super().__init__(cfg=cfg, trainer=trainer)
-
         self.lang = self._cfg.get('lang', None)
-
         num_classes = len(self.wordid_to_idx)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -75,7 +80,7 @@ class HeteronymClassificationModel(NLPModel):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            num_classes=num_classes, mode='macro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
+            num_classes=num_classes, mode='micro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
         )
 
         self.wordid_to_phonemes_file = None
@@ -201,6 +206,9 @@ class HeteronymClassificationModel(NLPModel):
             if self.wordid_to_phonemes is None:
                 cur_pred = f"[{cur_pred}]"
             else:
+                import pdb
+
+                pdb.set_trace()
                 cur_pred = self.wordid_to_phonemes[cur_pred]
                 # to use mixed grapheme format as an input for a TTS model, we need to have vertical bars around phonemes
                 cur_pred = "".join([f"|{p}|" for p in cur_pred])
@@ -281,8 +289,8 @@ class HeteronymClassificationModel(NLPModel):
                     "attention_mask": batch["attention_mask"].to(device),
                 }
                 _, logits = self.make_step(batch)
-                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask > 0])
 
+                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask > 0])
                 # preds are flatten for all the samples, we need to separate predictions per sample
                 preds_num = [len([p_ for p_ in p if p_ == 1]) for p in tensor2list(subtokens_mask)]
 

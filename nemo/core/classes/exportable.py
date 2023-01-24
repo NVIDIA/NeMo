@@ -182,9 +182,9 @@ class Exportable(ABC):
                         verbose=verbose,
                         do_constant_folding=do_constant_folding,
                         dynamic_axes=dynamic_axes,
-                        opset_version=onnx_opset_version,
                         keep_initializers_as_inputs=keep_initializers_as_inputs,
                         export_modules_as_functions=export_modules_as_functions,
+                        opset_version=15,
                     )
 
                     if check_trace:

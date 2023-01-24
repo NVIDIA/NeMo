@@ -16,10 +16,10 @@
 
 # default values for optional arguments
 MIN_SCORE=-2
-CUT_PREFIX=0
+CUT_PREFIX=40
 SCRIPTS_DIR="scripts" # /<PATH TO>/NeMo/tools/ctc_segmentation/tools/scripts/ directory
 OFFSET=0
-LANGUAGE='en' # 'en', 'es', 'ru'...
+LANGUAGE='fr' # 'en', 'es', 'ru'...
 MAX_SEGMENT_LEN=30
 ADDITIONAL_SPLIT_SYMBOLS=":|;"
 USE_NEMO_NORMALIZATION='True'
@@ -52,23 +52,27 @@ echo "SAMPLE_RATE = $SAMPLE_RATE"
 echo "ADDITIONAL_SPLIT_SYMBOLS = $ADDITIONAL_SPLIT_SYMBOLS"
 echo "USE_NEMO_NORMALIZATION = $USE_NEMO_NORMALIZATION"
 
-if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
-  echo "Usage: $(basename "$0")
-  --MODEL_NAME_OR_PATH=[model_name_or_path]
-  --DATA_DIR=[data_dir]
-  --OUTPUT_DIR=[output_dir]
-  --LANGUAGE=[language (Optional)]
-  --OFFSET=[offset value (Optional)]
-  --CUT_PREFIX=[cut prefix in sec (Optional)]
-  --SCRIPTS_DIR=[scripts_dir_path (Optional)]
-  --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
-  --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
-    sentence split if eos sentence split resulted in sequence longer than --max_length.
-    Use '|' as a separator between symbols, for example: ';|:' (Optional)]
-  --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
-    numbers from written to spoken format. By default num2words package will be used. (Optional)"
-  exit 1
-fi
+DATA_DIR="/media/ebakhturina/DATA/DEBUG/data"
+OUTPUT_DIR="/media/ebakhturina/DATA/DEBUG/output_fr"
+MODEL_NAME_OR_PATH="stt_fr_citrinet_1024_gamma_0_25"
+
+#if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
+#  echo "Usage: $(basename "$0")
+#  --MODEL_NAME_OR_PATH=[model_name_or_path]
+#  --DATA_DIR=[data_dir]
+#  --OUTPUT_DIR=[output_dir]
+#  --LANGUAGE=[language (Optional)]
+#  --OFFSET=[offset value (Optional)]
+#  --CUT_PREFIX=[cut prefix in sec (Optional)]
+#  --SCRIPTS_DIR=[scripts_dir_path (Optional)]
+#  --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
+#  --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
+#    sentence split if eos sentence split resulted in sequence longer than --max_length.
+#    Use '|' as a separator between symbols, for example: ';|:' (Optional)]
+#  --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
+#    numbers from written to spoken format. By default num2words package will be used. (Optional)"
+#  exit 1
+#fi
 
 NEMO_NORMALIZATION=""
     if [[ ${USE_NEMO_NORMALIZATION,,} == "true" ]]; then

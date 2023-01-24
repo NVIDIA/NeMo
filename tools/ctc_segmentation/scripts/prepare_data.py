@@ -47,7 +47,7 @@ parser.add_argument(
     "--language",
     type=str,
     default="en",
-    choices=["en", "ru", "de", "es", 'other'],
+    choices=["en", "ru", "de", "es", 'fr', 'other'],
     help='Add target language based on the num2words list of supported languages',
 )
 parser.add_argument(

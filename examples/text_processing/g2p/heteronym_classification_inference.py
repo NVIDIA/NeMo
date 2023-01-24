@@ -55,7 +55,7 @@ class TranscriptionConfig:
     interactive: bool = False  # set to True to enable interactive mode
 
     # mapping from wordid predicted by the model to phonemes
-    wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu-0.7b_nv22.10.tsv"
+    wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv"
 
     # if "word_id" targets are present in the manifest, evaluation will be performed and errors will be saved in errors_file
     errors_file: Optional[str] = None  # path to a file to save prediction errors

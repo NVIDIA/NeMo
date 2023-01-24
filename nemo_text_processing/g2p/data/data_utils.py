@@ -90,9 +90,6 @@ def read_wordids(wordid_map: str):
         tsv_file = csv.reader(f, delimiter="\t")
 
         for i, line in enumerate(tsv_file):
-            if i == 0:
-                continue
-
             grapheme = line[0]
             word_id = line[1]
             ipa_form = line[3]
@@ -104,7 +101,7 @@ def read_wordids(wordid_map: str):
 
 
 def get_wordid_to_phonemes(
-    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu-0.7b_nv22.10.tsv",
+    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_arpabet-0.7b_nv22.10.tsv",
 ):
     """
     WikiHomograph and NeMo use slightly different phoneme sets, this function reads WikiHomograph word_ids to NeMo
@@ -269,7 +266,6 @@ def chinese_text_preprocessing(text):
     return text.lower()
 
 
-<<<<<<< HEAD
 def remove_punctuation(text: str, remove_spaces=True, do_lower=True, exclude=None):
     all_punct_marks = string.punctuation
 
@@ -321,7 +317,8 @@ def get_homograph_spans(sentences: List[str], supported_homographs: Union[Dict, 
         homographs.append(cur_homographs)
         start_end.append(cur_start_end)
     return start_end, homographs
-=======
+
+
 def set_grapheme_case(text: str, case: str = "upper") -> str:
     if case == "upper":
         text_new = text.upper()
@@ -333,4 +330,3 @@ def set_grapheme_case(text: str, case: str = "upper") -> str:
         raise ValueError(f"Case <{case}> is not supported. Please specify either 'upper', 'lower', or 'mixed'.")
 
     return text_new
->>>>>>> main

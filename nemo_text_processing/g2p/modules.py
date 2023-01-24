@@ -456,7 +456,7 @@ class IPAG2P(BaseG2p):
         heteronym_model,
         wordid_to_phonemes_file: Optional[
             str
-        ] = "../../../scripts/tts_dataset_files/wordid_to_nemo_cmu-0.7b_nv22.10.tsv",
+        ] = "../../../scripts/tts_dataset_files/wordid_to_arpabet-0.7b_nv22.10.tsv",
     ):
         self.heteronym_model = heteronym_model
         self.heteronym_model.wordid_to_phonemes_file = wordid_to_phonemes_file
