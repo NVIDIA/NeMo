@@ -465,9 +465,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         elif self.self_attention_model == 'alibi_pos':
             pos_emb = None
             # pad x to a multiple of 8
-            padding = 8 - (max_audio_length % 8)
-            max_audio_length = max_audio_length + padding
             padding = 512 - max_audio_length
+            max_audio_length = max_audio_length + padding
             audio_signal = (
                 nn.functional.pad(audio_signal.transpose(1, 2), (0, padding), value=0).transpose(1, 2).contiguous()
             )
@@ -668,7 +667,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         """
         Update the self_attention_model which changes the positional encoding and attention layers.
-    
+
         Args:
             self_attention_model (str): type of the attention layer and positional encoding
                 'rel_pos': relative positional embedding and Transformer-XL

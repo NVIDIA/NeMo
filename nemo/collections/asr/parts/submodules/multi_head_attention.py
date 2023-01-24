@@ -185,7 +185,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
         """Construct an MultiHeadedAttention object."""
         super().__init__(n_head, n_feat, dropout_rate, max_cache_len)
         self.memory_efficient = memory_efficient
-        self.alibi_attn_bias = None  # create attn_bias lazily
+        self.dropout_rate = dropout_rate
         self.saved_seq_len = None
 
     def forward_attention(self, value, scores, mask):
@@ -228,16 +228,16 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
                 + self._get_slopes(2 * closest_power_of_2)[0::2][: n - closest_power_of_2]
             )
 
-    def _initialize_attn_bias(self, query: torch.Tensor, mask: torch.Tensor):
+    def alibi_attn_bias(self, query: torch.Tensor, mask: torch.Tensor):
         b, seq_len = mask.shape[0], mask.shape[1]
-        context_position = torch.arange(seq_len)[:, None]
-        memory_position = torch.arange(seq_len)[None, :]
+        context_position = torch.arange(seq_len)[:, None].to(mask.device)
+        memory_position = torch.arange(seq_len)[None, :].to(mask.device)
         relative_position = memory_position - context_position
         relative_position = torch.abs(relative_position).unsqueeze(0).expand(self.h, -1, -1)
 
-        slopes = torch.Tensor(self._get_slopes(self.h)) * -1
+        slopes = torch.tensor(self._get_slopes(self.h), device=mask.device) * -1
         alibi = slopes.unsqueeze(1).unsqueeze(1) * relative_position
-        self.alibi_attn_bias = alibi.view(1, self.h, seq_len, seq_len).expand(b, -1, -1, -1).type_as(query)
+        return alibi.view(1, self.h, seq_len, seq_len).expand(b, -1, -1, -1).type_as(query)
 
     def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention'.
@@ -266,22 +266,21 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            if self.alibi_attn_bias is None:
-                self._initialize_attn_bias(query=q, mask=mask)
 
+            attn_bias = self.alibi_attn_bias(query=q, mask=mask)
             mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
-            attn_bias = self.alibi_attn_bias.masked_fill(mask, -10000.0)
+            attn_bias.masked_fill_(mask, -10000.0)
+
             if self.memory_efficient:
                 n_batch = value.size(0)
                 q = q.permute(0, 2, 1, 3)
                 k = k.permute(0, 2, 1, 3)
                 v = v.permute(0, 2, 1, 3)
 
-                attn = xops.memory_efficient_attention(q, k, v, attn_bias=attn_bias)
+                attn = xops.memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout_rate)
                 attn = attn.reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(attn)  # (batch, time1, d_model)
 
-                # print((mem_out - out).abs().max() < 4e-3, ((mem_out - out).abs().max()))
             else:
                 scores = torch.matmul(q / self.s_d_k, k.transpose(-2, -1)) + attn_bias
                 out = self.forward_attention(v, scores, mask)

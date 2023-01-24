@@ -30,25 +30,24 @@ def _create_model(dtype, hidden_size, memory_efficient):
         ff_expansion_factor=4,
         self_attention_model='alibi_pos',  # should be rel pos, but mem efficient does not support.
         n_heads=16,
-        att_context_size=[-1, -1],
-        att_context_style='regular',
-        xscaling=True,
-        untie_biases=True,
-        pos_emb_max_len=5000,
+        # att_context_size=[-1, -1],
+        # att_context_style='regular',
+        # xscaling=True,
+        # untie_biases=True,
+        # pos_emb_max_len=5000,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
         conv_context_size=None,
         dropout=0.1,
         dropout_pre_encoder=0.1,
         dropout_emb=0.0,
-        dropout_att=0.1,
+        dropout_att=0.0,
         memory_efficient=memory_efficient,
     ).to(device)
     if dtype == torch.bfloat16:
         encoder = encoder.bfloat16()
     elif dtype == torch.half:
         encoder = encoder.half()
-    print("NUM", sum(p.numel() for p in encoder.parameters() if p.requires_grad) / 1e6)
     return encoder
 
 
@@ -128,7 +127,7 @@ def run(dtype, seq_len, bs, hidden_size, benchmark, memory_efficient):
         m = benchmark_forward_backward(
             shape=(bs, seq_len, 80), dtype=dtype, hidden_size=hidden_size, memory_efficient=memory_efficient,
         )
-    measurement = m.timeit(50)
+    measurement = m.blocked_autorange(min_run_time=2)
 
     torch.cuda.synchronize()
     memory = torch.cuda.max_memory_allocated() / 2 ** 20 - mem_begin
@@ -141,7 +140,11 @@ def run(dtype, seq_len, bs, hidden_size, benchmark, memory_efficient):
 batch_sizes = (16,)
 hidden_dims = (512,)
 seq_len = 512
-for name in ("FWD/BWD",):
+for name in (
+    "FWD",
+    "FWD/BWD",
+    "BWD",
+):
     print(f'\nRunning {name} tests')
     for bs, hidden_size in zip(batch_sizes, hidden_dims):
         print(f"running {bs} {hidden_size}")
