@@ -64,44 +64,6 @@ except ImportError:
     GPURIR = False
 
 
-def timem(func):
-    @wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        # first item in the args, ie `args[0]` is `self`
-        # print(f'Function {func.__name__}{args} {kwargs} Took {total_time:.4f} seconds')
-        print(f'Function {func.__name__} Took {total_time:.4f} seconds')
-        return result
-
-    return timeit_wrapper
-
-
-def timeit(method):
-    """
-    Monitor elapsed time of the corresponding function displaying the method name.
-    Args:
-        method: function that is being measured
-    Return:
-        `timed` function for measuring the elapsed time
-    """
-
-    def timed(*args, **kwargs):
-        ts = time.time()
-        result = method(*args, **kwargs)
-        te = time.time()
-        if 'log_time' in kwargs:
-            name = kwargs.get('log_name', method.__name__.upper())
-            kwargs['log_time'][name] = int((te - ts) * 1000)
-        else:
-            logging.info('%2.2fms %r' % ((te - ts) * 1000, method.__name__))
-        return result
-
-    return
-
-
 def clamp_min_list(target_list: List[float], min_val: float) -> List[float]:
     """
     Clamp numbers in the given list with `min_val`.
@@ -686,7 +648,6 @@ class MultiSpeakerSimulator(object):
 
         return sentence_duration + nw, len(self._sentence)
 
-    # @timem
     def _build_sentence(
         self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int
     ):
@@ -3565,7 +3526,7 @@ def simulate_room_mix(
 
 def simulate_room_mix_kwargs(kwargs: dict) -> dict:
     """Wrapper around `simulate_room_mix` to handle kwargs.
-    
+
     `pool.map(simulate_room_kwargs, examples)` would be
     equivalent to `pool.starstarmap(simulate_room_mix, examples)`
     if `starstarmap` would exist.
