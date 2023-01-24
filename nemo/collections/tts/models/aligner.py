@@ -232,6 +232,9 @@ class AlignerModel(ModelPT):
         """Omitted."""
         pass
 
+    def align_audio_to_text(self, audios, texts, ):
+        """TODO"""
+
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """

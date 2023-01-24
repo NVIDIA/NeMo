@@ -522,6 +522,12 @@ def eval_tts_scores(
     return {'STOI': stoi_score, 'PESQ': pesq_score}
 
 
+def quantize_durations(durations, pace=1.):
+    reps = durations.float() / pace
+    reps = (reps + 0.5).floor().long()
+    return reps
+
+
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -536,8 +542,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     """
 
     dtype = enc_out.dtype
-    reps = durations.float() / pace
-    reps = (reps + 0.5).floor().long()
+    reps = quantize_durations(durations, pace)
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
