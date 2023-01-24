@@ -44,7 +44,7 @@ data_simulator:
     snr: 60 # SNR for background noise (using average speaker power)
 
   speaker_enforcement:
-    enforce_num_speakers: false # Enforce that all requested speakers are present in the output wav file
+    enforce_num_speakers: true # Enforce that all requested speakers are present in the output wav file
     enforce_time:  # Percentage of the way through the audio session that enforcement mode is triggered (sampled between time 1 and 2)
     - 0.25
     - 0.75

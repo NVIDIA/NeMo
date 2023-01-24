@@ -16,12 +16,9 @@ import concurrent
 import multiprocessing
 import os
 import shutil
-import time
 import warnings
-from functools import wraps
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-import cupy as cp
 import h5py
 import librosa
 import matplotlib.pyplot as plt
@@ -195,12 +192,18 @@ class MultiSpeakerSimulator(object):
         Checks YAML arguments to ensure they are within valid ranges.
         """
         if self._params.data_simulator.session_config.num_speakers < 1:
-            raise Exception("At least two speakers are required for multispeaker audio sessions (num_speakers < 1)")
+            raise Exception("At least one speaker is required for making audio sessions (num_speakers < 1)")
         if (
             self._params.data_simulator.session_params.turn_prob < 0
             or self._params.data_simulator.session_params.turn_prob > 1
         ):
             raise Exception("Turn probability is outside of [0,1]")
+        elif self._params.data_simulator.session_params.turn_prob < 0.5 and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True:
+            logging.warning(
+                "Turn probability is less than 0.5 while enforce_num_speakers is True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
+            )
+            self._params.data_simulator.session_params.turn_prob = 0.5
+
         if (
             self._params.data_simulator.session_params.overlap_prob < 0
             or self._params.data_simulator.session_params.overlap_prob > 1
@@ -599,7 +602,6 @@ class MultiSpeakerSimulator(object):
                 self._sentence = torch.cat(
                     (
                         self._sentence,
-                        # np.multiply(audio_file[start_cutoff : start_cutoff + start_window_amount], window),
                         torch.multiply(audio_file[start_cutoff : start_cutoff + start_window_amount], window),
                     ),
                     0,
@@ -671,7 +673,7 @@ class MultiSpeakerSimulator(object):
         )
 
         # initialize sentence, text, words, alignments
-        self._sentence = torch.zeros(0, device=self._device)
+        self._sentence = torch.zeros(0, dtype=torch.float64, device=self._device)
         self._text = ""
         self._words = []
         self._alignments = []
@@ -688,6 +690,7 @@ class MultiSpeakerSimulator(object):
                 if audio_file.ndim > 1:
                     audio_file = torch.mean(audio_file, 1, False)
                 self._audio_read_buffer_dict[file['audio_filepath']] = (audio_file, sr)
+            
             sentence_duration, sentence_duration_sr = self._add_file(
                 file, audio_file, sentence_duration, sl, max_sentence_duration_sr
             )
@@ -816,7 +819,7 @@ class MultiSpeakerSimulator(object):
             silence_amount = int(length * silence_percent)
 
             if start + length + silence_amount > session_length_sr and not enforce:
-                new_start = session_length_sr - length
+                new_start = max(session_length_sr - length, 0)
             else:
                 new_start = start + silence_amount
 
@@ -1035,7 +1038,7 @@ class MultiSpeakerSimulator(object):
             (self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr)
         )
         array = torch.zeros(session_length_sr).to(self._device)
-        is_bg = torch.zeros(session_length_sr).to(self._device)
+        is_speech = torch.zeros(session_length_sr).to(self._device)
 
         while running_length_sr < session_length_sr or enforce:
             # enforce num_speakers
@@ -1066,9 +1069,9 @@ class MultiSpeakerSimulator(object):
             end = start + length
             if end > len(array):  # only occurs in enforce mode
                 array = torch.nn.functional.pad(array, (0, end - len(array)))
-                is_bg = torch.nn.functional.pad(is_bg, (0, end - len(is_bg)))
+                is_speech = torch.nn.functional.pad(is_speech, (0, end - len(is_speech)))
             array[start:end] += self._sentence
-            is_bg[start:end] = 1
+            is_speech[start:end] = 1
 
             # build entries for output files
             new_rttm_entries = self._create_new_rttm_entry(
@@ -1098,7 +1101,7 @@ class MultiSpeakerSimulator(object):
 
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
-            avg_power_array = torch.mean(array[is_bg == 1] ** 2)
+            avg_power_array = torch.mean(array[is_speech == 1] ** 2)
             bg = self._get_background(len(array), avg_power_array)
             array += bg
 
@@ -1147,6 +1150,7 @@ class MultiSpeakerSimulator(object):
         num_workers = self._params.get("num_workers", 1)
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self._params.get("num_workers", 1))
         futures = []
+        
         for i in range(self._params.data_simulator.session_config.num_sessions):
             self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
             self._missing_overlap = 0
@@ -1461,7 +1465,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             (self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr)
         )
         array = torch.zeros((session_length_sr, self._params.data_simulator.rir_generation.mic_config.num_channels))
-        is_bg = torch.zeros(session_length_sr)
+        is_speech = torch.zeros(session_length_sr)
 
         while running_length_sr < session_length_sr or enforce:
             # enforce num_speakers
@@ -1493,9 +1497,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             end = start + length
             if end > len(array):
                 array = torch.nn.functional.pad(array, (0, 0, 0, end - len(array)))
-                is_bg = torch.nn.functional.pad(is_bg, (0, end - len(is_bg)))
+                is_speech = torch.nn.functional.pad(is_speech, (0, end - len(is_speech)))
 
-            is_bg[start:end] = 1
+            is_speech[start:end] = 1
 
             for channel in range(self._params.data_simulator.rir_generation.mic_config.num_channels):
                 len_ch = len(augmented_sentence[channel])  # accounts for how channels are slightly different lengths
@@ -1529,7 +1533,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
-            avg_power_array = torch.mean(array[is_bg == 1] ** 2)
+            avg_power_array = torch.mean(array[is_speech == 1] ** 2)
             length = array.shape[0]
             bg = self._get_background(length, avg_power_array)
             augmented_bg, _ = self._convolve_rir(bg, -1, RIR)
