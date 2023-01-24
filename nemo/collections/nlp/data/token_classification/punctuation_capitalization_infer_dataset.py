@@ -136,7 +136,7 @@ def get_features_infer(
             q_inp_mask.append([True] * len(subtokens))
             q_quantities_of_preceding_words.append(np.count_nonzero(stm[q_i][:i]))
             if query_audio:
-                samples = query_audio.samples[i * 4000 : (i + length) * 4000]
+                samples = query_audio.samples
                 q_audio_queries.append(samples)
                 q_audio_lengths.append(len(samples))
         all_input_ids.append(q_inp_ids)

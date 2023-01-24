@@ -55,7 +55,7 @@ def get_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="The script is for restoring punctuation and capitalization in text or text and audio. To use text and audio use '--use_audio'. Long strings are split into "
         "segments of length `--max_seq_length`. `--max_seq_length` is the length which includes [CLS] and [SEP] "
-        "tokens. Long audios are split into segments of length 4000*`--max_seq_length`. Parameter `--step` controls segments overlapping. `--step` is a distance between beginnings of "
+        "tokens. Long audios are not split and the whole audio is used each text segment. Parameter `--step` controls segments overlapping. `--step` is a distance between beginnings of "
         "consequent segments. Model outputs for tokens near the borders of tensors are less accurate and can be "
         "discarded before final predictions computation. Parameter `--margin` is number of discarded outputs near "
         "segments borders. Probabilities of tokens in overlapping parts of segments multiplied before selecting the "
