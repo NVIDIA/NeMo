@@ -381,7 +381,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         super().__init__(model, **args)
         # load the DPR to memory
         self.context_db = {}
-        with open('/dataset/FiD/test.jsonl', 'r') as f:
+        with open('/dataset/FiD/test.jsonl_title', 'r') as f:
             for line in f:
                 obj = json.loads(line)
                 self.context_db[obj['question']] = obj
@@ -401,30 +401,34 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
 
         # get context from memory
         chunks = []
+        first_context = []
         for question in questions:
             hash_code = question
             if hash_code not in self.context_db:
                 raise ValueError(f"wrong question is fed: {question}")
             contexts = self.context_db[hash_code]['ctxs']
-            for neighbor in contexts[: self.neighbors + 1]:
-                tokens = tokenizer.text_to_ids(neighbor)
+            for i, neighbor in enumerate(contexts[: self.neighbors + 1]):
+                text = "title: " + neighbor["title"] + ", source: " + neighbor["text"]
+                if i == 0:
+                    first_context.append(text)
+                tokens = tokenizer.text_to_ids(text)
                 tokens = tokens[:128]
                 if len(tokens) < 128:
                     tokens = tokens + [tokenizer.pad_id] * (128 - len(tokens))
                 chunks.append(tokens)
         all_lookups = np.array(chunks).reshape(1, self.neighbors + 1, -1).astype(np.int64)
-        # hack to add "source: " tag
-        prepend_ids = np.array(tokenizer.text_to_ids('source: '))
-        all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
-        all_lookups[:, :, :len(prepend_ids)] = prepend_ids
-        all_lookups = all_lookups[:, :, :-len(prepend_ids)]
+        # # hack to add "source: " tag
+        # prepend_ids = np.array(tokenizer.text_to_ids('source: '))
+        # all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
+        # all_lookups[:, :, :len(prepend_ids)] = prepend_ids
+        # all_lookups = all_lookups[:, :, :-len(prepend_ids)]
         reuse_neighbors = all_lookups[:, 1:]
 
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
-        neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
+        # neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [tokenizer.text_to_ids(n) + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(first_context, questions) ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
