@@ -14,7 +14,6 @@
 
 from scipy.io import wavfile
 from nemo.collections.asr.parts.utils.diarization_utils import OnlineDiarWithASR, write_txt
-from nemo.collections.asr.models import OnlineClusteringDiarizer
 from pytorch_lightning import seed_everything
 from nemo.core.config import hydra_runner
 import torch
