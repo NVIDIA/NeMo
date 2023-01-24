@@ -198,7 +198,10 @@ class MultiSpeakerSimulator(object):
             or self._params.data_simulator.session_params.turn_prob > 1
         ):
             raise Exception("Turn probability is outside of [0,1]")
-        elif self._params.data_simulator.session_params.turn_prob < 0.5 and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True:
+        elif (
+            self._params.data_simulator.session_params.turn_prob < 0.5
+            and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True
+        ):
             logging.warning(
                 "Turn probability is less than 0.5 while enforce_num_speakers is True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
             )
@@ -690,7 +693,7 @@ class MultiSpeakerSimulator(object):
                 if audio_file.ndim > 1:
                     audio_file = torch.mean(audio_file, 1, False)
                 self._audio_read_buffer_dict[file['audio_filepath']] = (audio_file, sr)
-            
+
             sentence_duration, sentence_duration_sr = self._add_file(
                 file, audio_file, sentence_duration, sl, max_sentence_duration_sr
             )
@@ -1150,7 +1153,7 @@ class MultiSpeakerSimulator(object):
         num_workers = self._params.get("num_workers", 1)
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self._params.get("num_workers", 1))
         futures = []
-        
+
         for i in range(self._params.data_simulator.session_config.num_sessions):
             self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
             self._missing_overlap = 0
