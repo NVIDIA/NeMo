@@ -38,10 +38,10 @@ class EmbeddingLinearCombination(ptl.LightningModule):
         l2 = (w ** 2).mean()
         l1 = torch.abs(w).mean()
         return output_embeds, l2, l1
-    
+
     def backward(self, loss, optimizer, optimizer_idx):
         loss.backward()
-    
+
     def training_step(self, batch, batch_idx):
         x, y = batch
         x = x.squeeze()
@@ -50,7 +50,9 @@ class EmbeddingLinearCombination(ptl.LightningModule):
         sl1_loss = F.smooth_l1_loss(y_hat, y)
         cs_loss = self.cs_embedding_loss(y_hat, y, torch.ones(y.shape[0]).type_as(y_hat))
 
-        total_loss = (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        total_loss = (
+            (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        )
 
         self.log("sl1_loss", sl1_loss.item(), prog_bar=True)
         self.log("cs_loss", cs_loss.item(), prog_bar=True)
@@ -75,7 +77,9 @@ class EmbeddingLinearCombination(ptl.LightningModule):
         cs_loss = sum(cs_losses) / len(cs_losses)
         l1_reg = sum(l1_regs) / len(l1_regs)
         l2_reg = sum(l2_regs) / len(l2_regs)
-        test_loss= (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        test_loss = (
+            (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        )
         self.log("test_sl1_loss", sl1_loss, prog_bar=True, on_epoch=True)
         self.log("test_cs_loss", cs_loss, prog_bar=True, on_epoch=True)
         self.log("test_loss", test_loss, prog_bar=True, on_epoch=True)
@@ -101,7 +105,9 @@ class EmbeddingLinearCombination(ptl.LightningModule):
         cs_loss = sum(cs_losses) / len(cs_losses)
         l1_reg = sum(l1_regs) / len(l1_regs)
         l2_reg = sum(l2_regs) / len(l2_regs)
-        self.val_loss= (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        self.val_loss = (
+            (self.sl1_wt * sl1_loss) + (self.cs_wt * cs_loss) + (self.l1_reg_wt * l1_reg) + (self.l2_reg_wt * l2_reg)
+        )
         self.log("val_sl1_loss", sl1_loss, prog_bar=True, on_epoch=True)
         self.log("val_cs_loss", cs_loss, prog_bar=True, on_epoch=True)
         self.log("val_loss", self.val_loss, prog_bar=True, on_epoch=True)
@@ -117,6 +123,7 @@ class EmbeddingLinearCombination(ptl.LightningModule):
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
+
 
 class EmbeddingProjector(ptl.LightningModule):
     def __init__(self, input_size: int, output_size: int, cfg: Any) -> None:
