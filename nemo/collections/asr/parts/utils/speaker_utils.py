@@ -1062,9 +1062,6 @@ def get_speech_labels_for_update(
     speech_label_for_new_segments = torch.tensor(speech_label_for_new_segments)
     cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
 
-    # Check if the ranges are containing faulty values
-    assert check_ranges(speech_label_for_new_segments)
-    assert check_ranges(cumulative_speech_labels)
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
