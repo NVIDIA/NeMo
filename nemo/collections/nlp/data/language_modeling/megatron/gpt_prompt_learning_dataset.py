@@ -27,6 +27,9 @@ from nemo.utils import AppState, logging
 __all__ = ['GPTPromptLearningDataset']
 
 
+input_ids_file = open("/workspaces/research/playground/nemo_input_ids.jsonl", "w")
+
+
 class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
@@ -403,6 +406,12 @@ class GPTPromptLearningDataset(Dataset):
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         input_ids = input_ids.cuda()
         input_ids = torch.cuda.LongTensor(input_ids)
+
+        input_ids_file.write(json.dumps({
+            "input_ids": input_ids.tolist(),
+            "input_id_lengths": input_lengths.tolist()
+        }))
+        input_ids_file.write("\n")
 
         return task_id_nums, (input_ids, input_lengths)
 

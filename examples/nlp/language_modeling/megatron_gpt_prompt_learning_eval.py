@@ -25,6 +25,8 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
+import json
+output_ids_file = open("/workspaces/research/playground/nemo_output_ids.jsonl", "w")
 
 """
 This is the script to run GPT text generation.
@@ -134,7 +136,7 @@ def main(cfg) -> None:
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
-        batch_size=64,
+        batch_size=2,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
@@ -152,10 +154,17 @@ def main(cfg) -> None:
     print("***************************")
     with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for i in range(len(response)):
-            for sent in response[i]["sentences"]:
-                sent = sent.strip()
+            for sentcheck in response[i]:
+                sent = sentcheck["sentences"].strip()
                 sent = sent.replace("\n", " ")
                 pred_file.write(sent + "\n")
+
+                output_ids_file.write(json.dumps({
+                    "output": sent,
+                    "output_ids": sentcheck["token_ids"][0],
+                }))
+                output_ids_file.write("\n")
+                
     print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
     print("***************************")
 

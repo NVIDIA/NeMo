@@ -98,8 +98,9 @@ model:
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
     data_prefix: 
-      - /workspaces/research/downloaded/rte/rte_train.jsonl # list of training datasets
-    knn_index: /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+      - /workspaces/research/downloaded/rte/rte_text_document
+    knn_index: 
+      - /workspaces/research/downloaded/rte/rte_knn.save
     retrieval_prefix: /dataset/retro_mc4_text_document/retro_mc4_text_document   # a singe path to retrieval data
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
@@ -122,3 +123,27 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 1e-5
+
+# python NeMo/examples/nlp/language_modeling/megatron_retro_pretraining.py \
+#     trainer.devices=4 \
+#     trainer.num_nodes=1 \
+#     trainer.accelerator=gpu \
+#     trainer.max_steps=800000 \
+#     trainer.precision=16 \
+#     exp_manager.exp_dir=/result/retro_model \
+#     model.apply_query_key_layer_scaling=False \
+#     model.tensor_model_parallel_size=8 \
+#     model.optim.name=adamw \
+#     model.enc_num_layers=2 \
+#     model.dec_num_layers=32 \
+#     model.enc_cross_attention=[0] \
+#     model.dec_cross_attention=[8,11,14,17,20,23,26,29,31] \
+#     model.hidden_size=4096 \
+#     model.ffn_hidden_size=16384 \
+#     model.num_attention_heads=32 \
+#     model.tokenizer.merge_file=/dataset/gpt2-merges.txt \
+#     model.tokenizer.vocab_file=/dataset/gpt2-vocab.json \
+#     model.data.data_prefix=[/workspaces/research/downloaded/rte/rte_text_document] \
+#     model.data.knn_index=[/workspaces/research/downloaded/rte/rte_knn_shard0.save] \
+#     model.data.retrieval_prefix=/dataset/retro_mc4_text_document/retro_mc4_text_document \
+#     model.micro_batch_size=8

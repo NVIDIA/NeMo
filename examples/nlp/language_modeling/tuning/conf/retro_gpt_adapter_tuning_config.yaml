@@ -181,7 +181,7 @@ model:
 #     --chunk_size=64 \
 #     --workers=48
 
-# python scripts/nlp_language_modeling/build_knn_map_index.py \
+# python NeMo/scripts/nlp_language_modeling/build_knn_map_index.py \
 #     --input_file=/workspaces/research/downloaded/rte/rte_text_document  \
 #     --tokenizer-library=megatron \
 #     --tokenizer-type=GPT2BPETokenizer \
@@ -196,8 +196,13 @@ model:
 #     --remove_duplicate \
 #     --dedup_margin=70 \
 #     --nprobe=100 \
-#     --shard_id=0 \
-#     --total_shards=10 \
+#     --shard_id=1 \
+#     --total_shards=2 \
 #     --stage=1 \
-#     --output_file=/workspaces/research/downloaded/rte/rte_knn_shard0.save \
+#     --output_file=/workspaces/research/downloaded/rte/rte_knn_shard1.save \
 #     --faiss_index=/dataset/mc4/c4_faiss_index.index
+
+# python NeMo/scripts/nlp_language_modeling/build_knn_map_index.py  \
+# --stage=2 \
+# --output_file=/workspaces/research/downloaded/rte/rte_knn.save \
+# --shard_index_input=/workspaces/research/downloaded/rte/rte_knn_shard
