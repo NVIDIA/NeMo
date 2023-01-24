@@ -65,7 +65,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
   overwrite_transcripts: Bool which when set allows repeated transcriptions to overwrite previous results.
-
+  
+  ctc_decoding: Decoding sub-config for CTC. Refer to documentation for specific values.
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
 
 # Usage
@@ -107,6 +108,7 @@ class TranscriptionConfig:
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
     channel_selector: Optional[int] = None  # Used to select a single channel from multi-channel files
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
+    eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
     # General configs
     output_filename: Optional[str] = None
@@ -114,6 +116,7 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
@@ -151,10 +154,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
+    if cfg.random_seed:
+        pl.seed_everything(cfg.random_seed)
+
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
+
+    # Load augmentor from exteranl yaml file which contains eval info, could be extend to other feature such VAD, P&C
+    augmentor = None
+    if cfg.eval_config_yaml:
+        eval_config = OmegaConf.load(cfg.eval_config_yaml)
+        augmentor = eval_config.test_ds.get("augmentor")
+        logging.info(f"Will apply on-the-fly augmentation on samples during transcription: {augmentor} ")
 
     # setup GPU
     if cfg.cuda is None:
@@ -252,6 +265,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         num_workers=cfg.num_workers,
                         return_hypotheses=return_hypotheses,
                         channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
                     )
                 else:
                     logging.warning(
@@ -263,6 +277,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         num_workers=cfg.num_workers,
                         return_hypotheses=return_hypotheses,
                         channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
                     )
             else:
                 transcriptions = asr_model.transcribe(
@@ -271,6 +286,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     num_workers=cfg.num_workers,
                     return_hypotheses=return_hypotheses,
                     channel_selector=cfg.channel_selector,
+                    augmentor=augmentor,
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")

@@ -429,7 +429,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -440,6 +440,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
