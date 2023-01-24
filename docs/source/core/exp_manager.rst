@@ -77,7 +77,11 @@ on some validation data. However, it can be tedious to manually prepare a grid o
 and their metrics. In order to simplify such tasks, NeMo integrates with `Hydra Multi-Run support <https://hydra.cc/docs/tutorials/basic/running_your_app/multi-run/>`_ in order to provide a unified way to run a set of experiments all
 from the config.
 
-There are certain limitations to this framework, which we list below. First, all experiments are assumed to be run on a single GPU, and multi GPU for single run / model parallel models are not supported as of now. Furthermore, NeMo supports only grid search over a set of hyper parameters, but we will eventually add support for advanced hyper parameter search strategies. Finally, **NeMo Multi-Run only supports running on one or more GPUs** and will not work if no GPU devices are present.
+There are certain limitations to this framework, which we list below:
+
+* All experiments are assumed to be run on a single GPU, and multi GPU for single run (model parallel models are not supported as of now).
+* NeMo Multi-Run supports only grid search over a set of hyper-parameters, but we will eventually add support for advanced hyper parameter search strategies.
+* **NeMo Multi-Run only supports running on one or more GPUs** and will not work if no GPU devices are present.
 
 Config Setup
 ~~~~~~~~~~~~
