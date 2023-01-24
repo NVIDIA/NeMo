@@ -200,7 +200,7 @@ class MultiSpeakerSimulator(object):
             raise Exception("Turn probability is outside of [0,1]")
         elif self._params.data_simulator.session_params.turn_prob < 0.5 and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True:
             logging.warning(
-                "Turn probability is less than 0.5 while enforce_num_speakers is True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
+                "Turn probability is less than 0.5 while enforce_num_speakers=True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
             )
             self._params.data_simulator.session_params.turn_prob = 0.5
 
@@ -259,7 +259,7 @@ class MultiSpeakerSimulator(object):
 
         if (
             self._params.data_simulator.session_params.window_type not in ['hamming', 'hann', 'cosine']
-            and self._params.data_simulator.session_params.window_type != None
+            and self._params.data_simulator.session_params.window_type is not None
         ):
             raise Exception("Incorrect window type provided")
 
@@ -422,10 +422,10 @@ class MultiSpeakerSimulator(object):
             prev_speaker/speaker_turn (int): Speaker turn
         """
         if self._params.data_simulator.session_config.num_speakers == 1:
-            prev_speaker = 0 if prev_speaker == None else prev_speaker
+            prev_speaker = 0 if prev_speaker is None else prev_speaker
             return prev_speaker
         else:
-            if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker != None:
+            if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker is not None:
                 return prev_speaker
             else:
                 speaker_turn = prev_speaker
@@ -595,7 +595,7 @@ class MultiSpeakerSimulator(object):
             prev_dur_sr = dur_sr
 
         # add audio clip up to the final alignment
-        if self._params.data_simulator.session_params.window_type != None:  # cut off the start of the sentence
+        if self._params.data_simulator.session_params.window_type is not None:  # cut off the start of the sentence
             if start_window_amount > 0:  # include window
                 window = self._get_window(start_window_amount, start=True)
                 self._sentence = self._sentence.to(self._device)
@@ -617,7 +617,7 @@ class MultiSpeakerSimulator(object):
             self._sentence = self._sentence.to(self._device)
 
         # windowing at the end of the sentence
-        if (word_idx < len(file['words'])) and self._params.data_simulator.session_params.window_type != None:
+        if (word_idx < len(file['words'])) and self._params.data_simulator.session_params.window_type is not None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
                 prev_dur_sr, remaining_duration_sr, len(audio_file[start_cutoff + prev_dur_sr :])
             )
@@ -762,7 +762,7 @@ class MultiSpeakerSimulator(object):
         )
 
         # overlap
-        if prev_speaker != speaker_turn and prev_speaker != None and np.random.uniform(0, 1) < overlap_prob:
+        if prev_speaker != speaker_turn and prev_speaker is not None and np.random.uniform(0, 1) < overlap_prob:
             overlap_percent = halfnorm(loc=0, scale=mean_overlap_percent * np.sqrt(np.pi) / np.sqrt(2)).rvs()
             desired_overlap_amount = int(prev_length_sr * overlap_percent)
             new_start = start - desired_overlap_amount
@@ -1270,7 +1270,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             and self._params.data_simulator.rir_generation.mic_config.mic_pattern != 'omni'
         ):
             raise Exception("Microphone orientations must be provided if mic_pattern != omni")
-        if self._params.data_simulator.rir_generation.mic_config.orV_rcv != None:
+        if self._params.data_simulator.rir_generation.mic_config.orV_rcv is not None:
             if len(self._params.data_simulator.rir_generation.mic_config.orV_rcv) != len(
                 self._params.data_simulator.rir_generation.mic_config.pos_rcv
             ):
