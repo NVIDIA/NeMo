@@ -13,13 +13,13 @@ This example describes all basic steps required to build  ASR model for Esperant
 * Finetuning from pretrained English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model
 * Model evaluation
 
-**************************
+****************
 Data preparation
-**************************
+****************
 Mozilla Common Voice provides 1400 hours of validated Esperanto speech (see `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because “... the train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
 
 Download data
-#################################
+#############
 
 You can use the NeMo script to download MCV dataset from Hugging Face and get NeMo data manifests for Esperanto:
 
@@ -155,7 +155,7 @@ Next we will  check the data for anomalies in audio file (for example,  audio fi
   clear_data_set(train_manifest, char_rate_threshold=15)
 
 
-Creation tarred dataset
+Creating the Tarred Training Dataset
 #################################
 
 The tarred dataset allows storing the dataset as large *.tar files instead of small separate audio files. It may speed up the training and minimizes the load when data is moved from storage to GPU nodes.
