@@ -52,7 +52,7 @@ def get_buffered_pred_feat_rnnt(
 
     if manifest:
         filepaths = []
-        with open(manifest, "r") as mfst_f:
+        with open(manifest, "r", encoding='utf_8') as mfst_f:
             print("Parsing manifest files...")
             for l in mfst_f:
                 row = json.loads(l.strip())
@@ -141,7 +141,7 @@ def get_buffered_pred_feat(
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
     else:
-        with open(manifest, "r") as mfst_f:
+        with open(manifest, "r", encoding='utf_8') as mfst_f:
             for l in tqdm(mfst_f, desc="Sample:"):
                 asr.reset()
                 row = json.loads(l.strip())
@@ -184,13 +184,18 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location
+            restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
+        if hasattr(cfg, "model_change"):
+            asr_model.change_attention_model(
+                self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
+                att_context_size=cfg.model_change.conformer.get("att_context_size", None),
+            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location
+            model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -212,7 +217,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             return None
 
         manifest_dir = Path(cfg.dataset_manifest).parent
-        with open(cfg.dataset_manifest, 'r') as f:
+        with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
             has_two_fields = []
             for line in f:
                 item = json.loads(line)
@@ -244,12 +249,34 @@ def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
     return cfg
 
 
+def normalize_timestamp_output(timestamps: dict):
+    """
+    Normalize the dictionary of timestamp values to JSON serializable values.
+    Expects the following keys to exist -
+        "start_offset": int-like object that represents the starting index of the token
+            in the full audio after downsampling.
+        "end_offset": int-like object that represents the ending index of the token
+            in the full audio after downsampling.
+
+    Args:
+        timestamps: Nested dict.
+
+    Returns:
+        Normalized `timestamps` dictionary (in-place normalized)
+    """
+    for val_idx in range(len(timestamps)):
+        timestamps[val_idx]['start_offset'] = int(timestamps[val_idx]['start_offset'])
+        timestamps[val_idx]['end_offset'] = int(timestamps[val_idx]['end_offset'])
+    return timestamps
+
+
 def write_transcription(
-    transcriptions: List[str],
+    transcriptions: List[rnnt_utils.Hypothesis],
     cfg: DictConfig,
     model_name: str,
     filepaths: List[str] = None,
     compute_langs: bool = False,
+    compute_timestamps: bool = False,
 ) -> str:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
@@ -262,23 +289,44 @@ def write_transcription(
     else:
         pred_text_attr_name = 'pred_text'
 
-    with open(cfg.output_filename, 'w', encoding='utf-8') as f:
+    with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
-            for idx, transcription in enumerate(transcriptions):
+            for idx, transcription in enumerate(transcriptions):  # type: rnnt_utils.Hypothesis
                 item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
+
+                if compute_timestamps:
+                    timestamps = transcription.timestep
+                    if timestamps is not None and isinstance(timestamps, dict):
+                        timestamps.pop('timestep', None)  # Pytorch tensor calculating index of each token, not needed.
+                        for key in timestamps.keys():
+                            values = normalize_timestamp_output(timestamps[key])
+                            item[f'timestamps_{key}'] = values
+
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
+
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r') as fr:
+            with open(cfg.dataset_manifest, 'r', encoding='utf_8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx].text
 
+                    if compute_timestamps:
+                        timestamps = transcriptions[idx].timestep
+                        if timestamps is not None and isinstance(timestamps, dict):
+                            timestamps.pop(
+                                'timestep', None
+                            )  # Pytorch tensor calculating index of each token, not needed.
+                            for key in timestamps.keys():
+                                values = normalize_timestamp_output(timestamps[key])
+                                item[f'timestamps_{key}'] = values
+
                     if compute_langs:
                         item['pred_lang'] = transcriptions[idx].langs
                         item['pred_lang_chars'] = transcriptions[idx].langs_chars
+
                     f.write(json.dumps(item) + "\n")
 
     return cfg.output_filename
@@ -286,13 +334,16 @@ def write_transcription(
 
 def transcribe_partial_audio(
     asr_model,
-    path2manifest: str,
+    path2manifest: str = None,
     batch_size: int = 4,
     logprobs: bool = False,
     return_hypotheses: bool = False,
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
+    augmentor: DictConfig = None,
 ) -> List[str]:
+    """
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
 
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
@@ -329,6 +380,8 @@ def transcribe_partial_audio(
             'num_workers': num_workers,
             'channel_selector': channel_selector,
         }
+        if augmentor:
+            config['augmentor'] = augmentor
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
