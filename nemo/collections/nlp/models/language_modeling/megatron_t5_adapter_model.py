@@ -108,7 +108,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
         mode = self.training
         self.eval()
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
@@ -128,9 +129,13 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
 
-            pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            additional_special_tokens_ids = []
+            if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
+                additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
+
+            pred = [id for id in pred if id not in additional_special_tokens_ids]
+            label = [id for id in label if id not in additional_special_tokens_ids]
+            enc_input = [id for id in enc_input if id not in additional_special_tokens_ids]
 
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)
@@ -151,7 +156,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
             enc_mask=enc_mask,
@@ -237,7 +243,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
@@ -252,7 +258,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
@@ -311,6 +317,9 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             val_acc = torch.tensor(0.0).cuda()
 
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
@@ -481,7 +490,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         for name, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in adapter_name_keys:
-                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
                         state_adapter_key = ':'.join([component_name, name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
@@ -494,7 +503,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         for name, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in adapter_name_keys:
-                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
                         state_adapter_key = ':'.join([component_name, name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
