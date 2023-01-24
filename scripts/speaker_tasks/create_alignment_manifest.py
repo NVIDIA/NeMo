@@ -14,41 +14,40 @@
 
 import argparse
 import os
-import random
 import shutil
-import math
-import json
+from pathlib import Path
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest
 from nemo.utils import logging
 
-random.seed(42)
 
-
-def get_unaligned_examples(unaligned_path, libri_dataset_split):
+def get_unaligned_files(unaligned_path):
     """
-    Get librispeech examples without alignments for the desired dataset in
-    order to filter them out (as they cannot be used for data simulation))
+    Get files without alignments in order to filter them out (as they cannot be used for data simulation).
+    In the unaligned file, each line contains the file name and the reason for the unalignment, if necessary to specify.
+
+    Example: unaligned.txt
+
+    <utterance_id> <comment>
+    1272-128104-0000 (no such file)
+    2289-152257-0025 (no such file)
+    2289-152257-0026 (mapping failed)
+    ...
 
     Args:
         unaligned_path (str): Path to the file containing unaligned examples
-        libri_dataset_split (str): LibriSpeech data split being used
 
     Returns:
         skip_files (list): Unaligned file names to skip
     """
+    skip_files = []
     with open(unaligned_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-        i = 0
-        skip_files = []
-        while i < len(lines):
-            l = lines[i].strip('\n')
-            if l[0] == '#':
-                unaligned_dataset = l.split(" ")[1]
-            elif unaligned_dataset == libri_dataset_split:
-                unaligned_file = l.split(" ")[0]
-                skip_files.append(unaligned_file)
-            i += 1
+        for line in f.readlines():
+            line = line.strip()
+            if not line:
+                continue
+            unaligned_file = line.split()[0]
+            skip_files.append(unaligned_file)
     return skip_files
 
 
@@ -77,7 +76,29 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
     return arr
 
 
-def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split):
+def load_librispeech_alignment(alignment_filepath: str) -> dict:
+    """
+    Load alignment data for librispeech
+    
+    Args:
+        alignment_filepath (str): Path to the file containing alignments
+    Returns:
+        alignments (dict[tuple]): A dictionary containing file index and alignments
+    """
+    alignments = {}
+    with open(alignment_filepath, "r") as fin:
+        for line in fin.readlines():
+            line = line.strip()
+            if not line:
+                continue
+            file_id, words, timestamps = line.split()
+            alignments[file_id] = (words, timestamps)
+    return alignments
+
+
+def create_librispeech_ctm_alignments(
+    input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+):
     """
     Create new CTM alignments using input LibriSpeech word alignments. 
 
@@ -89,111 +110,57 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_outp
     """
     manifest = read_manifest(input_manifest_filepath)
     unaligned_path = os.path.join(base_alignment_path, "unaligned.txt")
+
+    if os.path.exists(unaligned_path):
+        unaligned_file_ids = set(get_unaligned_files(unaligned_path))
+    else:
+        unaligned_file_ids = set()
+
     libri_dataset_split = libri_dataset_split.replace("_", "-")
-    import ipdb; ipdb.set_trace()
-    unaligned = get_unaligned_examples(unaligned_path, libri_dataset_split)
 
     # delete output directory if it exists or throw warning
     if os.path.isdir(ctm_output_directory):
+        logging.info(f"Removing existing output directory: {ctm_output_directory}")
         shutil.rmtree(ctm_output_directory)
     if not os.path.exists(ctm_output_directory):
+        logging.info(f"Creating output directory: {ctm_output_directory}")
         os.mkdir(ctm_output_directory)
 
-    idx = 0
-
     if len(manifest) == 0:
-        raise Exception("Manifest is empty. Check that the source CTM/MFA alignment is correct.")
-    while idx < len(manifest):
-        f = manifest[idx]
-        # get speaker_id
-        fn = f['audio_filepath'].split('/')[-1]
-        speaker_id = fn.split('-')[0]
-        book_id = fn.split('-')[1]
+        raise Exception(f"Input manifest is empty: {input_manifest_filepath}")
 
+    for entry in manifest:
+        audio_file = entry['audio_filepath']
+        file_id = Path(audio_file).stem
+
+        if file_id in unaligned_file_ids:
+            continue
+
+        speaker_id = file_id.split('-')[0]
+        book_id = file_id.split('-')[1]
         book_dir = os.path.join(base_alignment_path, "LibriSpeech", libri_dataset_split, speaker_id, book_id)
-        alignment_fpath = os.path.join(book_dir, f"{speaker_id}-{book_id}.alignment.txt")
+        alignment_filepath = os.path.join(book_dir, f"{speaker_id}-{book_id}.alignment.txt")
 
-        # Parse each utterance present in the file
-        alignment_file = open(alignment_fpath, "r")
-        for line in alignment_file:
+        alignment_data = load_librispeech_alignment(alignment_filepath)
+        if file_id not in alignment_data:
+            logging.warning(f"Cannot find alignment data for {audio_file} in {alignment_filepath}")
+            continue
 
-            # filter out unaligned examples
-            f = manifest[idx]
-            fn = f['audio_filepath'].split('/')[-1]
-            line_id = fn.split('.')[0]
-            while line_id in unaligned:
-                idx += 1
-                f = manifest[idx]
-                fn = f['audio_filepath'].split('/')[-1]
-                line_id = fn.split('.')[0]
+        words, end_times = alignment_data[file_id]
+        words = words.replace('\"', '').lower().split(',')
+        end_times = [float(e) for e in end_times.replace('\"', '').split(',')]
 
-            # from https://github.com/CorentinJ/librispeech-alignments/blob/master/parser_example.py
-            # Retrieve the utterance id, the words as a list and the end_times as a list
-            utterance_id, words, end_times = line.strip().split(' ')
-            if utterance_id != line_id:
-                raise Exception("Mismatch between source and target utterance id")
-            words = words.replace('\"', '').lower().split(',')
-            end_times = [float(e) for e in end_times.replace('\"', '').split(',')]
+        ctm_list = create_new_ctm_entry(file_id, speaker_id, words, end_times)
+        write_ctm(os.path.join(ctm_output_directory, file_id + '.ctm'), ctm_list)
 
-            ctm_list = create_new_ctm_entry(line_id, speaker_id, words, end_times)
-            write_ctm(os.path.join(ctm_output_directory, line_id + '.ctm'), ctm_list)
-            idx += 1
-        alignment_file.close()
-
-def breakdown_manifest(target_manifest, breakdown_thres=20000):
-    """
-    Breakdown manifest into smaller chunks if the number of words exceeds the threshold.
-
-    Args:
-        target_manifest (list): 
-            List of dictionaries containing the manifest information.
-        breakdown_thres (int):
-            Threshold for the number of words in a line. If the number of words exceeds this threshold, 
-            the json line will be broken down into multiple lines.
-
-    Returns:
-        output_manifest_list (list): 
-            List of dictionaries containing the manifest information.
-    """
-    output_manifest_list = []
-    for json_dict in target_manifest:
-        audio_filepath = json_dict['audio_filepath']
-        duration = json_dict['duration']
-        speaker_id = json_dict['speaker_id']
-        words = json_dict['words']
-        alignments = json_dict['alignments']
-        assert len(words) == len(alignments), f"Mismatch between words {len(words)} and alignments {len(alignments)} for {audio_filepath}"
-        last_alignment = alignments[0]
-        if len(words) > breakdown_thres:
-            # split the line into multiple lines
-            num_lines = math.ceil(len(words) / breakdown_thres)
-            for i in range(num_lines):
-                start = i * breakdown_thres
-                end = (i + 1) * breakdown_thres
-                if end > len(words):
-                    end = len(words)
-                if i > 0:
-                    add_offset_sil = [""]
-                    add_offset_stamp = [last_alignment]
-                else:
-                    add_offset_sil = []
-                    add_offset_stamp = []
-
-                new_json_dict = {
-                    'audio_filepath': audio_filepath,
-                    'duration': duration,
-                    'speaker_id': speaker_id,
-                    'words': add_offset_sil + words[start:end],
-                    'alignments': add_offset_stamp + alignments[start:end],
-                }
-                last_alignment = alignments[end - 1]
-                output_manifest_list.append(new_json_dict)
-        else:
-            output_manifest_list.append(json_dict)
-    return output_manifest_list
 
 def create_manifest_with_alignments(
-    input_manifest_filepath, ctm_source_dir, output_manifest_filepath, data_format_style, silence_dur_threshold=0.1, output_precision=3, breakdown_thres=15
+    input_manifest_filepath,
+    ctm_source_dir,
+    output_manifest_filepath,
+    data_format_style,
+    silence_dur_threshold=0.1,
+    output_precision=3,
 ):
     """
     Create new manifest file with word alignments using CTM files
@@ -244,12 +211,12 @@ def create_manifest_with_alignments(
             end = float(ctm[2]) + float(ctm[3])
             start = round(start, output_precision)
             end = round(end, output_precision)
-            interval = start - prev_end 
+            interval = start - prev_end
 
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
                 words.append("")
                 end_times.append(start)
-            elif i > 0 and interval <= silence_dur_threshold:
+            elif i > 0:
                 end_times[-1] = start
 
             words.append(ctm[4])
@@ -291,21 +258,23 @@ def main():
     use_ctm_alignment_source = args.use_ctm_alignment_source
     output_precision = args.output_precision
 
-    # args.base_alignment_path is containing the ctm files
+    # Case 1: args.base_alignment_path is containing the ctm files
     if use_ctm_alignment_source:
         ctm_source_dir = args.base_alignment_path
-    # args.base_alignment_path is containing *.lab style alignments for the dataset
+    # Case 2: args.base_alignment_path is containing *.lab style alignments for the dataset
     else:
-        create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split)
+        create_librispeech_ctm_alignments(
+            input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+        )
         ctm_source_dir = ctm_output_directory
 
     create_manifest_with_alignments(
-        input_manifest_filepath, 
-        ctm_source_dir, 
-        output_manifest_filepath, 
+        input_manifest_filepath,
+        ctm_source_dir,
+        output_manifest_filepath,
         data_format_style=args.data_format_style,
         silence_dur_threshold=args.silence_dur_threshold,
-        output_precision=output_precision, 
+        output_precision=output_precision,
     )
 
 
