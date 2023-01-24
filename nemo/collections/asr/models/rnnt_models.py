@@ -17,7 +17,7 @@ import json
 import os
 import tempfile
 from math import ceil, isclose
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -217,7 +217,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
-    ) -> (List[str], Optional[List['Hypothesis']]):
+        augmentor: DictConfig = None,
+    ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -232,7 +233,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
         """
@@ -276,6 +277,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     'num_workers': num_workers,
                     'channel_selector': channel_selector,
                 }
+
+                if augmentor:
+                    config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
@@ -497,7 +501,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             if is_concat:
                 dataset = audio_to_text_dataset.get_concat_tarred_dataset(
                     config=config,
-                    tokenizer=self.tokenizer,
                     shuffle_n=shuffle_n,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
@@ -506,7 +509,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             else:
                 dataset = audio_to_text_dataset.get_tarred_dataset(
                     config=config,
-                    tokenizer=self.tokenizer,
                     shuffle_n=shuffle_n,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
@@ -940,6 +942,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             'pin_memory': True,
         }
 
+        if config.get("augmentor"):
+            dl_config['augmentor'] = config.get("augmentor")
+
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
@@ -996,7 +1001,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return RNNTDecoderJoint(self.decoder, self.joint)
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 

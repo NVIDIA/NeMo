@@ -128,12 +128,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.trainer.precision == 'bf16':
+        if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.trainer.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
@@ -435,6 +435,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Set values back to their training state to continue training
         self.virtual_prompt_style = current_virtual_prompt_style
         self.virtual_prompt_source = current_virtual_prompt_source
+
+        # Revert prompt table back to previous state
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
+            for taskname in current_new_tasks:
+                if taskname in self.prompt_table.prompt_table:
+                    del self.prompt_table.prompt_table[taskname]
 
         with open_dict(self.cfg):
             self.cfg.existing_tasks = current_existing_tasks

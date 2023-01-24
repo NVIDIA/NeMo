@@ -165,7 +165,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         state: Optional[torch.Tensor] = None,
         add_sos: bool = True,
         batch_size: Optional[int] = None,
-    ) -> (torch.Tensor, List[torch.Tensor]):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Stateful prediction of scores and state for a tokenset.
 
@@ -249,7 +249,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     def score_hypothesis(
         self, hypothesis: rnnt_utils.Hypothesis, cache: Dict[Tuple[int], Any]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Similar to the predict() method, instead this method scores a Hypothesis during beam search.
         Hypothesis is a dataclass representing one hypothesis in a Beam Search.
@@ -400,7 +400,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     def batch_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
 
@@ -626,7 +626,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         state: Optional[List[torch.Tensor]] = None,
         add_sos: bool = True,
         batch_size: Optional[int] = None,
-    ) -> (torch.Tensor, List[torch.Tensor]):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Stateful prediction of scores and state for a (possibly null) tokenset.
         This method takes various cases into consideration :
@@ -803,7 +803,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def score_hypothesis(
         self, hypothesis: rnnt_utils.Hypothesis, cache: Dict[Tuple[int], Any]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Similar to the predict() method, instead this method scores a Hypothesis during beam search.
         Hypothesis is a dataclass representing one hypothesis in a Beam Search.
@@ -856,7 +856,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def batch_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
 
@@ -1174,6 +1174,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self,
         jointnet: Dict[str, Any],
         num_classes: int,
+        num_extra_outputs: int = 0,
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
@@ -1186,7 +1187,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.vocabulary = vocabulary
 
         self._vocab_size = num_classes
-        self._num_classes = num_classes + 1  # add 1 for blank symbol
+        self._num_extra_outputs = num_extra_outputs
+        self._num_classes = num_classes + 1 + num_extra_outputs  # 1 is for blank
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument
@@ -1483,6 +1485,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
     @property
     def num_classes_with_blank(self):
         return self._num_classes
+
+    @property
+    def num_extra_outputs(self):
+        return self._num_extra_outputs
 
     @property
     def loss(self):

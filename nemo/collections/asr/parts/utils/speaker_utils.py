@@ -18,17 +18,16 @@ import os
 import shutil
 from copy import deepcopy
 from functools import reduce
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import omegaconf
 import soundfile as sf
 import torch
-from pyannote.core import Annotation, Segment, Timeline
-from pyannote.metrics.diarization import DiarizationErrorRate
+from pyannote.core import Annotation, Segment
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering, get_argmin_mat, split_input_data
+from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
 from nemo.utils import logging
 
 
@@ -323,24 +322,6 @@ def labels_to_pyannote_object(labels, uniq_name=''):
     return annotation
 
 
-def uem_timeline_from_file(uem_file, uniq_name=''):
-    """
-    Generate pyannote timeline segments for uem file
-
-     <UEM> file format
-     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
-    """
-    timeline = Timeline(uri=uniq_name)
-    with open(uem_file, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            line = line.strip()
-            speaker_id, channel, start_time, end_time = line.split()
-            timeline.add(Segment(float(start_time), float(end_time)))
-
-    return timeline
-
-
 def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
     """
     Write rttm file with uniq_id name in out_rttm_dir with timestamps in labels
@@ -418,7 +399,7 @@ def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
             f.write(clus_label_line)
 
 
-def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, use_torch_script=False):
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
     Performs spectral clustering on embeddings with time stamps generated from VAD output
 
@@ -440,39 +421,39 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     all_hypothesis = []
     all_reference = []
     no_references = False
-    max_num_speakers = clustering_params['max_num_speakers']
     lines_cluster_labels = []
 
     cuda = True
     if not torch.cuda.is_available():
-        logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
+        logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=False):
+    speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
+
+    # If True, export torch script module and save it to the base folder.
+    if clustering_params.get('export_script_module', False):
+        speaker_clustering = torch.jit.script(speaker_clustering)
+        torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
+
+    for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=True):
+        uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
+
         if clustering_params.oracle_num_speakers:
             num_speakers = audio_rttm_values.get('num_speakers', None)
             if num_speakers is None:
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = -1
-        uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
-        num_speakers = torch.tensor(num_speakers, dtype=torch.long)
 
-        speaker_clustering = SpeakerClustering(
-            max_num_speaker=max_num_speakers,
-            max_rp_threshold=clustering_params.max_rp_threshold,
-            sparse_search_volume=clustering_params.sparse_search_volume,
+        cluster_labels = speaker_clustering.forward_infer(
+            embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
+            timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
+            multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
-            cuda=cuda,
-        )
-        if use_torch_script:
-            speaker_clustering = torch.jit.script(speaker_clustering)
-
-        cluster_labels = speaker_clustering.forward(
-            uniq_embs_and_timestamps['embeddings'],
-            uniq_embs_and_timestamps['timestamps'],
-            uniq_embs_and_timestamps['multiscale_segment_counts'],
-            oracle_num_speakers=num_speakers,
+            oracle_num_speakers=int(num_speakers),
+            max_num_speakers=int(clustering_params.max_num_speakers),
+            max_rp_threshold=float(clustering_params.max_rp_threshold),
+            sparse_search_volume=int(clustering_params.sparse_search_volume),
         )
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
@@ -508,58 +489,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
 
     return all_reference, all_hypothesis
-
-
-def score_labels(
-    AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True
-) -> Optional[Tuple[DiarizationErrorRate, Dict]]:
-    """
-    Calculates DER, CER, FA and MISS
-
-    Args:
-        AUDIO_RTTM_MAP : Dictionary containing information provided from manifestpath
-        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
-        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
-
-    Returns:
-        metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. This object contains detailed scores of each audiofile.
-        mapping (dict): Mapping dict containing the mapping speaker label for each audio input
-
-    < Caveat >
-    Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of
-    "no score" collar from left to right. Therefore, if 0.25s is applied for "no score"
-    collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
-
-    """
-    if len(all_reference) == len(all_hypothesis):
-        metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
-
-        mapping_dict = {}
-        for (reference, hypothesis) in zip(all_reference, all_hypothesis):
-            ref_key, ref_labels = reference
-            _, hyp_labels = hypothesis
-            uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
-            if uem is not None:
-                uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
-            metric(ref_labels, hyp_labels, uem=uem, detailed=True)
-            mapping_dict[ref_key] = metric.optimal_mapping(ref_labels, hyp_labels)
-
-        DER = abs(metric)
-        CER = metric['confusion'] / metric['total']
-        FA = metric['false alarm'] / metric['total']
-        MISS = metric['missed detection'] / metric['total']
-
-        logging.info(
-            "Cumulative Results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
-                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
-                collar, ignore_overlap, FA, MISS, DER, CER
-            )
-        )
-        return metric, mapping_dict
-    logging.warning(
-        "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
-    )
-    return
 
 
 def get_vad_out_from_rttm_line(rttm_line):
@@ -1226,7 +1155,7 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
 
 def extract_timestamps(manifest_file: str):
     """
-    This method extracts timestamps from segments passed through manifest_file. 
+    This method extracts timestamps from segments passed through manifest_file.
 
     Args:
         manifest_file (str):

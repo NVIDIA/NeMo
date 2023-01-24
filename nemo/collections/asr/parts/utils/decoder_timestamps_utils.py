@@ -30,7 +30,7 @@ from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterato
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-__all__ = ['ASR_TIMESTAMPS']
+__all__ = ['ASRDecoderTimeStamps']
 
 try:
     from pyctcdecode import build_ctcdecoder
@@ -95,9 +95,9 @@ class WERBPE_TS(WERBPE):
 
             hypothesis = self.decode_tokens_to_str_with_ts(decoded_prediction)
             hypothesis = hypothesis.replace(unk, '')
-            word_ts = self.get_ts_from_decoded_prediction(decoded_prediction, hypothesis, char_ts)
+            word_ts, word_seq = self.get_ts_from_decoded_prediction(decoded_prediction, hypothesis, char_ts)
 
-            hypotheses.append(hypothesis)
+            hypotheses.append(" ".join(word_seq))
             timestamps.append(timestamp_list)
             word_timestamps.append(word_ts)
         return hypotheses, timestamps, word_timestamps
@@ -110,7 +110,9 @@ class WERBPE_TS(WERBPE):
         token_list = self.decoding.tokenizer.ids_to_tokens(tokens)
         return token_list
 
-    def get_ts_from_decoded_prediction(self, decoded_prediction: List[str], hypothesis: List[str], char_ts: List[str]):
+    def get_ts_from_decoded_prediction(
+        self, decoded_prediction: List[str], hypothesis: str, char_ts: List[str]
+    ) -> Tuple[List[List[float]], List[str]]:
         decoded_char_list = self.decoding.tokenizer.ids_to_tokens(decoded_prediction)
         stt_idx, end_idx = 0, len(decoded_char_list) - 1
         stt_ch_idx, end_ch_idx = 0, 0
@@ -118,9 +120,12 @@ class WERBPE_TS(WERBPE):
         word_ts, word_seq = [], []
         word_open_flag = False
         for idx, ch in enumerate(decoded_char_list):
+
+            # If the symbol is space and not an end of the utterance, move on
             if idx != end_idx and (space == ch and space in decoded_char_list[idx + 1]):
                 continue
 
+            # If the word does not containg space (the start of the word token), keep counting
             if (idx == stt_idx or space == decoded_char_list[idx - 1] or (space in ch and len(ch) > 1)) and (
                 ch != space
             ):
@@ -128,15 +133,20 @@ class WERBPE_TS(WERBPE):
                 stt_ch_idx = idx
                 word_open_flag = True
 
-            if word_open_flag and ch != space and (idx == end_idx or space in decoded_char_list[idx + 1]):
+            # If this char has `word_open_flag=True` and meets any of one of the following condition:
+            # (1) last word (2) unknown word (3) start symbol in the following word,
+            # close the `word_open_flag` and add the word to the `word_seq` list.
+            close_cond = idx == end_idx or ch in ['<unk>'] or space in decoded_char_list[idx + 1]
+            if (word_open_flag and ch != space) and close_cond:
                 _end = round(char_ts[idx] + self.time_stride, 2)
                 end_ch_idx = idx
                 word_open_flag = False
                 word_ts.append([_stt, _end])
                 stitched_word = ''.join(decoded_char_list[stt_ch_idx : end_ch_idx + 1]).replace(space, '')
                 word_seq.append(stitched_word)
-        assert len(word_ts) == len(hypothesis.split()), "Hypothesis does not match word time stamp."
-        return word_ts
+
+        assert len(word_ts) == len(hypothesis.split()), "Text hypothesis does not match word timestamps."
+        return word_ts, word_seq
 
 
 class WER_TS(WER):
@@ -286,18 +296,18 @@ class FrameBatchASR_Logits(FrameBatchASR):
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
 
 
-class ASR_TIMESTAMPS:
+class ASRDecoderTimeStamps:
     """
     A class designed for extracting word timestamps while the ASR decoding process.
     This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet and ConformerCTC models.
     """
 
-    def __init__(self, **cfg_diarizer):
-        self.manifest_filepath = cfg_diarizer['manifest_filepath']
-        self.params = cfg_diarizer['asr']['parameters']
-        self.ctc_decoder_params = cfg_diarizer['asr']['ctc_decoder_parameters']
-        self.ASR_model_name = cfg_diarizer['asr']['model_path']
-        self.nonspeech_threshold = self.params['asr_based_vad_threshold']
+    def __init__(self, cfg_diarizer):
+        self.manifest_filepath = cfg_diarizer.manifest_filepath
+        self.params = cfg_diarizer.asr.parameters
+        self.ctc_decoder_params = cfg_diarizer.asr.ctc_decoder_parameters
+        self.ASR_model_name = cfg_diarizer.asr.model_path
+        self.nonspeech_threshold = self.params.asr_based_vad_threshold
         self.root_path = None
         self.run_ASR = None
         self.encdec_class = None
@@ -338,7 +348,6 @@ class ASR_TIMESTAMPS:
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
             self.model_stride_in_secs = 0.04
-
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
@@ -739,11 +748,13 @@ class ASR_TIMESTAMPS:
         return hyp_words, word_ts
 
     @staticmethod
-    def get_word_ts_from_wordframes(idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float):
+    def get_word_ts_from_wordframes(
+        idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float, word_block_delay: float = 2.25
+    ):
         """
         Extract word timestamps from word frames generated from pyctcdecode.
         """
-        offset = -1 * 2.25 * frame_duration - onset_delay
+        offset = -1 * word_block_delay * frame_duration - onset_delay
         frame_begin = word_frames[idx][1][0]
         if frame_begin == -1:
             frame_begin = word_frames[idx - 1][1][1] if idx != 0 else 0

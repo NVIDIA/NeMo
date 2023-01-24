@@ -15,7 +15,7 @@
 import copy
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
 import numpy as np
@@ -195,12 +195,18 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.num_extra_outputs = joint.num_extra_outputs
+        self.big_blank_durations = self.cfg.get("big_blank_durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+
+        if self.big_blank_durations is not None:
+            if blank_id == 0:
+                raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
@@ -240,32 +246,58 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 pass
 
         if self.cfg.strategy == 'greedy':
-
-            self.decoding = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
+            if self.big_blank_durations is None:
+                self.decoding = greedy_decode.GreedyRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
 
         elif self.cfg.strategy == 'greedy_batch':
-
-            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
+            if self.big_blank_durations is None:
+                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
 
         elif self.cfg.strategy == 'beam':
 
@@ -341,7 +373,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         encoded_lengths: torch.Tensor,
         return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
-    ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
+    ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -437,15 +469,21 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 prediction = prediction.tolist()
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
-            # Simply remove any blank tokens
-            prediction = [p for p in prediction if p != self.blank_id]
+            # Simply remove any blank and possibly big blank tokens
+            if self.blank_id != 0:
+                num_extra_outputs = 0
+                if self.big_blank_durations is not None:
+                    num_extra_outputs += len(self.big_blank_durations)
+                prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
+            else:
+                prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
             if self.compute_timestamps is True:
                 # keep the original predictions, wrap with the number of repetitions per token and alignments
                 # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
-                alignments = hypotheses_list[ind].alignments
+                alignments = copy.deepcopy(hypotheses_list[ind].alignments)
                 token_repetitions = [1] * len(alignments)  # preserve number of repetitions per token
                 hypothesis = (prediction, alignments, token_repetitions)
             else:
@@ -1005,10 +1043,14 @@ class RNNTDecoding(AbstractRNNTDecoding):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        blank_id = len(vocabulary)
+        blank_id = (
+            len(vocabulary) + joint.num_extra_outputs
+        )  # we need to ensure blank is the last token in the vocab. This is needed for multi-blank RNN-T models.
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
+        super(RNNTDecoding, self).__init__(
+            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
+        )
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
@@ -1046,7 +1088,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of decoded tokens.
         """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
+        token_list = [self.labels_map[c] for c in tokens if c < self.blank_id - self.num_extra_outputs]
         return token_list
 
     def decode_tokens_to_lang(self, tokens: List[int]) -> str:
