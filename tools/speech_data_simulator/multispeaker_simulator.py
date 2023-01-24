@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from multiprocessing import set_start_method
-
 from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
 from nemo.core.config import hydra_runner
 
@@ -36,5 +34,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    set_start_method('spawn')
     main()

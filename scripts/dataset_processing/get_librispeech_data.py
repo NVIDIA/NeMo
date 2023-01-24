@@ -142,10 +142,14 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_wo
     Converts flac to wav and build manifests's json
     Args:
         data_folder: source with flac files
+        dst_folder: where wav files will be stored
         manifest_file: where to store manifest
         num_workers: number of parallel workers processing files
     Returns:
     """
+
+    if not os.path.exists(dst_folder):
+        os.makedirs(dst_folder)
 
     files = []
     entries = []

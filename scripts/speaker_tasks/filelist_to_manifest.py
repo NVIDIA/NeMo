@@ -33,7 +33,6 @@ Args:
 """
 
 import argparse
-import concurrent.futures
 import json
 import os
 import random
