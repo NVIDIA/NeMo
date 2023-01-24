@@ -160,7 +160,7 @@ Once the config has been updated, we can now run it just like any normal Hydra s
 .. code-block:: bash
 
     python script.py --config-path=ABC --config-name=XYZ -m \
-        trainer.max_steps=5000 \  # Any additional arg after -m will be passed to all the runs generatd from the config !
+        trainer.max_steps=5000 \  # Any additional arg after -m will be passed to all the runs generated from the config !
         ...
 
 Tips and Tricks
