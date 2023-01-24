@@ -203,6 +203,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=False,
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -214,6 +215,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 decoder_sequence_length=dec_seq_length,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
 
         # only the last stages of the pipeline return losses
@@ -427,7 +429,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -438,6 +440,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
@@ -461,15 +464,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         else:
             encoder_input = torch.zeros((batch_size, seq_length, self.hidden_size), dtype=self.autocast_dtype).cuda()
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            # Broadcasting encoder inputs to all ranks for now, but this is inefficent.
-            # TODO: Make Enc-Dec improvement to only boardcast encoder_ids/embeddings when needed
-            torch.distributed.broadcast(
-                encoder_input,
-                parallel_state.get_pipeline_model_parallel_first_rank(),
-                group=parallel_state.get_pipeline_model_parallel_group(),
-            )
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,

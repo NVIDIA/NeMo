@@ -15,6 +15,9 @@
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+    ALiBiRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -154,6 +157,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if parallel_state.get_pipeline_model_parallel_rank() != 0:
                     self.encoder_relative_position_embeddings_weight().data.fill_(0)
                     self.encoder_relative_position_embeddings_weight().shared = True
+            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
+                self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                    bidirectional=True,
+                    num_attention_heads=encoder_cfg.num_attention_heads,
+                    layer_type=LayerType.encoder,
+                    alibi_num_heads=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+            else:
+                self.encoder_relative_position_embedding = None
 
             encoder = get_encoder_model(
                 arch=encoder_cfg.arch,
@@ -179,6 +193,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 fp32_residual_connection=encoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=encoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=encoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=encoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=encoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=encoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=encoder_cfg.get('bias_dropout_add_fusion', True),
@@ -196,6 +211,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
                 megatron_legacy=encoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=encoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=encoder_cfg.get('moe_frequency', 1),
+                moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
             )
 
         if add_decoder:
@@ -259,6 +277,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     ):
                         self.decoder_cross_attention_relative_position_embeddings_weight().data.fill_(0)
                         self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
+                self.decoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                    bidirectional=False,
+                    num_attention_heads=decoder_cfg.num_attention_heads,
+                    layer_type=LayerType.decoder,
+                    alibi_num_heads=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+            else:
+                self.decoder_relative_position_embedding = None
 
             decoder = get_decoder_model(
                 arch=decoder_cfg.arch,
@@ -279,11 +308,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
-                ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
+                ffn_dropout=decoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=decoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=decoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=decoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=decoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=decoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=decoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=decoder_cfg.get('bias_dropout_add_fusion', True),
@@ -300,6 +330,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 megatron_legacy=decoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=decoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=decoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=decoder_cfg.get('moe_frequency', 1),
+                moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
@@ -442,7 +475,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             enc_seq_length = enc_input_ids.size(1)
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
-                if self.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                if self.encoder_relative_position_embedding is None:
                     enc_position_ids = build_position_ids(enc_input_ids)
                 else:
                     enc_position_ids = None
@@ -453,7 +486,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             # This should only happen with PP > 1 for enc-dec prompt learning models
             enc_seq_length = enc_attn_mask.size(1)
 
-        if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative' and self.add_encoder:
+        if self.add_encoder and self.encoder_relative_position_embedding is not None:
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
@@ -477,7 +510,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             if self.pre_process and self.add_decoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
-                if self.decoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                if self.decoder_relative_position_embedding is None:
                     dec_position_ids = build_position_ids(dec_input_ids)
                 else:
                     dec_position_ids = None
@@ -486,7 +519,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
 
-            if self.decoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative' and self.add_decoder:
+            if self.add_decoder and self.decoder_relative_position_embedding is not None:
                 decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                     query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                 )

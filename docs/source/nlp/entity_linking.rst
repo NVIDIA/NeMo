@@ -13,8 +13,9 @@ The main idea behind this approach is to reshape an initial concept embedding sp
 pulled closer together and unrelated concepts are pushed further apart. The concept embeddings from this reshaped space can then 
 be used to build a knowledge base embedding index. 
 
-.. image:: https://github.com/NVIDIA/NeMo/blob/entity-linking-documentation/docs/source/nlp/entity_linking_overview.jpg
+.. image:: entity_linking_overview.jpg
   :alt: Entity-Linking-Overview
+  :width: 800px
 
 Our BERT-base + Self Alignment Pretraining implementation allows you to train an entity linking encoder. We also provide example code
 on building an index with `Medical UMLS <https://www.nlm.nih.gov/research/umls/index.html>`_ concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/entity_linking/build_index.py>`__.

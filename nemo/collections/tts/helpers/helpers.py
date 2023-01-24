@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence
+from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
@@ -51,8 +51,6 @@ import numpy as np
 import torch
 from numba import jit, prange
 from numpy import ndarray
-from pesq import pesq
-from pystoi import stoi
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
@@ -130,17 +128,41 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
             attn: B x 1 x max_mel_len x max_text_len
         """
     with torch.no_grad():
-        attn_cpu = attn.data.cpu().numpy()
-        attn_out = b_mas(attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
+        log_attn_cpu = torch.log(attn.data).cpu().numpy()
+        attn_out = b_mas(log_attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
     return torch.from_numpy(attn_out).to(attn.device)
 
 
-def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
-    if max_len is None:
-        max_len = lengths.max()
-    ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
-    mask = (ids < lengths.unsqueeze(1)).bool()
+def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[torch.Tensor] = None,) -> torch.Tensor:
+    """Constructs binary mask from a 1D torch tensor of input lengths
+
+    Args:
+        lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
+        x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask 
+    Returns:
+        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
+    """
+    if lengths is None:
+        assert x is not None
+        return torch.ones(x.shape[-1], dtype=torch.bool, device=x.device)
+    else:
+        if x is None:
+            max_len = torch.max(lengths)
+        else:
+            max_len = x.shape[-1]
+    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
+    mask = ids < lengths.unsqueeze(1)
     return mask
+
+
+@torch.jit.script
+def sort_tensor(context: torch.Tensor, lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+    unsort_ids = torch.zeros_like(ids_sorted)
+    for i in range(ids_sorted.shape[0]):
+        unsort_ids[ids_sorted[i]] = i
+    context = context[ids_sorted]
+    return context, lens_sorted, unsort_ids
 
 
 @jit(nopython=True)
@@ -175,43 +197,41 @@ def mas(attn_map, width=1):
 
 
 @jit(nopython=True)
-def mas_width1(attn_map):
+def mas_width1(log_attn_map):
     """mas with hardcoded width=1"""
     # assumes mel x text
-    opt = np.zeros_like(attn_map)
-    attn_map = np.log(attn_map)
-    attn_map[0, 1:] = -np.inf
-    log_p = np.zeros_like(attn_map)
-    log_p[0, :] = attn_map[0, :]
-    prev_ind = np.zeros_like(attn_map, dtype=np.int64)
-    for i in range(1, attn_map.shape[0]):
-        for j in range(attn_map.shape[1]):  # for each text dim
-            prev_log = log_p[i - 1, j]
-            prev_j = j
-
-            if j - 1 >= 0 and log_p[i - 1, j - 1] >= log_p[i - 1, j]:
-                prev_log = log_p[i - 1, j - 1]
-                prev_j = j - 1
-
-            log_p[i, j] = attn_map[i, j] + prev_log
-            prev_ind[i, j] = prev_j
+    neg_inf = log_attn_map.dtype.type(-np.inf)
+    log_p = log_attn_map.copy()
+    log_p[0, 1:] = neg_inf
+    for i in range(1, log_p.shape[0]):
+        prev_log1 = neg_inf
+        for j in range(log_p.shape[1]):
+            prev_log2 = log_p[i - 1, j]
+            log_p[i, j] += max(prev_log1, prev_log2)
+            prev_log1 = prev_log2
 
     # now backtrack
-    curr_text_idx = attn_map.shape[1] - 1
-    for i in range(attn_map.shape[0] - 1, -1, -1):
-        opt[i, curr_text_idx] = 1
-        curr_text_idx = prev_ind[i, curr_text_idx]
-    opt[0, curr_text_idx] = 1
+    opt = np.zeros_like(log_p)
+    one = opt.dtype.type(1)
+    j = log_p.shape[1] - 1
+    for i in range(log_p.shape[0] - 1, 0, -1):
+        opt[i, j] = one
+        if log_p[i - 1, j - 1] >= log_p[i - 1, j]:
+            j -= 1
+            if j == 0:
+                opt[1:i, j] = one
+                break
+    opt[0, j] = one
     return opt
 
 
 @jit(nopython=True, parallel=True)
-def b_mas(b_attn_map, in_lens, out_lens, width=1):
+def b_mas(b_log_attn_map, in_lens, out_lens, width=1):
     assert width == 1
-    attn_out = np.zeros_like(b_attn_map)
+    attn_out = np.zeros_like(b_log_attn_map)
 
-    for b in prange(b_attn_map.shape[0]):
-        out = mas_width1(b_attn_map[b, 0, : out_lens[b], : in_lens[b]])
+    for b in prange(b_log_attn_map.shape[0]):
+        out = mas_width1(b_log_attn_map[b, 0, : out_lens[b], : in_lens[b]])
         attn_out[b, 0, : out_lens[b], : in_lens[b]] = out
     return attn_out
 
@@ -410,6 +430,23 @@ def plot_pitch_to_numpy(pitch, ylim_range=None):
     return data
 
 
+def plot_multipitch_to_numpy(pitch_gt, pitch_pred, ylim_range=None):
+    fig, ax = plt.subplots(figsize=(12, 3))
+    plt.plot(pitch_gt, label="Ground truth")
+    plt.plot(pitch_pred, label="Predicted")
+    if ylim_range is not None:
+        plt.ylim(ylim_range)
+    plt.xlabel("Frames")
+    plt.ylabel("Pitch")
+    plt.legend()
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
 def plot_spectrogram_to_numpy(spectrogram):
     spectrogram = spectrogram.astype(np.float32)
     fig, ax = plt.subplots(figsize=(12, 3))
@@ -482,39 +519,15 @@ def remove(conv_list):
     return new_conv_list
 
 
-def eval_tts_scores(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
-) -> Dict[str, float]:
-    """
-    calculate metric using EvalModule. y can be a batch.
-    Args:
-        y_clean: real audio
-        y_est: estimated audio
-        T_ys: length of the non-zero parts of the histograms
-        sampling_rate: The used Sampling rate.
-
-    Returns:
-        A dictionary mapping scoring systems (string) to numerical scores.
-        1st entry: 'STOI'
-        2nd entry: 'PESQ'
-    """
-
-    if y_clean.ndim == 1:
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-    if T_ys == (0,):
-        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
-
-    clean = y_clean[0, : T_ys[0]]
-    estimated = y_est[0, : T_ys[0]]
-    stoi_score = stoi(clean, estimated, sampling_rate, extended=False)
-    pesq_score = pesq(16000, np.asarray(clean), estimated, 'wb')
-    ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
-
-    return {'STOI': stoi_score, 'PESQ': pesq_score}
-
-
-def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
+def regulate_len(
+    durations,
+    enc_out,
+    pace=1.0,
+    mel_max_len=None,
+    replicate_to_nearest_multiple=False,
+    group_size=2,
+    in_lens: torch.tensor = None,
+):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
 
@@ -522,15 +535,25 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
         durations (torch.tensor): A tensor of shape (batch x enc_length) that represents how many times to repeat each
             token in enc_out.
         enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
-        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.
-        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
+        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
             max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
+        replicate_to_nearest_multiple (bool): replicate the last element specified by durations[i, in_lens[i] - 1] until the
+            full length of the sequence is the next nearest multiple of group_size
+        group_size (int): factor used by replicate_to_nearest_multiple
+        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor
     """
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
+
+    if replicate_to_nearest_multiple:
+        to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
+        to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
+        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
+        reps = reps + to_pad_expanded
+        dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
