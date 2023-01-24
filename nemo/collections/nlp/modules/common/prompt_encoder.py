@@ -57,6 +57,7 @@ class PromptEncoderType(enum.Enum):
     BOTTLENECK_MLP = 'bottleneck_mlp'
     EYE_MLP = 'eye_mlp'
     SIMPLE_EMBEDDING = "simple_embedding"
+    SCALED_EMBEDDING = "scaled_embedding"
     LINEAR_COMBINATION = 'linear_combination'
     LINEAR_COMBINATION_BASELINE = 'linear_combination_baseline'
 
@@ -288,6 +289,8 @@ class PromptEncoder(NeuralModule, Exportable):
 
         if self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             pass
+        elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
+            self.scale =  torch.nn.parameter.Parameter(data=20 * (torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
@@ -377,6 +380,8 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             output_embeds = input_embeds
+        elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
+            output_embeds = input_embeds * self.scale
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
@@ -414,6 +419,8 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             output_embeds = input_embeds
+        elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
+            output_embeds = input_embeds * self.scale
 
         output_embeds = self.apply_max_norm(output_embeds, 1.0)
         # (10, 2048)
@@ -489,6 +496,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
 
         t = t + self.init_val
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
+        self.scale =  torch.nn.parameter.Parameter(data=20 * (1+torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         self.cos = torch.nn.CosineSimilarity(dim=0)
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
@@ -540,6 +548,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
             output_embeds = _n.transpose(0, 1) @ w
 
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
+        output_embeds *= self.scale
         output_embeds = output_embeds.expand(
             batch_size, output_embeds.size(0), output_embeds.size(1)
         )  # (batch, num_virtual_tokens, embed_size)

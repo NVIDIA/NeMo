@@ -280,7 +280,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        if self.prompt_encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
+        if self.prompt_encoder_type == PromptEncoderType.SIMPLE_EMBEDDING or self.prompt_encoder_type == PromptEncoderType.SCALED_EMBEDDING:
             self.prompt_encoder = PromptEncoder(
                 encoder_type=self.prompt_encoder_type,
                 total_virtual_tokens=total_virtual_tokens,
