@@ -41,7 +41,7 @@ git submodule update --init --recursive && \
 BUILD_SOX=1 BUILD_VERSION=${TORCHAUDIO_BUILD_VERSION} python setup.py install && \
 cd .. && \
 pytest -rs audio/test/torchaudio_unittest/transforms/torchscript_consistency_cpu_test.py -k 'test_MFCC' || \
-(echo "ERROR: Failed to install torchaudio!"; exit 1);
+{ echo "ERROR: Failed to install torchaudio!"; exit 1; };
 # RNNT loss is built with CUDA, so checking it will suffice
 # This test will be skipped if CUDA is not available (e.g. when building from docker)
 pytest -rs audio/test/torchaudio_unittest/functional/torchscript_consistency_cuda_test.py -k 'test_rnnt_loss' || \
