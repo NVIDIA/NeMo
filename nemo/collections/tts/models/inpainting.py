@@ -58,7 +58,7 @@ from nemo.core.neural_types.elements import (
     MelSpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss
+from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss
 
 
 class BidirectionalLinear(Linear):
@@ -91,12 +91,7 @@ class BaselineModule(NeuralModule):
         self, input_mels, input_mels_len, tokens, token_durations
     ):
         """TODO"""
-
-        # TODO check masking is done correctly here
-        # text_encodings, text_mask = self.text_encoder(transcripts)
-
         spectrogram_projections = self.spectrogram_projection(input_mels)
-
 
         token_embeddings = self.token_encoder(tokens)
         # regulate_len needs a sequence of token embeddings, does not work
@@ -119,9 +114,6 @@ class BaselineModule(NeuralModule):
         spectrogram_preds = self.spectrogram_projection.reverse(
             output_decodings_trimmed)
 
-        # alignment_outputs = (attn_logprob, attn_soft, attn_hard)
-
-        # return spectrogram_preds, alignment_outputs
         return spectrogram_preds, spectrogram_projections, token_embeddings
 
 
@@ -177,10 +169,6 @@ class InpainterModel(ModelPT, Exportable):
 
         # self.preprocessor = instantiate(cfg.preprocessor)
         self.preprocessor = aligner.preprocessor
-        text_encoder_kwargs = {
-            "n_embed": len(self.vocab.tokens),
-            "padding_idx": self.vocab.pad,
-        }
 
         # aligner = instantiate(cfg.alignment_module)
         self.forward_sum_loss_fn = ForwardSumLoss()
@@ -196,17 +184,23 @@ class InpainterModel(ModelPT, Exportable):
         self.module = BaselineModule(
             num_mels=cfg.n_mel_channels,
             token_encoder=token_encoder,
-            # text_encoder=text_encoder,
-            # aligner=aligner.alignment_encoder,
             decoder=decoder,
         )
         self.postnet = instantiate(cfg.postnet) if 'postnet' in cfg else None
         self.duration_predictor = instantiate(cfg.duration_predictor)
+        self.pitch_predictor = instantiate(cfg.pitch_predictor)
+        self.pitch_emb = torch.nn.Conv1d(
+            1,
+            cfg.symbols_embedding_dim,
+            kernel_size=cfg.pitch_predictor.kernel_size,
+            padding=int((cfg.pitch_predictor.kernel_size - 1) / 2),
+        )
 
         # TODO - review this loss to only look at the reconstructed part
         self.gap_loss = InpaintingMSELoss()
         self.mse_loss = MelLoss()
         self.duration_loss_fn = DurationLoss()
+        self.pitch_loss_fn = PitchLoss()
 
         self.aligner = aligner
         spectrogrammer = self.preprocessor.featurizer
@@ -385,10 +379,9 @@ class InpainterModel(ModelPT, Exportable):
         new_token_embeddings = self.module.token_encoder(new_tokens).unsqueeze(0)
 
         speakerified_token_embeddings = new_token_embeddings + speaker_emb.unsqueeze(1)
+        enc_mask = torch.ones([1, len(new_tokens), 1])
         log_durs_predicted = self.duration_predictor(
-            speakerified_token_embeddings,
-            enc_mask=torch.ones([1, len(new_tokens), 1])
-        )
+            speakerified_token_embeddings, enc_mask=enc_mask)
         durs_predicted = quantize_durations(
             torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
 
