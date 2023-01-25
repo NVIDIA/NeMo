@@ -570,7 +570,11 @@ class MultiSpeakerSimulator(object):
         current_word_count = 0
         word_idx = offset_idx
         silence_count = 1
-        while current_word_count < remaining_duration and dur_sample_count < remaining_dur_sample_count and word_idx < len(file['words']):
+        while (
+            current_word_count < remaining_duration
+            and dur_sample_count < remaining_dur_sample_count
+            and word_idx < len(file['words'])
+        ):
             dur_sample_count = int(file['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
 
             # check the length of the generated sentence in terms of sample count (int).
@@ -618,21 +622,34 @@ class MultiSpeakerSimulator(object):
                 )
             self._sentence = self._sentence.to(self._device)
             self._sentence = torch.cat(
-                (self._sentence, audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sample_count]), 0
+                (
+                    self._sentence,
+                    audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sample_count],
+                ),
+                0,
             )
             self._sentence = self._sentence.to(self._device)
 
         else:
-            self._sentence = torch.cat((self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sample_count]), 0)
+            self._sentence = torch.cat(
+                (self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sample_count]), 0
+            )
             self._sentence = self._sentence.to(self._device)
 
         # windowing at the end of the sentence
         if (word_idx < len(file['words'])) and self._params.data_simulator.session_params.window_type is not None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
-                prev_dur_sample_count, remaining_dur_sample_count, len(audio_file[start_cutoff + prev_dur_sample_count :])
+                prev_dur_sample_count,
+                remaining_dur_sample_count,
+                len(audio_file[start_cutoff + prev_dur_sample_count :]),
             )
             self._sentence = torch.cat(
-                (self._sentence, audio_file[start_cutoff + prev_dur_sample_count : start_cutoff + prev_dur_sample_count + release_buffer]),
+                (
+                    self._sentence,
+                    audio_file[
+                        start_cutoff + prev_dur_sample_count : start_cutoff + prev_dur_sample_count + release_buffer
+                    ],
+                ),
                 0,
             )
             self._sentence = self._sentence.to(self._device)
@@ -1074,7 +1091,13 @@ class MultiSpeakerSimulator(object):
 
             length = len(self._sentence)
             start = self._add_silence_or_overlap(
-                speaker_turn, prev_speaker, running_len_sample_count, length, session_len_sample_count, prev_len_sample_count, enforce
+                speaker_turn,
+                prev_speaker,
+                running_len_sample_count,
+                length,
+                session_len_sample_count,
+                prev_len_sample_count,
+                enforce,
             )
             end = start + length
             if end > len(array):  # only occurs in enforce mode
@@ -1474,7 +1497,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         session_len_sample_count = int(
             (self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr)
         )
-        array = torch.zeros((session_len_sample_count, self._params.data_simulator.rir_generation.mic_config.num_channels))
+        array = torch.zeros(
+            (session_len_sample_count, self._params.data_simulator.rir_generation.mic_config.num_channels)
+        )
         is_speech = torch.zeros(session_len_sample_count)
 
         while running_len_sample_count < session_len_sample_count or enforce:
@@ -1502,7 +1527,13 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             augmented_sentence, length = self._convolve_rir(self._sentence, speaker_turn, RIR)
 
             start = self._add_silence_or_overlap(
-                speaker_turn, prev_speaker, running_len_sample_count, length, session_len_sample_count, prev_len_sample_count, enforce
+                speaker_turn,
+                prev_speaker,
+                running_len_sample_count,
+                length,
+                session_len_sample_count,
+                prev_len_sample_count,
+                enforce,
             )
             end = start + length
             if end > len(array):
