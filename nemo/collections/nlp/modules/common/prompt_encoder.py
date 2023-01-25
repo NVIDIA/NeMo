@@ -292,7 +292,7 @@ class PromptEncoder(NeuralModule, Exportable):
             init.xavier_normal(self.embedding.weight.data)
         elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
             init.xavier_normal(self.embedding.weight.data)
-            self.scale =  torch.nn.parameter.Parameter(data=20 * (torch.abs(torch.randn(self.total_virtual_tokens, 1))))
+            self.scale = torch.nn.parameter.Parameter(data=20 * (torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
