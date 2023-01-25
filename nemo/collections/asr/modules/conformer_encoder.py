@@ -536,7 +536,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 if att_context_style == "chunked_limited":
                     if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
                         raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
-                    if att_cs[1] < 0 and len(att_context_size)<=1:
+                    if att_cs[1] < 0 and len(att_context_size) <= 1:
                         raise ValueError(
                             f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!"
                         )
