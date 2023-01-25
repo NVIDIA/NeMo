@@ -184,7 +184,7 @@ class Exportable(ABC):
                         dynamic_axes=dynamic_axes,
                         keep_initializers_as_inputs=keep_initializers_as_inputs,
                         export_modules_as_functions=export_modules_as_functions,
-                        opset_version=15,
+                        opset_version=onnx_opset_version,
                     )
 
                     if check_trace:

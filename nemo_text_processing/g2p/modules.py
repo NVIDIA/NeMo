@@ -450,21 +450,15 @@ class IPAG2P(BaseG2p):
 
         return phoneme_dict_obj
 
-<<<<<<< HEAD
     def setup_heteronym_model(
         self,
         heteronym_model,
-        wordid_to_phonemes_file: Optional[
-            str
-        ] = "../../../scripts/tts_dataset_files/wordid_to_arpabet-0.7b_nv22.10.tsv",
+        wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv",
     ):
         self.heteronym_model = heteronym_model
         self.heteronym_model.wordid_to_phonemes_file = wordid_to_phonemes_file
 
-    def replace_dict(self, phoneme_dict: Union[str, pathlib.Path]):
-=======
     def replace_dict(self, phoneme_dict: Union[str, pathlib.Path, Dict[str, List[List[str]]]]):
->>>>>>> main
         """
         Replace model's phoneme dictionary with a custom one
         """
@@ -632,18 +626,16 @@ class IPAG2P(BaseG2p):
             return self._prepend_prefix_for_one_word(word), False
 
     def __call__(self, text: str) -> List[str]:
-<<<<<<< HEAD
+        text = normalize_unicode_text(text)
+
         if self.heteronym_model is not None:
             try:
                 text = self.heteronym_model.disambiguate(sentences=[text])[1][0]
             except Exception as e:
                 logging.warning(f"Heteronym model failed {e}, skipping")
-=======
-        text = normalize_unicode_text(text)
-        words_list_of_tuple = self.word_tokenize_func(text)
->>>>>>> main
 
-        words = self.word_tokenize_func(text)
+        words_list_of_tuple = self.word_tokenize_func(text)
+
         prons = []
         for words, without_changes in words_list_of_tuple:
             if without_changes:

@@ -101,7 +101,7 @@ def read_wordids(wordid_map: str):
 
 
 def get_wordid_to_phonemes(
-    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_arpabet-0.7b_nv22.10.tsv",
+    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv",
 ):
     """
     WikiHomograph and NeMo use slightly different phoneme sets, this function reads WikiHomograph word_ids to NeMo

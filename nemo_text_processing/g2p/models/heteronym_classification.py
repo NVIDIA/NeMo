@@ -52,7 +52,7 @@ class HeteronymClassificationModel(NLPModel):
         self.wordids = self.register_artifact("wordids", cfg.wordids)
         self.homograph_dict, self.wordid_to_idx = read_wordids(self.wordids)
         self.idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
-        self.supported_heteronyms = [h for h in self.homograph_dict.keys()]
+        self.supported_heteronyms = list(self.homograph_dict.keys())
 
         # TODO use tempfile here
         if cfg.class_labels.class_labels_file is None:
@@ -206,9 +206,6 @@ class HeteronymClassificationModel(NLPModel):
             if self.wordid_to_phonemes is None:
                 cur_pred = f"[{cur_pred}]"
             else:
-                import pdb
-
-                pdb.set_trace()
                 cur_pred = self.wordid_to_phonemes[cur_pred]
                 # to use mixed grapheme format as an input for a TTS model, we need to have vertical bars around phonemes
                 cur_pred = "".join([f"|{p}|" for p in cur_pred])
