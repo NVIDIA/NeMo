@@ -31,7 +31,7 @@ from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.spatial.transform import Rotation
 from scipy.stats import halfnorm
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
