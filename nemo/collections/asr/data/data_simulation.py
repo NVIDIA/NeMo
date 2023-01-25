@@ -174,6 +174,7 @@ class MultiSpeakerSimulator(object):
         # creating manifests during online data simulation
         self.base_manifest_filepath = None
         self.segment_manifest_filepath = None
+        self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
         # variable speaker volume
         self._volume = None
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -199,13 +200,13 @@ class MultiSpeakerSimulator(object):
         ):
             raise Exception("Turn probability is outside of [0,1]")
         elif (
-            self._params.data_simulator.session_params.turn_prob < 0.5
+            self._params.data_simulator.session_params.turn_prob < self._turn_prob_min
             and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True
         ):
             logging.warning(
-                "Turn probability is less than 0.5 while enforce_num_speakers=True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
+                "Turn probability is less than {self._turn_prob_min} while enforce_num_speakers=True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
             )
-            self._params.data_simulator.session_params.turn_prob = 0.5
+            self._params.data_simulator.session_params.turn_prob = self._turn_prob_min
 
         if (
             self._params.data_simulator.session_params.overlap_prob < 0
@@ -428,7 +429,10 @@ class MultiSpeakerSimulator(object):
             prev_speaker = 0 if prev_speaker is None else prev_speaker
             return prev_speaker
         else:
-            if np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob and prev_speaker is not None:
+            if (
+                np.random.uniform(0, 1) > self._params.data_simulator.session_params.turn_prob
+                and prev_speaker is not None
+            ):
                 return prev_speaker
             else:
                 speaker_turn = prev_speaker
@@ -492,14 +496,14 @@ class MultiSpeakerSimulator(object):
         return start_cutoff, window_amount
 
     def _get_end_buffer_and_window(
-        self, current_sr: int, remaining_duration_sr: int, remaining_len_audio_file: int
+        self, current_sample_cursor: int, remaining_dur_sample_count: int, remaining_len_audio_file: int
     ) -> Tuple[int, int]:
         """
         Get the end buffer and window length for smoothing the end of the sentence.
 
         Args:
-            current_sr (int): Current location in the target file (in terms of number of samples).
-            remaining_duration_sr (int): Remaining duration in the target file (in terms of number of samples).
+            current_sample_cursor (int): Current location in the target file (in terms of number of samples).
+            remaining_dur_sample_count (int): Remaining duration in the target file (in terms of number of samples).
             remaining_len_audio_file (int): Length remaining in audio file (in terms of number of samples).
         Returns:
             release_buffer (int): Amount after the end of the last alignment to include
@@ -511,11 +515,11 @@ class MultiSpeakerSimulator(object):
             self._params.data_simulator.session_params.release_buffer * self._params.data_simulator.sr
         )
 
-        if current_sr + release_buffer > remaining_duration_sr:
-            release_buffer = remaining_duration_sr - current_sr
+        if current_sample_cursor + release_buffer > remaining_dur_sample_count:
+            release_buffer = remaining_dur_sample_count - current_sample_cursor
             window_amount = 0
-        elif current_sr + window_amount + release_buffer > remaining_duration_sr:
-            window_amount = remaining_duration_sr - current_sr - release_buffer
+        elif current_sample_cursor + window_amount + release_buffer > remaining_dur_sample_count:
+            window_amount = remaining_dur_sample_count - current_sample_cursor - release_buffer
 
         if remaining_len_audio_file < release_buffer:
             release_buffer = remaining_len_audio_file
@@ -529,9 +533,9 @@ class MultiSpeakerSimulator(object):
         self,
         file: dict,
         audio_file: torch.Tensor,
-        sentence_duration: int,
-        max_sentence_duration: int,
-        max_sentence_duration_sr: int,
+        sentence_word_count: int,
+        max_word_count_in_sentence: int,
+        max_samples_in_sentence: int,
     ) -> Tuple[int, torch.Tensor]:
         """
         Add audio file to current sentence (up to the desired number of words). 
@@ -540,11 +544,11 @@ class MultiSpeakerSimulator(object):
         Args:
             file (dict): Line from manifest file for current audio file
             audio_file (tensor): Current loaded audio file
-            sentence_duration (int): Running count for number of words in sentence
-            max_sentence_duration (int): Maximum count for number of words in sentence
-            max_sentence_duration_sr (int): Maximum length for sentence in terms of samples
+            sentence_word_count (int): Running count for number of words in sentence
+            max_word_count_in_sentence (int): Maximum count for number of words in sentence
+            max_samples_in_sentence (int): Maximum length for sentence in terms of samples
         Returns:
-            sentence_duration+nw (int): Running word count
+            sentence_word_count+current_word_count (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
         """
         if len(file['alignments']) <= 1:
@@ -558,18 +562,20 @@ class MultiSpeakerSimulator(object):
             start_window_amount = 0
 
         # ensure the desired number of words are added and the length of the output session isn't exceeded
-        sentence_duration_sr = len(self._sentence)
+        sentence_sample_count = len(self._sentence)
 
-        remaining_duration_sr = max_sentence_duration_sr - sentence_duration_sr
-        remaining_duration = max_sentence_duration - sentence_duration
-        prev_dur_sr, dur_sr = 0, 0
-        nw = 0
+        remaining_dur_sample_count = max_samples_in_sentence - sentence_sample_count
+        remaining_duration = max_word_count_in_sentence - sentence_word_count
+        prev_dur_sample_count, dur_sample_count, curr_dur_sample_count = 0, 0, 0
+        current_word_count = 0
         word_idx = offset_idx
         silence_count = 1
-        while nw < remaining_duration and dur_sr < remaining_duration_sr and word_idx < len(file['words']):
-            dur_sr = int(file['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+        while current_word_count < remaining_duration and dur_sample_count < remaining_dur_sample_count and word_idx < len(file['words']):
+            dur_sample_count = int(file['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
 
-            if dur_sr > remaining_duration_sr:
+            # check the length of the generated sentence in terms of sample count (int).
+            if curr_dur_sample_count + dur_sample_count > remaining_dur_sample_count:
+                # if the upcoming loop will exceed the remaining sample count, break out of the loop.
                 break
 
             word = file['words'][word_idx]
@@ -579,7 +585,7 @@ class MultiSpeakerSimulator(object):
 
             self._words.append(word)
             self._alignments.append(
-                float(sentence_duration_sr * 1.0 / self._params.data_simulator.sr)
+                float(sentence_sample_count * 1.0 / self._params.data_simulator.sr)
                 - float(start_cutoff * 1.0 / self._params.data_simulator.sr)
                 + file['alignments'][word_idx]
             )
@@ -594,8 +600,9 @@ class MultiSpeakerSimulator(object):
                 self._text += " " + word
 
             word_idx += 1
-            nw += 1
-            prev_dur_sr = dur_sr
+            current_word_count += 1
+            prev_dur_sample_count = dur_sample_count
+            curr_dur_sample_count += dur_sample_count
 
         # add audio clip up to the final alignment
         if self._params.data_simulator.session_params.window_type is not None:  # cut off the start of the sentence
@@ -611,21 +618,21 @@ class MultiSpeakerSimulator(object):
                 )
             self._sentence = self._sentence.to(self._device)
             self._sentence = torch.cat(
-                (self._sentence, audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sr]), 0
+                (self._sentence, audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sample_count]), 0
             )
             self._sentence = self._sentence.to(self._device)
 
         else:
-            self._sentence = torch.cat((self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sr]), 0)
+            self._sentence = torch.cat((self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sample_count]), 0)
             self._sentence = self._sentence.to(self._device)
 
         # windowing at the end of the sentence
         if (word_idx < len(file['words'])) and self._params.data_simulator.session_params.window_type is not None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
-                prev_dur_sr, remaining_duration_sr, len(audio_file[start_cutoff + prev_dur_sr :])
+                prev_dur_sample_count, remaining_dur_sample_count, len(audio_file[start_cutoff + prev_dur_sample_count :])
             )
             self._sentence = torch.cat(
-                (self._sentence, audio_file[start_cutoff + prev_dur_sr : start_cutoff + prev_dur_sr + release_buffer]),
+                (self._sentence, audio_file[start_cutoff + prev_dur_sample_count : start_cutoff + prev_dur_sample_count + release_buffer]),
                 0,
             )
             self._sentence = self._sentence.to(self._device)
@@ -638,9 +645,9 @@ class MultiSpeakerSimulator(object):
                         torch.multiply(
                             audio_file[
                                 start_cutoff
-                                + prev_dur_sr
+                                + prev_dur_sample_count
                                 + release_buffer : start_cutoff
-                                + prev_dur_sr
+                                + prev_dur_sample_count
                                 + release_buffer
                                 + end_window_amount
                             ],
@@ -651,10 +658,10 @@ class MultiSpeakerSimulator(object):
                 )
                 self._sentence = self._sentence.to(self._device)
 
-        return sentence_duration + nw, len(self._sentence)
+        return sentence_word_count + current_word_count, len(self._sentence)
 
     def _build_sentence(
-        self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int
+        self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_samples_in_sentence: int
     ):
         """
         Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
@@ -664,7 +671,7 @@ class MultiSpeakerSimulator(object):
             speaker_turn (int): Current speaker turn.
             speaker_ids (list): LibriSpeech speaker IDs for each speaker in the current session.
             speaker_lists (list): List of samples for each speaker in the session.
-            max_sentence_duration_sr (int): Maximum length for sentence in terms of samples
+            max_samples_in_sentence (int): Maximum length for sentence in terms of samples
         """
         # select speaker length
         sl = (
@@ -680,10 +687,10 @@ class MultiSpeakerSimulator(object):
         self._text = ""
         self._words = []
         self._alignments = []
-        sentence_duration = sentence_duration_sr = 0
+        sentence_word_count = sentence_sample_count = 0
 
         # build sentence
-        while sentence_duration < sl and sentence_duration_sr < max_sentence_duration_sr:
+        while sentence_word_count < sl and sentence_sample_count < max_samples_in_sentence:
             file = self._load_speaker_sample(speaker_lists, speaker_ids, speaker_turn)
             if file['audio_filepath'] in self._audio_read_buffer_dict:
                 audio_file, sr = self._audio_read_buffer_dict[file['audio_filepath']]
@@ -694,8 +701,8 @@ class MultiSpeakerSimulator(object):
                     audio_file = torch.mean(audio_file, 1, False)
                 self._audio_read_buffer_dict[file['audio_filepath']] = (audio_file, sr)
 
-            sentence_duration, sentence_duration_sr = self._add_file(
-                file, audio_file, sentence_duration, sl, max_sentence_duration_sr
+            sentence_word_count, sentence_sample_count = self._add_file(
+                file, audio_file, sentence_word_count, sl, max_samples_in_sentence
             )
 
         # look for split locations
@@ -735,8 +742,8 @@ class MultiSpeakerSimulator(object):
         prev_speaker: int,
         start: int,
         length: int,
-        session_length_sr: int,
-        prev_length_sr: int,
+        session_len_sample_count: int,
+        prev_len_sample_count: int,
         enforce: bool,
     ) -> int:
         """
@@ -747,8 +754,8 @@ class MultiSpeakerSimulator(object):
             prev_speaker (int): Previous speaker turn.
             start (int): Current start of the audio file being inserted.
             length (int): Length of the audio file being inserted.
-            session_length_sr (int): Running length of the session in terms of number of samples
-            prev_length_sr (int): Length of previous sentence (in terms of number of samples)
+            session_len_sample_count (int): Running length of the session in terms of number of samples
+            prev_len_sample_count (int): Length of previous sentence (in terms of number of samples)
             enforce (bool): Whether speaker enforcement mode is being used
         Returns:
             new_start (int): New starting position in the session accounting for overlap or silence
@@ -767,13 +774,13 @@ class MultiSpeakerSimulator(object):
         # overlap
         if prev_speaker != speaker_turn and prev_speaker is not None and np.random.uniform(0, 1) < overlap_prob:
             overlap_percent = halfnorm(loc=0, scale=mean_overlap_percent * np.sqrt(np.pi) / np.sqrt(2)).rvs()
-            desired_overlap_amount = int(prev_length_sr * overlap_percent)
+            desired_overlap_amount = int(prev_len_sample_count * overlap_percent)
             new_start = start - desired_overlap_amount
 
             # reinject missing overlap to ensure desired overlap percentage is met
             if self._missing_overlap > 0 and overlap_percent < 1:
                 rand = int(
-                    prev_length_sr
+                    prev_len_sample_count
                     * np.random.uniform(
                         0, 1 - overlap_percent / (1 + self._params.data_simulator.session_params.mean_overlap)
                     )
@@ -799,7 +806,7 @@ class MultiSpeakerSimulator(object):
                 self._missing_overlap += self._furthest_sample[speaker_turn] - new_start
                 new_start = self._furthest_sample[speaker_turn]
 
-            prev_start = start - prev_length_sr
+            prev_start = start - prev_len_sample_count
             prev_end = start
             new_end = new_start + length
             overlap_amount = 0
@@ -821,8 +828,8 @@ class MultiSpeakerSimulator(object):
             silence_percent = halfnorm(loc=0, scale=mean_silence_percent * np.sqrt(np.pi) / np.sqrt(2)).rvs()
             silence_amount = int(length * silence_percent)
 
-            if start + length + silence_amount > session_length_sr and not enforce:
-                new_start = max(session_length_sr - length, 0)
+            if start + length + silence_amount > session_len_sample_count and not enforce:
+                new_start = max(session_len_sample_count - length, 0)
             else:
                 new_start = start + silence_amount
 
@@ -893,14 +900,14 @@ class MultiSpeakerSimulator(object):
                     silence_length > 2 * self._params.data_simulator.session_params.split_buffer
                 ):  # split utterance on silence
                     new_end = start + self._alignments[i - 1] + self._params.data_simulator.session_params.split_buffer
-                    s = float(round(new_start, self._params.data_simulator.outputs.output_precision))
-                    e = float(round(new_end, self._params.data_simulator.outputs.output_precision))
-                    rttm_list.append(f"{s} {e} {speaker_id}")
+                    t_stt = float(round(new_start, self._params.data_simulator.outputs.output_precision))
+                    t_end = float(round(new_end, self._params.data_simulator.outputs.output_precision))
+                    rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
                     new_start = start + self._alignments[i] - self._params.data_simulator.session_params.split_buffer
 
-        s = float(round(new_start, self._params.data_simulator.outputs.output_precision))
-        e = float(round(end, self._params.data_simulator.outputs.output_precision))
-        rttm_list.append(f"{s} {e} {speaker_id}")
+        t_stt = float(round(new_start, self._params.data_simulator.outputs.output_precision))
+        t_end = float(round(end, self._params.data_simulator.outputs.output_precision))
+        rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
         return rttm_list
 
     def _create_new_json_entry(
@@ -1024,7 +1031,7 @@ class MultiSpeakerSimulator(object):
         speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
-        running_length_sr, prev_length_sr = 0, 0
+        running_len_sample_count, prev_len_sample_count = 0, 0
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
@@ -1037,15 +1044,15 @@ class MultiSpeakerSimulator(object):
         )
         enforce = self._params.data_simulator.speaker_enforcement.enforce_num_speakers
 
-        session_length_sr = int(
+        session_len_sample_count = int(
             (self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr)
         )
-        array = torch.zeros(session_length_sr).to(self._device)
-        is_speech = torch.zeros(session_length_sr).to(self._device)
+        array = torch.zeros(session_len_sample_count).to(self._device)
+        is_speech = torch.zeros(session_len_sample_count).to(self._device)
 
-        while running_length_sr < session_length_sr or enforce:
+        while running_len_sample_count < session_len_sample_count or enforce:
             # enforce num_speakers
-            if running_length_sr > enforce_time * session_length_sr and enforce:
+            if running_len_sample_count > enforce_time * session_len_sample_count and enforce:
                 speaker_dominance, enforce = self._increase_speaker_dominance(base_speaker_dominance, enforce_counter)
                 if enforce:
                     enforce_counter += 1
@@ -1054,20 +1061,20 @@ class MultiSpeakerSimulator(object):
             speaker_turn = self._get_next_speaker(prev_speaker, speaker_dominance)
 
             # build sentence (only add if remaining length >  specific time)
-            max_sentence_duration_sr = session_length_sr - running_length_sr
+            max_samples_in_sentence = session_len_sample_count - running_len_sample_count
             if enforce:
-                max_sentence_duration_sr = float('inf')
+                max_samples_in_sentence = float('inf')
             elif (
-                max_sentence_duration_sr
+                max_samples_in_sentence
                 < self._params.data_simulator.session_params.end_buffer * self._params.data_simulator.sr
             ):
                 break
 
-            self._build_sentence(speaker_turn, speaker_ids, speaker_lists, max_sentence_duration_sr)
+            self._build_sentence(speaker_turn, speaker_ids, speaker_lists, max_samples_in_sentence)
 
             length = len(self._sentence)
             start = self._add_silence_or_overlap(
-                speaker_turn, prev_speaker, running_length_sr, length, session_length_sr, prev_length_sr, enforce
+                speaker_turn, prev_speaker, running_len_sample_count, length, session_len_sample_count, prev_len_sample_count, enforce
             )
             end = start + length
             if end > len(array):  # only occurs in enforce mode
@@ -1097,10 +1104,10 @@ class MultiSpeakerSimulator(object):
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
 
-            running_length_sr = np.maximum(running_length_sr, end)
-            self._furthest_sample[speaker_turn] = running_length_sr
+            running_len_sample_count = np.maximum(running_len_sample_count, end)
+            self._furthest_sample[speaker_turn] = running_len_sample_count
             prev_speaker = speaker_turn
-            prev_length_sr = length
+            prev_len_sample_count = length
 
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
@@ -1443,7 +1450,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
-        running_length_sr, prev_length_sr = 0, 0  # starting point for each sentence
+        running_len_sample_count, prev_len_sample_count = 0, 0  # starting point for each sentence
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
@@ -1464,15 +1471,15 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         )
         enforce = self._params.data_simulator.speaker_enforcement.enforce_num_speakers
 
-        session_length_sr = int(
+        session_len_sample_count = int(
             (self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr)
         )
-        array = torch.zeros((session_length_sr, self._params.data_simulator.rir_generation.mic_config.num_channels))
-        is_speech = torch.zeros(session_length_sr)
+        array = torch.zeros((session_len_sample_count, self._params.data_simulator.rir_generation.mic_config.num_channels))
+        is_speech = torch.zeros(session_len_sample_count)
 
-        while running_length_sr < session_length_sr or enforce:
+        while running_len_sample_count < session_len_sample_count or enforce:
             # enforce num_speakers
-            if running_length_sr > enforce_time * session_length_sr and enforce:
+            if running_len_sample_count > enforce_time * session_len_sample_count and enforce:
                 speaker_dominance, enforce = self._increase_speaker_dominance(base_speaker_dominance, enforce_counter)
                 if enforce:
                     enforce_counter += 1
@@ -1481,21 +1488,21 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             speaker_turn = self._get_next_speaker(prev_speaker, speaker_dominance)
 
             # build sentence (only add if remaining length >  specific time)
-            max_sentence_duration_sr = (
-                session_length_sr - running_length_sr - RIR_pad
+            max_samples_in_sentence = (
+                session_len_sample_count - running_len_sample_count - RIR_pad
             )  # sentence will be RIR_len - 1 longer than the audio was pre-augmentation
             if enforce:
-                max_sentence_duration_sr = float('inf')
+                max_samples_in_sentence = float('inf')
             elif (
-                max_sentence_duration_sr
+                max_samples_in_sentence
                 < self._params.data_simulator.session_params.end_buffer * self._params.data_simulator.sr
             ):
                 break
-            self._build_sentence(speaker_turn, speaker_ids, speaker_lists, max_sentence_duration_sr)
+            self._build_sentence(speaker_turn, speaker_ids, speaker_lists, max_samples_in_sentence)
             augmented_sentence, length = self._convolve_rir(self._sentence, speaker_turn, RIR)
 
             start = self._add_silence_or_overlap(
-                speaker_turn, prev_speaker, running_length_sr, length, session_length_sr, prev_length_sr, enforce
+                speaker_turn, prev_speaker, running_len_sample_count, length, session_len_sample_count, prev_len_sample_count, enforce
             )
             end = start + length
             if end > len(array):
@@ -1529,10 +1536,10 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
 
-            running_length_sr = np.maximum(running_length_sr, end)
-            self._furthest_sample[speaker_turn] = running_length_sr
+            running_len_sample_count = np.maximum(running_len_sample_count, end)
+            self._furthest_sample[speaker_turn] = running_len_sample_count
             prev_speaker = speaker_turn
-            prev_length_sr = length
+            prev_len_sample_count = length
 
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
