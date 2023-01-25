@@ -385,9 +385,6 @@ class InpainterModel(ModelPT, Exportable):
         durs_predicted = quantize_durations(
             torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
 
-        # for now some hackiness
-        durs_predicted += 25
-
         # Get the left spectrograms and phonemes
         token_durs_left = attn_hard_dur[:first_divergence]
         num_frames_left = sum(token_durs_left).int()
@@ -398,7 +395,7 @@ class InpainterModel(ModelPT, Exportable):
         token_durs_right = attn_hard_dur[-last_divergence:]
         num_frames_right = sum(token_durs_right).int()
         tokens_right = tokens[-last_divergence:]
-        spec_right = spectrogram[:num_frames_right]
+        spec_right = spectrogram[-num_frames_right:]
 
         # create the middle empty audio and get the token durations
         tokens_middle = new_tokens[first_divergence:-last_divergence]
@@ -406,7 +403,7 @@ class InpainterModel(ModelPT, Exportable):
         num_frames_middle = sum(token_durs_middle)
         empty_spec_middle = torch.zeros(num_frames_middle, spectrogram.shape[1])
 
-        blank_spectrogram = torch.concatenate((spec_left, empty_spec_middle, spec_right))
+        blanked_spectrogram = torch.concatenate((spec_left, empty_spec_middle, spec_right))
         token_durations = torch.concatenate((token_durs_left, token_durs_middle, token_durs_right))
 
         # sanity check
@@ -414,12 +411,18 @@ class InpainterModel(ModelPT, Exportable):
         assert torch.equal(concat_tokens, new_tokens)
 
         mels_pred, _, _ = self(
-            input_mels=blank_spectrogram.unsqueeze(0),
-            input_mels_len=torch.tensor([len(blank_spectrogram)]),
+            input_mels=blanked_spectrogram.unsqueeze(0),
+            input_mels_len=torch.tensor([len(blanked_spectrogram)]),
             tokens=new_tokens.unsqueeze(0),
             token_durations=token_durations.unsqueeze(0)
         )
-        return mels_pred[0]
+        full_replacement = mels_pred[0]
+        # also return a spectrogram with only the changed part from the model
+        inpainted_section = full_replacement[num_frames_left:-num_frames_right]
+        partial_replacement = torch.concatenate((spec_left, inpainted_section, spec_right))
+
+        return full_replacement, partial_replacement
+
 
     def forward_pass(self, batch, batch_idx):
         (
