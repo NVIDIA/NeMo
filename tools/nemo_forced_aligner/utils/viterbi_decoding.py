@@ -15,7 +15,88 @@
 import torch
 from utils.constants import V_NEGATIVE_NUM
 
+import torch
+from typing import List, Union
 
+
+class monitor_cuda_mem:
+    _CONTEXT_DEPTH = 0
+    ENABLED = True
+    EMPTY = False
+
+    def __init__(self, scope, empty=None, enabled: bool = None, precision: int = 4):
+        self.scope = scope
+        self.empty = empty if empty is not None else monitor_cuda_mem.EMPTY
+        self.enabled = enabled if enabled is not None else monitor_cuda_mem.ENABLED
+        self.precision = precision
+
+    def __enter__(self):
+        monitor_cuda_mem._CONTEXT_DEPTH += 1
+
+        if self.enabled:
+            self.print_pad()
+            print(f"|> {self.scope}")
+
+            self.initial_memory = torch.cuda.memory_allocated(0)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.enabled:
+            if self.empty:
+                torch.cuda.empty_cache()
+
+            self.final_memory = torch.cuda.memory_allocated(0)
+
+            memory_diff = HumanBytes.format(self.final_memory - self.initial_memory, precision=self.precision)
+            self.print_pad()
+            print(f"{self.scope} |> {memory_diff}")
+
+        monitor_cuda_mem._CONTEXT_DEPTH -= 1
+
+    @classmethod
+    def print_pad(cls):
+        print('\t' * (cls._CONTEXT_DEPTH - 1), end='')
+
+
+# Shortened form of the answer from https://stackoverflow.com/a/63839503
+class HumanBytes:
+    # fmt: off
+    METRIC_LABELS: List[str] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    BINARY_LABELS: List[str] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
+    PRECISION_OFFSETS: List[float] = [5 * (0.1 ** x) for x in range(1, 22)]  # PREDEFINED FOR SPEED.
+    PRECISION_FORMATS: List[str] = [("{}{:." + str(ratio) + "f} {}") for ratio in range(len(PRECISION_OFFSETS))]  # PREDEFINED FOR SPEED.
+
+    # fmt: on
+
+    @staticmethod
+    def format(num: Union[int, float], metric: bool = False, precision: int = 1) -> str:
+        assert isinstance(num, (int, float)), "num must be an int or float"
+        assert isinstance(metric, bool), "metric must be a bool"
+        assert (
+            isinstance(precision, int) and precision >= 0 and precision <= len(HumanBytes.PRECISION_OFFSETS)
+        ), "precision must be an int (range 0-20)"
+
+        unit_labels = HumanBytes.METRIC_LABELS if metric else HumanBytes.BINARY_LABELS
+        last_label = unit_labels[-1]
+        unit_step = 1000 if metric else 1024
+        unit_step_thresh = unit_step - HumanBytes.PRECISION_OFFSETS[precision]
+
+        is_negative = num < 0
+        if is_negative:  # Faster than ternary assignment or always running abs().
+            num = abs(num)
+
+        for unit in unit_labels:
+            if num < unit_step_thresh:
+                break
+            if unit != last_label:
+                num /= unit_step
+
+        return HumanBytes.PRECISION_FORMATS[precision].format("-" if is_negative else "", num, unit)
+
+
+@torch.no_grad()
+@torch.inference_mode()
 def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
     """
     Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
@@ -39,6 +120,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     B, T_max, _ = log_probs_batch.shape
     U_max = y_batch.shape[1]
 
+    w
     # transfer all tensors to viterbi_device
     log_probs_batch = log_probs_batch.to(viterbi_device)
     y_batch = y_batch.to(viterbi_device)
@@ -53,7 +135,16 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     # make log_probs_reordered tensor of shape (B, T_max, U_max)
     # it contains the log_probs for only the tokens that are in the Ground Truth, and in the order
     # that they occur
-    log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=y_batch.unsqueeze(1).repeat(1, T_max, 1))
+    print(log_probs_batch.dtype, log_probs_batch.shape)
+    print()
+    del log_probs_batch
+    index = y_batch.unsqueeze(1).expand(-1, T_max, -1)
+    log_probs_padded = log_probs_padded.to(torch.bfloat16)
+    log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=index)
+
+    torch.cuda.empty_cache()
+
+    print("Log probs reordered", log_probs_reordered.shape, log_probs_reordered.dtype)
 
     # initialize tensors of viterbi probabilies and backpointers
     v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered)
