@@ -170,6 +170,10 @@ class TTSDataset(Dataset):
         """
         super().__init__()
 
+        index_cap = None
+        if cap := os.getenv('DATA_CAP') is not None:
+            index_cap = int(cap)
+
         # Initialize text tokenizer
         self.text_tokenizer = text_tokenizer
 
@@ -215,7 +219,7 @@ class TTSDataset(Dataset):
         for manifest_file in self.manifest_filepath:
             with open(Path(manifest_file).expanduser(), 'r') as f:
                 logging.info(f"Loading dataset from {manifest_file}.")
-                for line in tqdm(f):
+                for line in tqdm(f.readlines()[:index_cap]):
                     item = json.loads(line)
 
                     file_info = {
