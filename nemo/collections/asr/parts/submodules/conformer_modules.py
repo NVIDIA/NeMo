@@ -51,7 +51,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self_attention_model='rel_pos',
         n_heads=4,
         conv_kernel_size=31,
-        conv_norm_type='batch_norm',
+        conv_norm_type='layer_norm',
         conv_context_size=None,
         dropout=0.1,
         dropout_att=0.1,
@@ -63,15 +63,19 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         super(ConformerLayer, self).__init__()
 
         self.self_attention_model = self_attention_model
+        self.memory_efficient = memory_efficient
         self.n_heads = n_heads
-        self.fc_factor = 0.5
 
         # first feed forward module
-        self.norm_feed_forward1 = torch.nn.LayerNorm(d_model)
-        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+        from apex.contrib.layer_norm import FastLayerNorm
+
+        self.norm_feed_forward1 = FastLayerNorm(d_model)
+        self.feed_forward1 = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout, memory_efficient=memory_efficient
+        )
 
         # convolution module
-        self.norm_conv = torch.nn.LayerNorm(d_model)
+        self.norm_conv = FastLayerNorm(d_model)
         self.conv = ConformerConvolution(
             d_model=d_model,
             kernel_size=conv_kernel_size,
@@ -79,8 +83,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             conv_context_size=conv_context_size,
         )
 
+        layernorm_cls = FastLayerNorm if memory_efficient else LayerNorm
+
         # multi-headed self-attention module
-        self.norm_self_att = torch.nn.LayerNorm(d_model)
+        self.norm_self_att = layernorm_cls(d_model)
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
@@ -121,11 +127,21 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             )
 
         # second feed forward module
-        self.norm_feed_forward2 = LayerNorm(d_model)
-        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+        if not self.memory_efficient:
+            self.norm_feed_forward2 = layernorm_cls(d_model)
+        self.feed_forward2 = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout, memory_efficient=memory_efficient
+        )
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNorm(d_model)
+        if not self.memory_efficient:
+            self.norm_out = layernorm_cls(d_model)
+        if self.memory_efficient:
+            from flash_attn.ops.layer_norm import DropoutAddLayerNorm
+
+            self.resid = DropoutAddLayerNorm(d_model, p=dropout)
+            self.resid_2 = DropoutAddLayerNorm(d_model, p=dropout)
+            self.resid_3 = DropoutAddLayerNorm(d_model, p=dropout)
 
     def forward(
         self,
@@ -154,9 +170,12 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         residual = x
         x = self.norm_feed_forward1(x)
         x = self.feed_forward1(x)
-        residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_self_att(residual)
+        if self.memory_efficient:
+            x = self.resid(x, residual)
+        else:
+            residual = residual + self.dropout(x)
+            x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(
                 query=x,
@@ -198,13 +217,19 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
-        residual = residual + self.dropout(x)
 
-        x = self.norm_feed_forward2(residual)
+        if self.memory_efficient:
+            x = self.resid_2(x, residual)
+        else:
+            residual = residual + self.dropout(x)
+            x = self.norm_feed_forward2(residual)
+
         x = self.feed_forward2(x)
-        residual = residual + self.dropout(x) * self.fc_factor
-
-        x = self.norm_out(residual)
+        if self.memory_efficient:
+            x = self.resid_3(x, residual)
+        else:
+            residual = residual + self.dropout(x)
+            x = self.norm_out(residual)
 
         if self.is_adapter_available():
             # Call the adapters
@@ -311,9 +336,7 @@ class ConformerConvolution(nn.Module):
             self.pointwise_activation = pointwise_activation
             dw_conv_input_dim = d_model
 
-        self.pointwise_conv1 = nn.Conv1d(
-            in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
-        )
+        self.pointwise_conv1 = torch.nn.Linear(d_model, d_model * 2)
 
         self.depthwise_conv = CausalConv1D(
             in_channels=dw_conv_input_dim,
@@ -330,7 +353,9 @@ class ConformerConvolution(nn.Module):
         elif norm_type == 'instance_norm':
             self.batch_norm = nn.InstanceNorm1d(dw_conv_input_dim)
         elif norm_type == 'layer_norm':
-            self.batch_norm = nn.LayerNorm(dw_conv_input_dim)
+            from apex.contrib.layer_norm import FastLayerNorm
+
+            self.batch_norm = FastLayerNorm(dw_conv_input_dim)
         elif norm_type.startswith('group_norm'):
             num_groups = int(norm_type.replace("group_norm", ""))
             self.batch_norm = nn.GroupNorm(num_groups=num_groups, num_channels=d_model)
@@ -338,13 +363,11 @@ class ConformerConvolution(nn.Module):
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
-        self.pointwise_conv2 = nn.Conv1d(
-            in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
-        )
+        self.pointwise_conv2 = torch.nn.Linear(dw_conv_input_dim, d_model)
 
     def forward(self, x, pad_mask=None, cache=None, cache_next=None):
-        x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
+        x = x.transpose(1, 2)
 
         # Compute the activation function or use GLU for original Conformer
         if self.pointwise_activation == 'glu_':
@@ -368,8 +391,8 @@ class ConformerConvolution(nn.Module):
             x = self.batch_norm(x)
 
         x = self.activation(x)
-        x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
+        x = self.pointwise_conv2(x)
         return x
 
     def reset_parameters_conv(self):
@@ -390,16 +413,31 @@ class ConformerFeedForward(nn.Module):
     feed-forward module of Conformer model.
     """
 
-    def __init__(self, d_model, d_ff, dropout, activation=Swish()):
+    def __init__(self, d_model, d_ff, dropout, activation=torch.nn.ReLU(), memory_efficient=False):
+
         super(ConformerFeedForward, self).__init__()
-        self.d_model = d_model
-        self.d_ff = d_ff
-        self.linear1 = nn.Linear(d_model, d_ff)
-        self.activation = activation
-        self.dropout = nn.Dropout(p=dropout)
-        self.linear2 = nn.Linear(d_ff, d_model)
+        self.memory_efficient = memory_efficient
+        if memory_efficient:
+            from flash_attn.ops.fused_dense import FusedMLP
+
+            self.mlp = FusedMLP(
+                in_features=d_model,
+                hidden_features=d_ff,
+                activation='relu',
+                device=torch.device('cuda'),
+                dtype=torch.bfloat16,
+            )
+        else:
+            self.d_model = d_model
+            self.d_ff = d_ff
+            self.linear1 = nn.Linear(d_model, d_ff)
+            self.activation = activation
+            self.dropout = nn.Dropout(p=dropout)
+            self.linear2 = nn.Linear(d_ff, d_model)
 
     def forward(self, x):
+        if self.memory_efficient:
+            return self.mlp(x)
         x = self.linear1(x)
         x = self.activation(x)
         x = self.dropout(x)
@@ -407,10 +445,35 @@ class ConformerFeedForward(nn.Module):
         return x
 
     def reset_parameters_ff(self):
-        ffn1_max = self.d_model ** -0.5
-        ffn2_max = self.d_ff ** -0.5
-        with torch.no_grad():
-            nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
-            nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
-            nn.init.uniform_(self.linear2.weight, -ffn2_max, ffn2_max)
-            nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)
+        ...
+
+
+# class ConformerFeedForward(nn.Module):
+#     """
+#     feed-forward module of Conformer model.
+#     """
+#
+#     def __init__(self, d_model, d_ff, dropout, activation=Swish()):
+#         super(ConformerFeedForward, self).__init__()
+#         self.d_model = d_model
+#         self.d_ff = d_ff
+#         self.linear1 = nn.Linear(d_model, d_ff)
+#         self.activation = activation
+#         self.dropout = nn.Dropout(p=dropout)
+#         self.linear2 = nn.Linear(d_ff, d_model)
+#
+#     def forward(self, x):
+#         x = self.linear1(x)
+#         x = self.activation(x)
+#         x = self.dropout(x)
+#         x = self.linear2(x)
+#         return x
+#
+#     def reset_parameters_ff(self):
+#         ffn1_max = self.d_model ** -0.5
+#         ffn2_max = self.d_ff ** -0.5
+#         with torch.no_grad():
+#             nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
+#             nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
+#             nn.init.uniform_(self.linear2.weight, -ffn2_max, ffn2_max)
+#             nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)

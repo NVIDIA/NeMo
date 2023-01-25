@@ -199,7 +199,7 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
         """
         n_batch = value.size(0)
         if mask is not None:
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+            attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
         else:
             attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
@@ -252,24 +252,19 @@ class ALiBiMultiHeadAttention(MultiHeadAttention):
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+        # key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
 
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
-
-        seq_len = query.size(1)
-        if not self.saved_seq_len:
-            self.saved_seq_len = seq_len
-        if self.saved_seq_len != seq_len:
-            print(f"sequence lengths changed {self.saved_seq_len}, {seq_len}")
+        # if torch.is_autocast_enabled():
+        #     query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
 
-            attn_bias = self.alibi_attn_bias(query=q, mask=mask)
-            mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
-            attn_bias.masked_fill_(mask, -10000.0)
+            with torch.no_grad():
+                attn_bias = self.alibi_attn_bias(query=q, mask=mask)
+                mask = mask.unsqueeze(1).expand(-1, self.h, -1, -1)
+                attn_bias.masked_fill_(mask, -10000.0)
 
             if self.memory_efficient:
                 n_batch = value.size(0)
