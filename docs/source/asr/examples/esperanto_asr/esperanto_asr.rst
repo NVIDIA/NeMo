@@ -7,19 +7,19 @@ This example describes all basic steps required to build  ASR model for Esperant
 
 * Data preparation
 * Tokenization
-* Training hyperparameters 
+* Training hyper-parameters
 * Training from scratch
-* Finetuning from pretrained models on other languages (English, Spanish, Italian).
-* Finetuning from pretrained English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model
+* Fine-tuning from pretrained models on other languages (English, Spanish, Italian).
+* Fine-tuning from pretrained English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model
 * Model evaluation
 
 ****************
-Data preparation
+Data Preparation
 ****************
 Mozilla Common Voice provides 1400 hours of validated Esperanto speech (see `here <https://arxiv.org/abs/1912.0667>`_). However, the final training dataset consists only of 250 hours because “... the train, test, and development sets are bucketed such that any given speaker may appear in only one. This ensures that contributors seen at train time are not seen at test time, which would skew results. Additionally, repetitions of text sentences are removed from the train, test, and development sets of the corpus”. 
 
-Download data
-#############
+Downloading the Data
+####################
 
 You can use the NeMo script to download MCV dataset from Hugging Face and get NeMo data manifests for Esperanto:
 
@@ -72,8 +72,8 @@ You will get the next data structure:
                 ├── train
                 └── validation
 
-Dataset preprocessing
-#################################
+Dataset Preprocessing
+#####################
 
 Next, we must clear the text data from punctuation and various “garbage” characters. In addition to deleting a standard set of elements (as in Kinyarwanda), you can compute  the frequency of characters in the train set and add the rarest (occurring less than ten times) to the list for deletion. 
 
@@ -118,7 +118,7 @@ Let's check:
 
   ['é', 'ǔ', 'á', '¨', 'Ŭ', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
 
-Next we will  check the data for anomalies in audio file (for example,  audio file with noise only). For this end, we check character rate (number of chars per second). For example,  If the char rate is too high (more than 15 chars per second), then something is wrong with the audio file. It is better to filter such data from the training dataset in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our example.
+Next we will check the data for anomalies in audio file (for example,  audio file with noise only). For this end, we check character rate (number of chars per second). For example, If the char rate is too high (more than 15 chars per second), then something is wrong with the audio file. It is better to filter such data from the training dataset in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our example.
 
 .. code-block:: python
 
@@ -156,7 +156,7 @@ Next we will  check the data for anomalies in audio file (for example,  audio fi
 
 
 Creating the Tarred Training Dataset
-#################################
+####################################
 
 The tarred dataset allows storing the dataset as large *.tar files instead of small separate audio files. It may speed up the training and minimizes the load when data is moved from storage to GPU nodes.
 
@@ -177,11 +177,11 @@ The NeMo toolkit provides a `script <https://github.com/NVIDIA/NeMo/blob/main/sc
       --sort_in_shards \
       --workers=-1
 
-**************************
+*****************
 Text Tokenization
-**************************
+*****************
 
-We use the standard `Byte-pair <https://en.wikipedia.org/wiki/Byte_pair_encoding>`_ encoding algorithm with 128, 512, and 1024 vocabulary size. We found that 128 works best for relatively small Esperanto dataset (~250 hours). For larger dataset, one can get better results with larger vocabulary size (512…1024 BPE tokens). 
+We use the standard `Byte-pair <https://en.wikipedia.org/wiki/Byte_pair_encoding>`_ encoding algorithm with 128, 512, and 1024 vocabulary size. We found that 128 works best for relatively small Esperanto dataset (~250 hours). For larger datasets, one can get better results with larger vocabulary size (512…1024 BPE tokens).
 
 .. code-block:: bash
 
@@ -194,19 +194,21 @@ We use the standard `Byte-pair <https://en.wikipedia.org/wiki/Byte_pair_encoding
       --tokenizer="spe" \
       --spe_type=bpe \  
 
-**************************
+*************************
 Training hyper-parameters
-**************************
+*************************
 
 The training parameters are defined in the `config file <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_ (general description of the `ASR configuration file <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/configs.html>`_). As an encoder, the `Conformer model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ is used here, the training parameters for which are already well configured based on the training English models. However, the set of optimal parameters may differ for a new language. In this section, we will look at the set of simple parameters that can improve recognition quality for a new language without digging into the details of the Conformer model too much.
 
-Batch size
-#################################
+Select Training Batch Size
+##########################
+
 We trained model on server with 16 V100 GPUs with 32 GB. We use a local batch size = 32 per GPU V100), so global batch size is 32x16=512. In general, we observed, that  global batch between 512 and 2048 works well for Conformer-CTC-Large model. One can  use   the `accumulate_grad_batches <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/conformer/conformer_ctc_bpe.yaml#L173>`_ parameter to increase the size of the global batch, which is equal  to *local_batch * num_gpu * accumulate_grad_batches*.
 
-Optimizer and Learning Rate Scheduler
-#################################
-The model was trained with AdamW optimizer and  CosineAnealing Learning Rate (LR) scheduler . We use Learning Rate warmup when LR goes from 0 to maximum LR to stabilize initial phase of training. The number of warmup steps determines how quickly the scheduler will reach the peak learning rate during model training. The recommended number of steps is approximately 10-20% of total training duration. We used 8,000-10,000 warmup steps.
+Selecting Optimizer and Learning Rate Scheduler
+###############################################
+
+The model was trained with AdamW optimizer and CosineAnealing Learning Rate (LR) scheduler. We use Learning Rate warmup when LR goes from 0 to maximum LR to stabilize initial phase of training. The number of warmup steps determines how quickly the scheduler will reach the peak learning rate during model training. The recommended number of steps is approximately 10-20% of total training duration. We used 8,000-10,000 warmup steps.
 
 Now we can plot our learning rate for CosineAnnealing schedule:
 
@@ -247,18 +249,19 @@ Now we can plot our learning rate for CosineAnnealing schedule:
     :width: 500px
         
 Numerical Precision
-#################################
+###################
+
 By default, it is recommended to use half-precision float (FP16 for V100 and BF16 for A100 GPU) to speed up the training process. However, training with  half-precision may  affect the convergence of the model, for example training loss  can explode. In this case, we recommend to decrease LR or switch to float32. 
 
-**************************
+********
 Training
-**************************
+********
 
 We use three main scenarios to train Espearnto ASR model:
 
 * Training from scratch.
-* Finetuning from ASR models  for other languages (English, Spanish, Italian).
-* Finetuning from an English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model.
+* Fine-tuning from ASR models  for other languages (English, Spanish, Italian).
+* Fine-tuning from an English SSL (`Self-supervised learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/ssl/intro.html?highlight=self%20supervised>`_) model.
 
 For the training of the `Conformer-CTC <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc>`_ model, we use `speech_to_text_ctc_bpe.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py>`_ with the default config `conformer_ctc_bpe.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. Here you can see the example of how to run this training:
 
@@ -307,11 +310,11 @@ The following table provides the results for training Esperanto Conformer-CTC-la
 |                                  |   1024   |     5.81   |     8.56    |
 +----------------------------------+----------+------------+-------------+
 
-BPE vocabulary with 128 size provides the lowest WER since  our  training dataset is l (~250 hours) is insufficient to small to train models with larger BPE vocabulary sizes. 
+BPE vocabulary with 128 size provides the lowest WER since our training dataset is l (~250 hours) is insufficient to small to train models with larger BPE vocabulary sizes.
 
-For finetuning from already trained ASR models, we use three different models:
+For fine-tuning from already trained ASR models, we use three different models:
 
-* Esnglish `stt_en_conformer_ctc_large <https://huggingface.co/nvidia/stt_en_conformer_ctc_large>`_ (several thousand hours of English speech). 
+* English `stt_en_conformer_ctc_large <https://huggingface.co/nvidia/stt_en_conformer_ctc_large>`_ (several thousand hours of English speech).
 * Spanish `stt_es_conformer_ctc_large <https://huggingface.co/nvidia/stt_es_conformer_ctc_large>`_ (1340 hours of Spanish speech).
 * Italian `stt_it_conformer_ctc_large <https://huggingface.co/nvidia/stt_it_conformer_ctc_large>`_ (487 hours of Italian speech).
 
@@ -321,7 +324,7 @@ To finetune a model with the same vocabulary size, just set the desired model vi
 
     +init_from_pretrained_model=${PRETRAINED_MODEL_NAME}
 
-as it is done in the Kinyarwanda example. If the size of the vocabulary differs from the one presented in the pretrained model, you need to change the vocabulary manually as done in the `finetuning tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
+If the size of the vocabulary differs from the one presented in the pretrained model, you need to change the vocabulary manually as done in the `finetuning tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_:
 
 .. code-block:: python
 
@@ -338,9 +341,9 @@ There is no need to change anything for the SSL model, it will replace the vocab
     ++init_from_nemo_model=${PRETRAINED_MODEL} \
 
 As the SSL model, we use `ssl_en_conformer_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/ssl_en_conformer_large>`_ which is trained using LibriLight corpus (~56k hrs of unlabeled English speech).
-All models for finetuning are available on `Nvidia Hugging Face <https://huggingface.co/nvidia>`_ or `NGC <https://catalog.ngc.nvidia.com/models>`_ repo. 
+All models for fine-tuning are available on `Nvidia Hugging Face <https://huggingface.co/nvidia>`_ or `NGC <https://catalog.ngc.nvidia.com/models>`_ repo.
 
-The following table shows all results for finetuning from pretrained models for the Conformer-CTC-large model and compares them with the model that was obtained by training from scratch (here we use BPE size 128 for all the models because it gives the best results).
+The following table shows all results for fine-tuning from pretrained models for the Conformer-CTC-large model and compares them with the model that was obtained by training from scratch (here we use BPE size 128 for all the models because it gives the best results).
 
 +----------------------------------+------------+-------------+
 | Training mode                    | DEV, WER % | TEST, WER % |
@@ -356,7 +359,7 @@ The following table shows all results for finetuning from pretrained models for 
 | Finetuning (SSL English)         |  **2.90**  |   **4.76**  |
 +----------------------------------+------------+-------------+
 
-We can also monitor  test WER behavior during training process using wandb plots (X - global step, Y - test WER):
+We can also monitor test WER behavior during training process using wandb plots (X - global step, Y - test WER):
 
 .. image:: ./images/test_wer_wandb.png
     :align: center
@@ -366,9 +369,9 @@ We can also monitor  test WER behavior during training process using wandb plots
 As you can see, the best way to get the Esperanto ASR model (the model can be found on `NGC <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_eo_conformer_ctc_large>`_ and `Hugging Face <https://huggingface.co/nvidia/stt_eo_conformer_ctc_large>`_) is finetuning from the pretrained SSL model for English.
 
 
-**************************
+********
 Decoding
-**************************
+********
 
 At the end of the training, several checkpoints (usually 5) and the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not improve the CTC models. However, it was possible to get an improvement in the range of 0.1-0.2% WER for some RNNT models. To make averaging, use the following command:
 
@@ -397,9 +400,9 @@ We listened to files with an anomaly high WER (>50%) and found many problematic 
     python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your_decoded_manifest_file>
 
 
-**************************
+**********************
 Training data analysis
-**************************
+**********************
 
 For an additional analysis of the training dataset, you can decode it using an already trained model. Train examples with a high error rate (WER > 50%) are likely to be problematic files. Removing them from the training set is preferred because a model can train text even for almost empty audio. We do not want this behavior from the ASR model.
 
