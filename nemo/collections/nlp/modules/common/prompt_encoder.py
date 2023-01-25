@@ -498,7 +498,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
 
         t = t + self.init_val
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
-        self.scale =  torch.nn.parameter.Parameter(data=20 * (1+torch.abs(torch.randn(self.total_virtual_tokens, 1))))
+        self.scale = torch.nn.parameter.Parameter(data=20 * (1 + torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         self.cos = torch.nn.CosineSimilarity(dim=0)
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
