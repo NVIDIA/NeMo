@@ -42,7 +42,9 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
     """
     Builds a slopes tensor.
     """
-    slopes = torch.Tensor(get_slopes(num_attention_heads_alibi) + [0] * (num_attention_heads - num_attention_heads_alibi)).cuda()
+    slopes = torch.Tensor(
+        get_slopes(num_attention_heads_alibi) + [0] * (num_attention_heads - num_attention_heads_alibi)
+    ).cuda()
     return slopes.unsqueeze(-1).unsqueeze(-1)
 
 
@@ -65,7 +67,9 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     Based on https://arxiv.org/bas/2108.12409
     """
 
-    def __init__(self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512):
+    def __init__(
+        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512
+    ):
         """
         Args:
             bidirectional: Whether to use bidirectional relative position embedding
