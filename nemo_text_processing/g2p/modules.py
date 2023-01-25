@@ -38,6 +38,13 @@ from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
 
+try:
+    from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
+
+    NLP_AVAILABLE = True
+except ImportError:
+    NLP_AVAILABLE = False
+
 
 class BaseG2p(ABC):
     def __init__(
@@ -58,10 +65,32 @@ class BaseG2p(ABC):
         self.word_tokenize_func = word_tokenize_func
         self.apply_to_oov_word = apply_to_oov_word
         self.mapping_file = mapping_file
+        self.heteronym_model = None  # heteronym classification model
 
     @abstractmethod
     def __call__(self, text: str) -> str:
         pass
+
+    def setup_heteronym_model(
+        self,
+        heteronym_model,
+        wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv",
+    ):
+        """
+        Add heteronym classification model to TTS preprocessing pipeline to disambiguate heteronyms.
+            Heteronym model has a list of supported heteronyms but only heteronyms specified in
+            wordid_to_phonemes_file will be converted to phoneme form during heteronym model inference;
+            the rest will be left in grapheme form.
+
+        Args:
+            heteronym_model: Initialized HeteronymClassificationModel
+            wordid_to_phonemes_file: Path to a file with mapping from wordid predicted by heteronym model to phonemes
+        """
+        if NLP_AVAILABLE:
+            self.heteronym_model = heteronym_model
+            self.heteronym_model.set_wordid_to_phonemes(wordid_to_phonemes_file)
+        else:
+            logging.warning(f"NLP is not available, heteronym model setup will be skipped")
 
 
 class EnglishG2p(BaseG2p):
@@ -383,8 +412,6 @@ class IPAG2P(BaseG2p):
         if self.heteronyms:
             self.heteronyms = {set_grapheme_case(het, case=self.grapheme_case) for het in self.heteronyms}
 
-        self.heteronym_model = None  # heteronym classification model to use during inference
-
     @staticmethod
     def _parse_phoneme_dict(
         phoneme_dict: Union[str, pathlib.Path, Dict[str, List[List[str]]]]
@@ -449,14 +476,6 @@ class IPAG2P(BaseG2p):
                 phoneme_dict_obj.update({word: prons})
 
         return phoneme_dict_obj
-
-    def setup_heteronym_model(
-        self,
-        heteronym_model,
-        wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv",
-    ):
-        self.heteronym_model = heteronym_model
-        self.heteronym_model.wordid_to_phonemes_file = wordid_to_phonemes_file
 
     def replace_dict(self, phoneme_dict: Union[str, pathlib.Path, Dict[str, List[List[str]]]]):
         """

@@ -14,6 +14,7 @@
 
 
 import json
+import os
 import tempfile
 from typing import List, Optional
 
@@ -54,13 +55,13 @@ class HeteronymClassificationModel(NLPModel):
         self.idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
         self.supported_heteronyms = list(self.homograph_dict.keys())
 
-        # TODO use tempfile here
         if cfg.class_labels.class_labels_file is None:
-            label_ids_file = "/tmp/label_ids.csv"
-            with open(label_ids_file, 'w') as f:
-                for idx in range(len(self.idx_to_wordid)):
-                    f.write(self.idx_to_wordid[idx] + "\n")
-            self.register_artifact("class_labels.class_labels_file", label_ids_file)
+            with tempfile.TemporaryDirectory() as dirname:
+                label_ids_file = os.path.join(dirname, "label_ids.csv")
+                with open(label_ids_file, 'w') as f:
+                    for idx in range(len(self.idx_to_wordid)):
+                        f.write(self.idx_to_wordid[idx] + "\n")
+                self.register_artifact("class_labels.class_labels_file", label_ids_file)
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.lang = self._cfg.get('lang', None)
@@ -80,9 +81,10 @@ class HeteronymClassificationModel(NLPModel):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            num_classes=num_classes, mode='micro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
+            num_classes=num_classes, mode='macro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
         )
 
+        # used for inference to convert predicted wordids to phonemes
         self.wordid_to_phonemes_file = None
         self.wordid_to_phonemes = None
 
@@ -160,7 +162,7 @@ class HeteronymClassificationModel(NLPModel):
             ]
         )
         logging.info(f"{split}_report: {report}")
-        logging.info(f"{split}_ACCURACY: {f1:.2f}%")
+        logging.info(f"{split}_f1: {f1:.2f}%")
         self.log(f"{split}_loss", avg_loss, prog_bar=True)
         self.log(f"{split}_precision", precision)
         self.log(f"{split}_f1", f1)
@@ -168,7 +170,6 @@ class HeteronymClassificationModel(NLPModel):
 
         f1_macro = report[report.index("macro") :].split("\n")[0].replace("macro avg", "").strip().split()[-2]
         f1_micro = report[report.index("micro") :].split("\n")[0].replace("micro avg", "").strip().split()[-2]
-
         self.log(f"{split}_f1_macro", torch.Tensor([float(f1_macro)]))
         self.log(f"{split}_f1_micro", torch.Tensor([float(f1_micro)]))
 
@@ -190,12 +191,14 @@ class HeteronymClassificationModel(NLPModel):
         return self.validation_epoch_end(outputs, "test")
 
     def set_wordid_to_phonemes(self, wordid_to_phonemes_file: str):
-        if wordid_to_phonemes_file is not None:
+        if wordid_to_phonemes_file is None or not os.path.exists(wordid_to_phonemes_file):
+            logging.warning(f"{wordid_to_phonemes_file} not found, skip setting wordid_to_phonemes.")
+        else:
             self.wordid_to_phonemes_file = wordid_to_phonemes_file
-
-        if self.wordid_to_phonemes_file is not None:
             self.wordid_to_phonemes = get_wordid_to_phonemes(self.wordid_to_phonemes_file)
+            logging.info(f"Wordid to phonemes file is set to {wordid_to_phonemes_file}")
 
+    # Functions for inference
     def _process_sentence(self, text: str, start_end: List[List[int]], predictions: List[str]):
         text_with_homograph_replaced = ""
         last_idx = 0
@@ -216,7 +219,6 @@ class HeteronymClassificationModel(NLPModel):
             text_with_homograph_replaced += text[last_idx:]
         return text_with_homograph_replaced
 
-    # Functions for inference
     @torch.no_grad()
     def disambiguate(
         self,
@@ -226,9 +228,14 @@ class HeteronymClassificationModel(NLPModel):
         wordid_to_phonemes_file: Optional[str] = None,
     ):
         """
-        Replaces homographs, supported by the model, with the phoneme form.
+        Replaces homographs, supported by the model, with the phoneme form (if wordid_to_phonemes_file)
+        or with predicted wordids.
 
         Args:
+            sentences: Sentences to use for inference
+            batch_size: batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
+            num_workers: number of workers for DataLoader
             wordid_to_phonemes_file: (Optional) file with mapping between wordid predicted by the model to phonemes
 
         Returns:
@@ -333,7 +340,7 @@ class HeteronymClassificationModel(NLPModel):
                 line["pred_wordid"] = all_preds[idx]
                 f_preds.write(json.dumps(line, ensure_ascii=False) + '\n')
 
-        print(f"Predictions save at {output_manifest}")
+        logging.info(f"Predictions save at {output_manifest}")
         return all_preds
 
     # Functions for processing data

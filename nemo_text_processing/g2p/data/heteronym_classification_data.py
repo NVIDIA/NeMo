@@ -91,17 +91,15 @@ class HeteronymClassificationDataset(Dataset):
                 example = self._prepare_sample(line[grapheme_field], cur_start_end, cur_homographs, cur_word_ids)
                 if example is None:
                     num_skipped += 1
-                    continue
+                else:
+                    example_dict = {
+                        "input_ids": example[0],
+                        "subtokens_mask": example[1],
+                        "target": example[2],  # None if self.with_labels is False
+                    }
+                    self.data.append(example_dict)
 
-                example_dict = {
-                    "input_ids": example[0],
-                    "subtokens_mask": example[1],
-                }
-                if with_labels:
-                    example_dict["target"] = example[-1]
-
-                self.data.append(example_dict)
-        logging.debug(f"Number of samples in {manifest}: {len(self.data)}, remove {num_skipped} lines")
+        logging.info(f"Number of samples in {manifest}: {len(self.data)}, remove {num_skipped} lines")
 
     def _prepare_sample(
         self,
@@ -122,6 +120,7 @@ class HeteronymClassificationDataset(Dataset):
         # drop example where sequence length exceeds max sequence length, +2 for special tokens
         length = len(self.tokenizer.text_to_tokens(sentence)) + 2
         if length > self.max_seq_len:
+            logging.debug(f"Sequence length exceeds max sequence length ({self.max_seq_len}): {sentence}.")
             return None
 
         # check the correctness on start-end indices
@@ -135,6 +134,8 @@ class HeteronymClassificationDataset(Dataset):
 
         if self.with_labels:
             target_word_ids = [self.LOSS_PAD_TOKEN]  # -100 to pad plain tokens
+        else:
+            target_word_ids = None  # for inference when labels are not available
 
         heteronym_span_idx = 0
         # split sentence by space and keep track of word boundaries
@@ -194,10 +195,8 @@ class HeteronymClassificationDataset(Dataset):
         if self.with_labels:
             target_word_ids.append(self.LOSS_PAD_TOKEN)
 
-        output = [input_ids, subtokens_mask]
-        if self.with_labels:
-            output.append(target_word_ids)
-        return output  # [input_ids, subtokens_mask, [Optional] target]
+        # target_word_ids are None for inference when labels are not available
+        return (input_ids, subtokens_mask, target_word_ids)
 
     def __len__(self):
         return len(self.data)

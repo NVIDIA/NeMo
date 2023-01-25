@@ -33,10 +33,20 @@ If the input manifest contains target "word_id", evaluation will be also perform
 
 To prepare dataset, see NeMo/scripts/dataset_processing/g2p/export_wikihomograph_data_to_manifest.py
 
+Inference form manifest:
+
 python heteronym_classification_inference.py \
     manifest="<Path to .json manifest>" \
     pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
-    output_manifest="<Path to .json manifest to save prediction>"
+    output_manifest="<Path to .json manifest to save prediction>" \
+    wordid_to_phonemes_file="<Path to a file with mapping from wordid predicted by the model to phonemes>"
+
+Interactive inference:
+
+python heteronym_classification_inference.py \
+    pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
+    wordid_to_phonemes_file="<Path to a file with mapping from wordid predicted by the model to phonemes>" # Optional
+        
 """
 
 
@@ -45,14 +55,12 @@ class TranscriptionConfig:
     # Required configs
     pretrained_model: str  # Path to a .nemo file or Name of a pretrained model
 
-    # .json manifest inference OR interactive mode
+    # path to .json manifest inference, if not provided or doesn't exist, interactive mode will be enabled
     manifest: Optional[str] = None  # Path to .json manifest
     output_manifest: Optional[
         str
     ] = "predictions.json"  # Path to .json manifest to save prediction, will be saved in "pred_text" field
     grapheme_field: str = "text_graphemes"  # name of the field in .json manifest for input grapheme text
-
-    interactive: bool = False  # set to True to enable interactive mode
 
     # mapping from wordid predicted by the model to phonemes
     wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv"
@@ -150,8 +158,7 @@ def main(cfg):
             logging.info("No 'word_id' values found, skipping evaluation.")
             if os.path.exists(cfg.errors_file):
                 os.remove(cfg.errors_file)
-
-    if cfg.interactive:
+    else:
         print('Entering interactive mode.')
         done = False
         while not done:
