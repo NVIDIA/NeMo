@@ -15,7 +15,6 @@
 
 import json
 import os
-import tempfile
 from typing import List, Optional
 
 import torch
@@ -56,12 +55,11 @@ class HeteronymClassificationModel(NLPModel):
         self.supported_heteronyms = list(self.homograph_dict.keys())
 
         if cfg.class_labels.class_labels_file is None:
-            with tempfile.TemporaryDirectory() as dirname:
-                label_ids_file = os.path.join(dirname, "label_ids.csv")
-                with open(label_ids_file, 'w') as f:
-                    for idx in range(len(self.idx_to_wordid)):
-                        f.write(self.idx_to_wordid[idx] + "\n")
-                self.register_artifact("class_labels.class_labels_file", label_ids_file)
+            label_ids_file = "/tmp/label_ids.csv"
+            with open(label_ids_file, 'w') as f:
+                for idx in range(len(self.idx_to_wordid)):
+                    f.write(self.idx_to_wordid[idx] + "\n")
+            self.register_artifact("class_labels.class_labels_file", label_ids_file)
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.lang = self._cfg.get('lang', None)
@@ -260,7 +258,8 @@ class HeteronymClassificationModel(NLPModel):
 
         all_preds = self._disambiguate(manifest=tmp_manifest, batch_size=batch_size, num_workers=num_workers,)
 
-        self.set_wordid_to_phonemes(wordid_to_phonemes_file)
+        if wordid_to_phonemes_file is not None:
+            self.set_wordid_to_phonemes(wordid_to_phonemes_file)
 
         output = []
         for sent_idx, sent_start_end in enumerate(start_end):

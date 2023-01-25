@@ -90,6 +90,8 @@ def read_wordids(wordid_map: str):
         tsv_file = csv.reader(f, delimiter="\t")
 
         for i, line in enumerate(tsv_file):
+            if i == 0:
+                continue
             grapheme = line[0]
             word_id = line[1]
             ipa_form = line[3]
@@ -100,12 +102,13 @@ def read_wordids(wordid_map: str):
     return homograph_dict, wordid_to_idx
 
 
-def get_wordid_to_phonemes(
-    wordid_to_phonemes_file: str = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv",
-):
+def get_wordid_to_phonemes(wordid_to_phonemes_file: str):
     """
     WikiHomograph and NeMo use slightly different phoneme sets, this function reads WikiHomograph word_ids to NeMo
-    IPA heteronyms mapping
+    IPA heteronyms mapping.
+
+    wordid_to_phonemes_file: Path to a file with mapping from wordid predicted by the model to phonemes, e.g.,
+        NeMo/scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv
     """
     if not os.path.exists(wordid_to_phonemes_file):
         raise ValueError(f"{wordid_to_phonemes_file} not found")
@@ -113,9 +116,7 @@ def get_wordid_to_phonemes(
     wordid_to_nemo_cmu = {}
     with open(wordid_to_phonemes_file, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
-            if i == 0:
-                continue
-            line = line.strip().split("\t")
+            line = line.strip().split("  ")
             wordid_to_nemo_cmu[line[0]] = line[1]
     return wordid_to_nemo_cmu
 

@@ -73,6 +73,7 @@ def main(cfg):
         epoch_time_logger = LogEpochTimeCallback()
         trainer.callbacks.extend([lr_logger, epoch_time_logger])
         trainer.fit(model)
+        logging.info("Training is complete")
 
     if cfg.do_testing:
         logging.info(

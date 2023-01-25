@@ -62,8 +62,9 @@ class TranscriptionConfig:
     ] = "predictions.json"  # Path to .json manifest to save prediction, will be saved in "pred_text" field
     grapheme_field: str = "text_graphemes"  # name of the field in .json manifest for input grapheme text
 
-    # mapping from wordid predicted by the model to phonemes
-    wordid_to_phonemes_file: Optional[str] = "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv"
+    # mapping from wordid predicted by the model to phonemes, e.g.,
+    # "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv"
+    wordid_to_phonemes_file: Optional[str] = None
 
     # if "word_id" targets are present in the manifest, evaluation will be performed and errors will be saved in errors_file
     errors_file: Optional[str] = None  # path to a file to save prediction errors
