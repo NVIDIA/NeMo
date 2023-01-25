@@ -80,9 +80,13 @@ def write_dataset_to_file(dataset, filename, detokenizer, remove_newlines):
                 continue
 
             item_object = {}
-            i = remove_newline_and_detokenize(item['inputs_pretokenized'].numpy().decode('utf-8'), detokenizer, remove_newlines)
+            i = remove_newline_and_detokenize(
+                item['inputs_pretokenized'].numpy().decode('utf-8'), detokenizer, remove_newlines
+            )
             item_object['input'] = i
-            t = remove_newline_and_detokenize(item['targets_pretokenized'].numpy().decode('utf-8'), detokenizer, remove_newlines)
+            t = remove_newline_and_detokenize(
+                item['targets_pretokenized'].numpy().decode('utf-8'), detokenizer, remove_newlines
+            )
             item_object['output'] = t
             if 'answer_choices' in item:
                 choices = [
@@ -118,11 +122,17 @@ def process_folder(data_folder, folder_name, output_folder, detokenizer, remove_
     if not os.path.exists(train_fname):
         print(f'Could not find {train_fname}')
         return
-    write_train_val_test_dataset_to_file(train_fname, folder_name, output_folder, detokenizer, 'train', remove_newlines)
+    write_train_val_test_dataset_to_file(
+        train_fname, folder_name, output_folder, detokenizer, 'train', remove_newlines
+    )
     if os.path.exists(valid_fname):
-        write_train_val_test_dataset_to_file(valid_fname, folder_name, output_folder, detokenizer, 'val', remove_newlines)
+        write_train_val_test_dataset_to_file(
+            valid_fname, folder_name, output_folder, detokenizer, 'val', remove_newlines
+        )
     if os.path.exists(test_fname):
-        write_train_val_test_dataset_to_file(test_fname, folder_name, output_folder, detokenizer, 'test', remove_newlines)
+        write_train_val_test_dataset_to_file(
+            test_fname, folder_name, output_folder, detokenizer, 'test', remove_newlines
+        )
 
 
 def process_all_folders(data_folder, output_folder, remove_newlines):
@@ -160,9 +170,7 @@ if __name__ == '__main__':
         help="Path to output folder where JSONL files will be written.",
     )
     parser.add_argument(
-        "--remove_newlines",
-        action="store_true",
-        help="Whether to remove newlines from the input and output.",
+        "--remove_newlines", action="store_true", help="Whether to remove newlines from the input and output.",
     )
     args = parser.parse_args()
     process_all_folders(args.p3_dataset_path, args.jsonl_output_path, args.remove_newlines)

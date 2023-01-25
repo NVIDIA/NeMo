@@ -66,7 +66,15 @@ def get_default_length_params():
     return length_params
 
 
-def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, check_sequence_parallel_and_checkpointing=True, **strategy_args):
+def megatron_gpt_generate(
+    model,
+    inputs,
+    tokenizer,
+    length_params,
+    sampling_params,
+    check_sequence_parallel_and_checkpointing=True,
+    **strategy_args,
+):
     # reproduce the old compute_prob method
     # a very special case
     if sampling_params['compute_logprob']:
@@ -319,7 +327,7 @@ def synced_generate(
     greedy=False,
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
-    check_sequence_parallel_and_checkpointing=True
+    check_sequence_parallel_and_checkpointing=True,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -349,7 +357,7 @@ def synced_generate(
                 "repetition_penalty": repetition_penalty,
                 "min_tokens_to_generate": min_tokens_to_generate,
             },
-            check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing
+            check_sequence_parallel_and_checkpointing=check_sequence_parallel_and_checkpointing,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
