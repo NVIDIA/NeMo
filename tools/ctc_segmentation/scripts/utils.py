@@ -117,12 +117,12 @@ def get_segments(
         segments = determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list)
 
         write_output(output_file, path_wav, segments, text, text_no_preprocessing, text_normalized)
-        
+
         # Also writes labels in audacity format
         output_file_audacity = output_file[:-4] + "_audacity.txt"
         write_labels_for_audacity(output_file_audacity, segments, text_no_preprocessing)
         logging.info(f"Label file for Audacity written to {output_file_audacity}.")
-        
+
         for i, (word, segment) in enumerate(zip(text, segments)):
             if i < 5:
                 logging.debug(f"{segment[0]:.2f} {segment[1]:.2f} {segment[2]:3.4f} {word}")
@@ -300,10 +300,9 @@ def write_output(
                     f"{start} {end} {score} | {text[i]} | {text_no_preprocessing[i]} | {text_normalized[i]}\n"
                 )
 
+
 def write_labels_for_audacity(
-    out_path: str,
-    segments: List[Tuple[float]],
-    text_no_preprocessing: str,
+    out_path: str, segments: List[Tuple[float]], text_no_preprocessing: str,
 ):
     """
     Write the segmentation output to a file ready to be imported in Audacity with the unprocessed text as labels
