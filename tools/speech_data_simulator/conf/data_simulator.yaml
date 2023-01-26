@@ -42,6 +42,7 @@ data_simulator:
   background_noise: # If bg noise is used, a noise source position must be passed for RIR mode
     add_bg: false # Add ambient background noise if true
     background_manifest: null # Path to background noise manifest file
+    noise_file_sample_size: 10 # Max number of noise source files to be included in one session
     snr: 60 # SNR for background noise (using average speaker power)
 
   speaker_enforcement:
