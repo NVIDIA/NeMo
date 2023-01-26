@@ -121,12 +121,102 @@ class MultiHeadAttn(nn.Module):
 
         n_head, d_head = self.n_head, self.d_head
 
+        # qkv net does all the projections for Q,K and V heads all at once
+        # head_x is shape B X T X (d_head x n_head)
         head_q, head_k, head_v = torch.chunk(self.qkv_net(inp), 3, dim=2)
 
+        # reshape to B X T X d_head X n_head
         head_q = head_q.view(inp.size(0), inp.size(1), n_head, d_head)
         head_k = head_k.view(inp.size(0), inp.size(1), n_head, d_head)
         head_v = head_v.view(inp.size(0), inp.size(1), n_head, d_head)
 
+        q = head_q.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)
+        k = head_k.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)
+        v = head_v.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)
+
+        attn_score = torch.bmm(q, k.transpose(1, 2))
+        attn_score.mul_(self.scale)
+
+        if attn_mask is not None:
+            attn_mask = attn_mask.unsqueeze(1).to(attn_score.dtype)
+            attn_mask = attn_mask.repeat(n_head, attn_mask.size(2), 1)
+            attn_score.masked_fill_(attn_mask.to(torch.bool), -float('inf'))
+
+        attn_prob = F.softmax(attn_score, dim=2)
+        attn_prob = self.dropatt(attn_prob)
+        attn_vec = torch.bmm(attn_prob, v)
+
+        attn_vec = attn_vec.view(n_head, inp.size(0), inp.size(1), d_head)
+        attn_vec = attn_vec.permute(1, 2, 0, 3).contiguous().view(inp.size(0), inp.size(1), n_head * d_head)
+
+        # linear projection
+        attn_out = self.o_net(attn_vec)
+        attn_out = self.drop(attn_out)
+
+        if self.pre_lnorm:
+            # residual connection
+            output = residual + attn_out
+        else:
+            # residual connection + layer normalization
+            output = self.layer_norm(residual + attn_out)
+
+        return output
+
+
+def variable(shape, device):
+    t = torch.empty(shape, device=device)
+    nn.init.xavier_uniform_(t)
+    return nn.Parameter(torch.autograd.Variable(t))
+
+
+class MultiHeadAttnReduction(nn.Module):
+    """uses pretrained K and Vs to reduce a sequence to a fixed number of embeddings"""
+    def __init__(
+        self,
+        n_head,
+        d_model,
+        d_head,
+        dropout,
+        n_embeddings=1,
+        dropatt=0.1,
+        pre_lnorm=False
+    ):
+        super(MultiHeadAttn, self).__init__()
+
+        self.n_head = n_head
+        self.d_model = d_model
+        self.d_head = d_head
+        self.scale = 1 / (d_head ** 0.5)
+        self.pre_lnorm = pre_lnorm
+
+        self.qnet = nn.Linear(d_model, n_head * d_head)
+        self.k = variable((n_head, d_head, n_embeddings))
+        self.v = variable((n_head, d_head, n_embeddings))
+
+        self.drop = nn.Dropout(dropout)
+        self.dropatt = nn.Dropout(dropatt)
+        self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
+        self.layer_norm = nn.LayerNorm(d_model)
+
+    def forward(self, inp, attn_mask=None):
+        return self._forward(inp, attn_mask)
+
+    def _forward(self, inp, attn_mask=None):
+        residual = inp
+
+        if self.pre_lnorm:
+            # layer normalization
+            inp = self.layer_norm(inp)
+
+        n_head, d_head = self.n_head, self.d_head
+
+        # head_q is shape B X T X (d_head x n_head)
+        head_q = self.q_net(inp)
+
+        # reshape to B X T X d_head X n_head
+        head_q = head_q.view(inp.size(0), inp.size(1), n_head, d_head)
+
+        # SAM - CONTINUE HERE
         q = head_q.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)
         k = head_k.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)
         v = head_v.permute(2, 0, 1, 3).reshape(-1, inp.size(1), d_head)

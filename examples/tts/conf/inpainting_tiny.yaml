@@ -184,7 +184,8 @@ model:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
     # n_layer: 6
     n_layer: 2
-    n_head: 1
+    # n_head: 1
+    n_head: 2
     d_model: ${model.symbols_embedding_dim}
     d_head: 64
     # d_inner: 1536
@@ -219,7 +220,8 @@ model:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     # n_layer: 6
     n_layer: 2
-    n_head: 1
+    # n_head: 1
+    n_head: 2
     d_model: ${model.symbols_embedding_dim_twice}
     d_head: 64
     # d_inner: 1536
