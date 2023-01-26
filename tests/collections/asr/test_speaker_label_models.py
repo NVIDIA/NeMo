@@ -18,6 +18,7 @@ import tempfile
 from unittest import TestCase
 
 import pytest
+import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -179,6 +180,7 @@ class TestEncDecSpeechLabelModel:
         lang_model = EncDecSpeakerLabelModel.from_pretrained(model_name)
         relative_filepath = "an4_speaker/an4/wav/an4_clstk/fash/an255-fash-b.wav"
         filename = os.path.join(test_data_dir, relative_filepath)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_manifest = os.path.join(tmpdir, 'manifest.json')
@@ -186,7 +188,7 @@ class TestEncDecSpeechLabelModel:
                 entry = {"audio_filepath": filename, "duration": 4.5, "label": 'en'}
                 fp.write(json.dumps(entry) + '\n')
 
-            embs, logits, gt_labels, mapped_labels = lang_model.batch_inference(temp_manifest)
+            embs, logits, gt_labels, mapped_labels = lang_model.batch_inference(temp_manifest, device=device)
             pred_label = mapped_labels[logits.argmax(axis=-1)[0]]
             true_label = mapped_labels[gt_labels[0]]
             assert pred_label == true_label
