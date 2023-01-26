@@ -84,10 +84,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             memory_efficient=memory_efficient,
         )
 
-        layernorm_cls = FastLayerNorm if memory_efficient else LayerNorm
-
         # multi-headed self-attention module
-        self.norm_self_att = layernorm_cls(d_model)
+        self.norm_self_att = torch.nn.LayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
@@ -129,14 +127,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         # second feed forward module
         if not self.memory_efficient:
-            self.norm_feed_forward2 = layernorm_cls(d_model)
+            self.norm_feed_forward2 = torch.nn.LayerNorm(d_model)
         self.feed_forward2 = ConformerFeedForward(
             d_model=d_model, d_ff=d_ff, dropout=dropout, memory_efficient=memory_efficient
         )
 
         self.dropout = nn.Dropout(dropout)
         if not self.memory_efficient:
-            self.norm_out = layernorm_cls(d_model)
+            self.norm_out = torch.nn.LayerNorm(d_model)
         if self.memory_efficient:
             from flash_attn.ops.layer_norm import DropoutAddLayerNorm
 
@@ -169,14 +167,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             x (torch.Tensor): (B, T, d_model)
         """
         residual = x
-        x = self.norm_feed_forward1(x)
-        x = self.feed_forward1(x)
-
-        if self.memory_efficient:
-            x = self.resid(x, residual)
-        else:
-            residual = residual + self.dropout(x)
-            x = self.norm_self_att(residual)
+        # x = self.norm_feed_forward1(x)
+        # x = self.feed_forward1(x)
+        #
+        # if self.memory_efficient:
+        #     x = self.resid(x, residual)
+        # else:
+        #     residual = residual + self.dropout(x)
+        #     x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(
                 query=x,
@@ -203,7 +201,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             )
         else:
             x = None
-        residual = residual + self.dropout(x)
+        if self.memory_efficient:
+            x = self.resid(x, residual)
+        else:
+            residual = residual + self.dropout(x)
+            x = self.norm_self_att(residual)
+
+        # we residual after norm, which might differentiate from the original logic.
+        residual = x
 
         if self.is_adapter_available():
             # Call the MHA adapters
@@ -216,7 +221,6 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             pack_ip = self.forward_enabled_adapters(pack_ip)
             residual = pack_ip['x']
 
-        x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
 
         if self.memory_efficient:
@@ -224,6 +228,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             residual = residual + self.dropout(x)
             x = self.norm_feed_forward2(residual)
+        residual = x
 
         x = self.feed_forward2(x)
         if self.memory_efficient:
