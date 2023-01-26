@@ -171,7 +171,7 @@ class TTSDataset(Dataset):
         super().__init__()
 
         index_cap = None
-        if cap := os.getenv('DATA_CAP') is not None:
+        if (cap := os.getenv('DATA_CAP')) is not None:
             index_cap = int(cap)
 
         # Initialize text tokenizer
@@ -208,7 +208,6 @@ class TTSDataset(Dataset):
         self.text_normalizer_call_kwargs = (
             text_normalizer_call_kwargs if text_normalizer_call_kwargs is not None else {}
         )
-
         # Initialize and read manifest file(s), filter out data by duration and ignore_file, compute base dir
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
