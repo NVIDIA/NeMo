@@ -323,21 +323,21 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def collate_fn(
-            self,
-            batch: List[
-                Tuple[
-                    np.ndarray,
-                    np.ndarray,
-                    np.ndarray,
-                    np.ndarray,
-                    int,
-                    int,
-                    bool,
-                    bool,
-                    Optional[np.ndarray],
-                    Optional[np.ndarray],
-                ]
-            ],
+        self,
+        batch: List[
+            Tuple[
+                np.ndarray,
+                np.ndarray,
+                np.ndarray,
+                np.ndarray,
+                int,
+                int,
+                bool,
+                bool,
+                Optional[np.ndarray],
+                Optional[np.ndarray],
+            ]
+        ],
     ) -> Union[
         Tuple[Tensor, Tensor, Tensor, Tensor, Any, Any, Any, Any],
         Tuple[Tensor, Tensor, Tensor, Tensor, Any, Any, Any, Any, Any, Any],
@@ -463,4 +463,3 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             np.array(self.all_audio_queries[idx], dtype=np.float),
             self.all_audio_lengths[idx],
         )
-
