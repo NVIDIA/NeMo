@@ -164,8 +164,8 @@ class MultiSpeakerSimulator(object):
         self._params = cfg
         # internal params
         self._manifest = read_manifest(self._params.data_simulator.manifest_filepath)
-        self._noise_samples = []
         self._speaker_samples = self._build_speaker_samples_map()
+        self._noise_samples = []
         self._sentence = None
         self._text = ""
         self._words = []
@@ -312,7 +312,7 @@ class MultiSpeakerSimulator(object):
 
     def _sample_noise_manifest(self, noise_manifest) -> list:
         """
-        Sample noise manifest to a specified size.
+        Sample noise manifest to a specified count `num_noise_files` for the current simulated audio session.
 
         Args:
             noise_manifest (list): 
@@ -322,11 +322,12 @@ class MultiSpeakerSimulator(object):
             sampled_noise_manifest (list):
                 List of noise samples to be used for the current session.
         """
-        pool_size = min(len(noise_manifest), self._params.data_simulator.background_noise.noise_file_sample_size)
-        if pool_size == 0:
-            sampled_noise_manifest = []
-        else:
-            sampled_noise_manifest = [ noise_manifest[k] for k in np.random.choice(range(len(noise_manifest)), pool_size, replace=False) ]
+        num_noise_files = min(len(noise_manifest), self._params.data_simulator.background_noise.num_noise_files)
+        sampled_noise_manifest = []
+        if num_noise_files > 0:
+            selected_noise_ids = np.random.choice(range(len(noise_manifest)), num_noise_files, replace=False)
+            for k in selected_noise_ids:
+                sampled_noise_manifest.append(noise_manifest[k])
         return sampled_noise_manifest
 
     def _get_speaker_samples(self, speaker_ids: List[str]) -> Dict[str, list]:
@@ -337,20 +338,20 @@ class MultiSpeakerSimulator(object):
             speaker_ids (list): LibriSpeech speaker IDs for each speaker in the current session.
         
         Returns:
-            spk_wav_alignment_dict (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
         """
-        spk_wav_alignment_dict = defaultdict(list)
+        speaker_wav_align_map = defaultdict(list)
         for sid in speaker_ids:
-            spk_wav_alignment_dict[sid] = self._speaker_samples[sid]
-        return spk_wav_alignment_dict
+            speaker_wav_align_map[sid] = self._speaker_samples[sid]
+        return speaker_wav_align_map
 
-    def _load_speaker_sample(self, spk_wav_alignment_dict: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
+    def _load_speaker_sample(self, speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
         """
         Load a sample for the selected speaker ID.
         The first alignment and word must be silence that determines the start of the alignments.
 
         Args:
-            spk_wav_alignment_dict (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
             speaker_ids (list): LibriSpeech speaker IDs for each speaker in the current session.
             speaker_turn (int): Current speaker turn.
         
@@ -358,8 +359,8 @@ class MultiSpeakerSimulator(object):
             file_path (str): Path to the desired audio file
         """
         speaker_id = speaker_ids[speaker_turn]
-        file_id = np.random.randint(0, max(len(spk_wav_alignment_dict[str(speaker_id)]) - 1, 1))
-        file_dict = spk_wav_alignment_dict[str(speaker_id)][file_id]
+        file_id = np.random.randint(0, max(len(speaker_wav_align_map[str(speaker_id)]) - 1, 1))
+        file_dict = speaker_wav_align_map[str(speaker_id)][file_id]
 
         # Check whether the first word is silence and insert a silence token if the first token is not silence.
         if file_dict['words'][0] != "":
@@ -571,7 +572,7 @@ class MultiSpeakerSimulator(object):
     def _add_file(
         self,
         audio_manifest: dict,
-        audio_file: torch.Tensor,
+        audio_file,
         sentence_word_count: int,
         max_word_count_in_sentence: int,
         max_samples_in_sentence: int,
@@ -659,21 +660,18 @@ class MultiSpeakerSimulator(object):
                     ),
                     0,
                 )
-            self._sentence = self._sentence.to(self._device)
             self._sentence = torch.cat(
                 (
                     self._sentence,
                     audio_file[start_cutoff + start_window_amount : start_cutoff + prev_dur_sample_count],
                 ),
                 0,
-            )
-            self._sentence = self._sentence.to(self._device)
+            ).to(self._device)
 
         else:
             self._sentence = torch.cat(
                 (self._sentence, audio_file[start_cutoff : start_cutoff + prev_dur_sample_count]), 0
-            )
-            self._sentence = self._sentence.to(self._device)
+            ).to(self._device)
 
         # windowing at the end of the sentence
         if (word_idx < len(audio_manifest['words'])) and self._params.data_simulator.session_params.window_type is not None:
@@ -690,8 +688,7 @@ class MultiSpeakerSimulator(object):
                     ],
                 ),
                 0,
-            )
-            self._sentence = self._sentence.to(self._device)
+            ).to(self._device)
 
             if end_window_amount > 0:  # include window
                 window = self._get_window(end_window_amount, start=False)
@@ -711,14 +708,13 @@ class MultiSpeakerSimulator(object):
                         ),
                     ),
                     0,
-                )
-                self._sentence = self._sentence.to(self._device)
+                ).to(self._device)
 
         del audio_file
         return sentence_word_count + current_word_count, len(self._sentence)
 
     def _build_sentence(
-        self, speaker_turn: int, speaker_ids: List[str], spk_wav_alignment_dict: Dict[str, list], max_samples_in_sentence: int
+        self, speaker_turn: int, speaker_ids: List[str], speaker_wav_align_map: Dict[str, list], max_samples_in_sentence: int
     ):
         """
         Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
@@ -727,7 +723,7 @@ class MultiSpeakerSimulator(object):
         Args:
             speaker_turn (int): Current speaker turn.
             speaker_ids (list): LibriSpeech speaker IDs for each speaker in the current session.
-            spk_wav_alignment_dict (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
             max_samples_in_sentence (int): Maximum length for sentence in terms of samples
         """
         # select speaker length
@@ -749,14 +745,14 @@ class MultiSpeakerSimulator(object):
 
         # build sentence
         while sentence_word_count < sl and sentence_sample_count < max_samples_in_sentence:
-            audio_manifest = self._load_speaker_sample(spk_wav_alignment_dict, speaker_ids, speaker_turn)
+            audio_manifest = self._load_speaker_sample(speaker_wav_align_map, speaker_ids, speaker_turn)
             if audio_manifest['audio_filepath'] in self._audio_read_buffer_dict:
                 audio_file, sr = self._audio_read_buffer_dict[audio_manifest['audio_filepath']]
             else:
                 audio_file, sr = sf.read(audio_manifest['audio_filepath'])
                 audio_file = torch.from_numpy(audio_file).to(self._device)
                 if audio_file.ndim > 1:
-                    audio_file = torch.mean(audio_file, 1, False)
+                    audio_file = torch.mean(audio_file, 1, False).to(self._device)
                 self._audio_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
 
             sentence_word_count, sentence_sample_count = self._add_file(
@@ -894,7 +890,7 @@ class MultiSpeakerSimulator(object):
 
         return new_start
 
-    def _get_background(self, len_array: int, power_array: float) -> torch.Tensor:
+    def _get_background(self, len_array: int, power_array: float):
         """
         Augment with background noise (inserting ambient background noise up to the desired SNR for the full clip).
 
@@ -946,6 +942,7 @@ class MultiSpeakerSimulator(object):
             start (int): Current start of the audio file being inserted.
             end (int): End of the audio file being inserted.
             speaker_id (int): LibriSpeech speaker ID for the current entry.
+        
         Returns:
             rttm_list (list): List of rttm entries
         """
@@ -982,6 +979,7 @@ class MultiSpeakerSimulator(object):
             speaker_id (int): LibriSpeech speaker ID for the current entry.
             rttm_filepath (str): Output rttm filepath.
             ctm_filepath (str): Output ctm filepath.
+        
         Returns:
             dict (dict): JSON entry
         """
@@ -1079,8 +1077,9 @@ class MultiSpeakerSimulator(object):
         basepath: str, 
         filename: str, 
         speaker_ids: List[str], 
-        spk_wav_alignment_dict: Dict[str, list], 
+        speaker_wav_align_map: Dict[str, list], 
         noise_samples: list,
+        device: torch.device,
         enforce_counter: int = 2
     ):
         """
@@ -1090,11 +1089,14 @@ class MultiSpeakerSimulator(object):
         Args:
             idx (int): Index for current session (out of total number of sessions).
             basepath (str): Path to output directory.
-            speaker_ids (list): List of speaker IDs that will be used in this session.
-            spk_wav_alignment_dict (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
             filename (str): Filename for output files.
+            speaker_ids (list): List of speaker IDs that will be used in this session.
+            speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            noise_samples (list): List of randomly sampled noise source files that will be used for generating this session.
+            device (torch.device): Device to use for generating this session.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
+        self._device = device
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
         self._set_speaker_volume()
@@ -1139,7 +1141,7 @@ class MultiSpeakerSimulator(object):
             ):
                 break
 
-            self._build_sentence(speaker_turn, speaker_ids, spk_wav_alignment_dict, max_samples_in_sentence)
+            self._build_sentence(speaker_turn, speaker_ids, speaker_wav_align_map, max_samples_in_sentence)
 
             length = len(self._sentence)
             start = self._add_silence_or_overlap(
@@ -1248,14 +1250,19 @@ class MultiSpeakerSimulator(object):
         num_sessions = self._params.data_simulator.session_config.num_sessions
         queue = []
 
+        # add radomly sampled arguments to a list(queue) for multiprocessing
         for sess_idx in range(num_sessions):
             filename = self._params.data_simulator.outputs.output_filename + f"_{sess_idx}"
             speaker_ids = self._get_speaker_ids()
-            spk_wav_alignment_dict = self._get_speaker_samples(speaker_ids)
+            speaker_wav_align_map = self._get_speaker_samples(speaker_ids)
             noise_samples = self._sample_noise_manifest(source_noise_manifest)
-            queue.append((sess_idx, basepath, filename, speaker_ids, spk_wav_alignment_dict, noise_samples))
+            if torch.cuda.is_available():
+                device = torch.device(f"cuda:{sess_idx % torch.cuda.device_count()}")
+            else:
+                device = self._device
+            queue.append((sess_idx, basepath, filename, speaker_ids, speaker_wav_align_map, noise_samples, device))
 
-        # In case of multiprocessing, we avoid loading potentially huge manifest and speaker sample files into memory.
+        # for multiprocessing speed, we avoid loading potentially huge manifest list and speaker sample files into each process.
         if num_workers > 1:
             self._manifest = None
             self._speaker_samples = None
@@ -1298,12 +1305,14 @@ class MultiSpeakerSimulator(object):
                 )
 
         tp.shutdown()
+
         wavlist.close()
         rttmlist.close()
         jsonlist.close()
         ctmlist.close()
         textlist.close()
-        logging.info(f"Simulator finished, results saved at: {basepath}")
+
+        logging.info(f"Data simulation has been completed, results saved at: {basepath}")
 
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
@@ -1394,7 +1403,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 if len(sublist) != 3:
                     raise Exception("Three coordinates must be provided for orientations")
 
-    def _generate_rir_gpuRIR(self) -> Tuple[torch.Tensor, int]:
+    def _generate_rir_gpuRIR(self):
         """
         Create simulated RIR using the gpuRIR library
 
@@ -1451,7 +1460,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         RIR_pad = RIR.shape[2] - 1
         return RIR, RIR_pad
 
-    def _generate_rir_pyroomacoustics(self) -> Tuple[torch.Tensor, int]:
+    def _generate_rir_pyroomacoustics(self)-> Tuple[torch.Tensor, int]:
         """
         Create simulated RIR using the pyroomacoustics library
 
@@ -1545,8 +1554,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         basepath: str, 
         filename: str, 
         speaker_ids: list, 
-        spk_wav_alignment_dict: dict, 
+        speaker_wav_align_map: dict, 
         noise_samples: list, 
+        device: torch.device,
         enforce_counter: int = 2
     ):
         """
@@ -1556,9 +1566,13 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             idx (int): Index for current session (out of total number of sessions).
             basepath (str): Path to output directory.
             filename (str): Filename for output files.
-            spk_wav_alignment_dict (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            speaker_ids (list): List of speaker IDs that will be used in this session.
+            speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
+            noise_samples (list): List of randomly sampled noise source files that will be used for generating this session.
+            device (torch.device): Device to use for generating this session.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
+        self._device = device
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
         self._set_speaker_volume()
@@ -1614,7 +1628,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 < self._params.data_simulator.session_params.end_buffer * self._params.data_simulator.sr
             ):
                 break
-            self._build_sentence(speaker_turn, speaker_ids, spk_wav_alignment_dict, max_samples_in_sentence)
+            self._build_sentence(speaker_turn, speaker_ids, speaker_wav_align_map, max_samples_in_sentence)
             augmented_sentence, length = self._convolve_rir(self._sentence, speaker_turn, RIR)
 
             start = self._add_silence_or_overlap(
