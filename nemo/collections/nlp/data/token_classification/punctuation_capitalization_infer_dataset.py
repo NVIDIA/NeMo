@@ -132,6 +132,9 @@ def get_features_infer(
     for q_i, (query_st, query_audio) in enumerate(zip(st, audios)):
         q_inp_ids, q_segment_ids, q_subtokens_mask, q_inp_mask, q_quantities_of_preceding_words = [], [], [], [], []
         q_audio_queries, q_audio_lengths = [], []
+        if query_audio and length < len(query_st):
+            logging.info(f'Ignoring query with id {q_i}')
+            continue
         for i in range(0, max(len(query_st), length) - length + step, step):
             subtokens = [tokenizer.cls_token] + query_st[i : i + length] + [tokenizer.sep_token]
             q_inp_ids.append(tokenizer.tokens_to_ids(subtokens))
@@ -320,21 +323,21 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def collate_fn(
-        self,
-        batch: List[
-            Tuple[
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                int,
-                int,
-                bool,
-                bool,
-                Optional[np.ndarray],
-                Optional[np.ndarray],
-            ]
-        ],
+            self,
+            batch: List[
+                Tuple[
+                    np.ndarray,
+                    np.ndarray,
+                    np.ndarray,
+                    np.ndarray,
+                    int,
+                    int,
+                    bool,
+                    bool,
+                    Optional[np.ndarray],
+                    Optional[np.ndarray],
+                ]
+            ],
     ) -> Union[
         Tuple[Tensor, Tensor, Tensor, Tensor, Any, Any, Any, Any],
         Tuple[Tensor, Tensor, Tensor, Tensor, Any, Any, Any, Any, Any, Any],
@@ -460,3 +463,4 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             np.array(self.all_audio_queries[idx], dtype=np.float),
             self.all_audio_lengths[idx],
         )
+
