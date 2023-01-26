@@ -81,6 +81,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
             conv_context_size=conv_context_size,
+            memory_efficient=memory_efficient,
         )
 
         layernorm_cls = FastLayerNorm if memory_efficient else LayerNorm
@@ -315,7 +316,13 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'
+        self,
+        d_model,
+        kernel_size,
+        norm_type='batch_norm',
+        conv_context_size=None,
+        pointwise_activation='glu_',
+        memory_efficient=False,
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
@@ -353,9 +360,12 @@ class ConformerConvolution(nn.Module):
         elif norm_type == 'instance_norm':
             self.batch_norm = nn.InstanceNorm1d(dw_conv_input_dim)
         elif norm_type == 'layer_norm':
-            from apex.contrib.layer_norm import FastLayerNorm
+            if memory_efficient:
+                from apex.contrib.layer_norm import FastLayerNorm
 
-            self.batch_norm = FastLayerNorm(dw_conv_input_dim)
+                self.batch_norm = FastLayerNorm(dw_conv_input_dim)
+            else:
+                self.batch_norm = torch.nn.LayerNorm(dw_conv_input_dim)
         elif norm_type.startswith('group_norm'):
             num_groups = int(norm_type.replace("group_norm", ""))
             self.batch_norm = nn.GroupNorm(num_groups=num_groups, num_channels=d_model)
