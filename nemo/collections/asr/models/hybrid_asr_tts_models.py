@@ -40,6 +40,7 @@ from nemo.core.classes import Dataset, ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
+from nemo.utils.exceptions import NeMoBaseException
 
 
 def _fuse_bn_in_conformer(asr_model: ASRModel):
@@ -115,12 +116,37 @@ class ASRWithTTSModel(ASRModel):
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return []
 
+    @classmethod
+    def _check_config(cls, cfg: DictConfig):
+        """
+        Check that all required fields are present in config
+        Structured configs are not compatible with model serialization, so we check fields manually
+        """
+        expected_fields = [
+            # asr
+            "asr_model",
+            "asr_model_path",
+            "asr_model_fuse_bn",
+            "asr_model_type",
+            # tts
+            "tts_model",
+            "tts_model_path",
+            # enhancer
+            "enhancer_model_path",
+            "enhancer_model",
+        ]
+        for field in expected_fields:
+            if field not in cfg:
+                raise NeMoBaseException(f"Field {field} is required in config (possibly should be None/null)")
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._full_init_guard = False
+
+        self._check_config(cfg)  # check all required keys are in config
+
         # setup datasets and optimizer after model is fully initialized
         # since it's done automatically, remove options from config
-        cfg = copy.deepcopy(cfg)
-        # avoid dataset and optim setup here
+        cfg = copy.deepcopy(cfg)  # copy to avoid modifying original config
         with open_dict(cfg):
             train_ds_cfg = cfg.pop("train_ds", None)
             validation_ds_cfg = cfg.pop("validation_ds", None)
@@ -130,40 +156,42 @@ class ASRWithTTSModel(ASRModel):
         super().__init__(cfg, trainer=trainer)
 
         # tts model
-        if cfg.tts_model_path is not None:
-            # if path provided, restore from path
-            self.tts_model = FastPitchModel.restore_from(cfg.tts_model_path, map_location=torch.device("cpu"))
-            self.cfg.tts_model_path = None  # set to None, after save/restore model will be instantiated from config
-            self.cfg.tts_model = self.tts_model.cfg
+        if cfg.tts_model is not None:
+            self.register_nemo_submodule("tts_model", config_field="tts_model", model=FastPitchModel(cfg.tts_model))
         else:
-            # init from config
-            assert cfg.tts_model is not None
-            self.tts_model = ModelPT.from_config_dict(cfg.tts_model)
-        self.register_submodule_artifacts(self.tts_model, "tts_model")
+            if cfg.tts_model_path is None:
+                raise NeMoBaseException("Either tts_model or tts_model_path should be provided")
+            self.register_nemo_submodule(
+                "tts_model",
+                config_field="tts_model",
+                model=FastPitchModel.restore_from(f"{cfg.tts_model_path}", map_location=torch.device("cpu")),
+            )
         self.tts_model.freeze()  # tts model should be always frozen
 
-        if cfg.asr_model_path is not None:
-            # if path provided, restore from path
-            self.asr_model = ASRModel.restore_from(cfg.asr_model_path, map_location=torch.device("cpu"))
-            self.cfg.asr_model_path = None  # set to None, after save/restore model will be instantiated from config
-            self.asr_model_type = self.ASRModelTypes.from_asr_model(self.asr_model)
-            self.cfg.asr_model_type = str(self.asr_model_type)
-        else:
-            # init from config
+        if cfg.asr_model is not None:
             self.asr_model_type = self.ASRModelTypes(cfg.asr_model_type)  # convert to enum
-            self.asr_model = self.asr_model_type.get_asr_cls()(cfg.asr_model)  # instantiate
-            self.cfg.asr_model = self.asr_model.cfg
-        self.register_submodule_artifacts(self.asr_model, "asr_model")
+            self.register_nemo_submodule(
+                "asr_model", config_field="asr_model", model=self.asr_model_type.get_asr_cls()(cfg.asr_model)
+            )
+        else:
+            if cfg.asr_model_path is None:
+                raise NeMoBaseException("Either asr_model or asr_model_path should be provided")
+            self.register_nemo_submodule(
+                "asr_model",
+                config_field="asr_model",
+                model=ASRModel.restore_from(f"{cfg.asr_model_path}", map_location=torch.device("cpu")),
+            )
+            self.asr_model_type = self.ASRModelTypes.from_asr_model(self.asr_model)
+            self.cfg.asr_model_type = f"{self.asr_model_type}"  # save to config
 
-        # replace BatchNorm with FusedBatchNorm
-        if cfg.get("asr_model_fuse_bn"):
+            # replace BatchNorm with FusedBatchNorm
+        if cfg.asr_model_fuse_bn:
             _fuse_bn_in_conformer(self.asr_model)
-            self.cfg.asr_model = self.asr_model.cfg
-            cfg.asr_model_fuse_bn = False  # no need to fuse anymore
+            self.cfg.asr_model_fuse_bn = False  # no need to fuse anymore
 
-        if cfg.enhancer_model_path is not None:
+        if cfg.enhancer_model_path is not None or cfg.enhancer_model is not None:
             # TODO: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
-            raise NotImplementedError
+            raise NotImplementedError("Enhancer is not supported yet")
 
         self._full_init_guard = True
 
@@ -191,6 +219,7 @@ class ASRWithTTSModel(ASRModel):
         asr_cfg: DictConfig,
         asr_model_type: Union[str, ASRModelTypes],
         tts_model_path: Union[str, Path],
+        enhancer_model_path: Optional[Union[str, Path]] = None,
         trainer: Trainer = None,
     ):
         """
@@ -201,12 +230,12 @@ class ASRWithTTSModel(ASRModel):
             dict(
                 asr_model_path=None,
                 asr_model=None,
-                tts_model_path=f"{tts_model_path}",
-                tts_model=None,
-                enhancer_model_path=None,
-                enhancer_model=None,
                 asr_model_type=f"{model_type}",
                 asr_model_fuse_bn=False,  # for training from scratch always should be False
+                tts_model_path=f"{tts_model_path}",
+                tts_model=None,
+                enhancer_model_path=f"{enhancer_model_path}" if enhancer_model_path is not None else None,
+                enhancer_model=None,
                 train_ds=None,
                 validation_ds=None,
                 test_ds=None,
@@ -214,9 +243,9 @@ class ASRWithTTSModel(ASRModel):
             )
         )
 
-        asr_cfg = copy.deepcopy(asr_cfg)  # copy not to avoid original config
+        asr_cfg = copy.deepcopy(asr_cfg)  # copy not to affect original config
         with open_dict(asr_cfg):
-            for subconfig_path in ["optim", "train_ds", "validation_ds", "test_ds"]:
+            for subconfig_path in ["train_ds", "validation_ds", "test_ds", "optim"]:
                 if subconfig_path in asr_cfg:
                     cfg[subconfig_path] = asr_cfg.pop(subconfig_path)
         cfg.asr_model = asr_cfg
@@ -227,6 +256,7 @@ class ASRWithTTSModel(ASRModel):
         cls,
         asr_model_path: Union[str, Path],
         tts_model_path: Union[str, Path],
+        enhancer_model_path: Optional[Union[str, Path]] = None,
         asr_model_fuse_bn: bool = False,
         cfg: Optional[DictConfig] = None,
         trainer: Optional[Trainer] = None,
@@ -236,6 +266,7 @@ class ASRWithTTSModel(ASRModel):
         Args:
             asr_model_path: path to .nemo ASR model checkpoint
             tts_model_path: path to .nemo TTS model checkpoint
+            enhancer_model_path: path to .nemo enhancer model checkpoint
             asr_model_fuse_bn: automatically fuse batchnorm layers in ASR model
             cfg: optional config for hybrid model
             trainer: Pytorch-Lightning trainer
@@ -250,7 +281,7 @@ class ASRWithTTSModel(ASRModel):
                     asr_model=None,
                     tts_model_path=f"{tts_model_path}",
                     tts_model=None,
-                    enhancer_model_path=None,
+                    enhancer_model_path=f"{enhancer_model_path}" if enhancer_model_path is not None else None,
                     enhancer_model=None,
                     asr_model_type=None,
                     asr_model_fuse_bn=asr_model_fuse_bn,
