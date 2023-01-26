@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from utils.constants import V_NEGATIVE_NUM_MAP, torch_dtype_map
+from typing import List, Union
 
 import torch
-from typing import List, Union
+from utils.constants import V_NEGATIVE_NUM_MAP, torch_dtype_map
 
 
 @torch.no_grad()
@@ -68,7 +67,6 @@ def viterbi_decoding(
     y_batch = y_batch.to(viterbi_device)
     T_batch = T_batch.to(viterbi_device)
     U_batch = U_batch.to(viterbi_device)
-
 
     # make tensor that we will put at timesteps beyond the duration of the audio
     padding_for_log_probs = V_NEGATIVE_NUM * torch.ones(

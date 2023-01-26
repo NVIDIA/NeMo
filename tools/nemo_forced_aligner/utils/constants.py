@@ -14,7 +14,6 @@
 
 import torch
 
-
 BLANK_TOKEN = "<b>"
 
 SPACE_TOKEN = "<space>"
