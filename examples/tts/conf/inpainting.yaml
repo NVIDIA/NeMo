@@ -196,7 +196,6 @@ model:
     d_model: ${model.symbols_embedding_dim}
     d_head: 64
     d_inner: 1536
-    d_inner: 128
     kernel_size: 3
     dropout: 0.1
     dropatt: 0.1
