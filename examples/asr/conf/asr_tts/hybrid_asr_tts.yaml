@@ -5,19 +5,19 @@ name: "Hybrid-Model-ASR-With-TTS"
 model:
   sample_rate: 16000
 
-  # inner models
+  # asr model
   asr_model_path: ???
   asr_model: null
+  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if instantiating from config, otherwise type is auto inferred
+  asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
 
+  # tts model
   tts_model_path: ???
   tts_model: null
 
+  # enhancer model
   enhancer_model_path: null
   enhancer_model: null
-
-  # options
-  asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if instantiating from config, otherwise type is auto inferred
-  asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
 
   train_ds:
     text_data:

@@ -24,6 +24,7 @@ from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.data.audio_to_text_dataset import get_audio_to_text_bpe_dataset_from_config
 from nemo.collections.asr.data.text_to_text import (
     TextOrAudioToTextBatch,
     TextToTextBatch,
@@ -438,7 +439,14 @@ class ASRWithTTSModel(ASRModel):
             return
 
         self._update_dataset_config(dataset_name='train', config=train_data_config)
-        asr_dataset = self.asr_model._setup_dataset_from_config(train_data_config)
+        asr_dataset = get_audio_to_text_bpe_dataset_from_config(
+            train_data_config,
+            local_rank=self.local_rank,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
+            tokenizer=self.asr_model.tokenizer,
+            preprocessor_cfg=self.asr_model.cfg.get("preprocessor", None),
+        )
 
         dataset_iterable = True
         if asr_dataset is not None and isinstance(asr_dataset, Dataset):
