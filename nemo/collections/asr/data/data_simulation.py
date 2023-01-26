@@ -345,7 +345,9 @@ class MultiSpeakerSimulator(object):
             speaker_wav_align_map[sid] = self._speaker_samples[sid]
         return speaker_wav_align_map
 
-    def _load_speaker_sample(self, speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
+    def _load_speaker_sample(
+        self, speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int
+    ) -> str:
         """
         Load a sample for the selected speaker ID.
         The first alignment and word must be silence that determines the start of the alignments.
@@ -718,7 +720,11 @@ class MultiSpeakerSimulator(object):
         return sentence_word_count + current_word_count, len(self._sentence)
 
     def _build_sentence(
-        self, speaker_turn: int, speaker_ids: List[str], speaker_wav_align_map: Dict[str, list], max_samples_in_sentence: int
+        self,
+        speaker_turn: int,
+        speaker_ids: List[str],
+        speaker_wav_align_map: Dict[str, list],
+        max_samples_in_sentence: int,
     ):
         """
         Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
@@ -1076,15 +1082,15 @@ class MultiSpeakerSimulator(object):
         return self.segment_manifest_filepath
 
     def _generate_session(
-        self, 
-        idx: int, 
-        basepath: str, 
-        filename: str, 
-        speaker_ids: List[str], 
-        speaker_wav_align_map: Dict[str, list], 
+        self,
+        idx: int,
+        basepath: str,
+        filename: str,
+        speaker_ids: List[str],
+        speaker_wav_align_map: Dict[str, list],
         noise_samples: list,
         device: torch.device,
-        enforce_counter: int = 2
+        enforce_counter: int = 2,
     ):
         """
         _generate_session function without RIR simulation.
@@ -1464,7 +1470,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         RIR_pad = RIR.shape[2] - 1
         return RIR, RIR_pad
 
-    def _generate_rir_pyroomacoustics(self)-> Tuple[torch.Tensor, int]:
+    def _generate_rir_pyroomacoustics(self) -> Tuple[torch.Tensor, int]:
         """
         Create simulated RIR using the pyroomacoustics library
 
@@ -1553,15 +1559,15 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         return output_sound, length
 
     def _generate_session(
-        self, 
-        idx: int, 
-        basepath: str, 
-        filename: str, 
-        speaker_ids: list, 
-        speaker_wav_align_map: dict, 
-        noise_samples: list, 
+        self,
+        idx: int,
+        basepath: str,
+        filename: str,
+        speaker_ids: list,
+        speaker_wav_align_map: dict,
+        noise_samples: list,
         device: torch.device,
-        enforce_counter: int = 2
+        enforce_counter: int = 2,
     ):
         """
         Generate a multispeaker audio session and corresponding label files.
