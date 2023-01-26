@@ -272,7 +272,7 @@ class MultiSpeakerSimulator(object):
 
         if len(self._manifest) == 0:
             raise Exception("Manifest file is empty. Check that the source path is correct.")
-    
+
     def clean_up(self):
         self._sentence = None
         self._words = []
@@ -326,7 +326,9 @@ class MultiSpeakerSimulator(object):
         if pool_size == 0:
             sampled_noise_manifest = []
         else:
-            sampled_noise_manifest = [ noise_manifest[k] for k in np.random.choice(range(len(noise_manifest)), pool_size, replace=False) ]
+            sampled_noise_manifest = [
+                noise_manifest[k] for k in np.random.choice(range(len(noise_manifest)), pool_size, replace=False)
+            ]
         return sampled_noise_manifest
 
     def _get_speaker_samples(self, speaker_ids: List[str]) -> Dict[str, list]:
@@ -344,7 +346,9 @@ class MultiSpeakerSimulator(object):
             spk_wav_alignment_dict[sid] = self._speaker_samples[sid]
         return spk_wav_alignment_dict
 
-    def _load_speaker_sample(self, spk_wav_alignment_dict: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
+    def _load_speaker_sample(
+        self, spk_wav_alignment_dict: List[dict], speaker_ids: List[str], speaker_turn: int
+    ) -> str:
         """
         Load a sample for the selected speaker ID.
         The first alignment and word must be silence that determines the start of the alignments.
@@ -614,7 +618,9 @@ class MultiSpeakerSimulator(object):
             and dur_sample_count < remaining_dur_sample_count
             and word_idx < len(audio_manifest['words'])
         ):
-            dur_sample_count = int(audio_manifest['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+            dur_sample_count = (
+                int(audio_manifest['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+            )
 
             # check the length of the generated sentence in terms of sample count (int).
             if curr_dur_sample_count + dur_sample_count > remaining_dur_sample_count:
@@ -676,7 +682,9 @@ class MultiSpeakerSimulator(object):
             self._sentence = self._sentence.to(self._device)
 
         # windowing at the end of the sentence
-        if (word_idx < len(audio_manifest['words'])) and self._params.data_simulator.session_params.window_type is not None:
+        if (
+            word_idx < len(audio_manifest['words'])
+        ) and self._params.data_simulator.session_params.window_type is not None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
                 prev_dur_sample_count,
                 remaining_dur_sample_count,
@@ -718,7 +726,11 @@ class MultiSpeakerSimulator(object):
         return sentence_word_count + current_word_count, len(self._sentence)
 
     def _build_sentence(
-        self, speaker_turn: int, speaker_ids: List[str], spk_wav_alignment_dict: Dict[str, list], max_samples_in_sentence: int
+        self,
+        speaker_turn: int,
+        speaker_ids: List[str],
+        spk_wav_alignment_dict: Dict[str, list],
+        max_samples_in_sentence: int,
     ):
         """
         Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
@@ -1074,14 +1086,14 @@ class MultiSpeakerSimulator(object):
         return self.segment_manifest_filepath
 
     def _generate_session(
-        self, 
-        idx: int, 
-        basepath: str, 
-        filename: str, 
-        speaker_ids: List[str], 
-        spk_wav_alignment_dict: Dict[str, list], 
+        self,
+        idx: int,
+        basepath: str,
+        filename: str,
+        speaker_ids: List[str],
+        spk_wav_alignment_dict: Dict[str, list],
         noise_samples: list,
-        enforce_counter: int = 2
+        enforce_counter: int = 2,
     ):
         """
         _generate_session function without RIR simulation.
@@ -1185,7 +1197,7 @@ class MultiSpeakerSimulator(object):
             prev_len_sample_count = length
 
         # background noise augmentation
-        if self._params.data_simulator.background_noise.add_bg: 
+        if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
                 bg = self._get_background(len(array), avg_power_array)
@@ -1233,7 +1245,7 @@ class MultiSpeakerSimulator(object):
             basepath = os.path.join(ROOT, output_dir)
         else:
             basepath = output_dir
-        
+
         source_noise_manifest = read_manifest(self._params.data_simulator.background_noise.background_manifest)
 
         wavlist = open(os.path.join(basepath, "synthetic_wav.list"), "w")
@@ -1540,14 +1552,14 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         return output_sound, length
 
     def _generate_session(
-        self, 
-        idx: int, 
-        basepath: str, 
-        filename: str, 
-        speaker_ids: list, 
-        spk_wav_alignment_dict: dict, 
-        noise_samples: list, 
-        enforce_counter: int = 2
+        self,
+        idx: int,
+        basepath: str,
+        filename: str,
+        speaker_ids: list,
+        spk_wav_alignment_dict: dict,
+        noise_samples: list,
+        enforce_counter: int = 2,
     ):
         """
         Generate a multispeaker audio session and corresponding label files.
