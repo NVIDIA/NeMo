@@ -12,8 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
+
+
 BLANK_TOKEN = "<b>"
 
 SPACE_TOKEN = "<space>"
 
 V_NEGATIVE_NUM = -1e30
+V_NEGATIVE_NUM_FP16 = -1e4
+V_NEGATIVE_NUM_BF16 = -1e8
+
+torch_dtype_map = {
+    'fp32': torch.float32,
+    'fp16': torch.float16,
+    'bf16': torch.bfloat16,
+}
+
+V_NEGATIVE_NUM_MAP = {
+    'fp32': V_NEGATIVE_NUM,
+    'fp16': V_NEGATIVE_NUM_FP16,
+    'bf16': V_NEGATIVE_NUM_BF16,
+}

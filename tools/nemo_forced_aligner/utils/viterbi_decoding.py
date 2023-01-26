@@ -13,91 +13,24 @@
 # limitations under the License.
 
 import torch
-from utils.constants import V_NEGATIVE_NUM
+from utils.constants import V_NEGATIVE_NUM_MAP, torch_dtype_map
 
 import torch
 from typing import List, Union
 
 
-class monitor_cuda_mem:
-    _CONTEXT_DEPTH = 0
-    ENABLED = True
-    EMPTY = False
-
-    def __init__(self, scope, empty=None, enabled: bool = None, precision: int = 4):
-        self.scope = scope
-        self.empty = empty if empty is not None else monitor_cuda_mem.EMPTY
-        self.enabled = enabled if enabled is not None else monitor_cuda_mem.ENABLED
-        self.precision = precision
-
-    def __enter__(self):
-        monitor_cuda_mem._CONTEXT_DEPTH += 1
-
-        if self.enabled:
-            self.print_pad()
-            print(f"|> {self.scope}")
-
-            self.initial_memory = torch.cuda.memory_allocated(0)
-
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.enabled:
-            if self.empty:
-                torch.cuda.empty_cache()
-
-            self.final_memory = torch.cuda.memory_allocated(0)
-
-            memory_diff = HumanBytes.format(self.final_memory - self.initial_memory, precision=self.precision)
-            self.print_pad()
-            print(f"{self.scope} |> {memory_diff}")
-
-        monitor_cuda_mem._CONTEXT_DEPTH -= 1
-
-    @classmethod
-    def print_pad(cls):
-        print('\t' * (cls._CONTEXT_DEPTH - 1), end='')
-
-
-# Shortened form of the answer from https://stackoverflow.com/a/63839503
-class HumanBytes:
-    # fmt: off
-    METRIC_LABELS: List[str] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
-    BINARY_LABELS: List[str] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
-    PRECISION_OFFSETS: List[float] = [5 * (0.1 ** x) for x in range(1, 22)]  # PREDEFINED FOR SPEED.
-    PRECISION_FORMATS: List[str] = [("{}{:." + str(ratio) + "f} {}") for ratio in range(len(PRECISION_OFFSETS))]  # PREDEFINED FOR SPEED.
-
-    # fmt: on
-
-    @staticmethod
-    def format(num: Union[int, float], metric: bool = False, precision: int = 1) -> str:
-        assert isinstance(num, (int, float)), "num must be an int or float"
-        assert isinstance(metric, bool), "metric must be a bool"
-        assert (
-            isinstance(precision, int) and precision >= 0 and precision <= len(HumanBytes.PRECISION_OFFSETS)
-        ), "precision must be an int (range 0-20)"
-
-        unit_labels = HumanBytes.METRIC_LABELS if metric else HumanBytes.BINARY_LABELS
-        last_label = unit_labels[-1]
-        unit_step = 1000 if metric else 1024
-        unit_step_thresh = unit_step - HumanBytes.PRECISION_OFFSETS[precision]
-
-        is_negative = num < 0
-        if is_negative:  # Faster than ternary assignment or always running abs().
-            num = abs(num)
-
-        for unit in unit_labels:
-            if num < unit_step_thresh:
-                break
-            if unit != last_label:
-                num /= unit_step
-
-        return HumanBytes.PRECISION_FORMATS[precision].format("-" if is_negative else "", num, unit)
-
-
 @torch.no_grad()
 @torch.inference_mode()
-def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
+def viterbi_decoding(
+    log_probs_batch,
+    y_batch,
+    T_batch,
+    U_batch,
+    viterbi_device,
+    viterbi_dtype,
+    cpu_offload_viterbi_probs,
+    cpu_offload_viterbi_pointers,
+):
     """
     Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
     Args:
@@ -111,6 +44,9 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         U_batch: tensor of shape (B, 1) - contains the lengths of y_batch (so we can ignore the parts of y_batch
             which are padding).
         viterbi_device: the torch device on which Viterbi decoding will be done.
+        viterbi_dtype: float, dtype of the tensors used for viterbi decoding.
+        cpu_offload_viterbi_probs: bool, determines if the viterbi probability tensor should be moved to CPU.
+        cpu_offload_viterbi_pointers: bool, determines if the viterbi backpointer tensor should be moved to CPU.
 
     Returns:
         alignments_batch: list of lists containing locations for the tokens we align to at each timestep.
@@ -120,35 +56,42 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     B, T_max, _ = log_probs_batch.shape
     U_max = y_batch.shape[1]
 
-    w
+    # if "16" in viterbi_dtype and U_max > (2 ** 16 - 1):
+    #     raise RuntimeError(f"Selected Viterbi dtype as '{viterbi_dtype}' but acoustic sequence ({T_max}) > 2^16. "
+    #                        f"16-bit float does not support such value !")
+
+    V_NEGATIVE_NUM = V_NEGATIVE_NUM_MAP[viterbi_dtype]
+    viterbi_dtype = torch_dtype_map[viterbi_dtype]
+
     # transfer all tensors to viterbi_device
-    log_probs_batch = log_probs_batch.to(viterbi_device)
+    log_probs_batch = log_probs_batch.to(device=viterbi_device, dtype=viterbi_dtype)
     y_batch = y_batch.to(viterbi_device)
     T_batch = T_batch.to(viterbi_device)
     U_batch = U_batch.to(viterbi_device)
 
+
     # make tensor that we will put at timesteps beyond the duration of the audio
-    padding_for_log_probs = V_NEGATIVE_NUM * torch.ones((B, T_max, 1), device=viterbi_device)
+    padding_for_log_probs = V_NEGATIVE_NUM * torch.ones(
+        (B, T_max, 1), dtype=log_probs_batch.dtype, device=viterbi_device
+    )
     # make log_probs_padded tensor of shape (B, T_max, V +1 ) where all of
     # log_probs_padded[:,:,-1] is the 'V_NEGATIVE_NUM'
     log_probs_padded = torch.cat((log_probs_batch, padding_for_log_probs), dim=2)
     # make log_probs_reordered tensor of shape (B, T_max, U_max)
     # it contains the log_probs for only the tokens that are in the Ground Truth, and in the order
     # that they occur
-    print(log_probs_batch.dtype, log_probs_batch.shape)
-    print()
     del log_probs_batch
+
     index = y_batch.unsqueeze(1).expand(-1, T_max, -1)
-    log_probs_padded = log_probs_padded.to(torch.bfloat16)
     log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=index)
-
-    torch.cuda.empty_cache()
-
-    print("Log probs reordered", log_probs_reordered.shape, log_probs_reordered.dtype)
+    del index
 
     # initialize tensors of viterbi probabilies and backpointers
-    v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered)
-    backpointers = -999 * torch.ones_like(v_matrix)
+    v_matrix_device = log_probs_reordered.device if not cpu_offload_viterbi_probs else 'cpu'
+    backpointers_device = log_probs_reordered.device if not cpu_offload_viterbi_pointers else 'cpu'
+
+    v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered, device=v_matrix_device)
+    backpointers = -999 * torch.ones_like(v_matrix, dtype=torch.int32, device=backpointers_device)
     v_matrix[:, 0, :2] = log_probs_reordered[:, 0, :2]
 
     # Make a letter_repetition_mask the same shape as y_batch
@@ -160,6 +103,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     letter_repetition_mask = y_batch - y_shifted_left
     letter_repetition_mask[:, :2] = 1  # make sure dont apply mask to first 2 tokens
     letter_repetition_mask = letter_repetition_mask == 0
+    letter_repetition_mask = letter_repetition_mask.to(v_matrix.device)
 
     # bp_absolute_template is a tensor we will need during the Viterbi decoding to convert our argmaxes from indices between 0 and 2,
     # to indices in the range (0, U_max-1) indicating from which token the mostly path up to that point came from.
@@ -170,7 +114,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     #   [0, 1, 2, ...,, U_max]
     #   ... rows repeated so there are B number of rows in total
     # ]
-    bp_absolute_template = torch.arange(U_max, device=viterbi_device).unsqueeze(0).repeat(B, 1)
+    bp_absolute_template = torch.arange(U_max, device=v_matrix.device).unsqueeze(0).expand(B, -1)
 
     for t in range(1, T_max):
 
@@ -201,7 +145,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
         # candidates_v_current are our candidate viterbi probabilities for every token position, from which
         # we will pick the max and record the argmax
-        candidates_v_current = v_prev_dup + e_current.unsqueeze(2)
+        candidates_v_current = v_prev_dup + e_current.to(v_matrix.device).unsqueeze(2)
         v_current, bp_relative = torch.max(candidates_v_current, dim=2)
 
         # convert our argmaxes from indices between 0 and 2, to indices in the range (0, U_max-1) indicating
@@ -211,6 +155,8 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         # update our tensors containing all the viterbi probabilites and backpointers
         v_matrix[:, t, :] = v_current
         backpointers[:, t, :] = bp_absolute
+
+    del log_probs_padded, log_probs_reordered
 
     # trace backpointers TODO: parallelize over batch_size
     alignments_batch = []

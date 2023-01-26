@@ -14,10 +14,11 @@
 
 import json
 import os
+import contextlib
 
 import soundfile as sf
 import torch
-from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM, torch_dtype_map
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
@@ -283,7 +284,9 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, align_using_pred_text):
+def get_batch_tensors_and_boundary_info(
+    manifest_lines_batch, model, separator, align_using_pred_text, autocast_enabled, autocast_dtype
+):
     """
     Returns:
         log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
@@ -292,7 +295,26 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
             for writing the CTM files with the human-readable alignments.
         pred_text_list - this is a list of the transcriptions from our model which we will save to our output JSON
             file if align_using_pred_text is True.
+        autocast_enabled: bool, whether autocast is enabled or not.
+        autocast_dtype: str, used for selection of autocast dtype.
     """
+    # setup AMP (optional)
+    if (
+        autocast_enabled
+        and torch.cuda.is_available()
+        and hasattr(torch.cuda, 'amp')
+        and hasattr(torch.cuda.amp, 'autocast')
+    ):
+        print("AMP enabled!")
+        autocast = torch.cuda.amp.autocast
+
+    else:
+
+        @contextlib.contextmanager
+        def autocast(enabled=False, dtype=None):
+            yield
+
+    autocast_dtype = torch_dtype_map[autocast_dtype]
 
     # get hypotheses by calling 'transcribe'
     # we will use the output log_probs, the duration of the log_probs,
@@ -300,7 +322,8 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
     with torch.no_grad():
-        hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+        with autocast(enabled=autocast_enabled, dtype=autocast_dtype):
+            hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
 
     log_probs_list_batch = []
     T_list_batch = []

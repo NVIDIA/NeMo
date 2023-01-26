@@ -138,7 +138,8 @@ def make_ctm(
             with sf.SoundFile(manifest_line["audio_filepath"]) as f:
                 audio_file_duration = f.frames / f.samplerate
 
-        with open(os.path.join(output_dir, f"{utt_id}.ctm"), "w") as f_ctm:
+        f_ctm_path = os.path.join(output_dir, f"{utt_id}.ctm")
+        with open(f_ctm_path, "w") as f_ctm:
             for boundary_info_ in boundary_info_utt:  # loop over every token/word/segment
                 text = boundary_info_["text"]
                 start_sample = boundary_info_["t_start"] * timestep_to_sample_ratio
@@ -159,6 +160,8 @@ def make_ctm(
                     text = text.replace(" ", SPACE_TOKEN)
 
                     f_ctm.write(f"{utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
+
+        print("Generated CTM file at path :", f_ctm_path)
 
     return None
 
@@ -207,3 +210,5 @@ def make_new_manifest(
             new_line = json.dumps(data)
 
             fout.write(f"{new_line}\n")
+
+    print("Finished writing manifest at path:", original_manifest_filepath)

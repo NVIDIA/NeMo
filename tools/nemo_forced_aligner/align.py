@@ -29,6 +29,7 @@ from utils.make_output_files import make_ctm, make_new_manifest
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -54,15 +55,27 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
+    batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
     align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
         as the 'ground truth' for the forced alignment. 
     transcribe_device: None, or a string specifying the device that will be used for generating log-probs (i.e. "transcribing").
         The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
         (otherwise will set it to 'cpu').
+    transcribe_dtype: A str representing the dtype for autocast (if enabled) for transcription.
+        Can be "fp32", "fp16" or "bf16" (if supported by hardware). Default if "fp32".
+    transcribe_amp: A bool flag, determining whether to use Automatic Mixed Precision when generating transcripts.
+        Set to False by default. The dtype of autocast is determined by `transcribe_dtype`.
     viterbi_device: None, or string specifying the device that will be used for doing Viterbi decoding. 
         The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
         (otherwise will set it to 'cpu').
-    batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+    viterbi_dtype:  A str representing the dtype for viterbi calculations.
+        Can be "fp32", "fp16" or "bf16" (if supported by hardware). Default if "fp32".
+    cpu_offload_transcript_probs: bool. Determines if the generated transcription tensor should be forced onto CPU
+        after prediction. Used for very long files that must be aligned. Set to False by default.
+    cpu_offload_viterbi_probs: bool. Determines if the viterbi probability tensor is forced onto the CPU.
+        Used for very long files that must be aligned. Set to False by default.
+    cpu_offload_viterbi_pointers: bool. Determines if the viterbi backpointer tensor is forced onto the CPU.
+        Used for very long files that must be aligned. Set to False by default.
     additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
         files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. 
@@ -86,6 +99,13 @@ Arguments:
 
 
 @dataclass
+class ModelChangeConfig:
+
+    # Sub-config for changes specific to the Conformer Encoder
+    conformer: ConformerChangeConfig = ConformerChangeConfig()
+
+
+@dataclass
 class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
@@ -95,14 +115,27 @@ class AlignmentConfig:
     output_dir: Optional[str] = None
 
     # General configs
-    align_using_pred_text: bool = False
-    transcribe_device: Optional[str] = None
-    viterbi_device: Optional[str] = None
     batch_size: int = 1
+    align_using_pred_text: bool = False
     additional_ctm_grouping_separator: Optional[str] = None
     remove_blank_tokens_from_ctm: bool = False
     minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
+
+    # Compute and memory config
+    transcribe_device: Optional[str] = None
+    transcribe_dtype: str = 'fp32'  # can be fp32, fp16 or bf16 (if supported)
+    transcribe_amp: bool = False
+
+    viterbi_device: Optional[str] = None
+    viterbi_dtype: str = 'fp32'  # can be fp32, fp16 or bf16 (if supported)
+
+    cpu_offload_transcript_probs: bool = False
+    cpu_offload_viterbi_probs: bool = False
+    cpu_offload_viterbi_pointers: bool = False
+
+    # Model change config
+    model_change: ModelChangeConfig = ModelChangeConfig()
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -137,6 +170,12 @@ def main(cfg: AlignmentConfig):
 
     if cfg.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
+
+    if cfg.transcribe_dtype not in ['fp32', 'fp16', 'bf16']:
+        raise ValueError(f"cfg.transcribe_dtype must be one of ['fp32', 'fp16', 'bf16']")
+
+    if cfg.viterbi_dtype not in ['fp32', 'fp16', 'bf16']:
+        raise ValueError(f"cfg.viterbi_dtype must be one of ['fp32', 'fp16', 'bf16']")
 
     # Validate manifest contents
     if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):
@@ -178,96 +217,124 @@ def main(cfg: AlignmentConfig):
             'it may help to change both devices to be the CPU.'
         )
 
+    if cfg.cpu_offload_transcript_probs:
+        logging.info("Transcript logprobs tensor will be forced onto cpu (`cpu_offload_transcript_probs` is set)")
+
+    if cfg.cpu_offload_viterbi_probs:
+        logging.info("Viterbi logprobs tensor will be forced onto cpu (`cpu_offload_viterbi_probs` is set)")
+
+    if cfg.cpu_offload_viterbi_pointers:
+        logging.info("Viterbi backpointers tensor will be forced onto cpu (`cpu_offload_viterbi_pointers` is set)")
+
     # load model
-    model, _ = setup_model(cfg, transcribe_device)
+    with torch.no_grad(), torch.inference_mode():
+        model, _ = setup_model(cfg, transcribe_device)
 
-    if not isinstance(model, EncDecCTCModel):
-        raise NotImplementedError(
-            f"Model {cfg.model_name} is not an instance of NeMo EncDecCTCModel."
-            " Currently only instances of EncDecCTCModels are supported"
-        )
+        if not isinstance(model, EncDecCTCModel):
+            raise NotImplementedError(
+                f"Model {cfg.model_name} is not an instance of NeMo EncDecCTCModel."
+                " Currently only instances of EncDecCTCModels are supported"
+            )
 
-    if cfg.minimum_timestamp_duration > 0:
-        logging.warning(
-            f"cfg.minimum_timestamp_duration has been set to {cfg.minimum_timestamp_duration} seconds. "
-            "This may cause the alignments for some tokens/words/additional segments to be overlapping."
-        )
+        if cfg.minimum_timestamp_duration > 0:
+            logging.warning(
+                f"cfg.minimum_timestamp_duration has been set to {cfg.minimum_timestamp_duration} seconds. "
+                "This may cause the alignments for some tokens/words/additional segments to be overlapping."
+            )
 
-    # get start and end line IDs of batches
-    starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
-
-    if cfg.align_using_pred_text:
-        # record pred_texts to save them in the new manifest at the end of this script
-        pred_text_all_lines = []
-    else:
-        pred_text_all_lines = None
-
-    # get alignment and save in CTM batch-by-batch
-    for start, end in zip(starts, ends):
-        manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
-
-        (
-            log_probs_batch,
-            y_batch,
-            T_batch,
-            U_batch,
-            token_info_batch,
-            word_info_batch,
-            segment_info_batch,
-            pred_text_batch,
-        ) = get_batch_tensors_and_boundary_info(
-            manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
-        )
+        # get start and end line IDs of batches
+        starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
         if cfg.align_using_pred_text:
-            pred_text_all_lines.extend(pred_text_batch)
+            # record pred_texts to save them in the new manifest at the end of this script
+            pred_text_all_lines = []
+        else:
+            pred_text_all_lines = None
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+        # get alignment and save in CTM batch-by-batch
+        for start, end in zip(starts, ends):
+            manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        make_ctm(
-            token_info_batch,
-            alignments_batch,
-            manifest_lines_batch,
-            model,
-            cfg.model_downsample_factor,
-            os.path.join(cfg.output_dir, "tokens"),
-            cfg.remove_blank_tokens_from_ctm,
-            cfg.audio_filepath_parts_in_utt_id,
-            cfg.minimum_timestamp_duration,
-        )
-
-        make_ctm(
-            word_info_batch,
-            alignments_batch,
-            manifest_lines_batch,
-            model,
-            cfg.model_downsample_factor,
-            os.path.join(cfg.output_dir, "words"),
-            False,  # dont try to remove blank tokens because we dont expect them to be there anyway
-            cfg.audio_filepath_parts_in_utt_id,
-            cfg.minimum_timestamp_duration,
-        )
-
-        if cfg.additional_ctm_grouping_separator:
-            make_ctm(
+            (
+                log_probs_batch,
+                y_batch,
+                T_batch,
+                U_batch,
+                token_info_batch,
+                word_info_batch,
                 segment_info_batch,
+                pred_text_batch,
+            ) = get_batch_tensors_and_boundary_info(
+                manifest_lines_batch,
+                model,
+                cfg.additional_ctm_grouping_separator,
+                cfg.align_using_pred_text,
+                autocast_enabled=cfg.transcribe_amp,
+                autocast_dtype=cfg.transcribe_dtype,
+            )
+
+            if cfg.align_using_pred_text:
+                pred_text_all_lines.extend(pred_text_batch)
+
+            if cfg.cpu_offload_transcript_probs:
+                model = model.cpu()
+                log_probs_batch = log_probs_batch.cpu()
+
+            alignments_batch = viterbi_decoding(
+                log_probs_batch,
+                y_batch,
+                T_batch,
+                U_batch,
+                viterbi_device,
+                cfg.viterbi_dtype,
+                cfg.cpu_offload_viterbi_probs,
+                cfg.cpu_offload_viterbi_pointers,
+            )
+
+            make_ctm(
+                token_info_batch,
                 alignments_batch,
                 manifest_lines_batch,
                 model,
                 cfg.model_downsample_factor,
-                os.path.join(cfg.output_dir, "additional_segments"),
+                os.path.join(cfg.output_dir, "tokens"),
+                cfg.remove_blank_tokens_from_ctm,
+                cfg.audio_filepath_parts_in_utt_id,
+                cfg.minimum_timestamp_duration,
+            )
+
+            make_ctm(
+                word_info_batch,
+                alignments_batch,
+                manifest_lines_batch,
+                model,
+                cfg.model_downsample_factor,
+                os.path.join(cfg.output_dir, "words"),
                 False,  # dont try to remove blank tokens because we dont expect them to be there anyway
                 cfg.audio_filepath_parts_in_utt_id,
                 cfg.minimum_timestamp_duration,
             )
 
-    make_new_manifest(
-        cfg.output_dir,
-        cfg.manifest_filepath,
-        cfg.additional_ctm_grouping_separator,
-        cfg.audio_filepath_parts_in_utt_id,
-        pred_text_all_lines,
-    )
+            if cfg.additional_ctm_grouping_separator:
+                make_ctm(
+                    segment_info_batch,
+                    alignments_batch,
+                    manifest_lines_batch,
+                    model,
+                    cfg.model_downsample_factor,
+                    os.path.join(cfg.output_dir, "additional_segments"),
+                    False,  # dont try to remove blank tokens because we dont expect them to be there anyway
+                    cfg.audio_filepath_parts_in_utt_id,
+                    cfg.minimum_timestamp_duration,
+                )
+
+        make_new_manifest(
+            cfg.output_dir,
+            cfg.manifest_filepath,
+            cfg.additional_ctm_grouping_separator,
+            cfg.audio_filepath_parts_in_utt_id,
+            pred_text_all_lines,
+        )
 
     return None
 

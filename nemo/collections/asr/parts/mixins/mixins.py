@@ -428,6 +428,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             self.cfg.encoder.self_attention_model = self_attention_model
             self.cfg.encoder.att_context_size = att_context_size
 
+        logging.info("Attention model changed !")
+
     def conformer_stream_step(
         self,
         processed_signal: torch.Tensor,
