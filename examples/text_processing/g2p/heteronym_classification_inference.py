@@ -114,7 +114,9 @@ def main(cfg):
 
     logging.info(f'Config Params: {model._cfg}')
 
-    if cfg.manifest is not None and os.path.exists(cfg.manifest):
+    if cfg.manifest is not None:
+        if not os.path.exists(cfg.manifest):
+            raise ValueError(f"{cfg.manifest} not found.")
         with torch.no_grad():
             model.disambiguate_manifest(
                 manifest=cfg.manifest,
