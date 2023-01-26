@@ -17,6 +17,7 @@ import multiprocessing
 import os
 import shutil
 import warnings
+from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import h5py
@@ -163,6 +164,7 @@ class MultiSpeakerSimulator(object):
         self._params = cfg
         # internal params
         self._manifest = read_manifest(self._params.data_simulator.manifest_filepath)
+        self._speaker_samples = self._build_speaker_samples_map()
         self._sentence = None
         self._text = ""
         self._words = []
@@ -270,6 +272,14 @@ class MultiSpeakerSimulator(object):
         if len(self._manifest) == 0:
             raise Exception("Manifest file is empty. Check that the source path is correct.")
 
+    def clean_up(self):
+        self._sentence = None
+        self._words = []
+        self._alignments = []
+        self._audio_read_buffer_dict = {}
+        self._noise_read_buffer_dict = {}
+        torch.cuda.empty_cache()
+
     def _get_speaker_ids(self) -> List[str]:
         """
         Randomly select speaker IDs from the loaded manifest file.
@@ -277,15 +287,26 @@ class MultiSpeakerSimulator(object):
         Returns:
             speaker_ids (list): Speaker IDs
         """
-        speaker_ids = []
-        s = 0
-        while s < self._params.data_simulator.session_config.num_speakers:
-            file = self._manifest[np.random.randint(0, len(self._manifest) - 1)]
-            speaker_id = file['speaker_id']
-            if speaker_id not in speaker_ids:  # ensure speaker IDs are not duplicated
-                speaker_ids.append(speaker_id)
-                s += 1
+        all_speaker_ids = list(self._speaker_samples.keys())
+        idx_list = np.random.permutation(len(all_speaker_ids))[
+            : self._params.data_simulator.session_config.num_speakers
+        ]
+        speaker_ids = [all_speaker_ids[i] for i in idx_list]
         return speaker_ids
+
+    def _build_speaker_samples_map(self) -> Dict:
+        """
+        Build a dictionary for mapping speaker ID to their list of samples
+
+        Returns:
+            speaker_samples (dict[list])
+        """
+        speaker_samples = defaultdict(list)
+        logging.info("Building speaker to samples map...")
+        for sample in tqdm(self._manifest, total=len(self._manifest)):
+            speaker_id = sample['speaker_id']
+            speaker_samples[speaker_id].append(sample)
+        return speaker_samples
 
     def _get_speaker_samples(self, speaker_ids: List[str]) -> Dict[str, list]:
         """
@@ -296,14 +317,9 @@ class MultiSpeakerSimulator(object):
         Returns:
             speaker_lists (dict): Dictionary of manifest lines per speaker
         """
-        speaker_lists = {}
-        for i in range(self._params.data_simulator.session_config.num_speakers):
-            speaker_lists[str(speaker_ids[i])] = []
-        # loop over manifest and add files corresponding to each speaker to each sublist
-        for file in self._manifest:
-            new_speaker_id = file['speaker_id']
-            if new_speaker_id in speaker_ids:
-                speaker_lists[str(new_speaker_id)].append(file)
+        speaker_lists = defaultdict(list)
+        for sid in speaker_ids:
+            speaker_lists[sid] = self._speaker_samples[sid]
         return speaker_lists
 
     def _load_speaker_sample(self, speaker_lists: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
@@ -348,7 +364,7 @@ class MultiSpeakerSimulator(object):
         total = np.sum(dominance)
         if total == 0:
             for i in range(len(dominance)):
-                dominance[i] += min_dominance
+                dominance[i] += self._params.data_simulator.session_params.min_dominance
         # scale accounting for min_dominance which has to be added after
         dominance = (dominance / total) * (
             1
@@ -675,6 +691,7 @@ class MultiSpeakerSimulator(object):
                 )
                 self._sentence = self._sentence.to(self._device)
 
+        del audio_file
         return sentence_word_count + current_word_count, len(self._sentence)
 
     def _build_sentence(
@@ -700,11 +717,12 @@ class MultiSpeakerSimulator(object):
         )
 
         # initialize sentence, text, words, alignments
-        self._sentence = torch.zeros(0, dtype=torch.float64, device=self._device)
+        self._sentence = torch.zeros(0, device=self._device).double()
         self._text = ""
         self._words = []
         self._alignments = []
-        sentence_word_count = sentence_sample_count = 0
+        sentence_word_count = 0
+        sentence_sample_count = 0
 
         # build sentence
         while sentence_word_count < sl and sentence_sample_count < max_samples_in_sentence:
@@ -745,7 +763,8 @@ class MultiSpeakerSimulator(object):
         # per-speaker normalization (accounting for active speaker time)
         if self._params.data_simulator.session_params.normalize:
             if torch.max(torch.abs(self._sentence)) > 0:
-                split_length = split_sum = torch.tensor(0).to(self._device).double()
+                split_length = torch.tensor(0).to(self._device).double()
+                split_sum = torch.tensor(0).to(self._device).double()
                 for split in splits:
                     split_length += len(self._sentence[split[0] : split[1]])
                     split_sum += torch.sum(self._sentence[split[0] : split[1]] ** 2)
@@ -1031,7 +1050,9 @@ class MultiSpeakerSimulator(object):
         self.segment_manifest_filepath = output_manifest_filepath
         return self.segment_manifest_filepath
 
-    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int = 2):
+    def _generate_session(
+        self, idx: int, basepath: str, filename: str, speaker_ids: list, speaker_lists: list, enforce_counter: int = 2
+    ):
         """
         _generate_session function without RIR simulation.
         Generate a multispeaker audio session and corresponding label files.
@@ -1042,10 +1063,8 @@ class MultiSpeakerSimulator(object):
             filename (str): Filename for output files.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
-        speaker_ids = self._get_speaker_ids()  # randomly select speaker IDs
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
-        speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
         running_len_sample_count, prev_len_sample_count = 0, 0
@@ -1147,6 +1166,10 @@ class MultiSpeakerSimulator(object):
         write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
         write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
 
+        del array
+        self.clean_up()
+        return basepath, filename
+
     def generate_sessions(self, random_seed: int = None):
         """
         Generate several multispeaker audio sessions and corresponding list files.
@@ -1184,22 +1207,41 @@ class MultiSpeakerSimulator(object):
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self._params.get("num_workers", 1))
         futures = []
 
-        for i in range(self._params.data_simulator.session_config.num_sessions):
+        num_sessions = self._params.data_simulator.session_config.num_sessions
+        queue = []
+        for i in range(num_sessions):
+            filename = self._params.data_simulator.outputs.output_filename + f"_{i}"
+            speaker_ids = self._get_speaker_ids()
+            speaker_list = self._get_speaker_samples(speaker_ids)
+            queue.append((i, basepath, filename, speaker_ids, speaker_list))
+
+        if num_workers > 1:
+            self._manifest = None
+            self._speaker_samples = None
+
+        for i in range(num_sessions):
             self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
             self._missing_overlap = 0
             self._audio_read_buffer_dict = {}
-            filename = self._params.data_simulator.outputs.output_filename + f"_{i}"
             if num_workers > 1:
-                futures.append([tp.submit(self._generate_session, i, basepath, filename), (basepath, filename)])
+                futures.append(tp.submit(self._generate_session, *queue[i]))
             else:
-                futures.append([None, (basepath, filename)])
+                futures.append(queue[i])
 
-        for future in tqdm(futures, desc="Waiting for generators to finish", unit="jobs"):
-            basepath, filename = future[1]
+        i = 0
+        if num_workers > 1:
+            generator = concurrent.futures.as_completed(futures)
+        else:
+            generator = futures
+
+        for future in tqdm(generator, desc="Waiting for generators to finish", unit="jobs", total=len(futures)):
             if num_workers > 1:
-                future[0].result()
+                basepath, filename = future.result()
             else:
-                self._generate_session(i, basepath, filename)
+                idx, basepath, filename, speaker_ids, speaker_list = future
+                self._generate_session(idx, basepath, filename, speaker_ids, speaker_list)
+            i += 1
+
             wavlist.write(os.path.join(basepath, filename + '.wav\n'))
             rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
             jsonlist.write(os.path.join(basepath, filename + '.json\n'))
@@ -1215,13 +1257,14 @@ class MultiSpeakerSimulator(object):
                 warnings.warn(
                     f"{self._params.data_simulator.session_config.num_speakers-num_missing} speakers were included in the clip instead of the requested amount of {self._params.data_simulator.session_config.num_speakers}"
                 )
-        tp.shutdown()
 
+        tp.shutdown()
         wavlist.close()
         rttmlist.close()
         jsonlist.close()
         ctmlist.close()
         textlist.close()
+        logging.info(f"Simulator finished, results saved at: {basepath}")
 
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
@@ -1457,7 +1500,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             output_sound.append(torch.tensor(out_channel))
         return output_sound, length
 
-    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int = 2):
+    def _generate_session(
+        self, idx: int, basepath: str, filename: str, speaker_ids: list, speaker_lists: list, enforce_counter: int = 2
+    ):
         """
         Generate a multispeaker audio session and corresponding label files.
 
@@ -1467,10 +1512,8 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             filename (str): Filename for output files.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
-        speaker_ids = self._get_speaker_ids()  # randomly select speaker IDs
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
-        speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
         running_len_sample_count, prev_len_sample_count = 0, 0  # starting point for each sentence
@@ -1587,6 +1630,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         write_manifest(os.path.join(basepath, filename + '.json'), json_list)
         write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
         write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
+        del array
+        self.clean_up()
+        return basepath, filename
 
 
 def check_angle(key: str, val: Union[float, Iterable[float]]) -> bool:
