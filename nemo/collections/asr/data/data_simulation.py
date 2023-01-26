@@ -1228,7 +1228,6 @@ class MultiSpeakerSimulator(object):
             else:
                 futures.append(queue[i])
 
-        i = 0
         if num_workers > 1:
             generator = concurrent.futures.as_completed(futures)
         else:
@@ -1238,9 +1237,7 @@ class MultiSpeakerSimulator(object):
             if num_workers > 1:
                 basepath, filename = future.result()
             else:
-                idx, basepath, filename, speaker_ids, speaker_list = future
-                self._generate_session(idx, basepath, filename, speaker_ids, speaker_list)
-            i += 1
+                basepath, filename = self._generate_session(*future)
 
             wavlist.write(os.path.join(basepath, filename + '.wav\n'))
             rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
@@ -1248,7 +1245,7 @@ class MultiSpeakerSimulator(object):
             ctmlist.write(os.path.join(basepath, filename + '.ctm\n'))
             textlist.write(os.path.join(basepath, filename + '.txt\n'))
 
-            # throw error if number of speakers is less than requested
+            # throw warning if number of speakers is less than requested
             num_missing = 0
             for k in range(len(self._furthest_sample)):
                 if self._furthest_sample[k] == 0:
