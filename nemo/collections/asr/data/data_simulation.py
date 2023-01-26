@@ -272,7 +272,7 @@ class MultiSpeakerSimulator(object):
 
         if len(self._manifest) == 0:
             raise Exception("Manifest file is empty. Check that the source path is correct.")
-    
+
     def clean_up(self):
         self._sentence = None
         self._words = []
@@ -615,7 +615,9 @@ class MultiSpeakerSimulator(object):
             and dur_sample_count < remaining_dur_sample_count
             and word_idx < len(audio_manifest['words'])
         ):
-            dur_sample_count = int(audio_manifest['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+            dur_sample_count = (
+                int(audio_manifest['alignments'][word_idx] * self._params.data_simulator.sr) - start_cutoff
+            )
 
             # check the length of the generated sentence in terms of sample count (int).
             if curr_dur_sample_count + dur_sample_count > remaining_dur_sample_count:
@@ -674,7 +676,9 @@ class MultiSpeakerSimulator(object):
             ).to(self._device)
 
         # windowing at the end of the sentence
-        if (word_idx < len(audio_manifest['words'])) and self._params.data_simulator.session_params.window_type is not None:
+        if (
+            word_idx < len(audio_manifest['words'])
+        ) and self._params.data_simulator.session_params.window_type is not None:
             release_buffer, end_window_amount = self._get_end_buffer_and_window(
                 prev_dur_sample_count,
                 remaining_dur_sample_count,
@@ -1187,7 +1191,7 @@ class MultiSpeakerSimulator(object):
             prev_len_sample_count = length
 
         # background noise augmentation
-        if self._params.data_simulator.background_noise.add_bg: 
+        if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
                 bg = self._get_background(len(array), avg_power_array)
@@ -1235,7 +1239,7 @@ class MultiSpeakerSimulator(object):
             basepath = os.path.join(ROOT, output_dir)
         else:
             basepath = output_dir
-        
+
         source_noise_manifest = read_manifest(self._params.data_simulator.background_noise.background_manifest)
 
         wavlist = open(os.path.join(basepath, "synthetic_wav.list"), "w")
