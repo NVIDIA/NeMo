@@ -14,6 +14,7 @@
 
 import os
 import re
+import math
 from collections import OrderedDict
 from functools import partial
 from typing import Any, List, Optional, Union
@@ -250,25 +251,51 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 for taskname in self.new_tasks
             ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
 
-    
-    def _init_new_prompts(self, taskname):
-        init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
-        total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+    def init_prompt_from_text(self, init_token_ids, word_embeddings, total_virtual_tokens):
+        """Add new virtual prompt to be tuned.
+           Intialize prompt weights from existing embeddings from specific vocab tokens.
+
+        """
+        # Trim or iterate until num_text_tokens matches total_virtual_tokens
+        num_text_tokens = len(init_token_ids)
+
+        if num_text_tokens > total_virtual_tokens:
+            init_token_ids = init_token_ids[:total_virtual_tokens]
+        elif num_text_tokens < total_virtual_tokens:
+            num_reps = math.ceil(total_virtual_tokens / num_text_tokens)
+            init_token_ids = init_token_ids * num_reps
+
+        # Set dictionary item keys and datatypes for broadcasting
+        keys = ['text']
+        datatype = torch.int64
+
+        # Broadcast int ids across gpus for tensor parallel
+        init_token_ids = init_token_ids[:total_virtual_tokens]
+        init_token_ids = {'text': torch.tensor(init_token_ids, dtype=torch.int64)}
+        init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
+        init_token_ids = init_token_ids_b['text'].long()
+
+        word_embeddings = word_embeddings.to(init_token_ids.device)
+        # Use a copy of token embedding weights to initalize the prompt embeddings
+        word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
+        return word_embedding_weights
+
+    def _init_new_prompts(self, idx, init_method, total_virtual_tokens):
 
         if init_method == "text":
             init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
             init_text_ids = self.tokenizer.text_to_ids(init_text)
-            word_embedding_weights = self.prompt_table.init_prompt_from_text(
+            word_embedding_weights = self.init_prompt_from_text(
                 init_text_ids, self.word_embeddings, total_virtual_tokens
             )
             
         elif init_method == 'random':
-            _t = torch.nn.Embedding(self.total_virtual_tokens, self.hidden_size)
+            _t = torch.nn.Embedding(total_virtual_tokens, self.hidden_size)
             word_embedding_weights = init.xavier_normal(_t.weight.data)
         
         elif init_method == 'freq':
             init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
-            word_embedding_weights = self.prompt_table.init_prompt_from_text(
+            word_embedding_weights = self.init_prompt_from_text(
                 init_text_ids, self.word_embeddings, total_virtual_tokens
             )
         else:
@@ -286,40 +313,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         for idx, taskname in enumerate(self.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
             total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-
-            if init_method == "text":
-                init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
-                init_text_ids = self.tokenizer.text_to_ids(init_text)
-                word_embedding_weights = self.prompt_table.init_prompt_from_text(
-                    init_text_ids, self.word_embeddings, total_virtual_tokens
-                )
-                
-            elif init_method == 'random':
-<<<<<<< HEAD
-                word_embedding_weights = self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
-            
-            elif init_method == 'freq':
-                init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
-                word_embedding_weights = self.prompt_table.init_prompt_from_text(
-                    init_text_ids, self.word_embeddings, total_virtual_tokens
-=======
-                self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
-
-            elif init_method == 'freq':
-                init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][
-                    :total_virtual_tokens
-                ]
-                self.prompt_table.init_prompt_from_text(
-                    taskname, init_text_ids, self.word_embeddings, total_virtual_tokens
->>>>>>> 6968ad125847337302dc1787557fc7d1e9b88e91
-                )
-
-            else:
-                raise AttributeError(
-                    f'\nvirtual prompt init method {init_method} is not recognized\
-                                        please use one of text or random'
-                )
-            self.prompt_table[taskname] = PromptEmbedding(
+            word_embedding_weights = self._init_new_prompts(idx, init_method, total_virtual_tokens)
+            self.prompt_table.prompt_table[taskname] = PromptEmbedding(
                     init_from_prompt_text=True,
                     hidden_size=self.hidden_size,
                     total_virtual_tokens=total_virtual_tokens,
@@ -333,10 +328,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Total virtual tokens should be the same across all new tasks, so just need one
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
-        init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
-        w = self.prompt_table.init_prompt_from_text(
-            init_text_ids, self.word_embeddings, total_virtual_tokens
-        )
+        init_method = self.cfg.prompt_tuning.new_prompt_init_methods[0]
+        w = self._init_new_prompts(0, init_method, total_virtual_tokens)
 
         if (
             self.prompt_encoder_type == PromptEncoderType.SIMPLE_EMBEDDING
