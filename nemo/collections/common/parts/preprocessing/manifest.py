@@ -13,9 +13,13 @@
 # limitations under the License.
 
 import json
+import os
 from os.path import expanduser
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+
+from nemo.utils import logging
+from nemo.utils.data_utils import DataStoreObject, datastore_path_to_local_path, is_datastore_path
 
 
 class ManifestBase:
@@ -66,8 +70,12 @@ def item_iter(
         parse_func = __parse_item
 
     k = -1
+    logging.debug('Manifest files: %s', str(manifests_files))
     for manifest_file in manifests_files:
-        with open(expanduser(manifest_file), 'r') as f:
+        logging.debug('Using manifest file: %s', str(manifest_file))
+        cached_manifest_file = DataStoreObject(manifest_file).get()
+        logging.debug('Cached at: %s', str(cached_manifest_file))
+        with open(expanduser(cached_manifest_file), 'r') as f:
             for line in f:
                 k += 1
                 item = parse_func(line, manifest_file)
@@ -84,7 +92,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filename')
     elif 'audio_filepath' in item:
         item['audio_file'] = item.pop('audio_filepath')
-    else:
+    elif 'audio_file' not in item:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
@@ -109,18 +117,45 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
             item['text'] = f.read().replace('\n', '')
     elif 'normalized_text' in item:
         item['text'] = item['normalized_text']
+    else:
+        item['text'] = ""
+
+    # Optional RTTM file
+    if 'rttm_file' in item:
+        pass
+    elif 'rttm_filename' in item:
+        item['rttm_file'] = item.pop('rttm_filename')
+    elif 'rttm_filepath' in item:
+        item['rttm_file'] = item.pop('rttm_filepath')
+    else:
+        item['rttm_file'] = None
+    if item['rttm_file'] is not None:
+        item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
+
+    # Optional audio feature file
+    if 'feature_file' in item:
+        pass
+    elif 'feature_filename' in item:
+        item['feature_file'] = item.pop('feature_filename')
+    elif 'feature_filepath' in item:
+        item['feature_file'] = item.pop('feature_filepath')
+    else:
+        item['feature_file'] = None
+    if item['feature_file'] is not None:
+        item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
     item = dict(
         audio_file=item['audio_file'],
         duration=item['duration'],
-        text=item.get('text', ""),
+        text=item['text'],
+        rttm_file=item['rttm_file'],
+        feature_file=item['feature_file'],
         offset=item.get('offset', None),
         speaker=item.get('speaker', None),
         orig_sr=item.get('orig_sample_rate', None),
         token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
     )
-
     return item
 
 
@@ -142,11 +177,23 @@ def get_full_path(audio_file: str, manifest_file: str, audio_file_len_limit: int
         Full path to audio_file.
     """
     audio_file = Path(audio_file)
-    manifest_dir = Path(manifest_file).parent
+
+    if is_datastore_path(manifest_file):
+        # WORKAROUND: pathlib does not support URIs, so use os.path
+        manifest_dir = os.path.dirname(manifest_file)
+    else:
+        manifest_dir = Path(manifest_file).parent.as_posix()
 
     if (len(str(audio_file)) < audio_file_len_limit) and not audio_file.is_file() and not audio_file.is_absolute():
         # assume audio_file path is relative to manifest_dir
-        audio_file_path = manifest_dir / audio_file
+        audio_file_path = os.path.join(manifest_dir, audio_file.as_posix())
+
+        if is_datastore_path(audio_file_path):
+            # If audio was originally on an object store, use locally-cached path
+            audio_file_path = datastore_path_to_local_path(audio_file_path)
+
+        audio_file_path = Path(audio_file_path)
+
         if audio_file_path.is_file():
             audio_file = str(audio_file_path.absolute())
         else:

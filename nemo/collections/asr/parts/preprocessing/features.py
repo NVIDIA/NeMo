@@ -290,7 +290,7 @@ class FilterbankFeatures(nn.Module):
             win_length=self.win_length,
             center=False if exact_pad else True,
             window=self.window.to(dtype=torch.float),
-            return_complex=False,
+            return_complex=True,
         )
 
         self.normalize = normalize
@@ -373,7 +373,7 @@ class FilterbankFeatures(nn.Module):
     def filter_banks(self):
         return self.fb
 
-    def forward(self, x, seq_len):
+    def forward(self, x, seq_len, linear_spec=False):
         seq_len = self.get_seq_len(seq_len.float())
 
         if self.stft_pad_amount is not None:
@@ -393,11 +393,10 @@ class FilterbankFeatures(nn.Module):
         with torch.cuda.amp.autocast(enabled=False):
             x = self.stft(x)
 
-        # torch returns real, imag; so convert to magnitude
+        # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude
         # guard is needed for sqrt if grads are passed through
         guard = 0 if not self.use_grads else CONSTANT
-        if x.dtype in [torch.cfloat, torch.cdouble]:
-            x = torch.view_as_real(x)
+        x = torch.view_as_real(x)
         x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         if self.training and self.nb_augmentation_prob > 0.0:
@@ -409,9 +408,12 @@ class FilterbankFeatures(nn.Module):
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
 
+        # return plain spectrogram if required
+        if linear_spec:
+            return x, seq_len
+
         # dot with filterbank energies
         x = torch.matmul(self.fb.to(x.dtype), x)
-
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":

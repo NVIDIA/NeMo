@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import torch.multiprocessing as mp
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
@@ -145,6 +146,7 @@ def main(cfg) -> None:
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
+        num_workers=cfg.get("num_workers", 1),
     )
 
     config = OmegaConf.to_container(cfg.inference)
