@@ -1129,6 +1129,15 @@ class WER(Metric):
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
+    def __hash__(self) -> int:
+        # we need to add the id here, since PyTorch requires a module hash to be unique.
+        # Internally, PyTorch nn.Module relies on that for children discovery
+        # (see https://github.com/pytorch/pytorch/blob/v1.9.0/torch/nn/modules/module.py#L1544)
+        # For metrics that include tensors it is not a problem,
+        # since their hash is unique based on the memory location but we cannot rely on that for every metric.
+        hash_vals = [self.__class__.__name__, id(self)]
+        return hash(tuple(hash_vals))
+
     def update(
         self,
         predictions: torch.Tensor,
