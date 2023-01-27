@@ -10,25 +10,24 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import masked_select
 from torch.nn.utils.rnn import pad_sequence
 
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-)
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.core import adapter_mixins
-
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
-from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    build_position_ids,
+)
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.core import adapter_mixins
 from nemo.utils import logging, model_utils
 
 try:
@@ -106,7 +105,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                         )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
-
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
