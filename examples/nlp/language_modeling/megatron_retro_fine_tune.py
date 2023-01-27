@@ -15,10 +15,10 @@
 import datetime
 import os
 
-from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
@@ -36,7 +36,7 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 def _modify_config(retro_cfg, cfg, add_cfg_to_tree=False):
     """
-    This function modifies the original retro pre-training config (t5_cfg) with attributes from the finetuning config (cfg).
+    This function modifies the original retro pre-training config with attributes from the finetuning config (cfg).
     The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
     """
     OmegaConf.set_struct(retro_cfg, True)
