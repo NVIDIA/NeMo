@@ -103,9 +103,6 @@ class PromptTable(NeuralModule, Exportable):
             init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=total_virtual_tokens,
         )
 
-  
-        
-
     def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings, total_virtual_tokens):
         """
         Add virtual prompts that have already been tuned using p-tuning. 

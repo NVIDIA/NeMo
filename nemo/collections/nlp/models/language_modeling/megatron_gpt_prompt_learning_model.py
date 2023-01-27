@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
 import re
-import math
 from collections import OrderedDict
 from functools import partial
 from typing import Any, List, Optional, Union
@@ -288,13 +288,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             word_embedding_weights = self.init_prompt_from_text(
                 init_text_ids, self.word_embeddings, total_virtual_tokens
             )
-            
+
         elif init_method == 'random':
             _t = torch.nn.Embedding(total_virtual_tokens, self.hidden_size)
             word_embedding_weights = init.xavier_normal(_t.weight.data)
-        
+
         elif init_method == 'freq':
-            init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
+            init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][
+                :total_virtual_tokens
+            ]
             word_embedding_weights = self.init_prompt_from_text(
                 init_text_ids, self.word_embeddings, total_virtual_tokens
             )
@@ -305,7 +307,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         return word_embedding_weights
 
-
     def init_new_prompts(self):
         """
         Initialize new virtual prompts to be tuned using prompt tuning 
@@ -315,11 +316,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
             word_embedding_weights = self._init_new_prompts(idx, init_method, total_virtual_tokens)
             self.prompt_table.prompt_table[taskname] = PromptEmbedding(
-                    init_from_prompt_text=True,
-                    hidden_size=self.hidden_size,
-                    total_virtual_tokens=total_virtual_tokens,
-                    word_embedding_weights=word_embedding_weights,
-                )
+                init_from_prompt_text=True,
+                hidden_size=self.hidden_size,
+                total_virtual_tokens=total_virtual_tokens,
+                word_embedding_weights=word_embedding_weights,
+            )
 
     def init_prompt_encoder(self):
         """
