@@ -14,10 +14,10 @@
 
 import abc
 from typing import List, Tuple
-from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 
 import torch
 
+from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 try:
@@ -280,7 +280,11 @@ def model_inference_strategy_dispatcher(model, **args):
     )
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    from nemo.collections.nlp.modules.common.retro_inference_strategies import RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy, RetroFileQAModelTextGenerationStrategy
+    from nemo.collections.nlp.modules.common.retro_inference_strategies import (
+        RetroModelTextGenerationStrategy,
+        RetroQAModelTextGenerationStrategy,
+        RetroFileQAModelTextGenerationStrategy,
+    )
 
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)

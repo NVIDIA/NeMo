@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.bert_service import start_sentence_bert_server
+import json
+import pickle
+from typing import List, Tuple
+
+import numpy as np
+import torch
+import torch.distributed as dist
+
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
+from nemo.collections.nlp.modules.common.megatron.bert_service import start_sentence_bert_server
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,
     DynamicFaissRetrievalService,
     FaissRetrievalService,
 )
-import torch.distributed as dist
-import torch
-from typing import List, Tuple
-import numpy as np
-import pickle
-import json
+from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
@@ -256,7 +258,6 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
-
     def tokenize_batch(self, questions, max_len, add_BOS):
         """
         convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
@@ -272,14 +273,16 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         # hack to add "source: " tag
         prepend_ids = np.array(tokenizer.text_to_ids('source: '))
         all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
-        all_lookups[:, :, :len(prepend_ids)] = prepend_ids
-        all_lookups = all_lookups[:, :, :-len(prepend_ids)]
+        all_lookups[:, :, : len(prepend_ids)] = prepend_ids
+        all_lookups = all_lookups[:, :, : -len(prepend_ids)]
         reuse_neighbors = all_lookups[:, 1:]
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer:') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [
+            n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer:') for n, q in zip(neighbor_tokens, questions)
+        ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
@@ -456,7 +459,9 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         # neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [tokenizer.text_to_ids(n + '\nquestion: ' + q + ' \nanswer:') for n, q in zip(first_context, questions)]
+        context_tokens = [
+            tokenizer.text_to_ids(n + '\nquestion: ' + q + ' \nanswer:') for n, q in zip(first_context, questions)
+        ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
