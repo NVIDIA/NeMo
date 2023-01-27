@@ -295,12 +295,23 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 )
                 
             elif init_method == 'random':
+<<<<<<< HEAD
                 word_embedding_weights = self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
             
             elif init_method == 'freq':
                 init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
                 word_embedding_weights = self.prompt_table.init_prompt_from_text(
                     init_text_ids, self.word_embeddings, total_virtual_tokens
+=======
+                self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
+
+            elif init_method == 'freq':
+                init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][
+                    :total_virtual_tokens
+                ]
+                self.prompt_table.init_prompt_from_text(
+                    taskname, init_text_ids, self.word_embeddings, total_virtual_tokens
+>>>>>>> 6968ad125847337302dc1787557fc7d1e9b88e91
                 )
 
             else:
