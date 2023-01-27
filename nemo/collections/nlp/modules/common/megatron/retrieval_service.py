@@ -180,7 +180,7 @@ class RetrievalServer(object):
             co.shard = True
             self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
             end = time.time()
-            logging.info('convert Faiss db to GPU takes', end - beg)
+            logging.info(f'convert Faiss db to GPU takes {end - beg} s')
         self.index.nprobe = nprobe
         self.tokenizer = tokenizer
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
@@ -321,7 +321,7 @@ class DynamicRetrievalServer(object):
             co.shard = True
             self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
             end = time.time()
-            logging.info('convert Faiss db to GPU takes', end - beg)
+            logging.info(f'convert Faiss db to GPU takes {end - beg} s')
 
         self.tokenizer = tokenizer
 
