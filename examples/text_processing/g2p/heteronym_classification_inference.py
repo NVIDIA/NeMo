@@ -55,7 +55,7 @@ class TranscriptionConfig:
     # Required configs
     pretrained_model: str  # Path to a .nemo file or Name of a pretrained model
 
-    # path to .json manifest inference, if not provided or doesn't exist, interactive mode will be enabled
+    # path to .json manifest inference, if not provided, interactive mode will be enabled
     manifest: Optional[str] = None  # Path to .json manifest
     output_manifest: Optional[
         str

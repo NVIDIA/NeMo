@@ -126,6 +126,7 @@ class HeteronymClassificationDataset(Dataset):
         # check the correctness on start-end indices
         for heteronym_, start_end_ in zip(heteronyms, start_end):
             if heteronym_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
+                logging.debug(f"Span for {heteronym_} is incorrect. Skipping example.")
                 return None
 
         input_ids, subtokens_mask, target_word_ids = [], [], []
