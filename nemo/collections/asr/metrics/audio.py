@@ -152,7 +152,6 @@ class AudioMetricWrapper(Metric):
         """
         return self._metric.compute()
 
-    @torch.jit.unused
     def forward(
         self, preds: torch.Tensor, target: torch.Tensor, input_length: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
