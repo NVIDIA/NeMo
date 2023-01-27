@@ -448,16 +448,8 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
                     tokens = tokens + [tokenizer.eos_id] * (128 - len(tokens))
                 chunks.append(tokens)
         all_lookups = np.array(chunks).reshape(1, self.neighbors + 1, -1).astype(np.int64)
-        # # hack to add "source: " tag
-        # prepend_ids = np.array(tokenizer.text_to_ids('source: '))
-        # all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
-        # all_lookups[:, :, :len(prepend_ids)] = prepend_ids
-        # all_lookups = all_lookups[:, :, :-len(prepend_ids)]
         reuse_neighbors = all_lookups[:, 1:]
-
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
-        # neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
-
         # combine question and context
         context_tokens = [
             tokenizer.text_to_ids(n + '\nquestion: ' + q + ' \nanswer:') for n, q in zip(first_context, questions)
