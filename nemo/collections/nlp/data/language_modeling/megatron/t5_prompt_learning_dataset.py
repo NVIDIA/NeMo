@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import json
+from collections import Counter
 
 import torch
-from collections import Counter
 from tqdm.auto import tqdm
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset

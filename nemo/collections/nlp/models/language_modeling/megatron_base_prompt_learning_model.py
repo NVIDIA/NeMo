@@ -210,10 +210,10 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Total virtual tokens should be the same across all new tasks, so just need one
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
-        init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
-        w = self.prompt_table.init_prompt_from_text(
-            init_text_ids, self.word_embeddings, total_virtual_tokens
-        )
+        init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][
+            :total_virtual_tokens
+        ]
+        w = self.prompt_table.init_prompt_from_text(init_text_ids, self.word_embeddings, total_virtual_tokens)
 
         self.prompt_encoder = PromptEncoder(
             encoder_type=PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "mlp").lower()),
@@ -488,8 +488,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.init_prompt_encoder()
             self.freeze_existing_virtual_prompt_params()
-
-     
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):

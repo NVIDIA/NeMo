@@ -27,7 +27,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['PromptTable', 'PromptEmbedding' 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
+__all__ = [
+    'PromptTable',
+    'PromptEmbedding' 'VirtualPromptSource',
+    'VirtualPromptStyle',
+    'VirtualPromptPlaceholderToken',
+]
 
 
 class VirtualPromptStyle(enum.Enum):

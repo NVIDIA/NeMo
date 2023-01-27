@@ -31,11 +31,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
     BIGLSTMPromptEncoder,
+    PromptEmbedding,
     PromptEncoder,
     PromptEncoderMLP,
     PromptEncoderType,
     PromptTable,
-    PromptEmbedding,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
