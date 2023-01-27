@@ -112,6 +112,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.eod_id = tokenizer.eos_id
         self.transformer_block_type = transformer_block_type
         self.num_chunked_cross_attention = len(dec_cross_attention)
+        self.megatron_lm_compatible = megatron_lm_compatible
 
         if kv_channels is None:
             assert (
@@ -340,7 +341,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         """
         eod_positions = None
         retrieved_emb = None
-        if input_ids is not None and self.eod_id is not None:
+        if input_ids is not None and self.eod_id is not None and not self.megatron_lm_compatible:
+            # do not reset attention for megatron lm compatible model
             eod_positions = torch.where(input_ids == self.eod_id)
 
         if input_emb is None:

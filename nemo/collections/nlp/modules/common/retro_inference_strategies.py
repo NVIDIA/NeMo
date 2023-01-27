@@ -38,6 +38,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         weights = args['weights']
         self.store = dist.FileStore('/tmp/filestore_eval', -1)
         self.store.set('neighbors', str(args['neighbors']))
+        self.megatron_lm_compatible = args['megatron_lm_compatible']
         # start the sentence bert server
         for name in args['sentence_bert']:
             conf = args['sentence_bert'][name]
@@ -91,7 +92,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             for line in context_tokens:
                 if len(line) < self.chunk_size:
                     pad_len = self.chunk_size - len(line)
-                    padded.append([tokenizer.pad_id] * pad_len + line)
+                    if self.megatron_lm_compatible:
+                        # megatron lm use eos to pad
+                        padded.append([tokenizer.eos_id] * pad_len + line)
+                    else:
+                        padded.append([tokenizer.pad_id] * pad_len + line)
                 else:
                     padded.append(line)
             context_tokens = padded
@@ -122,7 +127,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             for line in context_tokens:
                 if len(line[0]) < self.chunk_size:
                     pad_len = self.chunk_size - len(line[0])
-                    padded.append([tokenizer.pad_id] * pad_len + line[0] + line[1])
+                    if self.megatron_lm_compatible:
+                        # megatron lm use eos to pad
+                        padded.append([tokenizer.eos_id] * pad_len + line[0] + line[1])
+                    else:
+                        padded.append([tokenizer.pad_id] * pad_len + line[0] + line[1])
                 else:
                     padded.append(line[0] + line[1])
             context_tokens = padded
@@ -159,7 +168,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         micro_batch_size, seq_length = tokens.size()
         position_ids = torch.arange(seq_length, dtype=torch.long, device=tokens.device)
         self.position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
-        self.attention_mask = tokens != tokenizer.pad_id
+        if self.megatron_lm_compatible:
+            # all TRUE for megatron lm, there is no attention mask
+            self.attention_mask = torch.ones_like(tokens, dtype=torch.bool)
+        else:
+            self.attention_mask = tokens != tokenizer.pad_id
         for i in range(0, context_length, 64):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
@@ -207,7 +220,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         retrieved = torch.tensor(np.array(self.retrieved), device=torch.cuda.current_device())
         if retrieved.numel() != 0:
             retrieved = retrieved.transpose(0, 1).contiguous()
-        retrieved_mask = retrieved != tokenizer.pad_id
+        if self.megatron_lm_compatible:
+            # all TRUE for megatron lm, there is no attention mask
+            retrieved_mask = torch.ones_like(retrieved, dtype=torch.bool)
+        else:
+            retrieved_mask = retrieved != tokenizer.pad_id
         if len(retrieved) == 0:
             retrieved = torch.tensor([-1] * micro_batch_size)
             retrieved_mask = torch.tensor([-1] * micro_batch_size)
@@ -262,7 +279,7 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(neighbor_tokens, questions) ]
+        context_tokens = [n + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer:') for n, q in zip(neighbor_tokens, questions) ]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
@@ -270,7 +287,10 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
             padded = []
             for line in context_tokens:
                 pad_len = (self.chunk_size - len(line) % self.chunk_size) % self.chunk_size
-                padded.append([tokenizer.pad_id] * pad_len + line)
+                if self.megatron_lm_compatible:
+                    padded.append([tokenizer.eos_id] * pad_len + line)
+                else:
+                    padded.append([tokenizer.pad_id] * pad_len + line)
             context_tokens = padded
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
@@ -288,7 +308,11 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         micro_batch_size, seq_length = tokens.size()
         position_ids = torch.arange(seq_length, dtype=torch.long, device=tokens.device)
         self.position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
-        self.attention_mask = tokens != tokenizer.pad_id
+        if self.megatron_lm_compatible:
+            # all TRUE for megatron lm, there is no attention mask
+            self.attention_mask = torch.ones_like(tokens, dtype=torch.bool)
+        else:
+            self.attention_mask = tokens != tokenizer.pad_id
         for i in range(0, context_length, 64):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
@@ -336,7 +360,11 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         retrieved = torch.tensor(np.array(self.retrieved), device=torch.cuda.current_device())
         if retrieved.numel() != 0:
             retrieved = retrieved.transpose(0, 1).contiguous()
-        retrieved_mask = retrieved != tokenizer.pad_id
+        if self.megatron_lm_compatible:
+            # all TRUE for megatron lm, there is no attention mask
+            retrieved_mask = torch.ones_like(retrieved, dtype=torch.bool)
+        else:
+            retrieved_mask = retrieved != tokenizer.pad_id
         if len(retrieved) == 0:
             retrieved = torch.tensor([-1] * micro_batch_size)
             retrieved_mask = torch.tensor([-1] * micro_batch_size)
@@ -370,7 +398,7 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         sentences = output['sentences']
         modified = []
         for sentence in sentences:
-            sentence = 'answer: ' + sentence.split(' \nanswer: ')[1]
+            sentence = 'answer:' + sentence.split(' \nanswer:')[1]
             modified.append(sentence)
         output['sentences'] = modified
         return output
@@ -414,7 +442,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
                 tokens = tokenizer.text_to_ids(text)
                 tokens = tokens[:128]
                 if len(tokens) < 128:
-                    tokens = tokens + [tokenizer.pad_id] * (128 - len(tokens))
+                    tokens = tokens + [tokenizer.eos_id] * (128 - len(tokens))
                 chunks.append(tokens)
         all_lookups = np.array(chunks).reshape(1, self.neighbors + 1, -1).astype(np.int64)
         # # hack to add "source: " tag
@@ -428,7 +456,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
         # neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
 
         # combine question and context
-        context_tokens = [tokenizer.text_to_ids(n) + tokenizer.text_to_ids('\nquestion: ' + q + ' \nanswer: ') for n, q in zip(first_context, questions) ]
+        context_tokens = [tokenizer.text_to_ids(n + '\nquestion: ' + q + ' \nanswer:') for n, q in zip(first_context, questions)]
 
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
@@ -436,7 +464,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
             padded = []
             for line in context_tokens:
                 pad_len = (self.chunk_size - len(line) % self.chunk_size) % self.chunk_size
-                padded.append([tokenizer.pad_id] * pad_len + line)
+                padded.append([tokenizer.eos_id] * pad_len + line)
             context_tokens = padded
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
