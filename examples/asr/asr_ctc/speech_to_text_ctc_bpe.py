@@ -1,18 +1,15 @@
-import os
-
 import pytorch_lightning as pl
-import smdistributed.modelparallel.torch as smp
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.cloud import initialize_sagemaker
 from nemo.utils.exp_manager import exp_manager
 
-smp.init({'ddp': True})
-if smp.mp_rank() == 0:
-    os.system('chmod 777 /tmp && apt-get update && apt-get install -y libsndfile1 ffmpeg')
-smp.barrier()
+initialize_sagemaker()
+
+
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,19 +80,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 @hydra_runner(config_path="../conf/citrinet/", config_name="config_bpe")
 def main(cfg: DictConfig):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-
-    import smdistributed.dataparallel.torch.torch_smddp
-    from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-
-    env = TorchElasticEnvironment()
-
-    from pytorch_lightning.strategies import DDPStrategy
-
-    ddp_strategy = DDPStrategy(cluster_environment=env, process_group_backend="smddp", accelerator="gpu")
-    del cfg.trainer.strategy
-    del cfg.trainer.accelerator
-    print(cfg.trainer)
-    trainer = pl.Trainer(**cfg.trainer, strategy=ddp_strategy)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 

@@ -93,6 +93,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         self.decoding = CTCDecoding(self.cfg.decoding, vocabulary=self.decoder.vocabulary)
 
+        # Setup metric with decoding strategy
+        self._wer = WER(
+            decoding=self.decoding,
+            use_cer=self._cfg.get('use_cer', False),
+            dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
+        )
+
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
@@ -616,6 +624,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_every_n_steps = self._trainer.log_every_n_steps
         else:
             log_every_n_steps = 1
+
+        if (batch_nb + 1) % log_every_n_steps == 0:
+            self._wer.update(
+                predictions=log_probs,
+                targets=transcript,
+                target_lengths=transcript_len,
+                predictions_lengths=encoded_len,
+            )
+            wer, _, _ = self._wer.compute()
+            self._wer.reset()
+            tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 

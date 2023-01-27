@@ -80,3 +80,41 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
             sleep(0.05)
             continue
     raise ValueError("Not able to download url right now, please try again.")
+
+
+def initialize_sagemaker() -> None:
+    """
+    Helper function to initiate sagemaker with NeMo.
+    This function installs libraries that NeMo requires for the ASR toolkit + initializes sagemaker ddp
+
+    """
+
+    def _install_system_libraries() -> None:
+        os.system('chmod 777 /tmp && apt-get update && apt-get install -y libsndfile1 ffmpeg')
+
+    def _patch_torch_metrics() -> None:
+        """
+        Patches torchmetrics to not rely on internal state.
+        This is because sagemaker DDP overrides the `__init__` function of the modules to do automatic-partitioning.
+        """
+        from torchmetrics import Metric
+
+        def __new_hash__(self):
+            hash_vals = [self.__class__.__name__, id(self)]
+            return hash(tuple(hash_vals))
+
+        Metric.__hash__ = __new_hash__
+
+    _patch_torch_metrics()
+
+    if os.environ.get("RANK") and os.environ.get("WORLD_SIZE"):
+        import smdistributed.modelparallel.torch as smp
+
+        # has to be imported, as it overrides torch modules and such when DDP is enabled.
+        import smdistributed.dataparallel.torch.torch_smddp
+
+        smp.init({'ddp': True})
+        if smp.mp_rank() == 0:
+            _install_system_libraries()
+        return smp.barrier()  # wait for main process
+    _install_system_libraries()

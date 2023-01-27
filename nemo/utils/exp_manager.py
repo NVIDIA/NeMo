@@ -35,6 +35,8 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.strategies import StrategyRegistry
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
 
@@ -48,6 +50,13 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+
+StrategyRegistry.register(
+    name='smddp',
+    strategy=DDPStrategy(
+        cluster_environment=TorchElasticEnvironment(), process_group_backend="smddp", accelerator="gpu"
+    ),
+)
 
 
 class NotFoundError(NeMoBaseException):
