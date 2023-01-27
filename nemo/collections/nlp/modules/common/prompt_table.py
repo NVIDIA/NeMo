@@ -28,7 +28,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['PromptTable', 'PromptEmbedding' 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
+__all__ = [
+    'PromptTable',
+    'PromptEmbedding' 'VirtualPromptSource',
+    'VirtualPromptStyle',
+    'VirtualPromptPlaceholderToken',
+]
 
 
 class VirtualPromptStyle(enum.Enum):
@@ -127,7 +132,6 @@ class PromptTable(NeuralModule, Exportable):
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
         return word_embedding_weights
-        
 
     def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings, total_virtual_tokens):
         """

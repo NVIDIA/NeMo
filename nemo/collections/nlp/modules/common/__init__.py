@@ -30,8 +30,8 @@ from nemo.collections.nlp.modules.common.prompt_encoder import (
     PromptEncoderType,
 )
 from nemo.collections.nlp.modules.common.prompt_table import (
-    PromptTable,
     PromptEmbedding,
+    PromptTable,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
