@@ -38,13 +38,6 @@ from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
 
-try:
-    from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
-
-    NLP_AVAILABLE = True
-except ImportError:
-    NLP_AVAILABLE = False
-
 
 class BaseG2p(ABC):
     def __init__(
@@ -86,11 +79,15 @@ class BaseG2p(ABC):
             heteronym_model: Initialized HeteronymClassificationModel
             wordid_to_phonemes_file: Path to a file with mapping from wordid predicted by heteronym model to phonemes
         """
-        if NLP_AVAILABLE:
+
+        try:
+            from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
+
             self.heteronym_model = heteronym_model
             self.heteronym_model.set_wordid_to_phonemes(wordid_to_phonemes_file)
-        else:
-            logging.warning(f"NLP is not available, heteronym model setup will be skipped")
+        except ImportError as e:
+            logging.warning("Heteronym model setup will be skipped")
+            logging.error(e)
 
 
 class EnglishG2p(BaseG2p):

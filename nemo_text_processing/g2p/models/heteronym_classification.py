@@ -19,7 +19,7 @@ from typing import List, Optional
 
 import torch
 from hydra.utils import instantiate
-from nemo_text_processing.g2p.data.data_utils import get_homograph_spans, get_wordid_to_phonemes, read_wordids
+from nemo_text_processing.g2p.data.data_utils import get_heteronym_spans, get_wordid_to_phonemes, read_wordids
 from nemo_text_processing.g2p.data.heteronym_classification_data import HeteronymClassificationDataset
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -50,9 +50,9 @@ class HeteronymClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_seq_length = cfg.max_seq_length
         self.wordids = self.register_artifact("wordids", cfg.wordids)
-        self.homograph_dict, self.wordid_to_idx = read_wordids(self.wordids)
+        self.heteronym_dict, self.wordid_to_idx = read_wordids(self.wordids)
         self.idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
-        self.supported_heteronyms = list(self.homograph_dict.keys())
+        self.supported_heteronyms = list(self.heteronym_dict.keys())
 
         if cfg.class_labels.class_labels_file is None:
             label_ids_file = "/tmp/label_ids.csv"
@@ -198,24 +198,24 @@ class HeteronymClassificationModel(NLPModel):
 
     # Functions for inference
     def _process_sentence(self, text: str, start_end: List[List[int]], predictions: List[str]):
-        text_with_homograph_replaced = ""
+        text_with_heteronym_replaced = ""
         last_idx = 0
-        for homograph_idx, cur_start_end in enumerate(start_end):
+        for heteronym_idx, cur_start_end in enumerate(start_end):
             cur_start, cur_end = cur_start_end
-            cur_pred = predictions[homograph_idx]
+            cur_pred = predictions[heteronym_idx]
 
-            if self.wordid_to_phonemes is None:
+            if self.wordid_to_phonemes is None or cur_pred not in self.wordid_to_phonemes:
                 cur_pred = f"[{cur_pred}]"
             else:
                 cur_pred = self.wordid_to_phonemes[cur_pred]
                 # to use mixed grapheme format as an input for a TTS model, we need to have vertical bars around phonemes
                 cur_pred = "".join([f"|{p}|" for p in cur_pred])
 
-            text_with_homograph_replaced += text[last_idx:cur_start] + cur_pred
+            text_with_heteronym_replaced += text[last_idx:cur_start] + cur_pred
             last_idx = cur_end
         if last_idx < len(text):
-            text_with_homograph_replaced += text[last_idx:]
-        return text_with_homograph_replaced
+            text_with_heteronym_replaced += text[last_idx:]
+        return text_with_heteronym_replaced
 
     @torch.no_grad()
     def disambiguate(
@@ -226,7 +226,7 @@ class HeteronymClassificationModel(NLPModel):
         wordid_to_phonemes_file: Optional[str] = None,
     ):
         """
-        Replaces homographs, supported by the model, with the phoneme form (if wordid_to_phonemes_file)
+        Replaces heteronyms, supported by the model, with the phoneme form (if wordid_to_phonemes_file)
         or with predicted wordids.
 
         Args:
@@ -238,22 +238,22 @@ class HeteronymClassificationModel(NLPModel):
 
         Returns:
             preds: model predictions
-            output: sentences with homograph replaced with phonemes (if wordid_to_phonemes_file specified)
+            output: sentences with heteronym replaced with phonemes (if wordid_to_phonemes_file specified)
         """
         if isinstance(sentences, str):
             sentences = [sentences]
         batch_size = min(batch_size, len(sentences))
 
-        start_end, homographs = get_homograph_spans(sentences, self.homograph_dict)
-        if len(sentences) != len(start_end) != len(homographs):
+        start_end, heteronyms = get_heteronym_spans(sentences, self.heteronym_dict)
+        if len(sentences) != len(start_end) != len(heteronyms):
             raise ValueError(
                 f"Number of sentences should match the lengths of provided start-end indices, {len(sentences)} != {len(start_end)}"
             )
 
         tmp_manifest = "/tmp/manifest.json"
         with open(tmp_manifest, "w") as f:
-            for cur_sentence, cur_start_ends, cur_homographs in zip(sentences, start_end, homographs):
-                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "homograph_span": cur_homographs}
+            for cur_sentence, cur_start_ends, cur_heteronyms in zip(sentences, start_end, heteronyms):
+                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "heteronym_span": cur_heteronyms}
                 f.write(json.dumps(item, ensure_ascii=False) + '\n')
 
         all_preds = self._disambiguate(manifest=tmp_manifest, batch_size=batch_size, num_workers=num_workers,)
@@ -331,11 +331,11 @@ class HeteronymClassificationModel(NLPModel):
                 if len(start_end) > 0 and isinstance(start_end[0], int):
                     start_end = [start_end]
 
-                text_with_homograph_replaced = self._process_sentence(
+                text_with_heteronym_replaced = self._process_sentence(
                     text=line[grapheme_field], start_end=start_end, predictions=all_preds[idx]
                 )
 
-                line["pred_text"] = text_with_homograph_replaced
+                line["pred_text"] = text_with_heteronym_replaced
                 line["pred_wordid"] = all_preds[idx]
                 f_preds.write(json.dumps(line, ensure_ascii=False) + '\n')
 
@@ -382,7 +382,7 @@ class HeteronymClassificationModel(NLPModel):
             grapheme_field=cfg.dataset.grapheme_field,
             tokenizer=self.tokenizer,
             wordid_to_idx=self.wordid_to_idx,
-            wiki_homograph_dict=self.homograph_dict,
+            heteronym_dict=self.heteronym_dict,
             max_seq_len=self.max_seq_length,
             with_labels=True,
         )
@@ -398,7 +398,7 @@ class HeteronymClassificationModel(NLPModel):
             grapheme_field=grapheme_field,
             tokenizer=self.tokenizer,
             wordid_to_idx=self.wordid_to_idx,
-            wiki_homograph_dict=self.homograph_dict,
+            heteronym_dict=self.heteronym_dict,
             max_seq_len=self.tokenizer.tokenizer.model_max_length,
             with_labels=False,
         )

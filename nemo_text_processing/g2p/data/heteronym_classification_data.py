@@ -33,7 +33,7 @@ class HeteronymClassificationDataset(Dataset):
         self,
         manifest: str,
         tokenizer: TokenizerSpec,
-        wiki_homograph_dict: Dict[str, Dict[str, str]],
+        heteronym_dict: Dict[str, Dict[str, str]],
         wordid_to_idx: Dict[str, int],
         max_seq_len: int = 512,
         grapheme_field: str = "text_graphemes",
@@ -45,10 +45,10 @@ class HeteronymClassificationDataset(Dataset):
         https://github.com/google-research-datasets/WikipediaHomographData/tree/master/data
 
         Args:
-            manifest: path to manifest with "homograph_span", "start_end", "text_graphemes"
+            manifest: path to manifest with "heteronym_span", "start_end", "text_graphemes"
                 and (optional) "word_id" fields. "word_id" is required for model training.
             tokenizer: pretrained tokenizer
-            wiki_homograph_dict: a dictionary where each grapheme contains word_id to ipa_form mappings, e.g.,
+            heteronym_dict: a dictionary where each grapheme contains word_id to ipa_form mappings, e.g.,
                 {'use': {'use_nou': "'juːs", 'use_vrb': "'juːz"}}
             wordid_to_idx: mapping from word id to index
             max_seq_len: maximum input sequence length
@@ -65,7 +65,7 @@ class HeteronymClassificationDataset(Dataset):
         self.data = []
         self.pad_token = 0
         self.with_labels = with_labels
-        self.wiki_homograph_dict = wiki_homograph_dict
+        self.heteronym_dict = heteronym_dict
         self.wordid_to_idx = wordid_to_idx
         self.LOSS_PAD_TOKEN = -100
         self.PAD_TOKEN = 0
@@ -74,21 +74,21 @@ class HeteronymClassificationDataset(Dataset):
         with open(manifest, "r") as f:
             for line in f:
                 line = json.loads(line)
-                cur_start_end, cur_homographs = (line["start_end"], line["homograph_span"])
+                cur_start_end, cur_heteronyms = (line["start_end"], line["heteronym_span"])
 
                 # during inference word_id is not present in the manifest
                 if "word_id" in line:
                     cur_word_ids = line["word_id"]
                 else:
-                    if isinstance(cur_homographs, str):
+                    if isinstance(cur_heteronyms, str):
                         cur_word_ids = None
                     else:
-                        cur_word_ids = [None] * len(cur_homographs)
+                        cur_word_ids = [None] * len(cur_heteronyms)
 
-                if isinstance(cur_homographs, str):
-                    cur_start_end, cur_homographs, cur_word_ids = [cur_start_end], [cur_homographs], [cur_word_ids]
+                if isinstance(cur_heteronyms, str):
+                    cur_start_end, cur_heteronyms, cur_word_ids = [cur_start_end], [cur_heteronyms], [cur_word_ids]
 
-                example = self._prepare_sample(line[grapheme_field], cur_start_end, cur_homographs, cur_word_ids)
+                example = self._prepare_sample(line[grapheme_field], cur_start_end, cur_heteronyms, cur_word_ids)
                 if example is None:
                     num_skipped += 1
                 else:
@@ -105,17 +105,17 @@ class HeteronymClassificationDataset(Dataset):
         self,
         sentence: str,
         start_end: List[Tuple[int, int]],
-        homographs: List[str],
-        word_ids: Optional[List[int]] = None,
+        heteronyms: List[str],
+        word_ids: Optional[List[str]] = None,
     ):
         """
         Prepares a single training sample
 
         Args:
             sentence: input sentence in grapheme form
-            start_end: start and end indices of the homograph spans, start_end indices should be in increasing order
-            homographs: homographs present in the sentence
-            word_ids: [Optional] target word_ids, use None for inference
+            start_end: start and end indices of the heteronym spans, start_end indices should be in increasing order
+            heteronyms: heteronyms present in the sentence
+            word_ids: [Optional] target word_ids, use None for inference, e.g. ['diffuse_adj']
         """
         # drop example where sequence length exceeds max sequence length, +2 for special tokens
         length = len(self.tokenizer.text_to_tokens(sentence)) + 2
@@ -124,18 +124,22 @@ class HeteronymClassificationDataset(Dataset):
             return None
 
         # check the correctness on start-end indices
-        for homograph_, start_end_ in zip(homographs, start_end):
-            if homograph_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
+        for heteronym_, start_end_ in zip(heteronyms, start_end):
+            if heteronym_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
                 return None
 
+        input_ids, subtokens_mask, target_word_ids = [], [], []
         # add bos token
-        input_ids = [self.tokenizer.bos_id]
-        subtokens_mask = [self.PAD_TOKEN]  # the first tokens of heteronym spans are 1s, the rest of the tokens are 0s
+        if hasattr(self.tokenizer, "bos_id"):
+            input_ids.append(self.tokenizer.bos_id)
+            subtokens_mask.append(
+                self.PAD_TOKEN
+            )  # the first tokens of heteronym spans are 1s, the rest of the tokens are 0s
 
-        if self.with_labels:
-            target_word_ids = [self.LOSS_PAD_TOKEN]  # -100 to pad plain tokens
-        else:
-            target_word_ids = None  # for inference when labels are not available
+            if self.with_labels:
+                target_word_ids.append(self.LOSS_PAD_TOKEN)  # -100 to pad plain tokens
+            else:
+                target_word_ids = None  # for inference when labels are not available
 
         heteronym_span_idx = 0
         # split sentence by space and keep track of word boundaries
@@ -173,7 +177,7 @@ class HeteronymClassificationDataset(Dataset):
                     )
 
                 heteronym = sentence.lower()[heteronym_start_end[0] : heteronym_start_end[1]]
-                if heteronym not in self.wiki_homograph_dict:
+                if heteronym not in self.heteronym_dict:
                     logging.debug(f"{heteronym} is not supported. Skipping example.")
                     return None
 
@@ -190,26 +194,20 @@ class HeteronymClassificationDataset(Dataset):
             return None
 
         # add eos token
-        input_ids.append(self.tokenizer.eos_id)
-        subtokens_mask.append(self.PAD_TOKEN)
-        if self.with_labels:
-            target_word_ids.append(self.LOSS_PAD_TOKEN)
+        if hasattr(self.tokenizer, "eos_id"):
+            input_ids.append(self.tokenizer.eos_id)
+            subtokens_mask.append(self.PAD_TOKEN)
+            if self.with_labels:
+                target_word_ids.append(self.LOSS_PAD_TOKEN)
 
         # target_word_ids are None for inference when labels are not available
-        return (input_ids, subtokens_mask, target_word_ids)
+        return input_ids, subtokens_mask, target_word_ids
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         return self.data[index]
-
-    def map(self, text: str) -> List[int]:
-        """ Creates a mapping from target labels to ids."""
-        tokens = []
-        for word_id, word in enumerate(text.split()):
-            tokens.append(self.labels_tkn2id[word])
-        return tokens
 
     def _collate_fn(self, batch):
         """
