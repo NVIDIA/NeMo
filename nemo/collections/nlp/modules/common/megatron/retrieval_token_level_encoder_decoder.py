@@ -308,6 +308,15 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         forward_step_func"""
         self.input_tensor = input_tensor
 
+    def freeze(self) -> None:
+        r"""
+        Freeze all params for inference.
+        """
+        for param in self.parameters():
+            param.requires_grad = False
+
+        self.eval()
+        
     def forward(
         self,
         input_ids,

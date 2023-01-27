@@ -146,6 +146,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                             f'module {name} has norm factor but its name is not ending with attention, need to double check'
                         )
 
+    def freeze(self) -> None:
+        r"""
+        Freeze all params for inference.
+        """
+        for param in self.parameters():
+            param.requires_grad = False
+
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
