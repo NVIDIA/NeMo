@@ -200,6 +200,47 @@ class BaselineModule(NeuralModule):
 
         return spectrogram_preds, pitch_predicted, log_durs_pred
 
+    def predict_token_durations(
+        self, tokens, tokens_len, input_mels, input_mels_len
+    ):
+        spectrogram_projections = self.spectrogram_projection(input_mels)
+        spectrogram_encodings, mask = self.spectrogram_encoder(
+            input=spectrogram_projections, seq_lens=input_mels_len)
+
+        token_encodings, tokens_mask = self.token_encoder(tokens)
+
+        # generate the speaker embedding
+        batch_dim = spectrogram_encodings.shape[0]
+
+        speaker_encoding, _ = self.speaker_encoder(
+            query=self.learned_query.repeat(batch_dim, 1).unsqueeze(1),
+            key=spectrogram_encodings,
+            value=spectrogram_encodings
+        )
+
+        # add speaker encoding to text encodings
+        speakerized_token_encodings = token_encodings + speaker_encoding
+
+        # predict_pitch
+        pitch_predicted = self.pitch_predictor(
+            speakerized_token_encodings, tokens_mask)
+
+        pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
+        # output of pitch predictor is B X E X L
+        pitch_emb = pitch_emb.transpose(1, 2)
+
+        speaker_pitch_token_encodings = speakerized_token_encodings + pitch_emb
+
+        # predict duration
+        log_durs_predicted = self.duration_predictor(
+            speaker_pitch_token_encodings, tokens_mask)
+
+        durs_predicted = quantize_durations(
+            torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
+
+        return durs_predicted
+
 
 class InpaintingMSELoss(Loss):
     @property
@@ -434,17 +475,18 @@ class InpainterModel(ModelPT, Exportable):
         new_tokens = torch.tensor(self.vocab(new_text_normalized))
 
         spec_len = torch.tensor([len(spectrogram)])
-        text_lens = torch.tensor([len(tokens)])
+        tokens_len = torch.tensor([len(tokens)])
+        new_tokens_len = torch.tensor([len(new_tokens)])
 
         attn_soft, attn_logprob = self.aligner(
             spec=spectrogram.unsqueeze(0).transpose(1, 2),
             spec_len=spec_len,
             text=tokens.unsqueeze(0),
-            text_len=text_lens
+            text_len=tokens_len
         )
 
         attn_hard = binarize_attention_parallel(
-            attn_soft, text_lens, spec_len)
+            attn_soft, tokens_len, spec_len)
         attn_hard_dur = attn_hard.sum(2)[0, 0, :]
 
         # find the first and last divergence in old and new transcripts
@@ -464,17 +506,13 @@ class InpainterModel(ModelPT, Exportable):
 
         assert last_divergence is not None, 'could not find a final divergence'
 
-        spectrogram_projections = self.module.spectrogram_projection(spectrogram.unsqueeze(0))
-        speaker_emb = spectrogram_projections.sum(1) / spectrogram.shape[0]
-
-        new_token_embeddings = self.module.token_encoder(new_tokens).unsqueeze(0)
-
-        speakerified_token_embeddings = new_token_embeddings + speaker_emb.unsqueeze(1)
-        enc_mask = torch.ones([1, len(new_tokens), 1])
-        log_durs_predicted = self.duration_predictor(
-            speakerified_token_embeddings, enc_mask=enc_mask)
-        durs_predicted = quantize_durations(
-            torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
+        # get the predicted duration of the phonemes in the new text
+        durs_predicted = self.module.predict_token_durations(
+            tokens=new_tokens.unsqueeze(0),
+            tokens_len=new_tokens_len,
+            input_mels=spectrogram.unsqueeze(0),
+            input_mels_len=spec_len
+        )
 
         # Get the left spectrograms and phonemes
         token_durs_left = attn_hard_dur[:first_divergence]
@@ -514,7 +552,7 @@ class InpainterModel(ModelPT, Exportable):
 
         return full_replacement, partial_replacement
 
-    def forward_pass(self, batch, batch_idx):
+    def forward_pass(self, batch, batch_idx, training=True):
         (
             audio, audio_lens,
             text, text_lens,
@@ -553,7 +591,7 @@ class InpainterModel(ModelPT, Exportable):
             input_mels_len=spec_len,
             tokens=text,
             token_durations=attn_hard_dur,
-            pitch=pitch
+            pitch=pitch if training else None
         )
 
         gap_loss = self.gap_loss(
@@ -575,12 +613,24 @@ class InpainterModel(ModelPT, Exportable):
 
         outputs = (text, text_lens, mels, mels_masked, spectrogram_preds, spec_len, attn_hard)
 
-        return reconstruction_loss + dur_loss + pitch_loss, outputs
+        losses = (
+            reconstruction_loss,
+            dur_loss,
+            pitch_loss,
+        )
+
+        return losses, outputs
 
     def training_step(self, batch, batch_idx):
-        loss_spec, specs = self.forward_pass(batch, batch_idx)
-        train_loss = loss_spec
+        losses, specs = self.forward_pass(batch, batch_idx, training=False)
+
+        reconstruction_loss, dur_loss, pitch_loss = losses
+
+        train_loss = reconstruction_loss + dur_loss + pitch_loss
         self.log("train_loss", train_loss)
+        self.log("reconstruction_loss", reconstruction_loss)
+        self.log("dur_loss", dur_loss)
+        self.log("pitch_loss", pitch_loss)
 
         if self.log_train_spectrograms:
             (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard) = specs
@@ -598,11 +648,18 @@ class InpainterModel(ModelPT, Exportable):
         return train_loss
 
     def validation_step(self, batch, batch_idx):
-        loss_spec, specs = self.forward_pass(batch, batch_idx)
-        (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard) = specs
-        self.log("validation_loss", loss_spec)
+        losses, specs = self.forward_pass(batch, batch_idx)
+        texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard = specs
+        reconstruction_loss, dur_loss, pitch_loss = losses
+
+        validation_loss = reconstruction_loss + dur_loss + pitch_loss
+        self.log("validation_loss", validation_loss)
+        self.log("reconstruction_loss_val", reconstruction_loss)
+        self.log("dur_loss_val", dur_loss)
+        self.log("pitch_loss_val", pitch_loss)
+
         return {
-            'loss_spec': loss_spec,
+            'loss_spec': validation_loss,
             'texts': texts,
             'text_lens': text_lens,
             'input_spectrogram': mels,
