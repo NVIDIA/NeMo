@@ -37,7 +37,7 @@ from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
 from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
 from nemo.collections.tts.models import FastPitchModel
-from nemo.core.classes import Dataset, ModelPT
+from nemo.core.classes import Dataset
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
