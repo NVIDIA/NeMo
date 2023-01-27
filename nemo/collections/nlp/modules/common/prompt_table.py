@@ -28,7 +28,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['PromptTable', 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
+__all__ = ['PromptTable', 'PromptEmbedding' 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
 
 
 class VirtualPromptStyle(enum.Enum):
@@ -99,7 +99,7 @@ class PromptTable(NeuralModule, Exportable):
             init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=total_virtual_tokens,
         )
 
-    def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings, total_virtual_tokens):
+    def init_prompt_from_text(self, init_token_ids, word_embeddings, total_virtual_tokens):
         """Add new virtual prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
@@ -126,13 +126,8 @@ class PromptTable(NeuralModule, Exportable):
         word_embeddings = word_embeddings.to(init_token_ids.device)
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
-
-        self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=True,
-            hidden_size=self.hidden_size,
-            total_virtual_tokens=total_virtual_tokens,
-            word_embedding_weights=word_embedding_weights,
-        )
+        return word_embedding_weights
+        
 
     def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings, total_virtual_tokens):
         """

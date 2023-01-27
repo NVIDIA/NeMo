@@ -210,6 +210,10 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Total virtual tokens should be the same across all new tasks, so just need one
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
+        init_text_ids = [i for i, c in self._train_ds.counter.items() if i < self.tokenizer.eos_id][:total_virtual_tokens]
+        w = self.prompt_table.init_prompt_from_text(
+            init_text_ids, self.word_embeddings, total_virtual_tokens
+        )
 
         self.prompt_encoder = PromptEncoder(
             encoder_type=PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "mlp").lower()),
@@ -218,6 +222,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
             dropout=self.cfg.p_tuning.get("dropout", 0.0),
             num_layers=self.cfg.p_tuning.get("num_layers", 2),
+            cs_scale=self.cfg.p_tuning.get("cs_scale", 0.0),
+            insert_tasknames=self.cfg.p_tuning.get("insert_tasknames", False),
+            max_embedding_norm=self.cfg.p_tuning.get("max_embedding_norm", None),
+            max_prompt_norm=self.cfg.p_tuning.get("max_prompt_norm", None),
+            final_layer_norm=self.cfg.p_tuning.get("final_layer_norm", False),
+            embedding_init=w,
         )
 
     def add_ptuned_prompts_to_prompt_table(self):
@@ -470,6 +480,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
+        self.setup_training_data()
+        self.setup_validation_data()
         if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.init_new_prompts()
@@ -477,8 +489,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.init_prompt_encoder()
             self.freeze_existing_virtual_prompt_params()
 
-        self.setup_training_data()
-        self.setup_validation_data()
+     
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):

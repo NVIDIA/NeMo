@@ -15,6 +15,7 @@
 import json
 
 import torch
+from collections import Counter
 from tqdm.auto import tqdm
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
@@ -79,6 +80,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             dataset: A list of json objects or a dictionary objects each
                      containing the information needed for a training example
         """
+        self.counter = Counter()
         skipped = 0
         for json_line in tqdm(dataset):
 
@@ -169,6 +171,8 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                     dec_input = answer_text_ids[:-1]
                     dec_labels = answer_text_ids[1:]
 
+                self.counter.update(input_ids)
+                self.counter.update(dec_labels)
                 self.examples.append((taskname_id, input_ids, dec_input, dec_labels))
             else:
                 skipped += 1

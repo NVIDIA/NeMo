@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common import (
     DistilBertEncoder,
     PromptEncoder,
     PromptTable,
+    PromptEmbedding,
     RobertaEncoder,
     SequenceClassifier,
     SequenceRegression,

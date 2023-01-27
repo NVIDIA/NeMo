@@ -239,11 +239,12 @@ class PromptEncoder(NeuralModule, Exportable):
         hidden_size,
         dropout: float,
         num_layers: int,
-        cs_scale: float,
-        insert_tasknames: bool,
-        max_embedding_norm: Optional[float],
-        max_prompt_norm: Optional[float],
-        final_layer_norm: bool,
+        cs_scale: float = 0.0,
+        insert_tasknames: bool = False,
+        max_embedding_norm: Optional[float] = None,
+        max_prompt_norm: Optional[float] = None,
+        final_layer_norm: bool = False,
+        embedding_init: Optional[torch.Tensor] = None,
     ):
         """
         Initializes the PromptEncoder module.
@@ -290,8 +291,12 @@ class PromptEncoder(NeuralModule, Exportable):
 
         if self.encoder_type == PromptEncoderType.SIMPLE_EMBEDDING:
             init.xavier_normal(self.embedding.weight.data)
+            if embedding_init is not None:
+                self.embedding.weight.data = embedding_init.type_as(self.embedding.weight.data)
         elif self.encoder_type == PromptEncoderType.SCALED_EMBEDDING:
             init.xavier_normal(self.embedding.weight.data)
+            if embedding_init is not None:
+                self.embedding.weight.data = embedding_init.type_as(self.embedding.weight.data)
             self.scale = torch.nn.parameter.Parameter(data=20 * (torch.abs(torch.randn(self.total_virtual_tokens, 1))))
         elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
