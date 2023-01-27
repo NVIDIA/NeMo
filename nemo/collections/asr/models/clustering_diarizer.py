@@ -442,6 +442,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
+            cuda=getattr(self._cluster_params, 'device', self._device.type) != 'cpu',
         )
 
         # Scoring

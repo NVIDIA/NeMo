@@ -399,7 +399,7 @@ def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
             f.write(clus_label_line)
 
 
-def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, cuda):
     """
     Performs spectral clustering on embeddings with time stamps generated from VAD output
 
@@ -411,7 +411,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
         oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
-        use_torch_script (bool): Boolean that determines whether to use torch.jit.script for speaker clustering
+        cuda (bool): Boolean variable for toggling cuda availability.
 
     Returns:
         all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
@@ -423,8 +423,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     no_references = False
     lines_cluster_labels = []
 
-    cuda = True
-    if not torch.cuda.is_available():
+    if cuda and not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
