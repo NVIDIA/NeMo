@@ -53,9 +53,10 @@ from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_pa
 
 StrategyRegistry.register(
     name='smddp',
-    strategy=DDPStrategy(
-        cluster_environment=TorchElasticEnvironment(), process_group_backend="smddp", accelerator="gpu"
-    ),
+    strategy=DDPStrategy,
+    cluster_environment=TorchElasticEnvironment(),
+    process_group_backend="smddp",
+    accelerator="gpu",
 )
 
 
