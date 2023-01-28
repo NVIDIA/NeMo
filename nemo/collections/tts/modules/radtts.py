@@ -342,6 +342,12 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
+            # borisf : WAR for https://github.com/pytorch/pytorch/pull/91526
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
+                mask = get_mask_from_lengths(unfolded_out_lens).unsqueeze(1)
+                context_w_spkvec = context_w_spkvec * mask
+                unfolded_out_lens = None
+
             context_lstm_padded_output = self.context_lstm(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
@@ -602,7 +608,9 @@ class RadTTSModule(NeuralModule, Exportable):
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
         if in_lens is None:
-            in_lens = text.new_ones((batch_size,), dtype=torch.int) * n_tokens
+            in_lens = text.new_ones((batch_size,), dtype=torch.int64) * n_tokens
+        else:
+            in_lens = in_lens.to(dtype=torch.int64)
         spk_vec = self.encode_speaker(speaker_id)
         if speaker_id_text is None:
             speaker_id_text = speaker_id

@@ -96,5 +96,9 @@ class TestExportable:
                 input_example1 = model.input_module.input_example(max_batch=3, max_dim=776)
                 input_example2 = model.input_module.input_example(max_batch=16, max_dim=998)
                 model.export(
-                    output=filename, input_example=input_example1, verbose=True, check_trace=[input_example2],
+                    output=filename,
+                    input_example=input_example1,
+                    verbose=True,
+                    check_trace=[input_example2],
+                    onnx_opset_version=14,
                 )

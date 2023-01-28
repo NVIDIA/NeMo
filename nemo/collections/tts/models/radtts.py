@@ -448,7 +448,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
         pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
         volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-        # batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
+        # batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int64)
         # left_over_size = sz[0]
         # batch_lengths[0] = 0
         # for i in range(1, max_batch):
@@ -471,7 +471,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             len_i = random.randint(3, max_dim)
             lens.append(len_i)
             inp[i, len_i:] = pad_id
-        lens = torch.tensor(lens, device=par.device, dtype=torch.int)
+        lens = torch.tensor(lens, device=par.device, dtype=torch.int64)
 
         inputs = {
             'text': inp,
