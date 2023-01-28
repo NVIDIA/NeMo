@@ -110,13 +110,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: List[str],
+        paths2audio_files: List[str] = None,
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
+        manifest_filepath: str = None
     ) -> List[str]:
         """
         If modify this function, please remember update transcribe_partial_audio() in 
@@ -136,10 +137,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            manifest_filepath: (a path) to a manifest file to transcribe if `paths2audio_files` is not provided.
+
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
+        assert (not paths2audio_files is None) or (not manifest_filepath is None), "Provide either 'paths2audio_files' or 'manifest_filepath'!"
+        assert ((paths2audio_files is None) and (not manifest_filepath is None)) or \
+               ((not paths2audio_files is None) and (manifest_filepath is None)), "You can't provide 'paths2audio_files' and 'manifest_filepath' in the same time!"
+        if not paths2audio_files is None and len(paths2audio_files) == 0:
             return {}
 
         if return_hypotheses and logprobs:
@@ -173,13 +179,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                        fp.write(json.dumps(entry) + '\n')
-
                 config = {
-                    'paths2audio_files': paths2audio_files,
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
@@ -188,6 +188,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
                 if augmentor:
                     config['augmentor'] = augmentor
+
+                # if manifest_filepath is provided, use it
+                if not manifest_filepath is None:
+                    config['manifest_filepath'] = manifest_filepath
+                else: # otherwise, build a temp manifest file and use it
+                    with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                        for audio_file in paths2audio_files:
+                            entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                            fp.write(json.dumps(entry) + '\n')
+                    config['paths2audio_files'] = paths2audio_files
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
