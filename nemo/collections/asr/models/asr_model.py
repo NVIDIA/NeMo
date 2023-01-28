@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Any, List
 
 import torch
 
@@ -23,6 +22,9 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
+
+from omegaconf import OmegaConf
+
 
 __all__ = ['ASRModel']
 
@@ -136,8 +138,57 @@ class ASRModel(ModelPT, ABC):
                 torch.distributed.all_reduce(valid_gradients, op=torch.distributed.ReduceOp.MIN)
 
             if valid_gradients < 1:
-                logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
+                logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
+
+    def on_train_start(self):
+        super().on_train_start()
+        
+        # dynamic freezing
+        # should fire only once, on the very first batch of training and never again
+        if not hasattr(self, '_freeze_cfg'):
+            if hasattr(self.cfg, 'freeze_updates') and \
+            self.cfg.freeze_updates is not None and \
+            self.cfg.freeze_updates.get('enabled', False):
+                setattr(self, '_freeze_cfg', OmegaConf.to_container(self.cfg.freeze_updates))
+                self._freeze_cfg['is_frozen'] = {k:False for k in self._freeze_cfg['modules'].keys()}
+            else:
+                setattr(self, '_freeze_cfg', None)
+
+    def on_train_batch_start(self, batch: Any, batch_idx: int):
+        """
+        dynamic freezing
+        allows you to freeze certain model layers for the first N steps of training
+        """
+        super().on_train_batch_start(batch, batch_idx)
+        
+        # dynamic freezing
+        if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
+            if (
+                self.training
+                and hasattr(self, "trainer")
+                and self.trainer is not None
+            ):
+                num_updates = self.trainer.global_step + 1
+                
+                for ml, m_steps in self._freeze_cfg['modules'].items():
+                    # we could do hasattr check here, but it's too expensive for each step
+                    # consequently you'll throw an error if the module name doesn't exist
+                    # or was spelled wrong in the config.yaml
+                    if num_updates <= m_steps and not self._freeze_cfg['is_frozen'][ml]:
+                        getattr(self, ml).freeze()
+                        getattr(self, ml).train()
+                        self._freeze_cfg['is_frozen'][ml] = True
+                    elif num_updates > m_steps and self._freeze_cfg['is_frozen'][ml]:
+                        getattr(self, ml).unfreeze()
+                        self._freeze_cfg['is_frozen'][ml] = False
+    
+    def on_train_end(self):
+        super().on_train_end()
+        
+        # dynamic freezing cleanup
+        if hasattr(self, '_freeze_cfg'):
+            delattr(self, '_freeze_cfg')
 
 
 class ExportableEncDecModel(Exportable):
