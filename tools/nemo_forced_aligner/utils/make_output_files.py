@@ -144,8 +144,10 @@ def make_ctm(
                 text = boundary_info_["text"]
 
                 if "t_start" not in boundary_info_:
-                    raise ValueError(f"Possibly the tokenizer/charset does not supports this token.\n"
-                                     f"Please ensure the text is made compatible with the model's vocabulary.")
+                    raise ValueError(
+                        f"Possibly the tokenizer/charset does not supports this token.\n"
+                        f"Please ensure the text is made compatible with the model's vocabulary."
+                    )
 
                 start_sample = boundary_info_["t_start"] * timestep_to_sample_ratio
                 end_sample = (boundary_info_["t_end"] + 1) * timestep_to_sample_ratio - 1

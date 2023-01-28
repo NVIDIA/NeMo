@@ -160,9 +160,11 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
                 word_ids = model.tokenizer.text_to_ids(word)
 
                 if BLANK_ID in word_ids:
-                    raise RuntimeError(f"Provided token '{word}' cannot be tokenized to the model's vocabulary.\n"
-                                       f"Please make sure that provided text is correctly processed so that it's "
-                                       f"vocabulary matches that of the model.")
+                    raise RuntimeError(
+                        f"Provided token '{word}' cannot be tokenized to the model's vocabulary.\n"
+                        f"Please make sure that provided text is correctly processed so that it's "
+                        f"vocabulary matches that of the model."
+                    )
 
                 for token, id_ in zip(word_tokens, word_ids):
                     # add the text token and the blank that follows it
