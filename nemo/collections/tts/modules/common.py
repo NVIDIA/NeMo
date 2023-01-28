@@ -82,35 +82,34 @@ class BiLSTM(nn.Module):
 
         self.bilstm.flatten_parameters()
 
-    def lstm_tensor(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> Tuple[Tensor, Tensor]:
-        seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
-        )
-        return self.lstm_sequence(seq)
-
-    def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
-        if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
-            self.bilstm.flatten_parameters()
-            ret, _ = self.bilstm(seq)
-        else:
-            # Calculate sizes and prepare views to our zero buffer to pass as hx
-            max_batch_size = seq.batch_sizes[0]
-            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
-            hx = (
-                seq.data.new_zeros(*common_shape, self.real_hidden_size),
-                seq.data.new_zeros(*common_shape, self.bilstm.hidden_size),
-            )
-            ret, _ = self.bilstm(seq, hx)
-        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
-
-    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+    def lstm_sequence(self, context: Tensor, lens: Tensor) -> Tensor:
+        self.bilstm.flatten_parameters()
         context, lens, unsort_ids = sort_tensor(context, lens)
+        seq = nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=True)
+        ret, _ = self.bilstm(seq)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)[0][unsort_ids]
+
+    def lstm_tensor(self, context: Tensor) -> Tensor:
         dtype = context.dtype
         # this is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
         with torch.cuda.amp.autocast(enabled=False):
-            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens, enforce_sorted=True)
-        return ret[0].to(dtype=dtype)[unsort_ids]
+            # Calculate sizes and prepare views to our zero buffer to pass as hx
+            context = context.to(dtype=torch.float32)
+            max_batch_size = context.shape[0]
+            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+            hx = (
+                context.new_zeros(*common_shape, self.real_hidden_size),
+                context.new_zeros(*common_shape, self.bilstm.hidden_size),
+            )
+            ret, _ = self.bilstm(context, hx=hx)
+        return ret.to(dtype=dtype)
+
+    def forward(self, context: Tensor, lens: Optional[Tensor] = None) -> Tensor:
+        if lens is None:
+            return self.lstm_tensor(context)
+        else:
+            return self.lstm_sequence(context, lens)
 
 
 class ConvLSTMLinear(nn.Module):
@@ -158,13 +157,17 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        mask = get_mask_from_lengths(lens, context)
+        mask = get_mask_from_lengths(lens)
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
+        context = context[:, :, : mask.shape[-1]]
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
-        context = context.transpose(1, 2)
         # Apply Bidirectional LSTM
-        context = self.bilstm(context, lens)
+        # borisf : WAR for https://github.com/pytorch/pytorch/pull/91526
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            context = self.bilstm((context * mask).transpose(1, 2))
+        else:
+            context = self.bilstm(context.transpose(1, 2), lens=lens)
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
         return context
