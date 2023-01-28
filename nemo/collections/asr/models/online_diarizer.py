@@ -132,10 +132,13 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             history_buffer_size=clustering_params.history_buffer_size,
             current_buffer_size=clustering_params.current_buffer_size,
         )
+        self.online_clus = torch.jit.script(self.online_clus)
+        # torch.jit.save(self.online_clus, 'online_clus.pt')
+        # self.online_clus = torch.jit.load('online_clus.pt')
+
         self.history_n = clustering_params.history_buffer_size
         self.current_n = clustering_params.current_buffer_size
-
-        self.max_num_speakers = self.online_clus.max_num_speakers
+        self.max_num_speakers = clustering_params.max_num_speakers
 
     def _init_online_segmentor_module(self, sample_rate):
         """
@@ -146,6 +149,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 online segmentation module that generates short speech segments from the VAD input
         """
         self.online_segmentor = OnlineSegmentor(sample_rate)
+        self.online_segmentor = torch.jit.script(self.online_segmentor)
+        # torch.jit.save(self.online_segmentor, 'online_segmentor.pt')
+        # self.online_segmentor = torch.jit.load('online_segmentor.pt')
 
     def _init_memory_buffer(self):
         """
@@ -346,20 +352,21 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Only if there are newly obtained embeddings, update ranges and embeddings.
         elif self.segment_indexes[scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
-            global_idx = max(self.memory_segment_indexes[scale_idx]) - self.memory_margin
+            # Get the global index of the first segment we want to keep in the buffer            
+            global_stt_idx = max(max(self.memory_segment_indexes[scale_idx]) - self.memory_margin, 0)
 
-            # convert global index global_idx to buffer index buffer_idx
+            # Convert global index global_stt_idx to buffer index buffer_stt_idx
             segment_indexes_mat = torch.tensor(self.segment_indexes[scale_idx])
-            buffer_idx = torch.where(segment_indexes_mat == global_idx)[0][0]
+            buffer_stt_idx = torch.where(segment_indexes_mat == global_stt_idx)[0][0]
 
-            self.memory_segment_ranges[scale_idx][global_idx:] = deepcopy(
-                self.segment_range_ts[scale_idx][buffer_idx:]
+            self.memory_segment_ranges[scale_idx][global_stt_idx:] = deepcopy(
+                self.segment_range_ts[scale_idx][buffer_stt_idx:]
             )
-            self.memory_segment_indexes[scale_idx][global_idx:] = deepcopy(
-                self.segment_indexes[scale_idx][buffer_idx:]
+            self.memory_segment_indexes[scale_idx][global_stt_idx:] = deepcopy(
+                self.segment_indexes[scale_idx][buffer_stt_idx:]
             )
             if scale_idx == self.base_scale_index:
-                self.memory_cluster_labels[global_idx:] = deepcopy(total_cluster_labels[global_idx:])
+                self.memory_cluster_labels[global_stt_idx:] = deepcopy(total_cluster_labels[global_stt_idx:])
                 assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
 
             # Remove unnecessary old values
@@ -465,17 +472,14 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             device=device,
         )
 
-        concat_emb, add_new = self.online_clus.get_reduced_mat(
-            emb_in=curr_emb, base_segment_indexes=self.segment_indexes[self.base_scale_index]
-        )
+        base_segment_indexes=torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
 
-        # Perform online version of clustering with history-concatenated embedding vectors
-        Y_concat = self.online_clus.forward_infer(
-            emb=concat_emb, frame_index=self.frame_index, cuda=cuda,
+        merged_clus_labels = self.online_clus.forward_infer(
+            curr_emb=curr_emb,
+            base_segment_indexes=base_segment_indexes,
+            frame_index=self.frame_index, 
+            cuda=cuda,
         )
-
-        # Match the permutation of the newly obtained speaker labels and the previous labels
-        merged_clus_labels = self.online_clus.match_labels(Y_concat, add_new)
 
         # Update history data
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():

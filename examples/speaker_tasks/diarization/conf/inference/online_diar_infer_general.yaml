@@ -3,6 +3,7 @@ name: &name "OnlineClusterDiarizer"
 num_workers: 4
 sample_rate: 16000
 batch_size: 64
+device: "cuda"
 
 diarizer:
   #manifest_filepath: "/home/taejinp/projects/data/diar_manifest_input/ch109.json"
