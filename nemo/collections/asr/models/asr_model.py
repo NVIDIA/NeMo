@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List
 
 import torch
+from omegaconf import OmegaConf
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -22,9 +23,6 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
-
-from omegaconf import OmegaConf
-
 
 __all__ = ['ASRModel']
 
@@ -143,15 +141,17 @@ class ASRModel(ModelPT, ABC):
 
     def on_train_start(self):
         super().on_train_start()
-        
+
         # dynamic freezing
         # should fire only once, on the very first batch of training and never again
         if not hasattr(self, '_freeze_cfg'):
-            if hasattr(self.cfg, 'freeze_updates') and \
-            self.cfg.freeze_updates is not None and \
-            self.cfg.freeze_updates.get('enabled', False):
+            if (
+                hasattr(self.cfg, 'freeze_updates')
+                and self.cfg.freeze_updates is not None
+                and self.cfg.freeze_updates.get('enabled', False)
+            ):
                 setattr(self, '_freeze_cfg', OmegaConf.to_container(self.cfg.freeze_updates))
-                self._freeze_cfg['is_frozen'] = {k:False for k in self._freeze_cfg['modules'].keys()}
+                self._freeze_cfg['is_frozen'] = {k: False for k in self._freeze_cfg['modules'].keys()}
             else:
                 setattr(self, '_freeze_cfg', None)
 
@@ -161,16 +161,12 @@ class ASRModel(ModelPT, ABC):
         allows you to freeze certain model layers for the first N steps of training
         """
         super().on_train_batch_start(batch, batch_idx)
-        
+
         # dynamic freezing
         if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
-            if (
-                self.training
-                and hasattr(self, "trainer")
-                and self.trainer is not None
-            ):
+            if self.training and hasattr(self, "trainer") and self.trainer is not None:
                 num_updates = self.trainer.global_step + 1
-                
+
                 for ml, m_steps in self._freeze_cfg['modules'].items():
                     # we could do hasattr check here, but it's too expensive for each step
                     # consequently you'll throw an error if the module name doesn't exist
@@ -182,10 +178,10 @@ class ASRModel(ModelPT, ABC):
                     elif num_updates > m_steps and self._freeze_cfg['is_frozen'][ml]:
                         getattr(self, ml).unfreeze()
                         self._freeze_cfg['is_frozen'][ml] = False
-    
+
     def on_train_end(self):
         super().on_train_end()
-        
+
         # dynamic freezing cleanup
         if hasattr(self, '_freeze_cfg'):
             delattr(self, '_freeze_cfg')
