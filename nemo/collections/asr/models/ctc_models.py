@@ -117,7 +117,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
-        manifest_filepath: str = None
+        manifest_filepath: str = None,
     ) -> List[str]:
         """
         If modify this function, please remember update transcribe_partial_audio() in 
@@ -142,9 +142,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        assert (not paths2audio_files is None) or (not manifest_filepath is None), "Provide either 'paths2audio_files' or 'manifest_filepath'!"
-        assert ((paths2audio_files is None) and (not manifest_filepath is None)) or \
-               ((not paths2audio_files is None) and (manifest_filepath is None)), "You can't provide 'paths2audio_files' and 'manifest_filepath' in the same time!"
+        assert (not paths2audio_files is None) or (
+            not manifest_filepath is None
+        ), "Provide either 'paths2audio_files' or 'manifest_filepath'!"
+        assert ((paths2audio_files is None) and (not manifest_filepath is None)) or (
+            (not paths2audio_files is None) and (manifest_filepath is None)
+        ), "You can't provide 'paths2audio_files' and 'manifest_filepath' in the same time!"
         if not paths2audio_files is None and len(paths2audio_files) == 0:
             return {}
 
@@ -192,7 +195,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 # if manifest_filepath is provided, use it
                 if not manifest_filepath is None:
                     config['manifest_filepath'] = manifest_filepath
-                else: # otherwise, build a temp manifest file and use it
+                else:  # otherwise, build a temp manifest file and use it
                     with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                         for audio_file in paths2audio_files:
                             entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
