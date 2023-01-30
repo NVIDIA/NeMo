@@ -17,7 +17,8 @@ from pathlib import Path
 from time import sleep
 
 import wget
-from pytorch_lightning.plugins.environments import LightningEnvironment, TorchElasticEnvironment
+from pytorch_lightning.accelerators import CUDAAccelerator
+from pytorch_lightning.plugins.environments import LightningEnvironment
 from pytorch_lightning.strategies import DDPStrategy, StrategyRegistry
 
 from nemo.utils import logging
@@ -84,18 +85,24 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
     raise ValueError("Not able to download url right now, please try again.")
 
 
+class SageMakerDDPStrategy(DDPStrategy):
+    def setup_distributed(self) -> None:
+        assert isinstance(self.accelerator, CUDAAccelerator)
+        env = LightningEnvironment()
+        env.world_size = lambda: int(os.environ["WORLD_SIZE"])
+        env.global_rank = lambda: int(os.environ["RANK"])
+        self.cluster_environment = env
+        super().setup_distributed()
+
+
 def initialize_sagemaker() -> None:
     """
     Helper function to initiate sagemaker with NeMo.
     This function installs libraries that NeMo requires for the ASR toolkit + initializes sagemaker ddp.
     """
 
-    env = LightningEnvironment()
-    env.world_size = lambda: int(os.environ["WORLD_SIZE"])
-    env.global_rank = lambda: int(os.environ["RANK"])
-
     StrategyRegistry.register(
-        name='smddp', strategy=DDPStrategy, cluster_environment=env, process_group_backend="smddp", accelerator="gpu",
+        name='smddp', strategy=SageMakerDDPStrategy, process_group_backend="smddp",
     )
 
     def _install_system_libraries() -> None:
