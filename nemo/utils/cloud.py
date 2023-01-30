@@ -17,6 +17,8 @@ from pathlib import Path
 from time import sleep
 
 import wget
+from pytorch_lightning.plugins.environments import LightningEnvironment, TorchElasticEnvironment
+from pytorch_lightning.strategies import DDPStrategy, StrategyRegistry
 
 from nemo.utils import logging
 
@@ -85,9 +87,16 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
 def initialize_sagemaker() -> None:
     """
     Helper function to initiate sagemaker with NeMo.
-    This function installs libraries that NeMo requires for the ASR toolkit + initializes sagemaker ddp
-
+    This function installs libraries that NeMo requires for the ASR toolkit + initializes sagemaker ddp.
     """
+
+    env = LightningEnvironment()
+    env.world_size = lambda: int(os.environ["WORLD_SIZE"])
+    env.global_rank = lambda: int(os.environ["RANK"])
+
+    StrategyRegistry.register(
+        name='smddp', strategy=DDPStrategy, cluster_environment=env, process_group_backend="smddp", accelerator="gpu",
+    )
 
     def _install_system_libraries() -> None:
         os.system('chmod 777 /tmp && apt-get update && apt-get install -y libsndfile1 ffmpeg')

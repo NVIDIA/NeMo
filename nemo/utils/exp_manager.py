@@ -35,8 +35,6 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.strategies import StrategyRegistry
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
 
@@ -50,34 +48,6 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
-
-
-class CustomEnvironment(TorchElasticEnvironment):
-    def global_rank(self) -> int:
-        rank = self.global_rank()
-        print(f"for global rank returning {rank}")
-        return rank
-
-    def local_rank(self) -> int:
-        rank = self.local_rank()
-        print(f"for local rank returning {rank}")
-        return rank
-
-    def node_rank(self) -> int:
-        rank = self.node_rank()
-        import smdistributed.dataparallel.torch.distributed as dist
-
-        print(f"for node rank returning {rank}, actual rank {dist.get_rank()}")
-        return rank
-
-
-StrategyRegistry.register(
-    name='smddp',
-    strategy=DDPStrategy,
-    cluster_environment=CustomEnvironment(),
-    process_group_backend="smddp",
-    accelerator="gpu",
-)
 
 
 class NotFoundError(NeMoBaseException):
