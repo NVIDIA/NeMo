@@ -487,7 +487,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 loss_for_ub = self.loss_func(loss_mask, output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = loss_mask.sum()
-                    loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+                    if loss_for_ub.isnan():
+                        assert loss_mask.count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
+                    else:
+                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+
                     loss_sum_and_ub_size_all_gpu = torch.cat(
                         [
                             loss_sum_for_ub.clone().detach().view(1),
