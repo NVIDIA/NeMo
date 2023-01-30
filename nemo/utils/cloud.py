@@ -86,14 +86,16 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
 
 
 class SageMakerDDPStrategy(DDPStrategy):
-    def setup_distributed(self) -> None:
-        assert isinstance(self.accelerator, CUDAAccelerator)
+    @property
+    def cluster_environment(self):
         env = LightningEnvironment()
         env.world_size = lambda: int(os.environ["WORLD_SIZE"])
         env.global_rank = lambda: int(os.environ["RANK"])
-        print("BOOM", os.environ["WORLD_SIZE"], os.environ["RANK"], env.node_rank(), os.environ)
-        self.cluster_environment = env
-        super().setup_distributed()
+        return env
+
+    @cluster_environment.setter
+    def cluster_environment(self, env):
+        pass
 
 
 def initialize_sagemaker() -> None:
