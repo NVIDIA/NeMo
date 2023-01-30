@@ -125,13 +125,14 @@ def initialize_sagemaker() -> None:
     _patch_torch_metrics()
 
     if os.environ.get("RANK") and os.environ.get("WORLD_SIZE"):
-        import smdistributed.modelparallel.torch as smp
+        import smdistributed.dataparallel.torch.distributed as dist
 
         # has to be imported, as it overrides torch modules and such when DDP is enabled.
         import smdistributed.dataparallel.torch.torch_smddp
 
-        smp.init({'ddp': True})
-        if smp.mp_rank() == 0:
+        dist.init_process_group()
+
+        if dist.get_local_rank():
             _install_system_libraries()
-        return smp.barrier()  # wait for main process
+        return dist.barrier()  # wait for main process
     _install_system_libraries()
