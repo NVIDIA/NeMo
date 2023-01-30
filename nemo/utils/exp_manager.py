@@ -51,10 +51,30 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
+
+class CustomEnvironment(TorchElasticEnvironment):
+    def global_rank(self) -> int:
+        rank = self.global_rank()
+        print(f"for global rank returning {rank}")
+        return rank
+
+    def local_rank(self) -> int:
+        rank = self.local_rank()
+        print(f"for local rank returning {rank}")
+        return rank
+
+    def node_rank(self) -> int:
+        rank = self.node_rank()
+        import smdistributed.dataparallel.torch.distributed as dist
+
+        print(f"for node rank returning {rank}, actual rank {dist.get_rank()}")
+        return rank
+
+
 StrategyRegistry.register(
     name='smddp',
     strategy=DDPStrategy,
-    cluster_environment=TorchElasticEnvironment(),
+    cluster_environment=CustomEnvironment(),
     process_group_backend="smddp",
     accelerator="gpu",
 )
