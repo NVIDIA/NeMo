@@ -70,9 +70,18 @@ class CastToFloat(torch.nn.Module):
         self.mod = mod
 
     def forward(self, x):
-        if torch.is_autocast_enabled():
-            with avoid_float16_autocast_context():
-                ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
-        else:
-            ret = self.mod.forward(x)
+        with torch.cuda.amp.autocast(enabled=False):
+            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
         return ret
+
+
+class CastToFloatAll(torch.nn.Module):
+    def __init__(self, mod):
+        super(CastToFloatAll, self).__init__()
+        self.mod = mod
+
+    def forward(self, *args):
+        from_dtype = args[0].dtype
+        with torch.cuda.amp.autocast(enabled=False):
+            ret = self.mod.forward(*cast_all(args, from_dtype=from_dtype, to_dtype=torch.float32))
+        return cast_all(ret, from_dtype=torch.float32, to_dtype=from_dtype)

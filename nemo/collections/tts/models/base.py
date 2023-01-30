@@ -146,9 +146,15 @@ class GlowVocoder(Vocoder):
                 ) from e
 
             def yet_another_patch(audio, n_fft, hop_length, win_length, window):
-                spec = torch.stft(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
-                if spec.dtype in [torch.cfloat, torch.cdouble]:
-                    spec = torch.view_as_real(spec)
+                spec = torch.stft(
+                    audio,
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    win_length=win_length,
+                    window=window,
+                    return_complex=True,
+                )
+                spec = torch.view_as_real(spec)
                 return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
 
             self.stft = lambda x: yet_another_patch(
@@ -212,6 +218,42 @@ class MelToSpec(ModelPT, ABC):
 
         Returns:
             spec: A torch tensor representing the linear spectrograms ['B', 'n_freqs', 'T']
+        """
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models
+
+
+class TextToWaveform(ModelPT, ABC):
+    """ Base class for all end-to-end TTS models that generate a waveform from text """
+
+    @abstractmethod
+    def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
+        """
+       A helper function that accepts a raw python string and turns it into a tensor. The tensor should have 2
+        dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
+        should represent either tokenized or embedded text, depending on the model.
+        """
+
+    @abstractmethod
+    def convert_text_to_waveform(self, *, tokens: 'torch.tensor', **kwargs) -> 'List[torch.tensor]':
+        """
+        Accepts a batch of text and returns a list containing a batch of audio
+        Args:
+            tokens: A torch tensor representing the text to be converted to speech
+        Returns:
+            audio: A list of length batch_size containing torch tensors representing the waveform output
         """
 
     @classmethod

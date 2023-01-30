@@ -19,7 +19,6 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.distributed import rank_zero_only
 
 from nemo.core import ModelPT
 from nemo.utils import logging
@@ -97,7 +96,6 @@ class TestStatelessTimer:
             strategy='ddp',
             logger=None,
             enable_checkpointing=False,
-            callbacks=[StatelessTimer('00:00:00:03')],
         )
         exp_manager_cfg = ExpManagerConfig(
             explicit_log_dir='./ptl_stateless_timer_check/',
@@ -107,6 +105,7 @@ class TestStatelessTimer:
             create_checkpoint_callback=True,
             checkpoint_callback_params=callback_params,
             resume_if_exists=True,
+            max_time_per_run="00:00:00:03",
         )
         exp_manager(trainer, cfg=OmegaConf.structured(exp_manager_cfg))
         model = ExampleModel(trainer=trainer)

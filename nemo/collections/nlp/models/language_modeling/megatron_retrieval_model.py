@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    build_position_ids,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
@@ -94,12 +95,12 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             self.model = Float16Module(module=self.model, precision=self.cfg.precision)
 
         # self.setup_optimizer_param_groups()
-        if self.cfg.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        if self.cfg.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.cfg.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.cfg.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
@@ -212,6 +213,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             ),  # whether use the absolute postion encoding
             tokenizer=self.tokenizer,
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
+            version=self.cfg.get('version', 1),
         )
         return model
 
@@ -224,6 +227,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         token_type_ids=None,
         labels=None,
         input_emb=None,
+        position_ids=None,
     ):
         output_tensor = self.model(
             input_ids=input_ids,
@@ -233,6 +237,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             token_type_ids=token_type_ids,
             labels=labels,
             input_emb=input_emb,
+            position_ids=position_ids,
         )
         return output_tensor
 
@@ -243,8 +248,18 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-
-        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        if self.cfg.get('add_position_embedding', False):
+            input_position_ids = build_position_ids(input_tokens_id)
+        else:
+            input_position_ids = None
+        loss = self(
+            input_tokens_id,
+            input_attn_mask,
+            retrieved_ids,
+            retrieved_attn_mask,
+            labels=labels,
+            position_ids=input_position_ids,
+        )
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
@@ -309,16 +324,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 # If the grad scaler skipped its optimizer step due to infs/nans,
                 # decrement the step of all schedulers.
                 if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    schedulers = self.trainer.lr_schedulers
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
 
-                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
                         return
 
-                    for scheduler in schedulers:
+                    for scheduler_cfg in scheduler_cfgs:
                         # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                         # as well as update the optimizer lr in all param groups
-                        scheduler['scheduler'].last_epoch -= 2
-                        scheduler['scheduler'].step()
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
 
                     # Increase the max step count by 1
 
@@ -333,13 +348,26 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        if self.cfg.get('add_position_embedding', False):
+            input_position_ids = build_position_ids(input_tokens_id)
+        else:
+            input_position_ids = None
+        loss = self(
+            input_tokens_id,
+            input_attn_mask,
+            retrieved_ids,
+            retrieved_attn_mask,
+            labels=labels,
+            position_ids=input_position_ids,
+        )
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
+        if len(outputs) == 0:
+            return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
         # formula to compute the perplexity
@@ -457,7 +485,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config
-        self._inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+        self.inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self._inference_config
@@ -474,13 +502,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
-                response = generate(self, **inference_config, strategy=self._inference_strategy)
+                response = generate(self, **inference_config, strategy=self.inference_strategy)
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
                 del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
-                return generate(self, **inference_config, strategy=self._inference_strategy)
+                return generate(self, **inference_config, strategy=self.inference_strategy)
 
     def generate(
         self,
@@ -527,6 +555,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
                 neighbors,
+                position_ids,
             ) = batch
 
             if len(retrieved.shape) == 1:
@@ -539,6 +568,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             extra_arg['neighbors'] = neighbors[0].item()
+            extra_arg['position_ids'] = position_ids
 
             output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
 

@@ -14,7 +14,7 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel

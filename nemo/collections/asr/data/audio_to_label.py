@@ -19,7 +19,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
@@ -30,20 +30,25 @@ from nemo.utils import logging
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
-def repeat_signal(signal, sig_len, required_length):
+def repeat_signal(signal: torch.Tensor, sig_len: int, required_length: int) -> torch.Tensor:
     """repeat signal to make short signal to have required_length
     Args:
-        signal (FloatTensor): input signal
-        sig_len (LongTensor): length of input signal
-        required_length(float) : length of generated signal
+        signal (Tensor): input signal
+        sig_len (int): length of input signal
+        required_length (int): length of generated signal
     Returns:
-        signal (FloatTensor): generated signal of required_length by repeating itself.
+        signal (Tensor): generated signal of required_length by repeating itself.
     """
+    sub: torch.Tensor = torch.tensor([])
     repeat = int(required_length // sig_len)
     rem = int(required_length % sig_len)
-    sub = signal[-rem:] if rem > 0 else torch.tensor([])
-    rep_sig = torch.cat(repeat * [signal])
-    signal = torch.cat((rep_sig, sub))
+    sub: torch.Tensor = torch.tensor([])
+    rep_sig: torch.Tensor = torch.cat(repeat * [signal])
+    if rem > 0:
+        sub = signal[-rem:]
+        signal = torch.cat((rep_sig, sub))
+    else:
+        signal = rep_sig
     return signal
 
 
@@ -163,7 +168,7 @@ def _vad_frame_seq_collate_fn(self, batch):
     """
     slice_length = int(self.featurizer.sample_rate * self.window_length_in_sec)
     _, audio_lengths, _, tokens_lengths = zip(*batch)
-    slice_length = min(slice_length, max(audio_lengths))
+    slice_length = int(min(slice_length, max(audio_lengths)))
     shift = int(self.featurizer.sample_rate * self.shift_length_in_sec)
     has_audio = audio_lengths[0] is not None
 
@@ -273,6 +278,7 @@ target_label_n, "offset": offset_in_sec_n}
         super().__init__()
         if isinstance(manifest_filepath, str):
             manifest_filepath = manifest_filepath.split(',')
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
@@ -530,6 +536,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         world_size: int = 0,
         is_regression_task: bool = False,
     ):
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
             min_duration=min_duration,

@@ -18,20 +18,20 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
-from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
+from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
-from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -162,7 +162,7 @@ class NLPDDPStrategy(DDPStrategy):
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], filepath: _PATH, storage_options: Optional[Any] = None
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
@@ -192,14 +192,14 @@ class NLPDDPStrategy(DDPStrategy):
 
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
-    def load_checkpoint(self, checkpoint_path: _PATH) -> Dict[str, Any]:
+    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """ PTL override to accomodate model parallel checkpoints """
         # TODO: move to CheckpointIO
         torch.cuda.empty_cache()
         checkpoint_path = inject_model_parallel_rank(checkpoint_path)
         return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
-    def remove_checkpoint(self, filepath: _PATH) -> None:
+    def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
@@ -590,8 +590,8 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
 
     def optimizer_step(
         self,
-        model: Union["pl.LightningModule", torch.nn.Module],
         optimizer: torch.optim.Optimizer,
+        model: Union["pl.LightningModule", torch.nn.Module],
         optimizer_idx: int,
         closure: Callable[[], Any],
         **kwargs: Any,
