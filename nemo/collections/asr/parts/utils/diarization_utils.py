@@ -1659,6 +1659,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
 
             del self.word_seq[old_end:]
             del self.word_ts_seq[old_end:]
+            torch.cuda.empty_cache()
             self.word_seq.extend(words[new_stt:])
             self.word_ts_seq.extend(word_timetamps[new_stt:])
 

@@ -145,7 +145,7 @@ def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
 @torch.jit.script
 def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Tensor:
     """
-    Run Hungarian algorithm (linear sum assignment) to find the best permutation mapping between
+    Run Hungarian (linear sum assignment) algorithm to find the best permutation mapping between
     the cumulated labels in history and the new clustering output labels.
 
     Args:
@@ -424,12 +424,12 @@ def run_reducer(
 ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
-    - This merging algorithm is based on the assumption that the closest embeddings are the most redundant
-    embedding vectors.
-    - The closest embedding vectors are chosen by selecting the highest top-N sum of each column in a given
-      affinity matrix.
-    - If merge_quantity is N, we choose (N+1) vectors into 1 embedding vector. Thus, we reduce N embeddings
-      in the original embedding vector set.
+        - This merging algorithm is based on the assumption that the closest embeddings 
+          are the most redundant embedding vectors.
+        - The closest embedding vectors are chosen by selecting the highest top-N sum of 
+          each column in a given affinity matrix.
+        - If merge_quantity is N, we choose (N+1) vectors into 1 embedding vector. 
+          Thus, we reduce N embeddings in the original embedding vector set.
 
     Example:
         >>> merge_quantity = 1 # We merge 1+1 = 2 embedding vectors
@@ -552,7 +552,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         cuda (bool):
             Use cuda for Eigen decomposition if cuda=True.
 
-    Online Processing Attributes:
+    Additional Online Processing Attributes:
 
         history_buffer_size (int):
             - This is a buffer where diarization history is saved in the form of averaged speaker embedding vector.
@@ -578,11 +578,25 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Boolean that determines whether to use temporal majorvoting for the final speaker labels
         temporal_label_major_vote_buffer_size (int):
             Buffer size for major-voting the
+        num_spk_stat (list):
+            List of number of speakers for major voting. Number of speakers are estimated through 
+            majority voting of `self.num_spk_stat` list.
+        p_value_hist (list):
+            List of p_values for major voting.
+            To save the computation time, p_value is estimated every `p_update_freq` frames and
+            saved to `self.p_value_hist`.
 
-    History Buffer Attributes:
-
+    Attributes for counters and buffers in streaming system:
+        
+        is_online (bool):
+            - If self.is_online is False:
+                FIFO queue does not push out any speaker embedding vector
+            - If self.is_online is True:
+                FIFO queue starts push out speaker embedding vectors and saving them into
+                history buffer.
         max_embed_count (int):
-            The maximum number of segments the streaming system has ever seen
+            The maximum number of segments the streaming system has ever seen.
+            This value keeps increasing as the system processes more and more segments.
         memory_margin (int):
             The margin that is added to keep the segmentation data in the streaming system
         minimum_segments_per_buffer (int):
@@ -595,12 +609,9 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Index that indicates the boundary between history embedding sets and current processing buffer
             when history embedding vectors and current input embedding vectors are concatenated into a
             single matrix.
-        is_online (bool):
-            - If self.is_online is False:
-                FIFO queue does not push out any speaker embedding vector
-            - If self.is_online is True:
-                FIFO queue starts push out speaker embedding vectors and saving them into
-                history buffer.
+
+    Attributes for history buffer:
+
         history_embedding_buffer_emb (Tensor)
             Tensor containing speaker embedding vectors for saving the history of the previous
             speaker profile in the given audio session
@@ -608,7 +619,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Speaker label (cluster label) for embedding vectors saved in the history buffer
         Y_fullhist (Tensor)
             Tensor containing the speaker label hypothesis from start to current frame
-        """
+    """
 
     def __init__(
         self,
@@ -635,21 +646,17 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.fixed_thres = fixed_thres
         self.history_n = history_buffer_size
         self.current_n = current_buffer_size
-        self.min_spk_counting_buffer_size: int = min_spk_counting_buffer_size
+        self.min_spk_counting_buffer_size = min_spk_counting_buffer_size
         self.min_frame_per_spk = min_frame_per_spk
         self.p_update_freq = p_update_freq
         self.p_value_skip_frame_thres = p_value_skip_frame_thres
         self.p_value_queue_size = p_value_queue_size
         self.use_temporal_label_major_vote = use_temporal_label_major_vote
         self.temporal_label_major_vote_buffer_size = temporal_label_major_vote_buffer_size
-
-        # Initialize the lists for online NME clustering
         self.num_spk_stat: List[torch.Tensor] = [torch.tensor(1)]
         self.p_value_hist: List[torch.Tensor] = [torch.tensor(2)]
-        self.pre_clus_labels = torch.tensor([])
-        self.total_segments_processed_count: int = 0
 
-        # Initialize the counters for streaming buffers 
+        # Initialize the counters and buffers in streaming system
         self.is_online = False
         self.max_embed_count = 0
         self.memory_margin = 0
@@ -670,7 +677,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
 
         Args:
             nmesc: (NMESC)
-                nmesc instance.
+                nmesc instance from NMESC class
             frame_index (int):
                 Unique index for each segment and embedding vector
 
@@ -768,12 +775,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
         return est_num_of_spk, affinity_mat
 
     def prepare_embedding_update(
-        self, emb_in: torch.Tensor, base_segment_indexes
-    ) -> Tuple[bool, int, torch.Tensor]:
+        self, emb_in: torch.Tensor, segment_indexes_matrix: torch.Tensor
+    ) -> Tuple[bool, int, torch.Tensor, torch.Tensor]:
         """
         This function performs the following tasks:
             1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
-        (If we need update):
+        (Only if we need update):
             2. Calculate how many embeddings should be updated (set `new_emb_n` variable)
             3. Update history embedding vectors and save it to `pre_embs`.
 
@@ -794,6 +801,15 @@ class OnlineSpeakerClustering(torch.nn.Module):
             If the number of embeddings is decreased compared to the last trial,
             then skip embedding merging.
 
+        Variables:
+            hist_curr_boundary (int):
+                The current boundary of between history buffer and current buffer.
+                This is the new history-current buffer boundary while self.history_buffer_seg_end is the old one.
+                Thus, the new set of embedding vectors are collected from 
+                `label_stt=self.hist_buffer_seg_end` to `label_end=hist_curr_boundary`.
+            total_segments_processed_count (int):
+                The number of segments that are processed so far in integer format.
+
         Args:
             emb_in (Tensor):
                 Tensor containing embedding vectors
@@ -808,57 +824,58 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 The amount of embedding vectors that are exceeding FIFO queue size.
                 new_emb_n is also an amount of embedding vectors that needs to be merged in history buffer.
             pre_embs (Tensor):
-                Embedding vector matrix (# of embs x emb dim) before merging.
+                Embedding vector matrix before merging.
                 The subset of `pre_embs` embedding vectors will be merged.
+                Dimensions: (number of embedding vectors) x (embedding dimension)
+            pre_clus_labels (Tensor):
+                A set of clustering labels for each embedding vector in `pre_embs`.
         """
-        _segment_indexes_mat = base_segment_indexes
-        self.total_segments_processed_count = int(_segment_indexes_mat[-1] + 1)
-        hist_curr_boundary = int(self.total_segments_processed_count - self.current_n)
+        total_segments_processed_count = int(segment_indexes_matrix[-1] + 1)
+        hist_curr_boundary = int(total_segments_processed_count - self.current_n)
         new_emb_n: int = 0
         pre_embs: torch.Tensor = torch.empty(0)
+        pre_clus_labels: torch.Tensor = torch.empty(0)
         update_speaker_register = True
 
-        if self.total_segments_processed_count > self.max_embed_count:
+        if total_segments_processed_count > self.max_embed_count:
             # Case-1: The very first step
             if len(self.history_embedding_buffer_emb) == 0:
-                new_emb_n = self.total_segments_processed_count - (self.current_n + self.history_n)
-                hist_curr_boundary_emb_idx = get_first_arg_index(_segment_indexes_mat, hist_curr_boundary)
+                new_emb_n = total_segments_processed_count - (self.current_n + self.history_n)
+                hist_curr_boundary_emb_idx = get_first_arg_index(segment_indexes_matrix, hist_curr_boundary)
                 pre_embs = emb_in[:hist_curr_boundary_emb_idx]
-                self.pre_clus_labels = self.Y_fullhist[:hist_curr_boundary]
+                pre_clus_labels = self.Y_fullhist[:hist_curr_boundary]
 
             # Case-2: Number of embedding vectors is increased, need to update history and its label
             else:
-                # Calculate the number of new embedding vectors
+                # Calculate the number of new embedding vectors: `new_emb_n`
                 label_stt, label_end = self.history_buffer_seg_end, hist_curr_boundary
                 new_emb_n = label_end - label_stt
                 # Add embedding vectors to `pre_embs` so that we can merge it with reducer function.
-                emb_idx_stt = int(get_first_arg_index(_segment_indexes_mat, label_stt))
-                emb_idx_end = int(get_first_arg_index(_segment_indexes_mat, label_end))
-
+                emb_idx_stt = int(get_first_arg_index(segment_indexes_matrix, label_stt))
+                emb_idx_end = int(get_first_arg_index(segment_indexes_matrix, label_end))
                 pre_embs = torch.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
-                self.pre_clus_labels = torch.hstack(
+                # Update labels for `pre_embs`
+                pre_clus_labels = torch.hstack(
                     (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
                 )
             if new_emb_n > self.current_n:
                 raise ValueError("new_emb_n should be less than or equal to current buffer size (self.current_n)." \
                                  f" Getting too many segments: {new_emb_n} for the given current buffer size {self.current_n}." \
-                                 " Please either (1) increase buffer size (2) or use longer segment lengths to get less number of segments.")
+                                 " Please either (1) increase buffer size or (2) use longer segment lengths to get less number of segments.")
             elif new_emb_n <= 0:
-                raise ValueError("new_emb_n should be a positve integer number.")
-            if pre_embs.shape[0] != self.pre_clus_labels.shape[0]:
-                raise ValueError("pre_embs and pre_clus_labels should have the same length.")
+                raise ValueError("Segment counting error. `new_emb_n` should be a positve integer number.")
+            if pre_embs.shape[0] != pre_clus_labels.shape[0]:
+                raise ValueError("`pre_embs` and `pre_clus_labels` should have the same length.")
 
         # Case-3: Number of embedding vectors is not increased.
         else:
-            # There will be no embedding update, so new_emb_n, pre_embs should be empty.
-            new_emb_n = 0
+            # There will be no embedding update, so new_emb_n is 0, pre_embs and pre_clus_labels are empty.
             update_speaker_register = False
 
-        # Update the history buffer index
+        # Update the history buffer index for the next step
         self.history_buffer_seg_end = hist_curr_boundary
-        if new_emb_n is not None and new_emb_n < 0:
-            raise ValueError(f"new_emb_n should not be negative but got new_emb_n: {new_emb_n}")
-        return update_speaker_register, new_emb_n, pre_embs
+        self.max_embed_count = max(total_segments_processed_count, self.max_embed_count)
+        return update_speaker_register, new_emb_n, pre_embs, pre_clus_labels
 
     def make_constant_length_emb(self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor) -> torch.Tensor:
         """
@@ -935,7 +952,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Step (2)
             |-----------------|ABCDEF--------------XY|
 
-            The newly accepted embeddings go through a FIFO queue (first embedding, first merged)
+            The newly accepted embeddings go through a FIFO queue (first come, first merge)
             history buffer = 12
             current buffer = 20
 
@@ -949,18 +966,18 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Step (4)
             |================|CDEF--------------XY|
 
-            After clustering:
+            After clustering, `self.Y_fullhist` is updated as:
 
             |0000011111|11110000110010010011|
 
-            This label is self.Y_fullhist (shape is (history_n + current_n) )
+            The dimension of `self.Y_fullhist` is (`history_n + current_n`) x 1
 
         self.history_buffer_seg_end (int):
             The total number of segments that have been merged from the beginning of the session.
-            (=hist_curr_boundary)
+            (=`hist_curr_boundary`)
 
         """
-        update_speaker_register, new_emb_n, pre_embs = self.prepare_embedding_update(emb_in, base_segment_indexes)
+        update_speaker_register, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
 
         # Update the history/current_buffer boundary cursor
         total_emb, total_cluster_labels = [], []
@@ -970,7 +987,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             # Calculate how many embedding vectors should be reduced per speaker
             class_target_vol = get_merge_quantity(
                 num_to_be_removed=new_emb_n,
-                pre_clus_labels=self.pre_clus_labels,
+                pre_clus_labels=pre_clus_labels,
                 min_count_per_cluster=self.minimum_segments_per_buffer,
             )
 
@@ -980,7 +997,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
                     pre_embs=pre_embs,
                     target_spk_idx=spk_idx,
                     merge_quantity=target_num,
-                    pre_clus_labels=self.pre_clus_labels,
+                    pre_clus_labels=pre_clus_labels,
                 )
                 total_emb.append(merged_embs)
                 total_cluster_labels.append(merged_clus_labels)
@@ -1005,9 +1022,8 @@ class OnlineSpeakerClustering(torch.nn.Module):
         history_and_current_emb = torch.vstack(total_emb)
         history_and_current_labels = torch.hstack(total_cluster_labels)
         if history_and_current_emb.shape[0] != len(history_and_current_labels):
-            raise ValueError("history_and_current_emb has a mismatch with history_and_current_labels.")
+            raise ValueError("`history_and_current_emb` has a mismatch in length with `history_and_current_labels`.")
 
-        self.max_embed_count = max(self.total_segments_processed_count, self.max_embed_count)
         return history_and_current_emb, update_speaker_register
 
     def get_reduced_mat(self, emb_in, base_segment_indexes) -> Tuple[torch.Tensor, bool]:
@@ -1015,14 +1031,14 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Choose whether we want to add embeddings to the memory or not.
         The processing buffer has size of (self.current_n + self.history_n).
 
-        1. If margin_seg_n > 0, this means we have more embedding vectors than we can hold in the processing buffer.
+        Case-1: If margin_seg_n > 0, this means we have more embedding vectors than we can hold in the processing buffer.
             - `is_online` should be `True`
             - reduce the number of embedding vectors by merging the closest ones.
                 call `self.reduce_embedding_sets` function
 
-        2. If margin_seg_n <= 0, this means that we can accept more embedding vectors and yet to fill the processing buffer.
+        Case-2: If margin_seg_n <= 0, this means that we can accept more embedding vectors and yet to fill the processing buffer.
             - `is_online` should be `False`
-            - We replace `merged_emb` variable with the raw input `emb_in`.
+            - Replace `merged_emb` variable with the raw input `emb_in`.
             - `add_new` is `True`, since we are adding more embedding vectors to `merged_emb` variable.
 
         Args:
@@ -1059,9 +1075,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
 
     def match_labels(self, Y_new: torch.Tensor, add_new: bool) -> torch.Tensor:
         """
-        self.history_buffer_seg_end is a timestamp that tells to which point is history embedding contains from self.Y_fullhist.
+        This function matches the newly generated clustering label sequence with the existing speaker labels in the history buffer.
+        `self.history_buffer_seg_end` is an integer index that tells to which point is history embedding contains from `self.Y_fullhist`.
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
-        (self.history_n, len(Y_new) ) from the new clustering output Y_new.
+        (self.history_n, len(Y_new)) from the new clustering output `Y_new`.
 
         Args:
             Y_new (Tensor):
@@ -1148,17 +1165,19 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Y (Tensor):
                 Speaker labels for history embeddings and current embedding inputs
         """
+        # Merge the closest embeddings and reduce the size of the embedding count.
         concat_emb, add_new = self.get_reduced_mat(
             emb_in=curr_emb, base_segment_indexes=base_segment_indexes,
         )
-        emb = concat_emb
-        if emb.shape[0] == 1:
+
+        # Perform clustering on the embedding matrix containing history and current FIFO buffer concat_embeddings
+        if concat_emb.shape[0] == 1:
             Y = torch.zeros((1,), dtype=torch.int32)
         else:
-            mat = getCosAffinityMatrix(emb)
+            mat = getCosAffinityMatrix(concat_emb)
             est_num_of_spk, affinity_mat = self.online_spk_num_estimation(mat, frame_index)
-            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=emb.device)
-            Y = spectral_model.forward(affinity_mat).to(emb.device)
+            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=concat_emb.device)
+            Y = spectral_model.forward(affinity_mat).to(concat_emb.device)
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
         merged_clus_labels = self.match_labels(Y, add_new)

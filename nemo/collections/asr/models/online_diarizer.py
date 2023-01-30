@@ -132,7 +132,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             history_buffer_size=clustering_params.history_buffer_size,
             current_buffer_size=clustering_params.current_buffer_size,
         )
-        self.online_clus = torch.jit.script(self.online_clus)
+        # Export jit.script module 
+        # self.online_clus = torch.jit.script(self.online_clus)
         # torch.jit.save(self.online_clus, 'online_clus.pt')
         # self.online_clus = torch.jit.load('online_clus.pt')
 
@@ -149,7 +150,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 online segmentation module that generates short speech segments from the VAD input
         """
         self.online_segmentor = OnlineSegmentor(sample_rate)
-        self.online_segmentor = torch.jit.script(self.online_segmentor)
+        # self.online_segmentor = torch.jit.script(self.online_segmentor)
         # torch.jit.save(self.online_segmentor, 'online_segmentor.pt')
         # self.online_segmentor = torch.jit.load('online_segmentor.pt')
 
@@ -408,7 +409,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self, audio_signal: torch.Tensor, segment_ranges: torch.Tensor, embeddings
     ) -> torch.Tensor:
         """
-        Incrementally extract speaker embeddings based on audio_signal and segment_ranges varialbes.
+        Incrementally extract speaker embeddings based on audio_signal and segment_ranges variables.
         Unlike offline speaker diarization, speaker embedding and subsegment ranges are not saved to disk.
         Measures the mismatch between `segment_ranges` and `embeddings` then extract the necessary amount of
         speaker embeddings.
@@ -526,7 +527,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 List containing VAD timestamps.
                 Dimensions: (Number of segments) x 2
                 Example:
-                    >>> vad_timestamps = torch.Tensor([[0.05, 2.52], [3.12, 6.85]])
+                    >>> vad_timestamps = torch.tensor([[0.05, 2.52], [3.12, 6.85]])
 
         Returns:
             diar_hyp (Tensor):
