@@ -434,6 +434,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     if clustering_params.get('export_script_module', False):
         speaker_clustering = torch.jit.script(speaker_clustering)
         torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
+    speaker_clustering = torch.jit.script(speaker_clustering)
 
     for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=True):
         uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
@@ -444,6 +445,8 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = -1
+        
+        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
 
         cluster_labels = speaker_clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
@@ -456,7 +459,12 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             sparse_search_volume=int(clustering_params.sparse_search_volume),
         )
 
-        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
+        del uniq_embs_and_timestamps
+        if cuda:
+            torch.cuda.empty_cache()
+        else:
+            gc.collect()
+
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
