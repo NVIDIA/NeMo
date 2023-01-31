@@ -701,7 +701,12 @@ class InpainterModel(ModelPT, Exportable):
         pitch_loss = self.pitch_loss_fn(
             pitch_predicted=pitch_predicted, pitch_tgt=pitch, len=text_lens)
 
-        outputs = (text, text_lens, mels, mels_masked, spectrogram_preds, spec_len, attn_hard)
+        outputs = (
+            text, text_lens,
+            mels, mels_masked,
+            spectrogram_preds, spec_len,
+            attn_hard
+        )
 
         losses = (
             reconstruction_loss,
@@ -723,7 +728,22 @@ class InpainterModel(ModelPT, Exportable):
         self.log("pitch_loss", pitch_loss)
 
         if self.log_train_spectrograms:
-            (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard) = specs
+            (
+                texts, text_lens,
+                mels, mels_masked, mels_pred, mels_len,
+                attn_hard
+            ) = specs
+            mcds = []
+            for mel, mel_pred in zip(mels, mels_pred):
+                mel_cepstral_distance, _, _ = get_metrics_mels(
+                    mel.detach().numpy(),
+                    mel_pred.detach().numpy(),
+                    take_log=False
+                )
+                mcds += [mel_cepstral_distance]
+
+            self.log('train_mcd', sum(mcds) / len(mcds))
+
             self._log_spectrograms(
                 mels_len[:3],
                 text_lens[:3],
@@ -739,7 +759,11 @@ class InpainterModel(ModelPT, Exportable):
 
     def validation_step(self, batch, batch_idx):
         losses, specs = self.forward_pass(batch, batch_idx)
-        texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard = specs
+        (
+            texts, text_lens,
+            mels, mels_masked, mels_pred, mels_len,
+            attn_hard
+        ) = specs
         reconstruction_loss, dur_loss, pitch_loss = losses
 
         validation_loss = reconstruction_loss + dur_loss + pitch_loss
@@ -747,6 +771,17 @@ class InpainterModel(ModelPT, Exportable):
         self.log("reconstruction_loss_val", reconstruction_loss)
         self.log("dur_loss_val", dur_loss)
         self.log("pitch_loss_val", pitch_loss)
+
+        mcds = []
+        for mel, mel_pred in zip(mels, mels_pred):
+            mel_cepstral_distance, _, _ = get_metrics_mels(
+                mel.detach().numpy(),
+                mel_pred.detach().numpy(),
+                take_log=False
+            )
+            mcds += [mel_cepstral_distance]
+
+        mean_mcd = sum(mcds) / len(mcds)
 
         return {
             'loss_spec': validation_loss,
@@ -756,12 +791,17 @@ class InpainterModel(ModelPT, Exportable):
             'input_spectrogram_masked': mels_masked,
             'pred_spectrogram': mels_pred,
             'spectrogram_lens': mels_len,
-            'attn_hard': attn_hard
+            'attn_hard': attn_hard,
+            'mean_mcd': mean_mcd
         }
 
     def validation_epoch_end(self, outputs):
         losses = [o['loss_spec'] for o in outputs]
         self.log("validation_mean_loss", sum(losses) / len(losses))
+
+        mcds = [o['mean_mcd'] for o in outputs]
+        self.log("validation_mcd", sum(mcds) / len(mcds))
+
         if self.tb_logger is None or len(outputs) == 0:
             return
 
