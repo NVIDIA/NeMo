@@ -1,5 +1,11 @@
+# fmt: off
+import time
+
+# fmt: on
 import pytorch_lightning as pl
+import torch
 from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Callback
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.config import hydra_runner
@@ -77,10 +83,35 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 """
 
 
+class TimeCallback(Callback):
+    def __init__(self, warmup_steps: int = 50, record_n_steps: int = 50):
+        self.warmup_steps = warmup_steps
+        self.record_n_step = record_n_steps
+        self.step = 0
+        self.start = None
+        self.global_step = 0
+
+    def on_train_batch_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch, batch_idx: int
+    ) -> None:
+        self.step += 1
+        if self.step % trainer.accumulate_grad_batches == 0:
+            self.global_step += 1
+            if self.global_step < self.warmup_steps:
+                return
+            if not self.start:
+                torch.cuda.synchronize()
+                self.global_step = 0
+                self.start = time.time()
+            if self.global_step == self.record_n_step:
+                torch.cuda.synchronize()
+                print(f"Time taken for {self.record_n_step} steps: {time.time() - self.start}s")
+
+
 @hydra_runner(config_path="../conf/citrinet/", config_name="config_bpe")
 def main(cfg: DictConfig):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(**cfg.trainer, callbacks=TimeCallback())
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
