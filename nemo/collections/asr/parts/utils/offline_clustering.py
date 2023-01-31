@@ -491,11 +491,11 @@ def getMultiScaleCosAffinityMatrix(
             An affinity matrix that is obtained by calculating the weighted sum of 
             the multiple affinity matrices from the different scales.
     """
-    multiscale_weights = torch.squeeze(multiscale_weights,dim=0).to(device)
+    multiscale_weights = torch.squeeze(multiscale_weights, dim=0).to(device)
     session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
     scale_list = list(range(len(timestamps_in_scales)))
-    fused_sim_d = torch.zeros(len(timestamps_in_scales[-1]),len(timestamps_in_scales[-1])).to(device)
-    for scale_idx in scale_list:       
+    fused_sim_d = torch.zeros(len(timestamps_in_scales[-1]), len(timestamps_in_scales[-1])).to(device)
+    for scale_idx in scale_list:
         mapping_argmat = session_scale_mapping_list[scale_idx]
         emb_t = embeddings_in_scales[scale_idx].half().to(device)
         score_mat_torch = getCosAffinityMatrix(emb_t)
@@ -1262,7 +1262,7 @@ class SpeakerClustering(torch.nn.Module):
 
         if oracle_num_speakers > 0:
             max_num_speakers = oracle_num_speakers
-        
+
         mat = getMultiScaleCosAffinityMatrix(
             multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device
         )
@@ -1299,10 +1299,7 @@ class SpeakerClustering(torch.nn.Module):
             n_clusters = int(est_num_of_spk.item())
 
         spectral_model = SpectralClustering(
-                         n_clusters=n_clusters, 
-                         n_random_trials=kmeans_random_trials,  
-                         cuda=self.cuda, 
-                         device=self.device
-                         )
+            n_clusters=n_clusters, n_random_trials=kmeans_random_trials, cuda=self.cuda, device=self.device
+        )
         Y = spectral_model.forward(affinity_mat)
         return Y
