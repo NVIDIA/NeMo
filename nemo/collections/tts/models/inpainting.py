@@ -244,6 +244,10 @@ class BaselineModule(NeuralModule):
 
 
 class InpaintingMSELoss(Loss):
+    def __init__(self, loss_fn=F.mse_loss):
+        self.loss_fn = loss_fn
+        super().__init__()
+
     @property
     def input_types(self):
         return {
@@ -268,8 +272,7 @@ class InpaintingMSELoss(Loss):
         gap_target = spect_tgt * gap_mask
         gap_predicted = spect_predicted * gap_mask
 
-        loss_fn = F.mse_loss
-        mse_loss = loss_fn(gap_predicted, gap_target, reduction='none')
+        mse_loss = self.loss_fn(gap_predicted, gap_target, reduction='none')
 
         avg_pixel_loss = mse_loss.sum() / gap_mask.sum()
         return avg_pixel_loss
@@ -288,26 +291,19 @@ class InpainterModel(ModelPT, Exportable):
         if "text_normalizer_call_kwargs" in cfg:
             self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
-        # self.vocab = self._setup_tokenizer(cfg)
         self.vocab = aligner.tokenizer
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # self.preprocessor = instantiate(cfg.preprocessor)
         self.preprocessor = aligner.preprocessor
 
-        # aligner = instantiate(cfg.alignment_module)
         self.forward_sum_loss_fn = ForwardSumLoss()
         self.bin_loss_fn = BinLoss()
         self.bin_loss_warmup_epochs = cfg.bin_loss_warmup_epochs
 
-        # text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
         decoder = instantiate(cfg.decoder)
-        # token_encoder = torch.nn.Embedding(
-        #     num_embeddings=len(self.vocab.tokens),
-        #     embedding_dim=cfg.symbols_embedding_dim,
-        # )
-        token_encoder = instantiate(cfg.token_encoder, n_embed=len(self.vocab.tokens))
+        token_encoder = instantiate(
+            cfg.token_encoder, n_embed=len(self.vocab.tokens))
         spectrogram_encoder = instantiate(cfg.spectrogram_encoder)
         duration_predictor = instantiate(cfg.duration_predictor)
         pitch_predictor = instantiate(cfg.pitch_predictor)
@@ -329,17 +325,21 @@ class InpainterModel(ModelPT, Exportable):
         )
         self.postnet = instantiate(cfg.postnet) if 'postnet' in cfg else None
 
-        # TODO - review this loss to only look at the reconstructed part
-        self.gap_loss = InpaintingMSELoss()
-        self.mse_loss = MelLoss()
+        loss_lookup = {
+            'l1': F.l1_loss,
+            'mse': F.mse_loss
+        }
+        reconstruction_loss = loss_lookup[cfg.loss]
+        self.gap_loss_scale = cfg.gap_loss_scale
+
+        self.gap_loss = InpaintingMSELoss(reconstruction_loss)
+        self.mse_loss = MelLoss(reconstruction_loss)
         self.duration_loss_fn = DurationLoss()
         self.pitch_loss_fn = PitchLoss()
 
         self.aligner = aligner
         spectrogrammer = self.preprocessor.featurizer
 
-        # self.audio_sample_rate = self.preprocessor._sample_rate
-        # self.spectrogram_sample_stride = cfg.n_window_stride
         self.audio_sample_rate = spectrogrammer.sample_rate
         self.spectrogram_sample_stride = spectrogrammer.hop_length
 
@@ -691,7 +691,7 @@ class InpainterModel(ModelPT, Exportable):
         mse_loss = self.mse_loss(
             spect_predicted=spectrogram_preds, spect_tgt=mels)
         # TODO make this a parameter
-        reconstruction_loss = (100 * gap_loss) + mse_loss
+        reconstruction_loss = (self.gap_loss_scale * gap_loss) + mse_loss
 
         dur_loss = self.duration_loss_fn(
             log_durs_predicted=log_durs_pred,

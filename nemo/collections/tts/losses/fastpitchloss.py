@@ -152,6 +152,10 @@ class EnergyLoss(Loss):
 
 
 class MelLoss(Loss):
+    def __init__(self, loss_fn=F.mse_loss):
+        self.loss_fn = loss_fn
+        super().__init__()
+
     @property
     def input_types(self):
         return {
@@ -174,8 +178,7 @@ class MelLoss(Loss):
         ldiff = spect_tgt.size(1) - spect_predicted.size(1)
         spect_predicted = F.pad(spect_predicted, (0, 0, 0, ldiff, 0, 0), value=0.0)
         mel_mask = spect_tgt.ne(0).float()
-        loss_fn = F.mse_loss
-        mel_loss = loss_fn(spect_predicted, spect_tgt, reduction='none')
+        mel_loss = self.loss_fn(spect_predicted, spect_tgt, reduction='none')
         mel_loss = (mel_loss * mel_mask).sum() / mel_mask.sum()
 
         return mel_loss

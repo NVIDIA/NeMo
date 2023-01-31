@@ -253,6 +253,8 @@ model:
   #   postnet_kernel_size: 5
   #   postnet_n_convolutions: 5
 
+  loss: "l1"
+  gap_loss_scale: 100
 
   optim:
     name: adamw
