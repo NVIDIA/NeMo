@@ -270,7 +270,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         sampling_params: SamplingParam = {
             "use_greedy": True,
             "temperature": 1.0,
-            "top_k": 0,
+            "top_k": 1,
             "top_p": 0.94,
             "repetition_penalty": 1.2,
             "add_BOS": False,
