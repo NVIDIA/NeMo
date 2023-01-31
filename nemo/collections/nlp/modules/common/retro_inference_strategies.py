@@ -21,8 +21,8 @@ import torch
 import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.bert_service import start_sentence_bert_server
-from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.bert_service import start_sentence_bert_server
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import (
     ComboRetrievalService,
     DynamicFaissRetrievalService,
     FaissRetrievalService,

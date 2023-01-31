@@ -17,7 +17,7 @@ import json
 import gradio as gr
 import requests
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_service import PORT_NUM_DYN
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import PORT_NUM_DYN
 
 PORT_NUM = 5555
 headers = {"Content-Type": "application/json"}
