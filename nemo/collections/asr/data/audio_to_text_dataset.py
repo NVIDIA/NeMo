@@ -464,6 +464,97 @@ def get_dali_bpe_dataset(
     return dataset
 
 
+def get_audio_to_text_char_dataset_from_config(
+    config, local_rank: int, global_rank: int, world_size: int, preprocessor_cfg: Optional[DictConfig] = None
+):
+    """
+    Construct Audio-To-Text Char dataset from a config.
+    Args:
+        config: dataset config
+        local_rank: model local rank
+        global_rank: model global rand
+        world_size: world size
+        preprocessor_cfg: preprocessor config, for DALI dataset
+
+    Returns:
+        constructed dataset or None if dataset config is invalid or nothing to load
+    """
+    if 'augmentor' in config:
+        augmentor = process_augmentations(config['augmentor'])
+    else:
+        augmentor = None
+
+    is_concat = config.get('is_concat', False)
+    if is_concat:
+        if 'concat_sampling' in config and config['concat_sampling'] is None:
+            logging.warning(f"Concat dataset requires `concat_sampling` but it was not provided. Config: {config}")
+            return None
+
+        if not 'concat_probabilities' in config:
+            logging.warning(
+                f"Concat dataset requires `concat_probabilities` list but it was not provided. Config: {config}"
+            )
+            return None
+        else:
+            if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
+                logging.warning(f"`concat_probabilities` need to sum to 1. Config: {config}")
+                return None
+
+    shuffle = config['shuffle']
+    device = 'gpu' if torch.cuda.is_available() else 'cpu'
+    if config.get('use_dali', False):
+        device_id = local_rank if device == 'gpu' else None
+        dataset = get_dali_char_dataset(
+            config=config,
+            shuffle=shuffle,
+            device_id=device_id,
+            global_rank=global_rank,
+            world_size=world_size,
+            preprocessor_cfg=preprocessor_cfg,
+        )
+        return dataset
+
+    # Instantiate tarred dataset loader or normal dataset loader
+    if config.get('is_tarred', False):
+        if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+            'manifest_filepath' in config and config['manifest_filepath'] is None
+        ):
+            logging.warning(
+                "Could not load dataset as `manifest_filepath` was None or "
+                f"`tarred_audio_filepaths` is None. Provided config : {config}"
+            )
+            return None
+
+        shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+        if is_concat:
+            dataset = get_concat_tarred_dataset(
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=global_rank,
+                world_size=world_size,
+                augmentor=augmentor,
+            )
+        else:
+            dataset = get_tarred_dataset(
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=global_rank,
+                world_size=world_size,
+                augmentor=augmentor,
+            )
+    else:
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+            return None
+        if is_concat:
+            dataset = get_concat_char_dataset(
+                config=config, global_rank=global_rank, world_size=world_size, augmentor=augmentor
+            )
+        else:
+            dataset = get_char_dataset(config=config, augmentor=augmentor)
+    return dataset
+
+
 def get_audio_to_text_bpe_dataset_from_config(
     config,
     local_rank: int,
@@ -473,7 +564,7 @@ def get_audio_to_text_bpe_dataset_from_config(
     preprocessor_cfg: Optional[DictConfig] = None,
 ):
     """
-    Construct Audio-To-Text dataset from a config. Needed for CTC-BPE, RNNT-BPE and Hybrid ASR-TTS models
+    Construct Audio-To-Text BPE dataset from a config.
     Args:
         config: BPE dataset config
         local_rank: model local rank
@@ -483,7 +574,7 @@ def get_audio_to_text_bpe_dataset_from_config(
         preprocessor_cfg: preprocessor config, for DALI BPE dataset
 
     Returns:
-        constructed dataset
+        constructed dataset or None if dataset config is invalid or nothing to load
     """
     if 'augmentor' in config:
         augmentor = process_augmentations(config['augmentor'])
