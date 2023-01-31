@@ -1307,9 +1307,12 @@ def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
     return speech_segments
 
 
-def get_silence_segments(
+def get_non_speech_segments(
     speech_segments: List[List[float]], max_duration: Optional[float] = None
 ) -> List[List[float]]:
+    """
+    Get non-speech segments given the speech segments and optional max duration
+    """
     silence_segments = []
     start = 0.0
     for sp_seg in speech_segments:
