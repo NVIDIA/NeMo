@@ -515,7 +515,6 @@ def getMultiScaleCosAffinityMatrix(
     fused_sim_d = torch.zeros(len(timestamps_in_scales[-1]),len(timestamps_in_scales[-1])).to(device)
 
     for scale_idx in scale_list:       
-        # with torch.no_grad():            
         mapping_argmat = session_scale_mapping_list[scale_idx]
         emb_t = embeddings_in_scales[scale_idx].half().to(device)
         score_mat_torch = getCosAffinityMatrix(emb_t)
@@ -523,10 +522,6 @@ def getMultiScaleCosAffinityMatrix(
         repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0).to(device) 
         repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1).to(device)
         fused_sim_d = fused_sim_d + multiscale_weights[scale_idx] * repeated_tensor_1
-       
-    # del embeddings_in_scales
-    # torch.cuda.empty_cache()
-    # gc.collect()
     return fused_sim_d
 
 
