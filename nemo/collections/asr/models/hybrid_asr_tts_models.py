@@ -36,7 +36,7 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
 from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
-from nemo.collections.tts.models import FastPitchModel
+from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
 from nemo.core.classes import Dataset
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -89,6 +89,7 @@ class ASRWithTTSModel(ASRModel):
 
     asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE]
     tts_model: FastPitchModel
+    enhancer_model: Optional[SpectrogramEnhancerModel]
 
     class ASRModelTypes(PrettyStrEnum):
         """
@@ -190,9 +191,18 @@ class ASRWithTTSModel(ASRModel):
             _fuse_bn_in_conformer(self.asr_model)
             self.cfg.asr_model_fuse_bn = False  # no need to fuse anymore
 
-        if cfg.enhancer_model_path is not None or cfg.enhancer_model is not None:
-            # TODO: add enhancer support after https://github.com/NVIDIA/NeMo/pull/5565
-            raise NotImplementedError("Enhancer is not supported yet")
+        if cfg.enhancer_model is not None:
+            self.register_nemo_submodule(
+                "enhancer_model", config_field="enhancer_model", model=SpectrogramEnhancerModel(cfg.enhancer_model)
+            )
+        elif cfg.enhancer_model_path is not None:
+            self.register_nemo_submodule(
+                "enhancer_model",
+                config_field="enhancer_model",
+                model=SpectrogramEnhancerModel.restore_from(cfg.enhancer_model_path, map_location=torch.device("cpu")),
+            )
+        else:
+            self.enhancer_model = None
 
         self._full_init_guard = True
 
@@ -391,7 +401,8 @@ class ASRWithTTSModel(ASRModel):
         """Get TTS spectrogram from text and speaker ids"""
         with torch.no_grad():
             spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
-            # TODO: use enhancer
+            if self.enhancer_model is not None:
+                spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
             spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
             return spectrogram, spectrogram_len
 
