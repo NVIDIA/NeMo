@@ -630,13 +630,13 @@ class InpainterModel(ModelPT, Exportable):
             spec_left, inpainted_section, spec_right))
 
         mcd_full, _, _ = get_metrics_mels(
-            spectrogram.detach().numpy(),
-            full_replacement.detach().numpy(),
+            spectrogram.cpu().detach().numpy(),
+            full_replacement.cpu().detach().numpy(),
             take_log=False
         )
         mcd_partial, _, _ = get_metrics_mels(
-            spectrogram.detach().numpy(),
-            partial_replacement.detach().numpy(),
+            spectrogram.cpu().detach().numpy(),
+            partial_replacement.cpu().detach().numpy(),
             take_log=False
         )
 
@@ -736,8 +736,8 @@ class InpainterModel(ModelPT, Exportable):
             mcds = []
             for mel, mel_pred in zip(mels, mels_pred):
                 mel_cepstral_distance, _, _ = get_metrics_mels(
-                    mel.detach().numpy(),
-                    mel_pred.detach().numpy(),
+                    mel.cpu().detach().numpy(),
+                    mel_pred.cpu().detach().numpy(),
                     take_log=False
                 )
                 mcds += [mel_cepstral_distance]
@@ -775,8 +775,8 @@ class InpainterModel(ModelPT, Exportable):
         mcds = []
         for mel, mel_pred in zip(mels, mels_pred):
             mel_cepstral_distance, _, _ = get_metrics_mels(
-                mel.detach().numpy(),
-                mel_pred.detach().numpy(),
+                mel.cpu().detach().numpy(),
+                mel_pred.cpu().detach().numpy(),
                 take_log=False
             )
             mcds += [mel_cepstral_distance]
