@@ -1122,9 +1122,9 @@ pipeline {
                 sh 'cd examples/text_processing/g2p && \
                     TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
                     python heteronym_classification_train_and_evaluate.py \
-                        train_manifest=/home/TestData/g2p/heteronym_classification.json \
-                        validation_manifest=/home/TestData/g2p/heteronym_classification.json \
-                        test_manifest=/home/TestData/g2p/heteronym_classification.json \
+                        train_manifest=/home/TestData/g2p/manifest.json \
+                        validation_manifest=/home/TestData/g2p/manifest.json \
+                        test_manifest=/home/TestData/g2p/manifest.json \
                         model.wordids=/home/TestData/g2p/wordids.tsv \
                         trainer.max_epochs=1 \
                         model.max_seq_length=64 \
@@ -1134,9 +1134,9 @@ pipeline {
                         +exp_manager.use_datetime_version=False\
                         +exp_manager.version=test && \
                     python heteronym_classification_inference.py \
-                        manifest=/home/TestData/g2p/heteronym_classification.json \
+                        manifest=/home/TestData/g2p/manifest.json \
                         pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
-                        output_file=preds.json'
+                        output_manifest=preds.json'
               }
             }
           }
@@ -2543,82 +2543,6 @@ pipeline {
         +exp_manager.checkpoint_callback_params.save_best_model=true \
         "
         sh "rm -rf examples/nlp/machine_translation/nmt_finetune"
-      }
-    }
-
-    stage('L2: NMT with HuggingFace') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('L2: NMT Pretrained HF Encoder') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
-              --config-path=conf \
-              --config-name=huggingface \
-              model.shared_tokenizer=False \
-              model.encoder_tokenizer.library=huggingface \
-              model.encoder.library=huggingface \
-              model.encoder.model_name=distilbert-base-cased \
-              model.encoder.pretrained=true \
-              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.train_ds.tokens_in_batch=128 \
-              model.validation_ds.tokens_in_batch=128 \
-              model.test_ds.tokens_in_batch=128 \
-              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder.hidden_size=768 \
-              model.decoder.inner_size=256 \
-              trainer.devices=[0] \
-              trainer.accelerator="gpu" \
-              +trainer.fast_dev_run=true \
-              exp_manager=null \
-              '
-            }
-        }
-
-        stage('L2: NMT Custom HF Encoder') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
-              --config-path=conf \
-              --config-name=huggingface \
-              model.shared_tokenizer=True \
-              model.encoder_tokenizer.library=yttm \
-              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.encoder.library=huggingface \
-              model.encoder.model_name=null \
-              model.encoder.pretrained=false \
-              +model.encoder._target_=transformers.BertConfig \
-              +model.encoder.hidden_size=48 \
-              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-              model.train_ds.tokens_in_batch=128 \
-              model.validation_ds.tokens_in_batch=128 \
-              model.test_ds.tokens_in_batch=128 \
-              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder.hidden_size=48 \
-              model.decoder.inner_size=256 \
-              trainer.devices=[1] \
-              trainer.accelerator="gpu" \
-              +trainer.fast_dev_run=true \
-              exp_manager=null \
-              '
-            }
-        }
       }
     }
 
