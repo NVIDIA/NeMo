@@ -97,6 +97,15 @@ class MultiSpeakerSimulator(object):
     Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and 
     corresponding word alignments.
 
+    Change Log:
+    v1.0: Dec 2022
+        - First working verison, supports multispeaker simulation with overlaps, silence and RIR
+    v1.1: Jan 2023
+        - Multi-GPU support for speed up 
+        - Faster random sampling routine 
+        - Fixed sentence duration bug 
+        - Silence sampling algorithm updated to guarantee `mean_silence` approximation
+
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
 

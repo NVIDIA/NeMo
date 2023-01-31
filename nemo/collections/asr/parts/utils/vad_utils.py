@@ -19,7 +19,7 @@ import os
 import shutil
 from itertools import repeat
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import IPython.display as ipd
 import librosa
@@ -1305,3 +1305,19 @@ def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
     speech_segments = [list(x) for x in speech_segments]
     speech_segments = merge_intervals(speech_segments)
     return speech_segments
+
+
+def get_silence_segments(
+    speech_segments: List[List[float]], max_duration: Optional[float] = None
+) -> List[List[float]]:
+    silence_segments = []
+    start = 0.0
+    for sp_seg in speech_segments:
+        end = sp_seg[0]
+        silence_segments.append([start, end])
+        start = sp_seg[1]
+
+    if max_duration is not None and start < max_duration:
+        silence_segments.append([start, max_duration])
+
+    return silence_segments
