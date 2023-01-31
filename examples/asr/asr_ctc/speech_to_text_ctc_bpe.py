@@ -84,28 +84,13 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 
 class TimeCallback(Callback):
-    def __init__(self, warmup_steps: int = 50, record_n_steps: int = 50):
-        self.warmup_steps = warmup_steps
-        self.record_n_step = record_n_steps
-        self.step = 0
-        self.start = None
-        self.global_step = 0
+    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        torch.cuda.synchronize()
+        self.start = time.time()
 
-    def on_train_batch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch, batch_idx: int
-    ) -> None:
-        self.step += 1
-        if self.step % trainer.accumulate_grad_batches == 0:
-            self.global_step += 1
-            if self.global_step < self.warmup_steps:
-                return
-            if not self.start:
-                torch.cuda.synchronize()
-                self.global_step = 0
-                self.start = time.time()
-            if self.global_step == self.record_n_step:
-                torch.cuda.synchronize()
-                print(f"Time taken for {self.record_n_step} steps: {time.time() - self.start}s")
+    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        torch.cuda.synchronize()
+        print(f"time taken for epoch {time.time() - self.start} s")
 
 
 @hydra_runner(config_path="../conf/citrinet/", config_name="config_bpe")
