@@ -12,28 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import json
+
+import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate, LengthParam, SamplingParam
-from nemo.collections.common.metrics import MetricStringToTorchMetric
-
+from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -222,7 +223,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 seed=data_cfg.get('seed', 1234),
                 context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
-                separate_prompt_and_response_with_newline=data_cfg.get('separate_prompt_and_response_with_newline', True),
+                separate_prompt_and_response_with_newline=data_cfg.get(
+                    'separate_prompt_and_response_with_newline', True
+                ),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 truncation_field=data_cfg.get('truncation_field', 'context'),
             )
@@ -266,7 +269,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Call parent validation step to get the loss.
         loss = super().validation_step(batch, batch_idx)
 
-        length_params: LengthParam = {"min_length": 0, "max_length": batch['tokens'].size(1) - batch['context_lengths'].max()}
+        length_params: LengthParam = {
+            "min_length": 0,
+            "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
+        }
         sampling_params: SamplingParam = {
             "use_greedy": True,
             "temperature": 1.0,
@@ -279,20 +285,23 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         }
         result = megatron_gpt_generate(
             model=self,
-            inputs=(batch['tokens'].cuda(), (batch['context_lengths'] - 1).cuda()), # NOTE: We do -1 here to remove the space between context and response.
+            inputs=(
+                batch['tokens'].cuda(),
+                (batch['context_lengths'] - 1).cuda(),
+            ),  # NOTE: We do -1 here to remove the space between context and response.
             tokenizer=self.tokenizer,
             sampling_params=sampling_params,
             length_params=length_params,
-            check_sequence_parallel_and_checkpointing=False, # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
+            check_sequence_parallel_and_checkpointing=False,  # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
         )
 
         preds_text = []
         labels_text = []
         input_text = []
         for idx, item in enumerate(result['token_ids']):
-            pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1:])
-            input = self.tokenizer.ids_to_text(item[:batch['context_lengths'][idx] - 1])
-            label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx]:].tolist())
+            pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1 :])
+            input = self.tokenizer.ids_to_text(item[: batch['context_lengths'][idx] - 1])
+            label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx] :].tolist())
             preds_text.append(pred.strip())
             labels_text.append(label.strip())
             input_text.append(input.strip())
@@ -350,7 +359,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     metric = metric['rougeL_fmeasure']
                 else:
                     metric = metric['acc']
-            torch.distributed.all_reduce(metric, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group())
+            torch.distributed.all_reduce(
+                metric, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group()
+            )
             metric = metric / parallel_state.get_data_parallel_world_size()
             self.log(metric_log_key, metric)
             logging.info(f"{mode} {metric_name}: {metric}")
@@ -373,14 +384,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
                 torch.distributed.all_gather_object(
                     gathered_outputs,
-                    [
-                        {
-                            'preds': x['preds'],
-                            'labels': x['labels'],
-                            'inputs': x['inputs'],
-                        }
-                        for x in output
-                    ],
+                    [{'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'],} for x in output],
                     group=parallel_state.get_data_parallel_group(),
                 )
 
@@ -399,9 +403,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 if self.global_rank == 0:
                     for rank in range(0, parallel_state.get_data_parallel_world_size()):
                         for batch in gathered_outputs[rank]:
-                            for pred, label, input in zip(
-                                batch['preds'], batch['labels'], batch['inputs']
-                            ):
+                            for pred, label, input in zip(batch['preds'], batch['labels'], batch['inputs']):
                                 gt_inp_set.add(input + label)
                                 deduplicated_outputs['preds'].append(pred)
                                 deduplicated_outputs['labels'].append(label)
@@ -511,9 +513,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if stage != 'test':
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._validation_ds = self._build_dataset(
-                self.cfg.data.validation_ds, is_train=False
-            )
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':

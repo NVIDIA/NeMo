@@ -17,7 +17,9 @@ import os
 import re
 from argparse import ArgumentParser
 from multiprocessing import Pool
+
 from sacremoses import MosesDetokenizer
+
 from nemo.collections.common.tokenizers import AutoTokenizer
 
 
@@ -40,6 +42,7 @@ Use instructions:
 4. Each JSONL file is compatible with NeMo's T0JSONLMemMapDataset (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/data/language_modeling/t0_dataset.py)
 """
 
+
 def remove_newline_and_detokenize(x, detokenizer):
     x = re.sub(r'\\n+', ' ', x)
     x = re.sub(r'\n+', ' ', x)
@@ -49,14 +52,17 @@ def remove_newline_and_detokenize(x, detokenizer):
     x = detokenizer.detokenize([x])
     return x
 
+
 def detokenize(x, detokenizer):
     x = x.strip()
     # NOTE: Commenting this out since sacremoses seems to remove \n as part of detokenization.
     # x = detokenizer.detokenize([x])
     return x
 
+
 def is_empty(x, tokenizer):
     return len(tokenizer.text_to_tokens(x.strip())) < 1
+
 
 def write_dataset_to_file(file_name, output_file_name, detokenizer, tokenizer, idx, total_num_files, remove_newline):
     print(f'Processing file {idx + 1}/{total_num_files} : {file_name} -> {output_file_name}')
@@ -91,6 +97,7 @@ def write_dataset_to_file(file_name, output_file_name, detokenizer, tokenizer, i
                     }
                     f.write(json.dumps(instance_object) + '\n')
 
+
 def process_folder(data_folder, output_folder, splits_file, remove_newline):
     detokenizer = MosesDetokenizer('en')
     tokenizer = AutoTokenizer("gpt2")
@@ -115,11 +122,30 @@ def process_folder(data_folder, output_folder, splits_file, remove_newline):
         if not file_name.endswith('.json'):
             print(f'Skipping {file_name} because it is not a JSON file')
         output_file_name = os.path.join(output_folder, file_name.replace('.json', '.jsonl'))
-        pool_args.append((os.path.join(data_folder, file_name), output_file_name, detokenizer, tokenizer, idx, len(splits_file_names), remove_newline))
+        pool_args.append(
+            (
+                os.path.join(data_folder, file_name),
+                output_file_name,
+                detokenizer,
+                tokenizer,
+                idx,
+                len(splits_file_names),
+                remove_newline,
+            )
+        )
 
-    write_dataset_to_file(os.path.join(data_folder, file_name), output_file_name, detokenizer, tokenizer, idx, len(splits_file_names), remove_newline)
+    write_dataset_to_file(
+        os.path.join(data_folder, file_name),
+        output_file_name,
+        detokenizer,
+        tokenizer,
+        idx,
+        len(splits_file_names),
+        remove_newline,
+    )
     pool = Pool(42)
     pool.starmap(write_dataset_to_file, pool_args)
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -136,15 +162,10 @@ if __name__ == '__main__':
         help="Path to output folder where JSONL files will be written.",
     )
     parser.add_argument(
-        "--splits_file_path",
-        type=str,
-        default="default",
-        help="Path to the file that contains splits. ex: ",
+        "--splits_file_path", type=str, default="default", help="Path to the file that contains splits. ex: ",
     )
     parser.add_argument(
-        "--remove_newline",
-        action="store_true",
-        help="Whether to remove newlines from the input and output.",
+        "--remove_newline", action="store_true", help="Whether to remove newlines from the input and output.",
     )
     args = parser.parse_args()
     process_folder(args.niv2_dataset_path, args.jsonl_output_path, args.splits_file_path, args.remove_newline)

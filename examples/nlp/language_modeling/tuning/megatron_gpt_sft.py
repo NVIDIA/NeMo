@@ -14,8 +14,8 @@
 
 import os
 import tempfile
-import torch.multiprocessing as mp
 
+import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -35,6 +35,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
+
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
