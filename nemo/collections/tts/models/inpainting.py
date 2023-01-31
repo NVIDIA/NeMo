@@ -58,7 +58,7 @@ from nemo.core.neural_types.elements import (
     MelSpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss
+from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss
 
 
 class BidirectionalLinear(Linear):
@@ -70,44 +70,123 @@ class BidirectionalLinear(Linear):
         return torch.matmul(input, self.weight)
 
 
+def average_features(pitch, durs):
+    durs_cums_ends = torch.cumsum(durs, dim=1).long()
+    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
+
+    bs, l = durs_cums_ends.size()
+    n_formants = pitch.size(1)
+    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
+    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
+
+    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
+    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
+
+    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
+    return pitch_avg
+
+
 class BaselineModule(NeuralModule):
     def __init__(
         self,
         num_mels,
         token_encoder,
+        spectrogram_encoder,
+        duration_predictor,
+        pitch_predictor,
+        pitch_emb,
         decoder,
     ):
         """TODO"""
         super().__init__()
         self.token_encoder = token_encoder
 
-        internal_dim = decoder.d_model - token_encoder.embedding_dim
+        self.spectrogram_encoder = spectrogram_encoder
+        self.duration_predictor = duration_predictor
+        self.pitch_predictor = pitch_predictor
+        self.pitch_emb = pitch_emb
+        self.decoder = decoder
+
         self.spectrogram_projection = BidirectionalLinear(
-            num_mels, internal_dim)
+            num_mels, self.spectrogram_encoder.d_model)
+
+        assert (
+            self.spectrogram_encoder.d_model == self.token_encoder.d_model)
+        assert (
+            self.spectrogram_encoder.d_model + self.token_encoder.d_model ==
+            self.decoder.d_model
+        )
+
+        def variable(*shape):
+            t = torch.empty(shape)
+            torch.nn.init.xavier_uniform_(t)
+            return torch.nn.Parameter(torch.autograd.Variable(t))
+
+        self.learned_query = variable(1, self.spectrogram_encoder.d_model)
+        self.speaker_encoder = torch.nn.MultiheadAttention(
+            embed_dim=self.spectrogram_encoder.d_model,
+            num_heads=self.spectrogram_encoder.n_head,
+            batch_first=True,
+        )
 
         self.decoder = decoder
 
     def forward(
-        self, input_mels, input_mels_len, tokens, token_durations
+        self,
+        input_mels, input_mels_len, tokens,
+        token_durations,
+        pitch=None
     ):
         """TODO"""
-
-        # TODO check masking is done correctly here
-        # text_encodings, text_mask = self.text_encoder(transcripts)
-
         spectrogram_projections = self.spectrogram_projection(input_mels)
+        spectrogram_encodings, mask = self.spectrogram_encoder(
+            input=spectrogram_projections, seq_lens=input_mels_len)
 
+        token_encodings, tokens_mask = self.token_encoder(tokens)
 
-        token_embeddings = self.token_encoder(tokens)
-        # regulate_len needs a sequence of token embeddings, does not work
-        # with just token IDs
-        aligned_token_embeddings, _ = regulate_len(
-            token_durations, token_embeddings, pace=1.0)
+        # generate the speaker embedding
+        batch_dim = spectrogram_encodings.shape[0]
 
-        assert input_mels.shape[1] == aligned_token_embeddings.shape[1]
+        speaker_encoding, _ = self.speaker_encoder(
+            query=self.learned_query.repeat(batch_dim, 1).unsqueeze(1),
+            key=spectrogram_encodings,
+            value=spectrogram_encodings
+        )
+
+        # add speaker encoding to text encodings
+        speakerized_token_encodings = token_encodings + speaker_encoding
+
+        # predict_pitch
+        pitch_predicted = self.pitch_predictor(
+            speakerized_token_encodings, tokens_mask)
+
+        # pitch is only given in training
+        if pitch is not None:
+            # Pitch during training is per spectrogram frame,
+            # but during inference, it should be per character
+            pitch = average_features(pitch.unsqueeze(1), token_durations).squeeze(1)
+            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+        else:
+            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
+        # output of pitch predictor is B X E X L
+        pitch_emb = pitch_emb.transpose(1, 2)
+
+        speaker_pitch_token_encodings = speakerized_token_encodings + pitch_emb
+
+        # predict duration
+        log_durs_pred = self.duration_predictor(
+            speaker_pitch_token_encodings, tokens_mask)
+
+        aligned_token_encodings, _ = regulate_len(
+            token_durations, speaker_pitch_token_encodings, pace=1.0)
+
+        assert input_mels.shape[1] == aligned_token_encodings.shape[1]
 
         both_encodings = torch.concatenate(
-            (spectrogram_projections, aligned_token_embeddings), axis=-1)
+            (spectrogram_projections, aligned_token_encodings), axis=-1)
 
         output_decodings, _ = self.decoder(
             input=both_encodings,
@@ -119,10 +198,48 @@ class BaselineModule(NeuralModule):
         spectrogram_preds = self.spectrogram_projection.reverse(
             output_decodings_trimmed)
 
-        # alignment_outputs = (attn_logprob, attn_soft, attn_hard)
+        return spectrogram_preds, pitch_predicted, log_durs_pred
 
-        # return spectrogram_preds, alignment_outputs
-        return spectrogram_preds, spectrogram_projections, token_embeddings
+    def predict_token_durations(
+        self, tokens, tokens_len, input_mels, input_mels_len
+    ):
+        spectrogram_projections = self.spectrogram_projection(input_mels)
+        spectrogram_encodings, mask = self.spectrogram_encoder(
+            input=spectrogram_projections, seq_lens=input_mels_len)
+
+        token_encodings, tokens_mask = self.token_encoder(tokens)
+
+        # generate the speaker embedding
+        batch_dim = spectrogram_encodings.shape[0]
+
+        speaker_encoding, _ = self.speaker_encoder(
+            query=self.learned_query.repeat(batch_dim, 1).unsqueeze(1),
+            key=spectrogram_encodings,
+            value=spectrogram_encodings
+        )
+
+        # add speaker encoding to text encodings
+        speakerized_token_encodings = token_encodings + speaker_encoding
+
+        # predict_pitch
+        pitch_predicted = self.pitch_predictor(
+            speakerized_token_encodings, tokens_mask)
+
+        pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
+        # output of pitch predictor is B X E X L
+        pitch_emb = pitch_emb.transpose(1, 2)
+
+        speaker_pitch_token_encodings = speakerized_token_encodings + pitch_emb
+
+        # predict duration
+        log_durs_predicted = self.duration_predictor(
+            speaker_pitch_token_encodings, tokens_mask)
+
+        durs_predicted = quantize_durations(
+            torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
+
+        return durs_predicted
 
 
 class InpaintingMSELoss(Loss):
@@ -177,10 +294,6 @@ class InpainterModel(ModelPT, Exportable):
 
         # self.preprocessor = instantiate(cfg.preprocessor)
         self.preprocessor = aligner.preprocessor
-        text_encoder_kwargs = {
-            "n_embed": len(self.vocab.tokens),
-            "padding_idx": self.vocab.pad,
-        }
 
         # aligner = instantiate(cfg.alignment_module)
         self.forward_sum_loss_fn = ForwardSumLoss()
@@ -189,24 +302,37 @@ class InpainterModel(ModelPT, Exportable):
 
         # text_encoder = instantiate(cfg.text_encoder, **text_encoder_kwargs)
         decoder = instantiate(cfg.decoder)
-        token_encoder = torch.nn.Embedding(
-            num_embeddings=len(self.vocab.tokens),
-            embedding_dim=cfg.symbols_embedding_dim,
+        # token_encoder = torch.nn.Embedding(
+        #     num_embeddings=len(self.vocab.tokens),
+        #     embedding_dim=cfg.symbols_embedding_dim,
+        # )
+        token_encoder = instantiate(cfg.token_encoder, n_embed=len(self.vocab.tokens))
+        spectrogram_encoder = instantiate(cfg.spectrogram_encoder)
+        duration_predictor = instantiate(cfg.duration_predictor)
+        pitch_predictor = instantiate(cfg.pitch_predictor)
+        pitch_emb = torch.nn.Conv1d(
+            1,
+            cfg.symbols_embedding_dim,
+            kernel_size=cfg.pitch_predictor.kernel_size,
+            padding=int((cfg.pitch_predictor.kernel_size - 1) / 2),
         )
+
         self.module = BaselineModule(
             num_mels=cfg.n_mel_channels,
             token_encoder=token_encoder,
-            # text_encoder=text_encoder,
-            # aligner=aligner.alignment_encoder,
+            spectrogram_encoder=spectrogram_encoder,
+            duration_predictor=duration_predictor,
+            pitch_predictor=pitch_predictor,
+            pitch_emb=pitch_emb,
             decoder=decoder,
         )
         self.postnet = instantiate(cfg.postnet) if 'postnet' in cfg else None
-        self.duration_predictor = instantiate(cfg.duration_predictor)
 
         # TODO - review this loss to only look at the reconstructed part
         self.gap_loss = InpaintingMSELoss()
         self.mse_loss = MelLoss()
         self.duration_loss_fn = DurationLoss()
+        self.pitch_loss_fn = PitchLoss()
 
         self.aligner = aligner
         spectrogrammer = self.preprocessor.featurizer
@@ -349,17 +475,18 @@ class InpainterModel(ModelPT, Exportable):
         new_tokens = torch.tensor(self.vocab(new_text_normalized))
 
         spec_len = torch.tensor([len(spectrogram)])
-        text_lens = torch.tensor([len(tokens)])
+        tokens_len = torch.tensor([len(tokens)])
+        new_tokens_len = torch.tensor([len(new_tokens)])
 
         attn_soft, attn_logprob = self.aligner(
             spec=spectrogram.unsqueeze(0).transpose(1, 2),
             spec_len=spec_len,
             text=tokens.unsqueeze(0),
-            text_len=text_lens
+            text_len=tokens_len
         )
 
         attn_hard = binarize_attention_parallel(
-            attn_soft, text_lens, spec_len)
+            attn_soft, tokens_len, spec_len)
         attn_hard_dur = attn_hard.sum(2)[0, 0, :]
 
         # find the first and last divergence in old and new transcripts
@@ -379,18 +506,13 @@ class InpainterModel(ModelPT, Exportable):
 
         assert last_divergence is not None, 'could not find a final divergence'
 
-        spectrogram_projections = self.module.spectrogram_projection(spectrogram.unsqueeze(0))
-        speaker_emb = spectrogram_projections.sum(1) / spectrogram.shape[0]
-
-        new_token_embeddings = self.module.token_encoder(new_tokens).unsqueeze(0)
-
-        speakerified_token_embeddings = new_token_embeddings + speaker_emb.unsqueeze(1)
-        log_durs_predicted = self.duration_predictor(
-            speakerified_token_embeddings,
-            enc_mask=torch.ones([1, len(new_tokens), 1])
+        # get the predicted duration of the phonemes in the new text
+        durs_predicted = self.module.predict_token_durations(
+            tokens=new_tokens.unsqueeze(0),
+            tokens_len=new_tokens_len,
+            input_mels=spectrogram.unsqueeze(0),
+            input_mels_len=spec_len
         )
-        durs_predicted = quantize_durations(
-            torch.clamp(torch.exp(log_durs_predicted) - 1, 0, 100)).squeeze(0)
 
         # Get the left spectrograms and phonemes
         token_durs_left = attn_hard_dur[:first_divergence]
@@ -430,8 +552,7 @@ class InpainterModel(ModelPT, Exportable):
 
         return full_replacement, partial_replacement
 
-
-    def forward_pass(self, batch, batch_idx):
+    def forward_pass(self, batch, batch_idx, training=True):
         (
             audio, audio_lens,
             text, text_lens,
@@ -465,54 +586,51 @@ class InpainterModel(ModelPT, Exportable):
             attn_soft, text_lens, spec_len)
         attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
-        mels_pred, spectrogram_projections, token_embeddings = self(
+        spectrogram_preds, pitch_predicted, log_durs_pred = self(
             input_mels=mels_masked,
             input_mels_len=spec_len,
             tokens=text,
-            token_durations=attn_hard_dur
+            token_durations=attn_hard_dur,
+            pitch=pitch if training else None
         )
 
         gap_loss = self.gap_loss(
-            spect_predicted=mels_pred, spect_tgt=mels,
+            spect_predicted=spectrogram_preds, spect_tgt=mels,
             spect_mask=mel_masks
         )
         mse_loss = self.mse_loss(
-            spect_predicted=mels_pred, spect_tgt=mels)
+            spect_predicted=spectrogram_preds, spect_tgt=mels)
         # TODO make this a parameter
         reconstruction_loss = (100 * gap_loss) + mse_loss
-
-        # Run the duration_predictor steps
-        # first find the number of frames masked for each spectrogram
-        frames_masked = (1 - mel_masks[:, :, 0]).sum(-1).int()
-        total_frames = spec_len - frames_masked
-        speaker_emb = spectrogram_projections.sum(1) / total_frames.unsqueeze(-1)
-
-        speakerified_token_embeddings = token_embeddings + speaker_emb.unsqueeze(1)
-
-        range_tensor = torch.arange(token_embeddings.shape[1], device=text_lens.device)
-        tokens_mask = (
-            range_tensor.repeat(token_embeddings.shape[0], 1) <
-            text_lens.unsqueeze(1)
-        ).float().unsqueeze(-1)
-
-        log_durs_pred = self.duration_predictor(speakerified_token_embeddings, tokens_mask)
-
-        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         dur_loss = self.duration_loss_fn(
             log_durs_predicted=log_durs_pred,
             durs_tgt=attn_hard_dur,
             len=text_lens
         )
+        pitch_loss = self.pitch_loss_fn(
+            pitch_predicted=pitch_predicted, pitch_tgt=pitch, len=text_lens)
 
-        outputs = (text, text_lens, mels, mels_masked, mels_pred, spec_len, attn_hard)
+        outputs = (text, text_lens, mels, mels_masked, spectrogram_preds, spec_len, attn_hard)
 
-        return reconstruction_loss + dur_loss, outputs
+        losses = (
+            reconstruction_loss,
+            dur_loss,
+            pitch_loss,
+        )
+
+        return losses, outputs
 
     def training_step(self, batch, batch_idx):
-        loss_spec, specs = self.forward_pass(batch, batch_idx)
-        train_loss = loss_spec
+        losses, specs = self.forward_pass(batch, batch_idx, training=False)
+
+        reconstruction_loss, dur_loss, pitch_loss = losses
+
+        train_loss = reconstruction_loss + dur_loss + pitch_loss
         self.log("train_loss", train_loss)
+        self.log("reconstruction_loss", reconstruction_loss)
+        self.log("dur_loss", dur_loss)
+        self.log("pitch_loss", pitch_loss)
 
         if self.log_train_spectrograms:
             (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard) = specs
@@ -530,11 +648,18 @@ class InpainterModel(ModelPT, Exportable):
         return train_loss
 
     def validation_step(self, batch, batch_idx):
-        loss_spec, specs = self.forward_pass(batch, batch_idx)
-        (texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard) = specs
-        self.log("validation_loss", loss_spec)
+        losses, specs = self.forward_pass(batch, batch_idx)
+        texts, text_lens, mels, mels_masked, mels_pred, mels_len, attn_hard = specs
+        reconstruction_loss, dur_loss, pitch_loss = losses
+
+        validation_loss = reconstruction_loss + dur_loss + pitch_loss
+        self.log("validation_loss", validation_loss)
+        self.log("reconstruction_loss_val", reconstruction_loss)
+        self.log("dur_loss_val", dur_loss)
+        self.log("pitch_loss_val", pitch_loss)
+
         return {
-            'loss_spec': loss_spec,
+            'loss_spec': validation_loss,
             'texts': texts,
             'text_lens': text_lens,
             'input_spectrogram': mels,
