@@ -14,7 +14,7 @@
 """
 """
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.dynamic_retrieve_server import DynamicRetrievalServer
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.dynamic_retrieval_server import DynamicRetrievalServer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 
