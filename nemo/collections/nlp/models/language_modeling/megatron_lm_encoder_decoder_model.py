@@ -108,12 +108,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
 
-        if self.cfg.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        if self.cfg.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.cfg.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.cfg.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -369,8 +369,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             loss_mean = torch.tensor(0.0).cuda()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
