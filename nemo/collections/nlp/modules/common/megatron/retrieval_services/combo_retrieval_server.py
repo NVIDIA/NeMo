@@ -66,6 +66,7 @@ class ComboRetrievalResource(Resource):
         elif 'update_weight' in data:
             with lock:
                 self.update_weights(data['update_weight'])
+            return "success"
         elif 'index_name' in data:
             with lock:
                 # serialize the index
