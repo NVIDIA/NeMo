@@ -10,7 +10,7 @@ NGRAM_MAPPING=${DATA_DIR}/replacement_vocab_filt.txt
 SUB_MISSPELLS=${DATA_DIR}/sub_misspells.txt
 
 ## Split ASR output transcriptions into shorter fragments to serve as ASR hypotheses for spellchecking model
-python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/evaluation/create_custom_vocabs.py --folder ${INPUT_DIR} --processed_folder ${OUTPUT_DIR}/processed
+python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/evaluation/create_custom_vocabs.py --folder ${INPUT_DIR} --processed_folder ${OUTPUT_DIR}/processed --min_len 6
 
 ## Split ASR output transcriptions into shorter fragments to serve as ASR hypotheses for spellchecking model
 mkdir ${OUTPUT_DIR}/hypotheses
