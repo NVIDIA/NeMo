@@ -95,9 +95,6 @@ class FaissRetrievalService(RetrievalService):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        if neighbors == 0:
-            # use padding
-            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
         data = {'sentences': query}
         data['neighbors'] = neighbors
         result = request_data(data, self.service_ip, self.service_port)
@@ -168,7 +165,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         data = {'index_name': index_name}
         return request_data(data, self.service_ip, self.service_port)
 
-    def reset(self, index_name: str):
+    def reset(self):
         """
         Write the dynamic index and document storage into file
         Args:

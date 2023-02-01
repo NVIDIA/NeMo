@@ -50,8 +50,6 @@ class ComboRetrievalResource(Resource):
         weights = weights / weights.sum()
         self.weight_container[0] = weights
 
-        self.chunk_size = self.retrieval_services[0].chunk_size
-
     def put(self):
         data = request.get_json()
         if 'neighbors' in data:
@@ -161,6 +159,7 @@ class ComboRetrievalServer(object):
         tokenizer: TokenizerSpec,
         services_cfg: list,
     ):
+        self.app = Flask(__name__, static_url_path='')
         services = []
         weights = []
         for service_cfg in services_cfg:
