@@ -1092,7 +1092,7 @@ class SpeakerClustering(torch.nn.Module):
     def __init__(
         self,
         min_samples_for_nmesc: int = 6,
-        nme_mat_size: int = 300,
+        nme_mat_size: int = 512,
         sparse_search: bool = True,
         maj_vote_spk_count: bool = False,
         parallelism: bool = False,

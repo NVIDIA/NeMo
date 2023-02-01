@@ -410,8 +410,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
-        oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
-        use_torch_script (bool): Boolean that determines whether to use torch.jit.script for speaker clustering
 
     Returns:
         all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
