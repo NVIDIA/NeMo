@@ -18,6 +18,7 @@ import pickle
 import threading
 import time
 from typing import List
+from collections import namedtuple
 
 import faiss
 import numpy as np
@@ -29,6 +30,10 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retr
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data, lock
 
 
+# define this type to mimic the indexed dataset
+DType = namedtuple('DType', ['dtype'])
+
+
 class ChunkStore:
     """
     ChunkStore maps chunk id to tokens. It is used as an in memory storage for dynamic retrieval DB.
@@ -38,7 +43,10 @@ class ChunkStore:
         self.store = {}
         self._count = 0
         self.no_retrieval = np.ones(2 * chunk_size, dtype=np.int64) * pad_id
+        self.chunk_size = chunk_size
         self.store[-1] = self.no_retrieval
+        field = DType(dtype=np.int64)
+        self._index = field
 
     def add(self, chunk):
         self.store[self._count] = chunk
@@ -91,6 +99,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                 # save the data
                 with open(self.output_filename + '.pkl', 'bw') as f:
                     pickle.dump(self.ds, f)
+                return "success"
         else:
             sentences = data['sentences']
             add_eos = data['add_eos']

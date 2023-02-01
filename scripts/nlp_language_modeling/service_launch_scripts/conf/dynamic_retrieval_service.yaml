@@ -17,5 +17,3 @@ service:
   query_bert_port: 17190   #  port number 
   output_filename: 'dynamic_db'  # the filename of serialized dynamic retrieval service, used for both Faiss index and data storage
   port: 17180  # server port number
-
-server: False  # whether launch the API server

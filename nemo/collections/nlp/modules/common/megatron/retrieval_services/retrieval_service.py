@@ -45,6 +45,12 @@ class RetrievalService:
 
     @abc.abstractmethod
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
+        """Get K-nearest neighbor chunks based on the input query
+
+        Args:
+            query (Union[List[str], str, torch.Tensor]): query str, list of str or token ids in torch.Tensor type
+            neighbors (int): number of neighbors to query
+        """
         pass
 
     @abc.abstractmethod
@@ -60,30 +66,29 @@ class RetrievalService:
 
 class FaissRetrievalService(RetrievalService):
     """
-    Top level static retrieval service class.
-    It starts the server at rank 0 worker, currently doesn't support multiple nodes yet.
+    Static retrieval service client class.
     It implements the retrieval services interface, has a simple client to do KNN queries.
     """
 
     def __init__(
         self,
-        retrieval_index: str,
         tokenizer: TokenizerSpec,
         service_ip: str = None,
         service_port: int = None,
     ):
         self.updatable = False
         self.tokenizer = tokenizer
-        ds = MMapRetrievalIndexedDataset(retrieval_index)
-        self.chunk_size = ds.chunk_size
-        pad_id = self.tokenizer.pad_id
-        # query_bert_port = BERT_MODEL_MAP[query_bert]
-        # batch, neighbors, 2*chunk_size
-        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
         self.service_ip = service_ip
         self.service_port = service_port
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
+        """Get K-nearest neighbor chunks based on the input query
+
+        Args:
+            query (Union[List[str], str, torch.Tensor]): query str, list of str or token ids in torch.Tensor type
+            neighbors (int): number of neighbors to query
+        """
+
         if isinstance(query, torch.Tensor):
             sentence_list = []
             for q in query:
@@ -102,8 +107,7 @@ class FaissRetrievalService(RetrievalService):
 
 class DynamicFaissRetrievalService(RetrievalService):
     """
-    Top level dynamic retrieval service class.
-    It starts the server at rank 0 worker, currently doesn't support multiple nodes yet.
+    Dynamic retrieval service client class.
     It implements the retrieval services interface, has a simple client to add, reset and query
     the dynamic retrieval index.
     """
@@ -111,29 +115,28 @@ class DynamicFaissRetrievalService(RetrievalService):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        chunk_size: int,
         service_ip: str,
         service_port: int,
     ):
         self.updatable = True
         self.tokenizer = tokenizer
-        self.chunk_size = chunk_size
-        pad_id = self.tokenizer.pad_id
-        # batch, neighbors, 2*chunk_size
-        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=np.int64) * pad_id
         self.service_ip = service_ip
         self.service_port = service_port
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
+        """Get K-nearest neighbor chunks based on the input query
+
+        Args:
+            query (Union[List[str], str, torch.Tensor]): query str, list of str or token ids in torch.Tensor type
+            neighbors (int): number of neighbors to query
+        """
+
         if isinstance(query, torch.Tensor):
             sentence_list = []
             for q in query:
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        if neighbors == 0:
-            # use padding
-            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
         data = {'sentences': query}
         data['neighbors'] = neighbors
         result = request_data(data, self.service_ip, self.service_port)
@@ -154,6 +157,24 @@ class DynamicFaissRetrievalService(RetrievalService):
                 sentence_list.append(text)
             query = sentence_list
         data = {'sentences': query, 'add_eos': add_eos}
+        return request_data(data, self.service_ip, self.service_port)
+
+    def write_index(self, index_name: str):
+        """
+        Write the dynamic index and document storage into file
+        Args:
+            index_name: str, the index name used for the file name
+        """
+        data = {'index_name': index_name}
+        return request_data(data, self.service_ip, self.service_port)
+
+    def reset(self, index_name: str):
+        """
+        Write the dynamic index and document storage into file
+        Args:
+            index_name: str, the index name used for the file name
+        """
+        data = {'reset': None}
         return request_data(data, self.service_ip, self.service_port)
 
 

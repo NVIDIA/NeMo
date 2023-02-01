@@ -45,6 +45,9 @@ class FaissRetrievalResource(Resource):
         self.ds = ds
         self.query_bert_ip = query_bert_ip
         self.query_bert_port = query_bert_port
+        self.chunk_size = ds.chunk_size
+        pad_id = self.tokenizer.pad_id
+        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
 
     def put(self):
         data = request.get_json()
@@ -56,6 +59,9 @@ class FaissRetrievalResource(Resource):
         # check keys
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
+        if neighbors == 0:
+            # use padding
+            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
         single_sentence = False
         if isinstance(query, str):
             single_sentence = True
