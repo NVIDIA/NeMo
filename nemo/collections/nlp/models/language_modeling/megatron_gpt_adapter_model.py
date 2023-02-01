@@ -27,11 +27,14 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
+from nemo.collections.nlp.modules.common.megatron.adapters.attention_adapters import (
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
+)
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.transformer_layer_adapters import (
     ParallelLinearAdapterConfig,
+    TinyAttentionAdapterConfig
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -221,6 +224,38 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         # so forceing lr to be 0.0 for gpt layers before param update
         return loss_mean
 
+
+class MegatronGPTTinyAttnAdapterModel(MegatronGPTBaseAdapterModel):
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer)
+        self.adapter_name_keys = [AdapterName.TINY_ATTN_ADAPTER]
+        frozen_model_cfg = MegatronGPTModel.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
+        )
+        for _, layer in self.frozen_model.named_modules():
+            if hasattr(layer, 'activations_checkpoint_method'):
+                layer.activations_checkpoint_method = (
+                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                )
+
+        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+
+        adapter_cfg = TinyAttentionAdapterConfig()
+
+        self.frozen_model.freeze()
+        for _, module in self.frozen_model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=adapter_key, cfg=adapter_cfg,
+                        )
+
+        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
+
+    @classmethod
+    def list_available_models(cls):
+        pass
 
 class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
     """

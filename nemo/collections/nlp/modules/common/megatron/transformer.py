@@ -21,9 +21,10 @@ import torch
 from einops import rearrange
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.transformer_layer_adapters import (
     ParallelLinearAdapterConfig,
+    TinyAttentionAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
@@ -165,7 +166,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
-        self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
+        self.set_accepted_adapter_types(
+            [LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_, TinyAttentionAdapterConfig._target_]
+        )
 
         if not bias and bias_dropout_add_fusion:
             raise ValueError(
@@ -574,6 +577,22 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
                 layernorm_input = normalization_output
+
+        if self.is_adapter_available():
+            tiny_attn_adapter = self.get_adapter_module(AdapterName.TINY_ATTN_ADAPTER)
+            if tiny_attn_adapter:
+                normalization_output, _ = tiny_attn_adapter(
+                    normalization_output,  # TODO (@adithyare) what to do with bias?
+                    attention_mask,
+                    layer_past=layer_past,
+                    get_key_value=get_key_value,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
+                    rotary_pos_emb=self_attention_pos_emb,
+                    relative_position_bias=self_attention_relative_position_bias,
+                    checkpoint_core_attention=checkpoint_core_attention,
+                )
+
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
         if (

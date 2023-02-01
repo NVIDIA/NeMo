@@ -18,7 +18,8 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, InfusedAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.attention_adapters import InfusedAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
@@ -55,7 +56,7 @@ except (ImportError, ModuleNotFoundError):
 """
 
 
-class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
+class ParallelAttention_(MegatronModule):
     """Parallel self-attention layer abstract class.
 
     Self-attention layer takes input with size [s, b, h]
@@ -86,7 +87,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
     ):
-        super(ParallelAttention, self).__init__()
+        super(ParallelAttention_, self).__init__()
 
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
@@ -94,8 +95,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.normalize_attention_scores = normalize_attention_scores
 
         self.megatron_legacy = megatron_legacy
-
-        self.set_accepted_adapter_types([InfusedAdapterConfig._target_])
 
         if kv_channels is None:
             assert (
@@ -300,18 +299,12 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         return mixed_layer
 
-    def forward(
+    def forward_pre_infused_adapter(
         self,
         hidden_states,
-        attention_mask,
-        layer_past=None,
-        get_key_value=False,
         encoder_output=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        rotary_pos_emb=None,  # rotary positional embedding
-        relative_position_bias=None,
-        checkpoint_core_attention=False,
     ):
         # hidden_states: [sq, b, h]
 
@@ -382,19 +375,22 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 self.hidden_size_per_attention_head,
             )
             query_layer = query_layer.view(*new_tensor_shape)
+        return key_layer, value_layer, query_layer
 
-        if self.is_adapter_available():
-            key_infused_adapter = self.get_adapter_module(AdapterName.KEY_INFUSED)
-            value_infused_adapter = self.get_adapter_module(AdapterName.VALUE_INFUSED)
-            if key_infused_adapter:
-                assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
-                kls = key_layer.shape
-                key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1)).reshape(kls)
-            if value_infused_adapter:
-                assert key_infused_adapter is not None, "Expected key_infused_adapter not found!"
-                vls = value_layer.shape
-                value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1)).reshape(vls)
-
+    def forward_post_infused_adapter(
+        self,
+        key_layer,
+        value_layer,
+        query_layer,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,  # rotary positional embedding
+        relative_position_bias=None,
+        checkpoint_core_attention=False,
+    ):
         # ===================================================
         # Adjust key, value, and attention mask for inference
         # ===================================================
@@ -465,6 +461,141 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if get_key_value:
             output = [output, present]
 
+        return output, bias
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        encoder_output=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,  # rotary positional embedding
+        relative_position_bias=None,
+        checkpoint_core_attention=False,
+    ):
+
+        key_layer, value_layer, query_layer = self.forward_pre_infused_adapter(
+            hidden_states, encoder_output, set_inference_key_value_memory, inference_max_sequence_len
+        )
+        output, bias = self.forward_post_infused_adapter(
+            key_layer,
+            value_layer,
+            query_layer,
+            attention_mask,
+            layer_past,
+            get_key_value,
+            set_inference_key_value_memory,
+            inference_max_sequence_len,
+            rotary_pos_emb,
+            relative_position_bias,
+            checkpoint_core_attention,
+        )
+        return output, bias
+
+
+class ParallelAttention(ParallelAttention_, adapter_mixins.AdapterModuleMixin):
+    """Parallel self-attention layer abstract class with infused adapter support
+    """
+
+    def __init__(
+        self,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        num_attention_heads,
+        hidden_size,
+        attention_type=AttnType.self_attn,
+        attn_mask_type=AttnMaskType.padding,
+        precision=16,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        use_cpu_initialization=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
+        layer_type=None,
+        megatron_legacy=False,
+        bias=True,
+        headscale=False,
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
+        gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+    ):
+        super(ParallelAttention, self).__init__(
+            init_method,
+            output_layer_init_method,
+            layer_number,
+            num_attention_heads,
+            hidden_size,
+            attention_type,
+            attn_mask_type,
+            precision,
+            apply_query_key_layer_scaling,
+            kv_channels,
+            use_cpu_initialization,
+            masked_softmax_fusion,
+            attention_dropout,
+            layer_type,
+            megatron_legacy,
+            bias,
+            headscale,
+            activations_checkpoint_granularity,
+            sequence_parallel,
+            gradient_accumulation_fusion,
+            normalize_attention_scores,
+        )
+        self.set_accepted_adapter_types([InfusedAdapterConfig._target_])
+
+    def infusion_adapter(self, key_layer, value_layer):
+        key_infused_adapter = self.get_adapter_module(AdapterName.KEY_INFUSED)
+        value_infused_adapter = self.get_adapter_module(AdapterName.VALUE_INFUSED)
+        if key_infused_adapter:
+            assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
+            kls = key_layer.shape
+            key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1)).reshape(kls)
+        if value_infused_adapter:
+            assert key_infused_adapter is not None, "Expected key_infused_adapter not found!"
+            vls = value_layer.shape
+            value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1)).reshape(vls)
+        return key_layer, value_layer
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        encoder_output=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,  # rotary positional embedding
+        relative_position_bias=None,
+        checkpoint_core_attention=False,
+    ):
+
+        key_layer, value_layer, query_layer = self.forward_pre_infused_adapter(
+            hidden_states, encoder_output, set_inference_key_value_memory, inference_max_sequence_len
+        )
+
+        if self.is_adapter_available():
+            key_layer, value_layer = self.infusion_adapter(key_layer, value_layer)
+
+        output, bias = self.forward_post_infused_adapter(
+            key_layer,
+            value_layer,
+            query_layer,
+            attention_mask,
+            layer_past,
+            get_key_value,
+            set_inference_key_value_memory,
+            inference_max_sequence_len,
+            rotary_pos_emb,
+            relative_position_bias,
+            checkpoint_core_attention,
+        )
         return output, bias
 
 

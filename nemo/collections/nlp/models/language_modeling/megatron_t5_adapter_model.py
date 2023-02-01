@@ -32,11 +32,13 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import  AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.transformer_layer_adapters import (
+    ParallelLinearAdapterConfig,
+)
+from nemo.collections.nlp.modules.common.megatron.adapters.attention_adapters import (
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
-    ParallelLinearAdapterConfig,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins

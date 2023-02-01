@@ -15,10 +15,8 @@
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    MLPInfusedAdapterConfig,
-)
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.attention_adapters import MLPInfusedAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
