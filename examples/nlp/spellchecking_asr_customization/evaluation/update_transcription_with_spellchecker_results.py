@@ -211,25 +211,6 @@ def check_banned_replacements(src, dst):
     if dst.startswith("r e ") and dst[4:] == src:
         return True
 
-    if (
-        dst == "t h r o u g h"
-        or dst == "w i t h"
-        or dst == "y o u ' v e"
-        or dst == "w e ' v e"
-        or dst == "a c t"
-        or dst == "s e p t e m b e r"
-        or dst == "n o v e m b e r"
-        or dst == "o c t o b e r"
-        or dst == "m a y"
-        or dst == "j a n u a r y"
-        or dst == "f e b r u a r y"
-        or dst == "d e c e m b e r"
-    ):
-        return True
-
-    if src != dst and (src.startswith(dst) or dst.startswith(src) or src.endswith(dst) or dst.endswith(src)):
-        return True
-
     return False
 
 
@@ -281,7 +262,7 @@ for name in os.listdir(args.spellchecker_results_folder):
             if not s.startswith("REPLACE"):
                 continue
             parts = s.split("\t")
-            _, src, dst, short_sent = parts
+            _, src, dst, short_sent, _ = parts
             if short_sent not in short2full_sent:
                 continue
             if check_banned_replacements(src, dst):
@@ -316,7 +297,7 @@ for name in os.listdir(args.spellchecker_results_folder):
             for dst, freq in sorted(
                 full_sent2corrections[full_sent][src].items(), key=lambda item: item[1], reverse=True
             ):
-                path = get_alignment_by_dp(src, dst, joint_vocab, src_vocab, dst_vocab, max_len)
+                path = get_alignment_by_dp(dst, src, joint_vocab, src_vocab, dst_vocab, max_len)
                 if path[-1][3] / (src.count(" ") + 1) < args.min_dp_score_per_symbol:  #sum_score
                     continue
                 corrected_full_sent = corrected_full_sent.replace(src, dst)

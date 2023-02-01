@@ -6,6 +6,7 @@ from collections import defaultdict
 parser = argparse.ArgumentParser()
 parser.add_argument("--folder", required=True, type=str, help="Folder with audio and text subfolder")
 parser.add_argument("--processed_folder", required=True, type=str, help="Folder with files like 1000_with_punct.txt")
+parser.add_argument("--min_len", required=True, type=int, help="Minimum number of characters in user phrase (including space), e.g. 6 symbols")
 args = parser.parse_args()
 
 idf = defaultdict(int)
@@ -29,7 +30,7 @@ for name in os.listdir(args.folder + "/text"):
             phrase = " ".join(phrase.strip().split())  # delete extra spaces
             custom_phrases.add(phrase)
 
-    # next take capitalized sequences from text/*.headings.txt, and non-capitalized single-word terms.
+    # next take capitalized sequences and non-capitalized single-word terms.
     with open(args.processed_folder + "/" + doc_id + "_with_punct.txt", "r", encoding="utf-8") as f:
         for line in f:
             sentence = line.strip()
@@ -45,6 +46,11 @@ for name in os.listdir(args.folder + "/text"):
                     phrase_words = []
                     continue
                 if re.search(r"\d", w):
+                    if len(phrase_words) > 0:
+                        custom_phrases.add(" ".join(phrase_words))
+                    phrase_words = []
+                    continue
+                if re.search(r"_", w):
                     if len(phrase_words) > 0:
                         custom_phrases.add(" ".join(phrase_words))
                     phrase_words = []
@@ -66,6 +72,6 @@ for name in os.listdir(args.folder + "/text"):
 
     out = open(args.folder + "/vocabs/" + doc_id + ".custom.txt", "w", encoding="utf-8")
     for phrase in custom_phrases:
-        if len(phrase) > 7:
+        if len(phrase) >= args.min_len:
             out.write(phrase + "\n")
     out.close()

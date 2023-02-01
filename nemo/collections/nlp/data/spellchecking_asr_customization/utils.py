@@ -339,7 +339,7 @@ def get_alignment_by_dp(
     ref_pos = len(ref_letters) - 1
     cell_info = history[(hyp_pos, ref_pos)]
     path.append(cell_info)
-    while hyp_pos > 0 and ref_pos > 0:
+    while hyp_pos > 0 or ref_pos > 0:
         hyp_pos -= cell_info.best_hyp_ngram_len
         ref_pos -= cell_info.best_ref_ngram_len 
         cell_info = history[(hyp_pos, ref_pos)]
