@@ -328,8 +328,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                             target = candidates[last_tag - 1]
                             target_len = target.count(" ") + 1
                             len_ratio = target_len / source_len
-                            if len_ratio >= 0.7 and len_ratio <= 1.3:
-                                report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
+                            report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
                         tag_begin = idx
                     last_tag = tag
                 if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
@@ -338,8 +337,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     target = candidates[last_tag - 1]
                     target_len = target.count(" ") + 1
                     len_ratio = target_len / source_len
-                    if len_ratio >= 0.7 and len_ratio <= 1.3:
-                        report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
+                    report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
 
                 # pdb.set_trace()
                 all_preds.append(

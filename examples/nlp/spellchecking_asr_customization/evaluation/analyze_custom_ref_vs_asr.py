@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from difflib import SequenceMatcher
+from collections import defaultdict
 import json
 import os
 import pdb
@@ -31,12 +32,11 @@ parser = ArgumentParser(
 )
 parser.add_argument("--manifest", required=True, type=str, help="Path to manifest file with reference text and asr hypotheses")
 parser.add_argument("--vocab_dir", type=str, required=True, help="Path to directory with custom vocabularies")
+parser.add_argument("--input_dir", type=str, required=True, help="Path to input directory with asr-hypotheses and candidates")
 parser.add_argument("--ngram_mappings", type=str, required=True, help="File with ngram mappings")
 parser.add_argument("--output_name", type=str, required=True, help="Output file")
 
 args = parser.parse_args()
-
-joint_vocab, src_vocab, dst_vocab, max_len = load_ngram_mappings_for_dp(args.ngram_mappings)
 
 def get_changed_fragments(i_words, j_words):
     s = SequenceMatcher(None, i_words, j_words)
@@ -64,23 +64,57 @@ def read_custom_vocab(filename):
             lastid += 1
     return phrases, phrase2id, id2phrase
 
+def read_hypotheses_and_candidates(hypotheses_filename, candidates_filename):
+    candidates2hypotheses = defaultdict(set)  # key=candidate, value=set of asr_hypotheses
+    hypotheses_lines = []
+    candidates_lines = []
+    with open(hypotheses_filename, "r", encoding="utf-8") as f:
+        hypotheses_lines = f.readlines()
+    with open(candidates_filename, "r", encoding="utf-8") as f:
+        candidates_lines = f.readlines()
+    if len(hypotheses_lines) != len(candidates_lines):
+        raise(ValueError, "number of lines doesn't match in " + hypotheses_filename + " and " + candidates_filename)
+    for i in range(len(hypotheses_lines)):
+        s = hypotheses_lines[i]
+        hyp, _ = s.strip().split("\t")
+        hyp = hyp.replace(" ", "").replace("_", " ")
+        candidates = candidates_lines[i].strip().split(";")
+        for c in candidates:
+            text, begin, _, _, _ = c.split("|")
+            if begin == -1:
+                continue
+            text = text.replace(" ", "").replace("_", " ")
+            candidates2hypotheses[text].add(hyp) 
+    return candidates2hypotheses
+
+joint_vocab, src_vocab, dst_vocab, max_len = load_ngram_mappings_for_dp(args.ngram_mappings)
 
 custom_vocabs = {}  # key=doc_id, value=tuple(set of phrases, phrase2id, id2phrase)
-
 for name in os.listdir(args.vocab_dir):
     parts = name.split(".")
     if len(parts) == 3 and parts[1] == "custom":
         doc_id = parts[0]
         custom_vocabs[doc_id] = read_custom_vocab(os.path.join(args.vocab_dir, name))
 
-test_data = read_manifest(args.manifest)
+# this is used to check if lost phrase was ever proposed as candidate
+candidates2hypotheses = {}  # key=doc_id, value=dict(key=candidate, value=set of asr_hypotheses)
+for name in os.listdir(args.input_dir):
+    parts = name.split(".")
+    if len(parts) == 2:
+        doc_id = parts[0]
+        candidates2hypotheses[doc_id] = read_hypotheses_and_candidates(
+            os.path.join(args.input_dir, doc_id + ".txt"),
+            os.path.join(args.input_dir, doc_id + ".info.txt"),
+        )
 
-# extract just the text corpus from the manifest
+test_data = read_manifest(args.manifest)
 pred_text = [data['pred_text'] for data in test_data]
 ref_text = [data['text'] for data in test_data]
 audio_filepath = [data['audio_filepath'] for data in test_data]
 
 out_target_lost = open(args.output_name + ".target_lost", "w", encoding="utf-8")
+out_target_lost_before_top10 = open(args.output_name + ".target_lost_before_top10", "w", encoding="utf-8")
+out_target_lost_after_top10 = open(args.output_name + ".target_lost_after_top10", "w", encoding="utf-8")
 out_target_worse = open(args.output_name + ".target_worse", "w", encoding="utf-8")
 out_target_better = open(args.output_name + ".target_better", "w", encoding="utf-8")
 out_target_good = open(args.output_name + ".target_good", "w", encoding="utf-8")
@@ -88,6 +122,8 @@ out_target_fp = open(args.output_name + ".target_fp", "w", encoding="utf-8")
 out_ideal = open(args.output_name + ".ideal", "w", encoding="utf-8")
 
 count_lost = 0
+count_lost_before_top10 = 0
+count_lost_after_top10 = 0
 count_worse = 0
 count_better = 0
 count_good = 0
@@ -169,12 +205,12 @@ with open(args.output_name, "w", encoding="utf-8") as out:
             old_frag = " " + hyp_fragment + " "
             new_frag = " " + ref_fragment + " "
             if new_frag in ref_sent:
-                diff_vocab_before_after_spellcheck[(tag, hyp_fragment, ref_fragment, "!")] += 1
+                verdict = "!"
             elif old_frag in ref_sent:
-                diff_vocab_before_after_spellcheck[(tag, hyp_fragment, ref_fragment, "*")] += 1
+                verdict = "*"
             else:
-                diff_vocab_before_after_spellcheck[(tag, hyp_fragment, ref_fragment, "?")] += 1
-
+                verdict = "?"
+            diff_vocab_before_after_spellcheck[(tag, hyp_fragment, ref_fragment, verdict)] += 1
 
         test_data[i]["pred_text"] = ideal_spellchecked_sent.strip()
         test_data[i]["before_spell_pred"] = before_sent.strip()  # we need this field for "ideal" manifest even if it did not existed before 
@@ -201,6 +237,19 @@ with open(args.output_name, "w", encoding="utf-8") as out:
                 elif correct == "-":
                     out_target_lost.write(correct + "\t" + doc_id + "\t" + phrase + "\n " + after_sent + "\n " + ref_sent + "\n")
                     count_lost += 1
+                    # check whether the lost phrase ever got to top10 candidates or not
+                    found = False
+                    if phrase in candidates2hypotheses[doc_id]:
+                        for hyp in candidates2hypotheses[doc_id][phrase]:
+                            if hyp in before_sent:
+                                found = True
+                                break
+                    if found:
+                        count_lost_after_top10 += 1
+                        out_target_lost_after_top10.write(correct + "\t" + doc_id + "\t" + phrase + "\n " + after_sent + "\n " + ref_sent + "\n")
+                    else:
+                        count_lost_before_top10 += 1
+                        out_target_lost_before_top10.write(correct + "\t" + doc_id + "\t" + phrase + "\n " + after_sent + "\n " + ref_sent + "\n")
                 else:
                     out_target_good.write(correct + "\t" + doc_id + "\t" + phrase + "\n " + after_sent + "\n")
                     count_good += 1
@@ -211,6 +260,8 @@ with open(args.output_name, "w", encoding="utf-8") as out:
                     out_target_fp.write(correct + "\t" + doc_id + "\t" + phrase + "\n " + after_sent + "\n " + before_sent + "\n " + ref_sent + "\n")
                     count_fp += 1
 out_target_lost.close()
+out_target_lost_before_top10.close()
+out_target_lost_after_top10.close()
 out_target_worse.close()
 out_target_better.close()
 out_target_good.close()
@@ -220,6 +271,8 @@ out_ideal.close()
 write_manifest(args.output_name + ".ideal_spellcheck", test_data)
 
 print("Lost:", count_lost)
+print("Lost before top10:", count_lost_before_top10)
+print("Lost after top10:", count_lost_after_top10)
 print("Worse:", count_worse)
 print("Better:", count_better)
 print("Good: ", count_good)
@@ -242,16 +295,27 @@ sum_worse = 0
 sum_unknown = 0
 print("BEFORE vs AFTER SPELLCHECKING")
 for k, v in diff_vocab_before_after_spellcheck.most_common(1000000):
-    path = get_alignment_by_dp(" ".join(list(k[1].replace(" ", "_"))), " ".join(list(k[2].replace(" ", "_"))), joint_vocab, src_vocab, dst_vocab, max_len)
-    if len(k[1]) > 0 and path[-1][3] / len(k[1]) < -1.0:  #sum_score
-        continue
+    path = get_alignment_by_dp(
+        " ".join(list(k[2].replace(" ", "_"))),
+        " ".join(list(k[1].replace(" ", "_"))),
+        joint_vocab,
+        src_vocab,
+        dst_vocab,
+        max_len
+    )
     if k[3] == "!":
         sum_better += v
     elif k[3] == "*":
         sum_worse += v
     else:
         sum_unknown += v
-    print(k, v, "sum_better=", sum_better, "; sum_worse=", sum_worse, "; sum_unknown=", sum_unknown)
-    for hyp_ngram, ref_ngram, score, sum_score, joint_freq, src_freq, dst_freq in path:
-        print("\t", "hyp=", hyp_ngram, "; ref=", ref_ngram, "; score=", score, "; sum_score=", sum_score, joint_freq, src_freq, dst_freq)
+
+    if k[3] == "!" and len(k[1]) > 0 and path[-1][3] / len(k[1]) < -1.0:
+        print(k, v, "sum_better=", sum_better, "; sum_worse=", sum_worse, "; sum_unknown=", sum_unknown, "; av_score=", path[-1][3] / (0.001 + len(k[1])))
+        for hyp_ngram, ref_ngram, score, sum_score, joint_freq, src_freq, dst_freq in path:
+            print("\t", "hyp=", hyp_ngram, "; ref=", ref_ngram, "; score=", score, "; sum_score=", sum_score, joint_freq, src_freq, dst_freq)
+
+    #print(k, v, "sum_better=", sum_better, "; sum_worse=", sum_worse, "; sum_unknown=", sum_unknown, "; av_score=", path[-1][3] / (0.001 + len(k[1])))
+    #for hyp_ngram, ref_ngram, score, sum_score, joint_freq, src_freq, dst_freq in path:
+    #    print("\t", "hyp=", hyp_ngram, "; ref=", ref_ngram, "; score=", score, "; sum_score=", sum_score, joint_freq, src_freq, dst_freq)
 
