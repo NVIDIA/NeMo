@@ -432,7 +432,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
-        speaker_clustering.parallelism = False
         speaker_clustering = torch.jit.script(speaker_clustering)
         torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
 

@@ -1095,7 +1095,7 @@ class SpeakerClustering(torch.nn.Module):
         nme_mat_size: int = 300,
         sparse_search: bool = True,
         maj_vote_spk_count: bool = False,
-        parallelism: bool = True,
+        parallelism: bool = False,
         cuda: bool = False,
     ):
         """
