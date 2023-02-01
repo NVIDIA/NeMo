@@ -21,12 +21,7 @@ import torch
 import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.bert_service import start_sentence_bert_server
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import (
-    ComboRetrievalService,
-    DynamicFaissRetrievalService,
-    FaissRetrievalService,
-)
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import ComboRetrievalService
 from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
 
 
@@ -37,30 +32,14 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.frequent_query = args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
         self.store_retrieved = args['store_retrieved']
-        weights = args['weights']
         self.store = dist.FileStore('/tmp/filestore_eval', -1)
         self.store.set('neighbors', str(args['neighbors']))
         self.megatron_lm_compatible = args['megatron_lm_compatible']
-        # start the sentence bert server
-        for name in args['sentence_bert']:
-            conf = args['sentence_bert'][name]
-            start_sentence_bert_server(tokenizer=self.model.tokenizer, name=name, **conf)
-        services = []
-        for service_conf in args['services']:
-            if service_conf['type'] == 'FaissRetrievalService':
-                del service_conf['type']
-                service = FaissRetrievalService(tokenizer=self.model.tokenizer, **service_conf)
-                services.append(service)
-            elif service_conf['type'] == 'DynamicFaissRetrievalService':
-                del service_conf['type']
-                service = DynamicFaissRetrievalService(tokenizer=self.model.tokenizer, **service_conf)
-                services.append(service)
-            else:
-                raise ValueError(f'no such service {service_conf["type"]} implemented')
-        self.service = ComboRetrievalService(retrieval_services=services, weights=weights, store=self.store)
+        combo_cfg = args['combo_service']
+        self.service = ComboRetrievalService(tokenizer=self.model.tokenizer, service_ip=combo_cfg['service_ip'], service_port=combo_cfg['service_port'])
         self.retrieved = []
         self.retrieved_text = []
-        self.chunk_size = self.service.chunk_size
+        self.chunk_size = self.model.cfg.chunk_size
 
     def update_neighbors(self, neighbors):
         # dynamically change the number of neighbors during the query
