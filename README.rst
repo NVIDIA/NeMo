@@ -61,7 +61,7 @@ Key Features
 ------------
 
 * Speech processing
-    * `HuggingFace Space for Audio Transcription (File, Micriphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
+    * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
         * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, ...
         * Supports CTC and Transducer/RNNT losses/decoders
@@ -228,7 +228,7 @@ Install it manually if not using the NVIDIA PyTorch container.
 
     git clone https://github.com/ericharper/apex.git
     cd apex
-    git checkout nm_v1.14.0
+    git checkout nm_v1.15.0
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 Transformer Engine
