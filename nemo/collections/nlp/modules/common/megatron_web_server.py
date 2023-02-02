@@ -14,7 +14,11 @@
 
 import gradio as gr
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data, text_generation, convert_retrieved_to_md
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
+    convert_retrieved_to_md,
+    request_data,
+    text_generation,
+)
 
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
@@ -77,16 +81,15 @@ def get_demo(share, username, password):
 
 
 class RetroDemoWebApp:
-
     def __init__(self, text_service_ip, text_service_port, combo_service_ip, combo_service_port):
         self.text_service_ip = text_service_ip
         self.text_service_port = text_service_port
         self.combo_service_ip = combo_service_ip
         self.combo_service_port = combo_service_port
 
-    def get_retro_generation(self, prompt, greedy, add_BOS, token_to_gen,
-                             min_tokens, temp, top_p, top_k, repetition,
-                             neighbors, weight):
+    def get_retro_generation(
+        self, prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors, weight
+    ):
         data = {
             "sentences": [prompt],
             "tokens_to_generate": int(token_to_gen),

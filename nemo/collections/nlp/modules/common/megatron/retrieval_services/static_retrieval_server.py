@@ -27,7 +27,7 @@ from flask_restful import Api, Resource
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data, lock
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
 
 
 class FaissRetrievalResource(Resource):
@@ -133,7 +133,9 @@ class RetrievalServer(object):
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
         api = Api(self.app)
         api.add_resource(
-            FaissRetrievalResource, '/knn', resource_class_args=[self.index, self.tokenizer, self.ds, query_bert_ip, query_bert_port],
+            FaissRetrievalResource,
+            '/knn',
+            resource_class_args=[self.index, self.tokenizer, self.ds, query_bert_ip, query_bert_port],
         )
 
     def run(self, url, port=None):

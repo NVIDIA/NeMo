@@ -36,7 +36,9 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.store.set('neighbors', str(args['neighbors']))
         self.megatron_lm_compatible = args['megatron_lm_compatible']
         combo_cfg = args['combo_service']
-        self.service = ComboRetrievalService(tokenizer=self.model.tokenizer, service_ip=combo_cfg['service_ip'], service_port=combo_cfg['service_port'])
+        self.service = ComboRetrievalService(
+            tokenizer=self.model.tokenizer, service_ip=combo_cfg['service_ip'], service_port=combo_cfg['service_port']
+        )
         self.retrieved = []
         self.retrieved_text = []
         self.chunk_size = self.model.cfg.chunk_size
@@ -204,7 +206,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             retrieved_mask = retrieved != tokenizer.pad_id
         if retrieved.numel() == 0:
             # add empty retrieved
-            retrieved = torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device()).unsqueeze(0).repeat(1, len(self.retrieved), 1, 1)
+            retrieved = (
+                torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device())
+                .unsqueeze(0)
+                .repeat(1, len(self.retrieved), 1, 1)
+            )
             retrieved_mask = retrieved != tokenizer.pad_id
             # retrieved = torch.tensor([-1] * micro_batch_size)
             # retrieved_mask = torch.tensor([-1] * micro_batch_size)
@@ -348,7 +354,11 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
             retrieved_mask = retrieved != tokenizer.pad_id
         if retrieved.numel() == 0:
             # add empty retrieved
-            retrieved = torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device()).unsqueeze(0).repeat(1, len(self.retrieved), 1, 1)
+            retrieved = (
+                torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device())
+                .unsqueeze(0)
+                .repeat(1, len(self.retrieved), 1, 1)
+            )
             retrieved_mask = retrieved != tokenizer.pad_id
 
         """Prepare batch for each of the inference steps"""

@@ -39,10 +39,7 @@ def get_tokenizer(args):
 def main(cfg) -> None:
     tokenizer = get_tokenizer(cfg.tokenizer)
 
-    server = ComboRetrievalServer(
-        tokenizer,
-        cfg.service.child_services
-    )
+    server = ComboRetrievalServer(tokenizer, cfg.service.child_services)
     server.run("0.0.0.0", cfg.service.port)
 
 

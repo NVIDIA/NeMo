@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import requests
 import json
 import threading
 
+import requests
 
 headers = {"Content-Type": "application/json"}
 
@@ -32,6 +32,7 @@ def request_data(data, ip='localhost', port=None):
 def text_generation(data, ip='localhost', port=None):
     resp = requests.put(f'http://{ip}:{port}/generate', data=json.dumps(data), headers=headers)
     return resp.json()
+
 
 def convert_retrieved_to_md(retrieved):
     output_str = '<table><tr><th>Query</th><th>Retrieved Doc</th></tr>'

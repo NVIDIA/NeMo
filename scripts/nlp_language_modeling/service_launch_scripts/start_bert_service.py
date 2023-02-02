@@ -38,13 +38,14 @@ def get_tokenizer(args):
 @hydra_runner(config_path="conf", config_name="bert_service")
 def main(cfg) -> None:
     tokenizer = get_tokenizer(cfg.tokenizer)
-    start_sentence_bert_server(cfg.name,
-                               cfg.sentence_bert.devices,
-                               tokenizer,
-                               cfg.sentence_bert.sentence_bert,
-                               cfg.sentence_bert.sentence_bert_batch,
-                               port=cfg.sentence_bert.port
-                               )
+    start_sentence_bert_server(
+        cfg.name,
+        cfg.sentence_bert.devices,
+        tokenizer,
+        cfg.sentence_bert.sentence_bert,
+        cfg.sentence_bert.sentence_bert_batch,
+        port=cfg.sentence_bert.port,
+    )
 
 
 if __name__ == "__main__":

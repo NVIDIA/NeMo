@@ -14,8 +14,8 @@
 """
 """
 
-from nemo.core.config import hydra_runner
 from nemo.collections.nlp.modules.common.megatron_web_server import RetroDemoWebApp
+from nemo.core.config import hydra_runner
 
 
 @hydra_runner(config_path="conf", config_name="retro_web_server")

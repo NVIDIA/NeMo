@@ -17,18 +17,20 @@ import logging
 import pickle
 import threading
 import time
-from typing import List
 from collections import namedtuple
+from typing import List
 
 import faiss
 import numpy as np
 import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import FaissRetrievalResource
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data, lock
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import (
+    FaissRetrievalResource,
+)
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
 
 # define this type to mimic the indexed dataset
 DType = namedtuple('DType', ['dtype'])
@@ -67,7 +69,19 @@ class DynamicRetrievalResource(FaissRetrievalResource):
     The PUT method is to get KNN tokens, add new chunks, reset index.
     """
 
-    def __init__(self, index, tokenizer, chunk_size, stride, store, ctx_bert_ip, ctx_bert_port, query_bert_ip, query_bert_port, output_filename):
+    def __init__(
+        self,
+        index,
+        tokenizer,
+        chunk_size,
+        stride,
+        store,
+        ctx_bert_ip,
+        ctx_bert_port,
+        query_bert_ip,
+        query_bert_port,
+        output_filename,
+    ):
         super().__init__(index, tokenizer, store, query_bert_ip, query_bert_port)
         self.chunk_size = chunk_size
         self.stride = stride
@@ -214,4 +228,3 @@ class DynamicRetrievalServer(object):
 
     def run(self, url, port=None):
         threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
-

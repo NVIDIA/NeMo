@@ -65,10 +65,7 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self,
-        tokenizer: TokenizerSpec,
-        service_ip: str = None,
-        service_port: int = None,
+        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
     ):
         self.updatable = False
         self.tokenizer = tokenizer
@@ -102,11 +99,9 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
     It implements the retrieval services interface, has a simple client to add, reset and query
     the dynamic retrieval index.
     """
+
     def __init__(
-        self,
-        tokenizer: TokenizerSpec,
-        service_ip: str = None,
-        service_port: int = None,
+        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
     ):
         super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port)
         self.updatable = True
@@ -151,11 +146,9 @@ class ComboRetrievalService(DynamicFaissRetrievalService):
     Combo retrieval service client class.
     It implements the retrieval services interface, has a simple client to add, reset, query, update weights
     """
+
     def __init__(
-        self,
-        tokenizer: TokenizerSpec,
-        service_ip: str = None,
-        service_port: int = None,
+        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
     ):
         super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port)
 

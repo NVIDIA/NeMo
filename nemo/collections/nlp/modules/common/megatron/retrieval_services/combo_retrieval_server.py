@@ -23,13 +23,17 @@ import faiss
 import numpy as np
 import torch
 from flask import Flask, jsonify, request
-from flask_restful import Api
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import DynamicFaissRetrievalService, FaissRetrievalService
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import FaissRetrievalResource
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data, lock
 from flask_restful import Api, Resource
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import (
+    DynamicFaissRetrievalService,
+    FaissRetrievalService,
+)
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import (
+    FaissRetrievalResource,
+)
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
 
 weights = None
 
@@ -156,9 +160,7 @@ class ComboRetrievalServer(object):
     """
 
     def __init__(
-        self,
-        tokenizer: TokenizerSpec,
-        services_cfg: list,
+        self, tokenizer: TokenizerSpec, services_cfg: list,
     ):
         self.app = Flask(__name__, static_url_path='')
         services = []
@@ -167,14 +169,12 @@ class ComboRetrievalServer(object):
             weights.append(service_cfg.weight)
             if service_cfg.type == 'FaissRetrievalService':
                 service = FaissRetrievalService(
-                    tokenizer=tokenizer,
-                    service_ip=service_cfg.service_ip,
-                    service_port=service_cfg.service_port)
+                    tokenizer=tokenizer, service_ip=service_cfg.service_ip, service_port=service_cfg.service_port
+                )
             elif service_cfg.type == 'DynamicFaissRetrievalService':
                 service = DynamicFaissRetrievalService(
-                    tokenizer=tokenizer,
-                    service_ip=service_cfg.service_ip,
-                    service_port=service_cfg.service_port)
+                    tokenizer=tokenizer, service_ip=service_cfg.service_ip, service_port=service_cfg.service_port
+                )
             else:
                 raise ValueError(f'Unsupported retrieval service {service_cfg.type}')
             services.append(service)
@@ -183,12 +183,7 @@ class ComboRetrievalServer(object):
 
         api = Api(self.app)
         api.add_resource(
-            ComboRetrievalResource,
-            '/knn',
-            resource_class_args=[
-                services,
-                self.weight_container,
-            ],
+            ComboRetrievalResource, '/knn', resource_class_args=[services, self.weight_container,],
         )
 
     def run(self, url, port=None):
