@@ -31,7 +31,7 @@ from omegaconf import DictConfig, OmegaConf
 from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.spatial.transform import Rotation
-from scipy.stats import halfnorm, norm
+from scipy.stats import beta, gamma, halfnorm
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
@@ -130,10 +130,10 @@ class MultiSpeakerSimulator(object):
                             half normal distribution)
       mean_silence (float): Mean proportion of silence to speaking time in the audio session (overlap lengths are 
                             sampled from half normal distribution)
-      mean_silence_std (float): STD for mean silence in different audio sessions.
-      mean_silence_range (list): Minimum and maximum silence duration for each silence, default to [0.1, 0.9].
-      per_silence_std (float):  STD for each silence in an audio session, set large values (e.g., 20) for de-correlation.
-      per_silence_range (list): Minimum and maximum silence duration for each silence, default to [0, None].
+      mean_silence_var (float): Variance for mean silence in different audio sessions.
+      per_silence_var (float):  Variance for each silence in an audio session, set large values (e.g., 20) for de-correlation.
+      per_silence_min (float): Minimum duration for each silence, default to 0.
+      per_silence_max (float): Maximum duration for each silence, default to -1 for no maximum.
       overlap_prob (float): Proportion of overlap occurrences versus silence between utterances (used to balance the 
                             length of silence gaps and overlapping segments, so a value close to 
                             `mean_overlap`/(`mean_silence`+`mean_overlap`) is suggested)
@@ -246,6 +246,11 @@ class MultiSpeakerSimulator(object):
             or self._params.data_simulator.session_params.mean_silence > 1
         ):
             raise Exception("Mean silence is outside of [0,1]")
+        if self._params.data_simulator.session_params.mean_silence_var <= 0:
+            raise Exception("Mean silence variance is not larger than 0")
+        if self._params.data_simulator.session_params.per_silence_var <= 0:
+            raise Exception("Per silence variance is not larger than 0")
+
         if (
             self._params.data_simulator.session_params.min_dominance < 0
             or self._params.data_simulator.session_params.min_dominance > 1
@@ -288,15 +293,6 @@ class MultiSpeakerSimulator(object):
             and self._params.data_simulator.session_params.window_type is not None
         ):
             raise Exception("Incorrect window type provided")
-
-        if (
-            self._params.data_simulator.session_params.mean_silence_range[0] < 0
-            or self._params.data_simulator.session_params.mean_silence_range[0] > 1
-        ):
-            raise Exception("Mean silence range should be within [0,1]")
-
-        if self._params.data_simulator.session_params.per_silence_range[0] < 0:
-            raise Exception("Per silence range should have minimum value larger than 0.")
 
         if len(self._manifest) == 0:
             raise Exception("Manifest file is empty. Check that the source path is correct.")
@@ -942,10 +938,10 @@ class MultiSpeakerSimulator(object):
             silence_mean = (self.sess_silence_mean * running_len - self.sess_silence_len) / (
                 1 - self.sess_silence_mean
             )
-            silence_mean = max(self.per_silence_min_len, silence_mean)  # enforce non-negative mean
-            silence_std = self._params.data_simulator.session_params.per_silence_std
+            silence_mean = max(1, silence_mean)  # mean must be larger than 0
+            silence_var = self._params.data_simulator.session_params.per_silence_var
 
-            silence_amount = int(norm(silence_mean, silence_std).rvs())
+            silence_amount = int(gamma(a=silence_mean ** 2 / silence_var, scale=silence_var / silence_mean).rvs())
             silence_amount = max(self.per_silence_min_len, min(silence_amount, self.per_silence_max_len))
 
             if start + length + silence_amount > session_len_sample_count and not enforce:
@@ -1138,6 +1134,33 @@ class MultiSpeakerSimulator(object):
         self.segment_manifest_filepath = output_manifest_filepath
         return self.segment_manifest_filepath
 
+    def _init_silence_params(self):
+        """
+        Initialize some params for silence insertion in the current session
+        """
+        self.sess_silence_len = 0
+        self.per_silence_min_len = int(
+            max(0, self._params.data_simulator.session_params.per_silence_min_len) * self._params.data_simulator.sr
+        )
+        if self._params.data_simulator.session_params.per_silence_max_len > 0:
+            self.per_silence_max_len = int(
+                self._params.data_simulator.session_params.per_silence_max_len * self._params.data_simulator.sr
+            )
+        else:
+            self.per_silence_max_len = int(
+                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
+            )
+
+    def _get_session_silence_mean(self):
+        """
+        Get the target mean silence for current session using reparameterized Beta distribution
+        """
+        mean = float(self._params.data_simulator.session_params.mean_silence)
+        var = float(self._params.data_simulator.session_params.mean_silence_var)
+        a = mean ** 2 * (1 - mean) / var - mean
+        b = mean * (1 - mean) ** 2 / var - (1 - mean)
+        return beta(a, b).rvs()
+
     def _generate_session(
         self,
         idx: int,
@@ -1188,28 +1211,8 @@ class MultiSpeakerSimulator(object):
         array = torch.zeros(session_len_sample_count).to(self._device)
         is_speech = torch.zeros(session_len_sample_count).to(self._device)
 
-        self.sess_silence_len = 0
-        self.sess_silence_mean = norm(
-            self._params.data_simulator.session_params.mean_silence,
-            self._params.data_simulator.session_params.mean_silence_std,
-        ).rvs()
-        min_ratio = self._params.data_simulator.session_params.mean_silence_range[0]
-        max_ratio = self._params.data_simulator.session_params.mean_silence_range[1]
-        while self.sess_silence_mean > max_ratio or self.sess_silence_mean < min_ratio:
-            self.sess_silence_mean = norm(
-                self._params.data_simulator.session_params.mean_silence,
-                self._params.data_simulator.session_params.mean_silence_std,
-            ).rvs()
-
-        self.per_silence_min_len = int(
-            self._params.data_simulator.session_params.per_silence_range[0] * self._params.data_simulator.sr
-        )
-        if self._params.data_simulator.session_params.per_silence_range[1] > 0:
-            self.per_silence_max_len = int(
-                self._params.data_simulator.session_params.per_silence_range[1] * self._params.data_simulator.sr
-            )
-        else:
-            self.per_silence_max_len = session_len_sample_count
+        self._init_silence_params()
+        self.sess_silence_mean = self._get_session_silence_mean()
 
         while running_len_sample_count < session_len_sample_count or enforce:
             # enforce num_speakers
