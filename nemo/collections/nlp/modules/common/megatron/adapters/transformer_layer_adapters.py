@@ -123,7 +123,7 @@ class TinyAttentionAdapter(nn.Module, AdapterModuleUtil):
         attn_mask_type=AttnMaskType.padding,
         precision=16,
         apply_query_key_layer_scaling=True,
-        kv_channels: int =16,
+        kv_channels: int = 16,
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
