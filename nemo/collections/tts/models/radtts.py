@@ -424,7 +424,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._input_types = {
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "lens": NeuralType(('B')),
-            # "batch_lengths": NeuralType(('B'), LengthsType(), optional=True),
             "speaker_id": NeuralType(('B'), Index()),
             "speaker_id_text": NeuralType(('B'), Index()),
             "speaker_id_attributes": NeuralType(('B'), Index()),
@@ -471,7 +470,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             len_i = random.randint(3, max_dim)
             lens.append(len_i)
             inp[i, len_i:] = pad_id
-        lens = torch.tensor(lens, device=par.device, dtype=torch.int64)
+        lens = torch.tensor(lens, device=par.device, dtype=torch.int32)
 
         inputs = {
             'text': inp,
@@ -489,17 +488,18 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def forward_for_export(
         self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
     ):
+        lens = lens.to(dtype=torch.int64)
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.0,
-            sigma_txt=0.0,
+            sigma=0.7,
+            sigma_txt=0.7,
             sigma_f0=1.0,
             sigma_energy=1.0,
-            f0_mean=0.0,
-            f0_std=0.0,
+            f0_mean=145.0,
+            f0_std=30.0,
             in_lens=lens,
             pitch_shift=pitch,
             pace=pace,
@@ -515,5 +515,5 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             group_size=self.model.n_group_size,
             in_lens=lens,
         )
-        volume_extended = volume_extended.squeeze(-1).float()
+        volume_extended = volume_extended.squeeze(2).float()
         return mel.float(), n_frames, dur.float(), volume_extended
