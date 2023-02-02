@@ -49,10 +49,6 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
     def neighbors(self):
         return int(self.store.get('neighbors'))
 
-    def update_weights(self, weights):
-        # dynamically change the weights between different retrieval services
-        self.service.update_weights(weights)
-
     def tokenize_batch(self, sentences, max_len, add_BOS):
         """
         convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
