@@ -18,6 +18,8 @@ import torch
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -43,6 +45,7 @@ def get_language_model(
     ffn_hidden_size,
     num_layers,
     max_position_embeddings,
+    position_embedding_type,
     num_tokentypes,
     add_pooler,
     vocab_size,
@@ -110,6 +113,7 @@ def get_language_model(
         num_tokentypes=num_tokentypes,
         vocab_size=vocab_size,
         max_position_embeddings=max_position_embeddings,
+        position_embedding_type=position_embedding_type,
         hidden_size=hidden_size,
         num_layers=num_layers,
         num_attention_heads=num_attention_heads,
@@ -398,6 +402,7 @@ class TransformerLanguageModel(MegatronModule):
         encoder_attn_mask_type,
         vocab_size,
         max_position_embeddings,
+        position_embedding_type,
         hidden_size,
         ffn_hidden_size,
         num_layers,
@@ -449,6 +454,7 @@ class TransformerLanguageModel(MegatronModule):
         self.num_layers = num_layers
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
+        self.position_embedding_type = position_embedding_type
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method
         self.encoder_attn_mask_type = encoder_attn_mask_type
@@ -471,6 +477,7 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_size=self.hidden_size,
                 vocab_size=self.vocab_size,
                 max_sequence_length=self.max_position_embeddings,
+                position_embedding_type=self.position_embedding_type,
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
@@ -479,6 +486,13 @@ class TransformerLanguageModel(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
             )
             self._embedding_key = 'embedding'
+
+        self.use_rotary_position_embeddings = False
+        if self.position_embedding_type == 'rotary':
+            rotary_dim = hidden_size // num_attention_heads \
+                if kv_channels is None else kv_channels
+            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
+            self.use_rotary_position_embeddings = True
 
         # Transformer.
         self.encoder = ParallelTransformer(
@@ -610,6 +624,11 @@ class TransformerLanguageModel(MegatronModule):
 
         # enc_attn_mask: [1, 1, s, s]
 
+        rotary_pos_emb = None
+        if self.use_rotary_position_embeddings:
+            n, _, _ = encoder_input.shape
+            rotary_pos_emb = self.rotary_pos_emb(n)
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
@@ -620,6 +639,7 @@ class TransformerLanguageModel(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                rotary_pos_emb=rotary_pos_emb
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
@@ -650,6 +670,7 @@ class TransformerLanguageModel(MegatronModule):
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            rotary_pos_emb=rotary_pos_emb
         )
 
         if self.add_pooler and self.post_process:
