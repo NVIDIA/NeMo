@@ -320,9 +320,8 @@ def write_labels_for_audacity(
         for i, segment in enumerate(segments):
             if isinstance(segment, list):
                 for j, x in enumerate(segment):
-                    start, end, score = x
-                    score = -0.2
+                    start, end, _ = x
                     outfile.write(f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i][j]} \n")
             else:
-                start, end, score = segment
+                start, end, _ = segment
                 outfile.write(f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i]} \n")
