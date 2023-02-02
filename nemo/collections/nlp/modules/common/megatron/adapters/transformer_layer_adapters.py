@@ -113,16 +113,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 class TinyAttentionAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
+        norm_type: str = "mixedfusedlayernorm",
         init_method=init_method_normal(0.015),
         output_layer_init_method=init_method_normal(0.015),  # TODO (@adithyare) revisit init for output layer
         layer_number: int = 1,
         num_attention_heads: int = 1,
-        hidden_size: int = 512,
+        hidden_size: int = 2048,
         attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
         precision=16,
         apply_query_key_layer_scaling=True,
-        kv_channels=None,
+        kv_channels: int =16,
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
@@ -165,6 +166,12 @@ class TinyAttentionAdapter(nn.Module, AdapterModuleUtil):
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
         )
+        if norm_type == 'mixedfusedlayernorm':
+            self.layer_norm = MixedFusedLayerNorm(hidden_size, 1e-5, sequence_parallel_enbaled=False)
+        elif norm_type == 'layernorm':
+            self.layer_norm = nn.LayerNorm(hidden_size)
+        else:
+            raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
 
@@ -181,6 +188,7 @@ class TinyAttentionAdapter(nn.Module, AdapterModuleUtil):
         relative_position_bias=None,
         checkpoint_core_attention=False,
     ):
+        hidden_states = self.layer_norm(hidden_states)
         attention_output, attention_bias = self.tiny_attention(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -212,6 +220,7 @@ class ParallelLinearAdapterConfig:
 
 @dataclass
 class TinyAttentionAdapterConfig:
+    norm_type: str = "mixedfusedlayernorm"
     init_method = init_method_normal(0.015)
     output_layer_init_method = init_method_normal(0.015)  # TODO (@adithyare) revisit init for output layer
     layer_number: int = 1
@@ -221,7 +230,7 @@ class TinyAttentionAdapterConfig:
     attn_mask_type = AttnMaskType.padding
     precision = 16
     apply_query_key_layer_scaling = True
-    kv_channels = None
+    kv_channels: int = 128
     use_cpu_initialization = False
     masked_softmax_fusion = True
     attention_dropout = 0.1

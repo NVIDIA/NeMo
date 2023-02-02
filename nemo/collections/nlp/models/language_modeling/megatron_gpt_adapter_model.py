@@ -229,6 +229,9 @@ class MegatronGPTTinyAttnAdapterModel(MegatronGPTBaseAdapterModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.adapter_name_keys = [AdapterName.TINY_ATTN_ADAPTER]
+        num_heads = cfg.tinyattn_adapter.num_attention_heads
+        kv_channels = cfg.tinyattn_adapter.kv_channels
+        norm_type = cfg.tinyattn_adapter.norm_type
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -240,12 +243,18 @@ class MegatronGPTTinyAttnAdapterModel(MegatronGPTBaseAdapterModel):
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
 
-        adapter_cfg = TinyAttentionAdapterConfig()
-
         self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
+                    ln = module.layer_number if hasattr(module, "layer_number") else 1
+                    adapter_cfg = TinyAttentionAdapterConfig(
+                        norm_type=norm_type,
+                        layer_number=ln,
+                        num_attention_heads=num_heads,
+                        kv_channels=kv_channels,
+                        hidden_size=frozen_model_cfg.hidden_size,
+                    )
                     if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
                             name=adapter_key, cfg=adapter_cfg,
