@@ -938,7 +938,7 @@ class MultiSpeakerSimulator(object):
             silence_mean = (self.sess_silence_mean * running_len - self.sess_silence_len) / (
                 1 - self.sess_silence_mean
             )
-            silence_mean = max(1, silence_mean)  # mean must be larger than 0
+            silence_mean = max(1, self.per_silence_min_len, silence_mean)  # mean must be larger than 0
             silence_var = self._params.data_simulator.session_params.per_silence_var
 
             silence_amount = int(gamma(a=silence_mean ** 2 / silence_var, scale=silence_var / silence_mean).rvs())
