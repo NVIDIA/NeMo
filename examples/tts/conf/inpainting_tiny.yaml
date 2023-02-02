@@ -255,6 +255,9 @@ model:
 
   loss: "l1"
   gap_loss_scale: 100
+  min_mask_duration: 0.5
+  max_mask_duration: 1.0
+
 
   optim:
     name: adamw

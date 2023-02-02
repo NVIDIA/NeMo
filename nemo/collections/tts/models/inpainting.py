@@ -332,6 +332,9 @@ class InpainterModel(ModelPT, Exportable):
         reconstruction_loss = loss_lookup[cfg.loss]
         self.gap_loss_scale = cfg.gap_loss_scale
 
+        self.min_mask_duration = cfg.min_mask_duration
+        self.max_mask_duration = cfg.max_mask_duration
+
         self.gap_loss = InpaintingMSELoss(reconstruction_loss)
         self.mse_loss = MelLoss(reconstruction_loss)
         self.duration_loss_fn = DurationLoss()
@@ -342,6 +345,7 @@ class InpainterModel(ModelPT, Exportable):
 
         self.audio_sample_rate = spectrogrammer.sample_rate
         self.spectrogram_sample_stride = spectrogrammer.hop_length
+        self.discriminator = ConvDiscriminator(spectrogrammer.nfilt)
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -911,8 +915,8 @@ class InpainterModel(ModelPT, Exportable):
         ffts_per_sec = self.audio_sample_rate / self.spectrogram_sample_stride
 
         # TODO - have these as parameters in the future
-        min_duration_frames = int(ffts_per_sec * 0.5)
-        max_duration_frames = int(ffts_per_sec * 1)
+        min_duration_frames = int(ffts_per_sec * self.min_mask_duration)
+        max_duration_frames = int(ffts_per_sec * self.max_mask_duration)
 
         for i, spec_len in enumerate(mel_lens):
             start = random.randint(
@@ -937,17 +941,62 @@ class InpainterModel(ModelPT, Exportable):
 
 
 class ConvDiscriminator(NeuralModule):
-    def __init__(self, num_mels, window_size):
+    """See SpeechPainter paper for this"""
+    def __init__(self, num_mels):
+        super().__init__()
+        input_width = 32
+        starting_filters = 2 ** 5
 
-        pass
+        self.layers = [
+            torch.nn.Conv2d(
+                in_channels=1,
+                out_channels=starting_filters,
+                kernel_size=(3, 3),
+                padding='same'
+            ),
+            ConvUnit(
+                (starting_filters, input_width, num_mels),
+                starting_filters, 1, 1
+            ),
+            ConvUnit(
+                (starting_filters * 2, input_width, num_mels),
+                starting_filters * 2, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 4, input_width // 2, num_mels // 2),
+                starting_filters * 4, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 8, input_width // 4, num_mels // 4),
+                starting_filters * 8, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 16, input_width // 8, num_mels // 8),
+                starting_filters * 16, 2, 2
+            ),
+            torch.nn.Conv2d(
+                in_channels=starting_filters * 32,
+                out_channels=1,
+                kernel_size=(2, num_mels // 16),
+            )
+        ]
+
+    def forward(self, spectrogram_slices):
+        activations = []
+        h = spectrogram_slices
+        for layer in self.layers:
+            h = layer(h)
+            activations += [h]
+
+        return h, activations
 
 
 class ConvUnit(NeuralModule):
     def __init__(self, input_dims, c, s_t, s_f):
         """TODO"""
+        super().__init__()
         in_channels, input_width, input_height = input_dims
         # first part:
-        super().__init__()
         self.elu = torch.nn.ELU()
         self.conv_1_1 = torch.nn.Conv2d(
             in_channels=in_channels,
@@ -966,7 +1015,7 @@ class ConvUnit(NeuralModule):
             padding=(1, 1)
         )
         self.norm_1_2 = torch.nn.LayerNorm(
-            (c * 2, input_width // 2, input_height // 2))
+            (c * 2, input_width // s_t, input_height // s_f))
 
         # second part
         self.pooling = torch.nn.AvgPool2d(
@@ -979,7 +1028,7 @@ class ConvUnit(NeuralModule):
             padding='same'
         )
         self.norm_2 = torch.nn.LayerNorm(
-            (c * 2, input_width // 2, input_height // 2))
+            (c * 2, input_width // s_t, input_height // s_f))
 
     def forward(self, x):
         # part 1
