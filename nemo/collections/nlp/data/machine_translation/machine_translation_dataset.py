@@ -237,7 +237,7 @@ class TranslationDataset(Dataset):
                         if num_examples_to_split == 1:
                             logging.warning(
                                 f"sentence {idx} is longer than the batch size. Consider 'clean = True' "
-                                f"({src_len =} + {tgt_len = } = {src_len + tgt_len} > {self.tokens_in_batch})"
+                                f"({src_len = } + {tgt_len = } = {src_len + tgt_len} > {self.tokens_in_batch})"
                             )
                         num_examples_to_keep = max(num_examples_to_split - 1, 1)
 
