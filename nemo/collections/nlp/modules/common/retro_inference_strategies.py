@@ -202,9 +202,12 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             retrieved_mask = torch.ones_like(retrieved, dtype=torch.bool)
         else:
             retrieved_mask = retrieved != tokenizer.pad_id
-        if len(retrieved) == 0:
-            retrieved = torch.tensor([-1] * micro_batch_size)
-            retrieved_mask = torch.tensor([-1] * micro_batch_size)
+        if retrieved.numel() == 0:
+            # add empty retrieved
+            retrieved = torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device()).unsqueeze(0).repeat(1, len(self.retrieved), 1, 1)
+            retrieved_mask = retrieved != tokenizer.pad_id
+            # retrieved = torch.tensor([-1] * micro_batch_size)
+            # retrieved_mask = torch.tensor([-1] * micro_batch_size)
 
         """Prepare batch for each of the inference steps"""
         # attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
@@ -343,9 +346,10 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
             retrieved_mask = torch.ones_like(retrieved, dtype=torch.bool)
         else:
             retrieved_mask = retrieved != tokenizer.pad_id
-        if len(retrieved) == 0:
-            retrieved = torch.tensor([-1] * micro_batch_size)
-            retrieved_mask = torch.tensor([-1] * micro_batch_size)
+        if retrieved.numel() == 0:
+            # add empty retrieved
+            retrieved = torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device()).unsqueeze(0).repeat(1, len(self.retrieved), 1, 1)
+            retrieved_mask = retrieved != tokenizer.pad_id
 
         """Prepare batch for each of the inference steps"""
         # attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
