@@ -27,14 +27,14 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
 from nemo.collections.nlp.modules.common.megatron.adapters.attention_adapters import (
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.adapters.adapter_utils import AdapterName
 from nemo.collections.nlp.modules.common.megatron.adapters.transformer_layer_adapters import (
     ParallelLinearAdapterConfig,
-    TinyAttentionAdapterConfig
+    TinyAttentionAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -256,6 +256,7 @@ class MegatronGPTTinyAttnAdapterModel(MegatronGPTBaseAdapterModel):
     @classmethod
     def list_available_models(cls):
         pass
+
 
 class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
     """
