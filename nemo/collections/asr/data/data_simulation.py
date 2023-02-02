@@ -1140,11 +1140,11 @@ class MultiSpeakerSimulator(object):
         """
         self.sess_silence_len = 0
         self.per_silence_min_len = int(
-            max(0, self._params.data_simulator.session_params.per_silence_min_len) * self._params.data_simulator.sr
+            max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
         )
-        if self._params.data_simulator.session_params.per_silence_max_len > 0:
+        if self._params.data_simulator.session_params.per_silence_max > 0:
             self.per_silence_max_len = int(
-                self._params.data_simulator.session_params.per_silence_max_len * self._params.data_simulator.sr
+                self._params.data_simulator.session_params.per_silence_max * self._params.data_simulator.sr
             )
         else:
             self.per_silence_max_len = int(
