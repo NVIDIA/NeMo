@@ -342,12 +342,6 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            # borisf : WAR for https://github.com/pytorch/pytorch/pull/91526
-            if torch.jit.is_scripting() or torch.jit.is_tracing():
-                mask = get_mask_from_lengths(unfolded_out_lens).unsqueeze(1)
-                context_w_spkvec = context_w_spkvec * mask
-                unfolded_out_lens = None
-
             context_lstm_padded_output = self.context_lstm(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
@@ -606,11 +600,8 @@ class RadTTSModule(NeuralModule, Exportable):
     ):
 
         batch_size = text.shape[0]
-        n_tokens = text.shape[1]
         if in_lens is None:
-            in_lens = text.new_ones((batch_size,), dtype=torch.int64) * n_tokens
-        else:
-            in_lens = in_lens.to(dtype=torch.int64)
+            in_lens = text.new_ones((batch_size,), dtype=torch.int64) * text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
 
         if speaker_id_text is None:
@@ -627,13 +618,15 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
-        # text encoded removes padding tokens so shape of text_enc is changed
-        # need to adjust pace, pitch_shift to account for this
-        txt_len_pad_removed = torch.max(in_lens)
+
+        txt_len_pad_removed = txt_enc.shape[2]
         if pace is None:
-            pace = 1.0
+            pace = txt_enc.new_ones((batch_size, txt_len_pad_removed))
         else:
             pace = pace[:, :txt_len_pad_removed]
+
+        if pitch_shift is not None:
+            pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
 
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
@@ -682,7 +675,6 @@ class RadTTSModule(NeuralModule, Exportable):
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
 
-        pitch_shift_spec_len = 0
         if pitch_shift is not None:
             pitch_shift_spec_len, _ = regulate_len(
                 dur,
@@ -692,15 +684,10 @@ class RadTTSModule(NeuralModule, Exportable):
                 group_size=self.n_group_size,
                 in_lens=in_lens,
             )
-            pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
+            f0_bias = pitch_shift_spec_len.squeeze(-1) + f0_bias
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded,
-            spk_vec,
-            out_lens,
-            (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask,
-            energy_avg,
-            assume_padded=True,
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True,
         )
 
         residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
@@ -709,7 +696,9 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
-        remaining_residual, mel = torch.tensor_split(residual, [num_steps_to_exit * self.n_early_size,], dim=1)
+        split = num_steps_to_exit * self.n_early_size
+        mel = residual[:, split:]
+        residual = residual[:, :split]
 
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
@@ -717,9 +706,9 @@ class RadTTSModule(NeuralModule, Exportable):
             if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
-                remaining_residual, residual_to_add = torch.tensor_split(
-                    remaining_residual, [num_steps_to_exit * self.n_early_size,], dim=1
-                )
+                split = num_steps_to_exit * self.n_early_size
+                residual_to_add = residual[:, split:]
+                residual = residual[:, :split]
                 mel = torch.cat((residual_to_add, mel), 1)
 
         if self.n_group_size > 1:
