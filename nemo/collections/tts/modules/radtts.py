@@ -581,10 +581,10 @@ class RadTTSModule(NeuralModule, Exportable):
         self,
         speaker_id,
         text,
-        sigma,
-        sigma_txt=0.8,
-        sigma_f0=0.8,
-        sigma_energy=0.8,
+        sigma=0.0,
+        sigma_txt=0.0,
+        sigma_f0=1.0,
+        sigma_energy=1.0,
         speaker_id_text=None,
         speaker_id_attributes=None,
         pace=None,
@@ -624,9 +624,6 @@ class RadTTSModule(NeuralModule, Exportable):
             pace = txt_enc.new_ones((batch_size, txt_len_pad_removed))
         else:
             pace = pace[:, :txt_len_pad_removed]
-
-        if pitch_shift is not None:
-            pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
 
         txt_enc_time_expanded, out_lens = regulate_len(
             dur,
@@ -678,7 +675,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if pitch_shift is not None:
             pitch_shift_spec_len, _ = regulate_len(
                 dur,
-                pitch_shift,
+                pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1),
                 pace,
                 replicate_to_nearest_multiple=True,
                 group_size=self.n_group_size,
