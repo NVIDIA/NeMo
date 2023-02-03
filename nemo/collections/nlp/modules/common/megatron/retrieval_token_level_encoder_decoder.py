@@ -15,6 +15,8 @@
 
 import torch
 
+from pytorch_lightning.utilities import model_summary
+
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -297,6 +299,18 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder and post_process:
             self.tokens_head = MuReadout(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
+
+    # def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+    #     """Summarize this LightningModule.
+
+    #     Args:
+    #         max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+    #             layer summary off. Default: 1.
+
+    #     Return:
+    #         The model summary object
+    #     """
+    #     return model_summary.summarize(self, max_depth=max_depth)
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.

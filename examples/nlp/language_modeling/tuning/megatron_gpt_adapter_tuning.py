@@ -54,7 +54,7 @@ Usage:
             trainer.max_epochs=2
 """
 
-
+# megatron_gpt_adapter_tuning_config
 @hydra_runner(config_path="conf", config_name="retro_gpt_adapter_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")

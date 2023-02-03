@@ -276,6 +276,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
             )
 
         self.frozen_model.freeze()
+        named_modules = self.frozen_model.named_modules()
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:

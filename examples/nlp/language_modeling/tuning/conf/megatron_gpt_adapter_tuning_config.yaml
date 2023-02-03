@@ -115,8 +115,8 @@ model:
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
 
   data:
-    train_ds: ??? # expects a list of paths to training data files
-    validation_ds: ???  # expects a paths to validation data files
+    train_ds: ["/workspaces/research/downloaded/rte/rte_train.jsonl"] # expects a list of paths to training data files
+    validation_ds: ["/workspaces/research/downloaded/rte/rte_val.jsonl"]  # expects a paths to validation data files
     add_eos: True
     shuffle: True
     num_workers: 8
