@@ -187,13 +187,13 @@ class BaselineModule(NeuralModule):
         assert input_mels.shape[1] == aligned_token_encodings.shape[1]
 
         both_encodings = torch.concatenate(
-            (spectrogram_projections, aligned_token_encodings), axis=-1)
+            (spectrogram_encodings, aligned_token_encodings), axis=-1)
 
         output_decodings, _ = self.decoder(
             input=both_encodings,
             seq_lens=input_mels_len
         )
-        spec_encoding_size = spectrogram_projections.shape[-1]
+        spec_encoding_size = spectrogram_encodings.shape[-1]
         output_decodings_trimmed = output_decodings[:, :, :spec_encoding_size]
 
         spectrogram_preds = self.spectrogram_projection.reverse(
@@ -284,7 +284,6 @@ class InpainterModel(ModelPT, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         aligner = AlignerModel.from_pretrained("tts_en_radtts_aligner")
 
-        # self.normalizer = self._setup_normalizer(cfg)
         self.normalizer = aligner.normalizer
 
         self.text_normalizer_call = self.normalizer.normalize
@@ -980,6 +979,10 @@ class ConvDiscriminator(NeuralModule):
                 kernel_size=(2, num_mels // 16),
             )
         ]
+        # pytorch checks through named fields of a class to register the
+        # modules as parameters of the model
+        for i, layer in enumerate(self.layers):
+            setattr(self, f'layer_{i}', layer)
 
     def forward(self, spectrogram_slices):
         activations = []
@@ -993,7 +996,7 @@ class ConvDiscriminator(NeuralModule):
 
 class ConvUnit(NeuralModule):
     def __init__(self, input_dims, c, s_t, s_f):
-        """TODO"""
+        """See SpeechPainter Paper"""
         super().__init__()
         in_channels, input_width, input_height = input_dims
         # first part:
