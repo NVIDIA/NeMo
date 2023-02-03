@@ -17,9 +17,8 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding, apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -489,8 +488,7 @@ class TransformerLanguageModel(MegatronModule):
 
         self.use_rotary_position_embeddings = False
         if self.position_embedding_type == 'rotary':
-            rotary_dim = hidden_size // num_attention_heads \
-                if kv_channels is None else kv_channels
+            rotary_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
             self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
             self.use_rotary_position_embeddings = True
 
@@ -639,7 +637,7 @@ class TransformerLanguageModel(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                rotary_pos_emb=rotary_pos_emb
+                rotary_pos_emb=rotary_pos_emb,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
@@ -670,7 +668,7 @@ class TransformerLanguageModel(MegatronModule):
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            rotary_pos_emb=rotary_pos_emb
+            rotary_pos_emb=rotary_pos_emb,
         )
 
         if self.add_pooler and self.post_process:
