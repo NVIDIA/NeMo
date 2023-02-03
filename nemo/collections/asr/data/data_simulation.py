@@ -937,7 +937,7 @@ class MultiSpeakerSimulator(object):
 
         silence_discrepancy = current_silence_ratio - self.sess_silence_mean
         overlap_discrepancy = current_overlap_ratio - self.sess_overlap_mean
-        add_overlap = overlap_discrepancy <= silence_discrepancy 
+        add_overlap = overlap_discrepancy <= silence_discrepancy
         return add_overlap
 
     # returns new overlapped (or shifted) start position
@@ -972,7 +972,7 @@ class MultiSpeakerSimulator(object):
 
         # Compare silence and overlap ratios
         add_overlap = self._silence_vs_overlap_selector(running_len)
-        
+
         # Choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
             desired_overlap_amount = self._sample_from_overlap_model(running_len - self.sess_silence_len)
