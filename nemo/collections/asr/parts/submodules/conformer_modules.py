@@ -167,14 +167,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             x (torch.Tensor): (B, T, d_model)
         """
         residual = x
-        # x = self.norm_feed_forward1(x)
-        # x = self.feed_forward1(x)
-        #
-        # if self.memory_efficient:
-        #     x = self.resid(x, residual)
-        # else:
-        #     residual = residual + self.dropout(x)
-        #     x = self.norm_self_att(residual)
+        x = self.norm_feed_forward1(x)
+        x = self.feed_forward1(x)
+
+        if self.memory_efficient:
+            x = self.resid(x, residual)
+        else:
+            residual = residual + self.dropout(x)
+            x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(
                 query=x,
