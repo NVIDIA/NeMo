@@ -20,13 +20,15 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+
+from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecClassificationModel
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
+from nemo.collections.asr.parts.utils.vad_utils import binarization, filtering
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
 MIN_MERGE_SUBSEQUENCE_LEN = 1
@@ -530,6 +532,8 @@ def speech_collate_fn(batch):
     return audio_signal, audio_lengths
 
 
+
+
 # simple data layer to pass buffered frames of audio samples
 class AudioBuffersDataLayer(IterableDataset):
     @property
@@ -541,6 +545,8 @@ class AudioBuffersDataLayer(IterableDataset):
 
     def __init__(self):
         super().__init__()
+        self._buf_count = 0
+        self.signal = []
 
     def __iter__(self):
         return self
@@ -795,6 +801,147 @@ class FrameBatchASR:
             previous = p
         hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
+
+# class for streaming frame-based ASR
+# 1) use reset() method to reset FrameASR's state
+# 2) call transcribe(frame) to do ASR on
+#    contiguous signal's frames
+class FrameBatchVAD:
+    """
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
+    """
+
+    def __init__(
+        self, 
+        vad_model, 
+        vad_config, 
+        frame_len=1.6, 
+        total_buffer=4.0, 
+        batch_size=4, 
+    ):
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
+        '''
+        self.frame_bufferer = FeatureFrameBufferer(
+            asr_model=vad_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
+        )
+        self.chunk_len_in_sec = frame_len
+        self.total_buffer = total_buffer
+        self.vad_config = vad_config
+        self.vad_config_parameters = self.prepare_parameters()
+        # self.vad_config_parameters = OmegaConf.to_container(vad_config['parameters'], resolve=True)
+
+        self.window_length_in_sec = self.vad_config_parameters.get('window_length_in_sec', 0.63)
+        self.shift_length_in_sec = self.vad_config_parameters.get('shift_length_in_sec', 0.01)
+
+        
+        self.window_length_in_feature = int(self.window_length_in_sec * 100 + 1)
+        self.shift_length_in_feature = int(self.shift_length_in_sec * 100)
+
+        self.vad_model = vad_model
+        self.batch_size = batch_size
+
+        self.prev_len_features = int(self.window_length_in_feature / 2 - 1)
+
+
+        self.pred_buffer_len = int(self.total_buffer * 100)
+        self.prev_pred_len = int((self.total_buffer - self.chunk_len_in_sec) * 100)
+
+        self.reset()
+
+
+    def prepare_parameters(self):
+        per_args = OmegaConf.to_container(self.vad_config['parameters'], resolve=True)
+        if 'filter_speech_first' in per_args:
+            if per_args['filter_speech_first']:
+                per_args['filter_speech_first'] = 1.0
+            else:
+                per_args['filter_speech_first'] = 0.0
+        per_args.pop("smoothing", None)
+        return per_args
+
+
+    def reset(self):
+        """
+        Reset frame_history and decoder's state
+        """
+        self.all_logprobs = torch.zeros([self.pred_buffer_len])
+
+    @torch.no_grad()
+    def infer_logits(self, feat_signal):
+        self._get_batch_preds(feat_signal)
+
+    @torch.no_grad()
+    def _gen_segments(self, feat_signal):
+        end = self.window_length_in_feature - self.prev_len_features -1 
+        end_tensor = torch.full((1, 80, end), -16)
+
+        padded_feature = torch.cat([feat_signal, end_tensor], axis=2)
+        slices  = padded_feature.unfold(2, self.window_length_in_feature, self.shift_length_in_feature)
+        slices = slices.transpose(1,2)
+        return slices
+
+    @torch.no_grad()
+    def infer_buffer_logits(self, feat_signal, feat_signal_len):
+        # Take last 64 frames of a buffer
+
+        feat_signal = feat_signal[:, :, -int(self.frame_len * 100):]
+        feat_signal_len = torch.Tensor([int(feat_signal.shape[-1])])
+
+        feat_signal, feat_signal_len = feat_signal.to(self.vad_model.device), feat_signal_len.to(self.vad_model.device)
+        logits = self.vad_model(
+              processed_signal=feat_signal, processed_signal_length=feat_signal_len
+        )
+
+        logprob = torch.softmax(logits, dim=-1)
+        logprob = logprob[:, 1].cpu()
+        self.all_logprobs = torch.cat([self.all_logprobs[-4:], logprob])
+        del logits
+        del logprob
+
+    @torch.no_grad()
+    def _get_batch_preds(self, feat_signal):
+        device = self.vad_model.device
+        vad_sliced = self._gen_segments(feat_signal)
+
+        for batch in vad_sliced:
+         
+            feat_signal = batch
+            feat_signal_len = torch.full([feat_signal.shape[0]], feat_signal.shape[-1])
+           
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            logits = self.vad_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
+            logprob = torch.softmax(logits, dim=-1)
+            logprob = logprob[:, 1].cpu()
+            print(logprob) 
+            # TODO To debug so weird.
+            prev_all_logprobs = self.all_logprobs.clone()
+            self.all_logprobs[:self.prev_pred_len] = prev_all_logprobs[-self.prev_pred_len:]
+            self.all_logprobs[self.prev_pred_len:] = logprob
+
+            del logprob
+            del prev_all_logprobs
+
+
+    def infer_to_ts_with_feature(self, feat_signal, feat_signal_len, tokens_per_chunk: int, delay: int, streaming_mode=False):
+
+        self.infer_logits(feat_signal)
+
+        return self.convert_to_timestamp(self.all_logprobs)
+
+    def convert_to_timestamp(self, preds):
+        
+        speech_segments = binarization(preds, self.vad_config_parameters)
+        speech_segments = filtering(speech_segments, self.vad_config_parameters)
+
+        return speech_segments
 
 
 class BatchedFeatureFrameBufferer(FeatureFrameBufferer):

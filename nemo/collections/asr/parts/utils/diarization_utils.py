@@ -23,7 +23,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-# , FrameBatchVAD
 from omegaconf import OmegaConf
 from sklearn.preprocessing import OneHotEncoder
 
@@ -45,6 +44,7 @@ from nemo.collections.asr.parts.utils.decoder_timestamps_utils import (
     FrameBatchASRLogits,
     FrameBatchASRLogitsSample,
     get_wer_feat_logit_single,
+    get_vad_feat_logit_single
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
@@ -60,7 +60,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     get_vad_stream_status,
     prepare_manifest,
 )
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, StreamingFeatureBufferer
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD, StreamingFeatureBufferer
 
 import time 
 from nemo.utils import logging
@@ -1570,6 +1570,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self._load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self._init_FrameBatchASR()
+        self._init_FrameBatchVAD()
         self._init_diar_eval_variables()
 
     def _init_streaming_buffer_params(self):
@@ -1879,24 +1880,55 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self.set_buffered_infer_params(self.asr_model)
         self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
 
+    def _init_FrameBatchVAD(self):
+        """
+        Initialize FrameBatchVAD class for VAD inference.
+        """
+        torch.manual_seed(0)
+        torch.set_grad_enabled(False)
+
+        self.chunk_len_in_sec = self.frame_len
+        context_len_in_secs = self.frame_overlap
+        self.total_buffer_in_secs = 2 * context_len_in_secs + self.chunk_len_in_sec
+
+        self.frame_vad = FrameBatchVAD(
+            vad_model=self.vad_model,
+            vad_config = self._cfg_diarizer.vad, 
+            frame_len=self.chunk_len_in_sec,
+            total_buffer=self.total_buffer_in_secs,
+            batch_size=self.asr_batch_size,
+        )
+
+        self.set_buffered_infer_params(self.vad_model)
+        self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
+
+
     @timeit
     def run_VAD_decoder_step(self, buffer):
         """
-        Place holder for VAD integration. This function returns vad_mask that is identical for ASR feature matrix for
-        the current buffer.
+        Run ASR decoder step. This function returns VAD timstamps for the current buffer.
 
         Streaming VAD infer Example:
-            vad_logits, speech_segments, feats_shape = get_vad_feat_logit_single(buffer,
-                                    self.frame_vad,
-                                    self.chunk_len_in_sec,
-                                    self.tokens_per_chunk,
-                                    self.mid_delay,
-                                    self.model_stride_in_secs,
-                                    threshold=0.05,
-                                )
+          
         """
-        vad_mask, vad_timestamps = None, None
-        return vad_mask, vad_timestamps
+        buffer = self._streamingFeatBufferer.get_raw_feature_buffer()
+        ts = get_vad_feat_logit_single(
+            buffer,
+            self.frame_vad,
+            self.chunk_len_in_sec,
+            self.tokens_per_chunk,
+            self.mid_delay,
+            self.model_stride_in_secs,
+         )
+
+        offset = self.buffer_start - self.onset_delay_in_sec + 1
+        vad_timestamps = offset + ts
+        if len(vad_timestamps) > 0 and vad_timestamps[0][0] <=0 :
+            vad_timestamps = []
+
+        # TODO return vad_mask
+        vad_mask, vad_timestamps = None, vad_timestamps #vad_timestamps #None
+        return vad_mask, vad_timestamps, offset
     
     @timeit
     def run_ASR_decoder_step(self, frame_mask):
@@ -1933,7 +1965,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
             raise ValueError("words and word_ts length mismatch")
         offset = self.buffer_start - self.onset_delay_in_sec + 1
         words_adj, word_ts_adj = add_timestamp_offset(words, word_ts, offset)
-        return words_adj, word_ts_adj
+        return words_adj, word_ts_adj, offset
 
     def update_launcher_timestamps(self):
         """
@@ -2095,14 +2127,19 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
 
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_timestamps = self.run_VAD_decoder_step(buffer=self.audio_buffer)
+        vad_mask, vad_timestamps, vad_offset = self.run_VAD_decoder_step(buffer=self.audio_buffer)
 
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
-        words, word_timestamps = self.run_ASR_decoder_step(frame_mask=vad_mask)
+        words, word_timestamps, offset = self.run_ASR_decoder_step(frame_mask=vad_mask)
 
         # Use ASR based VAD timestamp if no VAD timestamps are provided
-        if vad_timestamps is None:
-            vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
+        # if vad_timestamps is None:
+        #     vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
+        #     print(vad_timestamps)
+
+        asr_vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
+        print("offset:", vad_offset, "vad_timestamps:", vad_timestamps)
+        print("offset:", offset, "asr_vad_timestamps:", asr_vad_timestamps)
 
         # Sync diarization frame index with ASR frame index
         self.update_launcher_timestamps()
