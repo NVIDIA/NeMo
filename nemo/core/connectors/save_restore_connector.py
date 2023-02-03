@@ -479,7 +479,7 @@ class SaveRestoreConnector:
                         # no need to hash here as we are in tarfile_artifacts which are already hashed
                         artifact_uniq_name = artifact_base_name
                         shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
-    
+
                         # Update artifacts registry
                         new_artiitem = model_utils.ArtifactItem()
                         new_artiitem.path = "nemo:" + artifact_uniq_name
