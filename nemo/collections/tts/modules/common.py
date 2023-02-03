@@ -214,10 +214,7 @@ class Invertible1x1ConvLUS(torch.nn.Module):
         if inverse:
             if not hasattr(self, 'W_inverse'):
                 # inverse computation
-                W_inverse = W.float().inverse()
-                if z.type() == 'torch.cuda.HalfTensor':
-                    W_inverse = W_inverse.half()
-
+                W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
             z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
             return z
@@ -255,10 +252,7 @@ class Invertible1x1Conv(torch.nn.Module):
         if inverse:
             if not hasattr(self, 'W_inverse'):
                 # Inverse computation
-                W_inverse = W.float().inverse()
-                if z.type() == 'torch.cuda.HalfTensor':
-                    W_inverse = W_inverse.half()
-
+                W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
             z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
             return z
