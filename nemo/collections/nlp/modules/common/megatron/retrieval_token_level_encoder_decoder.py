@@ -330,7 +330,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             param.requires_grad = False
 
         self.eval()
-        
+
     def forward(
         self,
         input_ids,

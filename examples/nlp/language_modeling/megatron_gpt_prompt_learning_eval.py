@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import torch
 import torch.multiprocessing as mp
 from apex.transformer import parallel_state
@@ -26,7 +28,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
-import json
 output_ids_file = open("/workspaces/research/playground/nemo_output_ids.jsonl", "w")
 
 """
@@ -161,12 +162,9 @@ def main(cfg) -> None:
                 sent = sent.replace("\n", " ")
                 pred_file.write(sent + "\n")
 
-                output_ids_file.write(json.dumps({
-                    "output": sent,
-                    "output_ids": sentcheck["token_ids"][0],
-                }))
+                output_ids_file.write(json.dumps({"output": sent, "output_ids": sentcheck["token_ids"][0],}))
                 output_ids_file.write("\n")
-                
+
     print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
     print("***************************")
 

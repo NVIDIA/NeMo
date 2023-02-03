@@ -422,10 +422,7 @@ class GPTPromptLearningDataset(Dataset):
         input_ids = input_ids.cuda()
         input_ids = torch.cuda.LongTensor(input_ids)
 
-        input_ids_file.write(json.dumps({
-            "input_ids": input_ids.tolist(),
-            "input_id_lengths": input_lengths.tolist()
-        }))
+        input_ids_file.write(json.dumps({"input_ids": input_ids.tolist(), "input_id_lengths": input_lengths.tolist()}))
         input_ids_file.write("\n")
 
         return task_id_nums, (input_ids, input_lengths)
