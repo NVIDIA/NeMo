@@ -781,6 +781,5 @@ To enable freezing, add the following to your config:
       encoder: 200      # module will be frozen for the first 200 training steps
       decoder: [50, -1] # module will be frozen at step 50 and will remain frozen until training ends
       joint: [10, 100]  # module will be frozen between step 10 and step 100 (step >= 10 and step <= 100)
-	  transcoder: -1    # module will be frozen for the entire training run
-
+      transcoder: -1    # module will be frozen for the entire training run
 
