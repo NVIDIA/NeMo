@@ -44,7 +44,7 @@ from nemo.collections.asr.parts.utils.manifest_utils import (
     write_manifest,
     write_text,
 )
-from nemo.collections.asr.parts.utils.speaker_utils import labels_to_rttmfile, getOverlapRange, isOverlap
+from nemo.collections.asr.parts.utils.speaker_utils import getOverlapRange, isOverlap, labels_to_rttmfile
 from nemo.utils import logging
 
 try:
@@ -652,8 +652,14 @@ class MultiSpeakerSimulator(object):
         if overlap_mean > 0:
             overlap_var = self._params.data_simulator.session_params.per_overlap_var
 
-            desired_overlap_amount = int(gamma(a=overlap_mean ** 2/overlap_var, scale=overlap_var/overlap_mean).rvs()) if overlap_var > 0 else int(overlap_mean)
-            desired_overlap_amount = max(self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len))
+            desired_overlap_amount = (
+                int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
+                if overlap_var > 0
+                else int(overlap_mean)
+            )
+            desired_overlap_amount = max(
+                self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len)
+            )
         else:
             desired_overlap_amount = 0
         return desired_overlap_amount
@@ -669,18 +675,19 @@ class MultiSpeakerSimulator(object):
         Returns:
             silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
         """
-        silence_mean = (self.sess_silence_mean * running_len - self.sess_silence_len) / (
-            1 - self.sess_silence_mean
-        )
-        silence_mean = max(0, silence_mean) # mean must be larger than 0
+        silence_mean = (self.sess_silence_mean * running_len - self.sess_silence_len) / (1 - self.sess_silence_mean)
+        silence_mean = max(0, silence_mean)  # mean must be larger than 0
         if silence_mean > 0:
             silence_var = self._params.data_simulator.session_params.per_silence_var
-            silence_amount = int(gamma(a=silence_mean ** 2 / silence_var, scale=silence_var / silence_mean).rvs()) if silence_var > 0 else int(silence_mean)
+            silence_amount = (
+                int(gamma(a=silence_mean ** 2 / silence_var, scale=silence_var / silence_mean).rvs())
+                if silence_var > 0
+                else int(silence_mean)
+            )
             silence_amount = max(self.per_silence_min_len, min(silence_amount, self.per_silence_max_len))
         else:
             silence_amount = 0
         return silence_amount
-
 
     def _add_file(
         self,
@@ -930,9 +937,8 @@ class MultiSpeakerSimulator(object):
 
         silence_discrepancy = current_silence_ratio - self.sess_silence_mean
         overlap_discrepancy = current_overlap_ratio - self.sess_overlap_mean
-        add_overlap = overlap_discrepancy <= silence_discrepancy 
+        add_overlap = overlap_discrepancy <= silence_discrepancy
         return add_overlap
-
 
     # returns new overlapped (or shifted) start position
     def _add_silence_or_overlap(
@@ -969,7 +975,7 @@ class MultiSpeakerSimulator(object):
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
             desired_overlap_amount = self._sample_from_overlap_model(start - self.sess_silence_len)
             new_start = start - desired_overlap_amount
-            
+
             # avoid overlap at start of clip
             if new_start < 0:
                 desired_overlap_amount -= 0 - new_start
@@ -1206,7 +1212,7 @@ class MultiSpeakerSimulator(object):
             self.per_silence_max_len = int(
                 self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
             )
-    
+
     def _init_overlap_params(self):
         """
         Initialize some params for overlap insertion in the current session
@@ -1476,7 +1482,7 @@ class MultiSpeakerSimulator(object):
             else:
                 self._noise_samples = self._sample_noise_manifest(source_noise_manifest)
                 basepath, filename = self._generate_session(*future)
-                
+
             wavlist.write(os.path.join(basepath, filename + '.wav\n'))
             rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
             jsonlist.write(os.path.join(basepath, filename + '.json\n'))
