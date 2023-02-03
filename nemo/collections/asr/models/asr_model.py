@@ -141,7 +141,7 @@ class ASRModel(ModelPT, ABC):
 
     def on_train_start(self):
         super().on_train_start()
-
+        
         # dynamic freezing
         # should fire only once, on the very first batch of training and never again
         if not hasattr(self, '_freeze_cfg'):
@@ -151,7 +151,7 @@ class ASRModel(ModelPT, ABC):
                 and self.cfg.freeze_updates.get('enabled', False)
             ):
                 setattr(self, '_freeze_cfg', OmegaConf.to_container(self.cfg.freeze_updates))
-                self._freeze_cfg['is_frozen'] = {k: False for k in self._freeze_cfg['modules'].keys()}
+                self._freeze_cfg['is_frozen'] = {k:False for k in self._freeze_cfg['modules'].keys()}
             else:
                 setattr(self, '_freeze_cfg', None)
 
@@ -161,27 +161,32 @@ class ASRModel(ModelPT, ABC):
         allows you to freeze certain model layers for the first N steps of training
         """
         super().on_train_batch_start(batch, batch_idx)
-
+        
         # dynamic freezing
         if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
             if self.training and hasattr(self, "trainer") and self.trainer is not None:
                 num_updates = self.trainer.global_step + 1
-
+                
                 for ml, m_steps in self._freeze_cfg['modules'].items():
                     # we could do hasattr check here, but it's too expensive for each step
                     # consequently you'll throw an error if the module name doesn't exist
                     # or was spelled wrong in the config.yaml
-                    if num_updates <= m_steps and not self._freeze_cfg['is_frozen'][ml]:
+                    if isinstance(m_steps, list):
+                        assert len(m_steps) == 2, "freeze_updates modules list cannot have more than two elements"
+                        should_freeze = (num_updates >= m_steps[0]) and (num_updates <= m_steps[1] or m_steps[1] == -1)
+                    else:
+                        should_freeze = num_updates <= m_steps
+                    if should_freeze and not self._freeze_cfg['is_frozen'][ml]:
                         getattr(self, ml).freeze()
                         getattr(self, ml).train()
                         self._freeze_cfg['is_frozen'][ml] = True
-                    elif num_updates > m_steps and self._freeze_cfg['is_frozen'][ml]:
+                    elif not should_freeze and self._freeze_cfg['is_frozen'][ml]:
                         getattr(self, ml).unfreeze()
                         self._freeze_cfg['is_frozen'][ml] = False
-
+    
     def on_train_end(self):
         super().on_train_end()
-
+        
         # dynamic freezing cleanup
         if hasattr(self, '_freeze_cfg'):
             delattr(self, '_freeze_cfg')
