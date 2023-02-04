@@ -88,7 +88,15 @@ class BiLSTM(nn.Module):
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)[0]
 
     def lstm(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
+        # To be ONNX-exportable, we need to sort here rather that while packing
         context, lens, unsort_ids = sort_tensor(context, lens)
+        # Calculate sizes and prepare views to our zero buffer to pass as hx
+        max_batch_size = context.shape[0]
+        common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+        hx = (
+            context.new_zeros(*common_shape, self.real_hidden_size),
+            context.new_zeros(*common_shape, self.bilstm.hidden_size),
+        )
         ret = self.lstm_sorted(context, lens, hx=hx)
         return ret[unsort_ids]
 
@@ -97,17 +105,7 @@ class BiLSTM(nn.Module):
         # autocast guard is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
         with torch.cuda.amp.autocast(enabled=False):
-            # Calculate sizes and prepare views to our zero buffer to pass as hx
-            # borisf : this hx WAR is only needed until https://github.com/pytorch/pytorch/issues/91526 gets merged
-            context = context.to(dtype=torch.float32)
-            max_batch_size = context.shape[0]
-            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
-            hx = (
-                context.new_zeros(*common_shape, self.real_hidden_size),
-                context.new_zeros(*common_shape, self.bilstm.hidden_size),
-            )
-            ret = self.lstm(context, lens, hx=hx)
-        return ret.to(dtype=dtype)
+            return self.lstm(context.to(dtype=torch.float32), lens).to(dtype=dtype)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
         self.bilstm.flatten_parameters()
