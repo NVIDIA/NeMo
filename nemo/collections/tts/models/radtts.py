@@ -442,11 +442,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         # sz = (max_batch * max_dim,)
-        inp = torch.randint(0, 94, sz, device=par.device, dtype=torch.int64)
+        inp = torch.randint(8, 94, sz, device=par.device, dtype=torch.int64)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-        volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.1)
+        volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.1)
         # batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int64)
         # left_over_size = sz[0]
         # batch_lengths[0] = 0
@@ -467,7 +467,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
         lens = []
         for i, _ in enumerate(inp):
-            len_i = random.randint(3, max_dim)
+            len_i = random.randint(8, max_dim)
             lens.append(len_i)
             inp[i, len_i:] = pad_id
         lens = torch.tensor(lens, device=par.device, dtype=torch.int32)

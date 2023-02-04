@@ -216,7 +216,7 @@ class Invertible1x1ConvLUS(torch.nn.Module):
                 # inverse computation
                 W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
-            z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
+            z = F.conv1d(z, self.W_inverse.to(dtype=z.dtype), bias=None, stride=1, padding=0)
             return z
         else:
             W = W[..., None]
