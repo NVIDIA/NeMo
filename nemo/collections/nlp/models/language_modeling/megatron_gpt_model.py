@@ -315,12 +315,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def training_step(self, dataloader_iter, batch_idx):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            We pass the dataloader iterator function to the micro-batch scheduler.
+            The input batch to each micro-batch is fetched using the dataloader function
+            in the micro-batch fwd function.
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
