@@ -23,10 +23,10 @@ from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE, EncDecClassificationModel
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -239,6 +239,7 @@ def get_wer_feat_logit_single(
     Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
+    #???? frame_mask
     hyps, tokens_list = [], []
     features = feat_buffer.unsqueeze(0)
     feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
@@ -246,6 +247,25 @@ def get_wer_feat_logit_single(
     hyps.append(hyp)
     tokens_list.append(tokens)
     return hyps, tokens_list, features.shape, log_prob
+
+def get_vad_feat_logit_single(
+    feat_buffer, frame_vad, frame_len, tokens_per_chunk, delay, model_stride_in_secs
+):
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+    features = feat_buffer.unsqueeze(0)
+    feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
+    chunk_len_in_feat = int(frame_len * 100)
+
+    extract_last_features_from_buffer = frame_vad.prev_len_features + chunk_len_in_feat
+
+    chunk_features_with_half_window = features[:, :, -extract_last_features_from_buffer:]
+
+    ts = frame_vad.infer_to_ts_with_feature(chunk_features_with_half_window, feat_len, tokens_per_chunk, delay)
+    return ts
+
 
 class FrameBatchASRLogits(FrameBatchASR):
     """
