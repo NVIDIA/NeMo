@@ -583,12 +583,6 @@ class BeamRNNTInfer(Typing):
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
                 kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
 
-                temp_hyps = sorted([hyp for hyp in hyps], key=lambda x: x.score, reverse=True)
-                temp_kept_hyps =  sorted([hyp for hyp in kept_hyps], key=lambda x: x.score, reverse=True)
-                print("hyp max", hyps_max, "hyps", [(hyp.score, hyp.y_sequence) for hyp in temp_hyps])
-                print("kept hyps", [(hyp.score, hyp.y_sequence) for hyp in temp_kept_hyps])
-                print("final kept", [(hyp.score, hyp.y_sequence) for hyp in kept_most_prob])
-
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
                 if len(kept_most_prob) >= beam:
