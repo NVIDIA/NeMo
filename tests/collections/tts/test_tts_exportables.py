@@ -85,7 +85,6 @@ class TestExportable:
                 input_example2 = model.input_module.input_example(max_batch=16, max_dim=1024)
                 model.export(output=filename, verbose=True, input_example=input_example1, check_trace=[input_example2])
 
-    @pytest.mark.pleasefixme('ONNX not working yet. Restore when Pytorch fixes LSTM/ONNX bugs.')
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_RadTTSModel_export_to_onnx(self, radtts_model):
