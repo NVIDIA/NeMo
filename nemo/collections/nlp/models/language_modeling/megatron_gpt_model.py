@@ -426,11 +426,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
-            'global_step',
-            self.trainer.global_step,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=1,
+            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
         )
 
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
