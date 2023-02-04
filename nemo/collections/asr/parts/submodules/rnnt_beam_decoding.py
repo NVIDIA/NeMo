@@ -266,10 +266,10 @@ class BeamRNNTInfer(Typing):
         self.maes_expansion_gamma = float(maes_expansion_gamma)
         self.maes_expansion_beta = int(maes_expansion_beta)
 
-        if self.maes_prefix_alpha < 0:
+        if self.search_type == 'maes' and self.maes_prefix_alpha < 0:
             raise ValueError("`maes_prefix_alpha` must be a positive integer.")
 
-        if self.vocab_size < beam_size + maes_expansion_beta:
+        if self.search_type == 'maes' and self.vocab_size < beam_size + maes_expansion_beta:
             raise ValueError(
                 f"beam_size ({beam_size}) + expansion_beta ({maes_expansion_beta}) "
                 f"should be smaller or equal to vocabulary size ({self.vocab_size})."
@@ -278,7 +278,7 @@ class BeamRNNTInfer(Typing):
         if search_type == 'maes':
             self.max_candidates += maes_expansion_beta
 
-        if self.maes_num_steps < 2:
+        if self.search_type == 'maes' and self.maes_num_steps < 2:
             raise ValueError("`maes_num_steps` must be greater than 1.")
 
         if softmax_temperature != 1.0 and language_model is not None:
@@ -582,6 +582,12 @@ class BeamRNNTInfer(Typing):
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
                 kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
+
+                temp_hyps = sorted([hyp for hyp in hyps], key=lambda x: x.score, reverse=True)
+                temp_kept_hyps =  sorted([hyp for hyp in kept_hyps], key=lambda x: x.score, reverse=True)
+                print("hyp max", hyps_max, "hyps", [(hyp.score, hyp.y_sequence) for hyp in temp_hyps])
+                print("kept hyps", [(hyp.score, hyp.y_sequence) for hyp in temp_kept_hyps])
+                print("final kept", [(hyp.score, hyp.y_sequence) for hyp in kept_most_prob])
 
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
@@ -953,7 +959,7 @@ class BeamRNNTInfer(Typing):
         """
         if self.preserve_alignments:
             raise NotImplementedError(
-                "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
+                "`preseve_alignments` is not implemented for Modified Adaptive Expansion Search."
             )
 
         if partial_hypotheses is not None:
