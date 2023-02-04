@@ -420,19 +420,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=self.cfg.micro_batch_size)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log(
-            'reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=self.cfg.micro_batch_size
-        )
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=self.cfg.micro_batch_size)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
             'global_step',
             self.trainer.global_step,
             prog_bar=True,
             rank_zero_only=True,
-            batch_size=self.cfg.micro_batch_size,
+            batch_size=1,
         )
 
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
@@ -441,7 +439,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
-            batch_size=self.cfg.micro_batch_size,
+            batch_size=1,
         )
 
         return loss_mean
@@ -676,7 +674,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=self.cfg.micro_batch_size)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
