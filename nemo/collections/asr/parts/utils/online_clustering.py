@@ -35,7 +35,7 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-# from scipy.optimize import linear_sum_assignment as _linear_sum_assignment
+
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 from sklearn.metrics.pairwise import linear_kernel
 from sklearn.preprocessing import OneHotEncoder
@@ -49,7 +49,7 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
 )
 
 
-@torch.jit.script
+
 def torch_intersection(a_tensor: torch.Tensor, b_tensor: torch.Tensor):
     """
     Find the intersection of two tensors
@@ -66,7 +66,7 @@ def torch_intersection(a_tensor: torch.Tensor, b_tensor: torch.Tensor):
     a_cat_b, counts = torch.unique(torch.cat([a_tensor, b_tensor]), return_counts=True)
     return a_cat_b[torch.where(counts.gt(1))]
 
-@torch.jit.script
+
 def hungarian_algorithm(
     spk_count: int, 
     U_set: torch.Tensor, 
@@ -118,7 +118,7 @@ def hungarian_algorithm(
             mapping_array[x] = col_ind[x]
     return mapping_array
 
-@torch.jit.script
+
 def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
     """
     Force the unique indices of the labels to use the lowest numbers.
@@ -142,7 +142,7 @@ def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
     sequence[Y_new_enlisted] = torch.arange(len(Y_new_enlisted)).to(device)
     return sequence[Y_new]
 
-@torch.jit.script
+
 def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Tensor:
     """
     Run Hungarian (linear sum assignment) algorithm to find the best permutation mapping between
@@ -184,7 +184,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Ten
     matched_output = get_minimal_indices(matched_output)
     return matched_output
 
-@torch.jit.script
+
 def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count: int, num_clus: int) -> torch.Tensor:
     """
     Calculate removable counts based on the arguments and calculate how many counts should be
@@ -264,7 +264,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     removable_counts_mat[removable_count_args[:rem_labels]] -= 1
     return removable_counts_mat
 
-@torch.jit.script
+
 def get_merge_quantity(
     num_to_be_removed: int, pre_clus_labels: torch.Tensor, min_count_per_cluster: int,
 ) -> torch.Tensor:
@@ -324,11 +324,11 @@ def get_merge_quantity(
         raise ValueError("Sum of `removable_counts_mat` is not equal to `num_to_be_removed` variable.")
     if not torch.all(removable_counts_mat >= 0) or not torch.all(spk_freq_count - min_seg_count_mat >= 0):
         raise ValueError(
-            "Every value in `removable_counts_mat` should be always non-negative value but got {removable_counts_mat}"
+            f"Every value in `removable_counts_mat` should be always non-negative value but got {removable_counts_mat}"
         )
     return removable_counts_mat
 
-@torch.jit.script
+
 def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor):
     """
     Merge feature (embedding) vectors estimated to be the same cluster label.
@@ -369,7 +369,7 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
     index_mapping: Tuple[torch.Tensor, torch.Tensor] = (bypass_inds, selected_inds)
     return merged_vecs, merged_clus_labels
 
-@torch.jit.script
+
 def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the indices of the embedding vectors we want to merge.
@@ -415,7 +415,7 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
     rest_inds = torch.argsort(sum_cmat, descending=True)[(n_closest + 1) :]
     return idx_aff_sum, rest_inds
 
-@torch.jit.script
+
 def run_reducer(
     pre_embs: torch.Tensor, 
     target_spk_idx: int, 
@@ -500,7 +500,7 @@ def run_reducer(
         index_mapping = (target_emb_index, torch.arange(0))
     return merged_embs, merged_clus_labels, index_mapping
 
-@torch.jit.script
+
 def get_first_arg_index(mat: torch.Tensor, label: int) -> int:
     """
     Get the index of the first element are specified by `index` variable.
@@ -1086,7 +1086,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 speaker labels in the history buffer.
             add_new (bool):
                 This variable indicates whether there is a new set of segments. Depending on the VAD timestamps,
-                the number of subsegments can be ocassionally decreased. If `add_new=True`, then it adds the newly
+                the number of subsegments can be occasionally decreased. If `add_new=True`, then it adds the newly
                 acquired cluster labels.
 
         Returns:

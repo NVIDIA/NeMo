@@ -728,12 +728,12 @@ def estimateNumofSpeakers(
         lambda_gap (Tensor):
             The gap between the lambda values from eigendecomposition
     """
-    with torch.no_grad():
-        laplacian = getLaplacian(affinity_mat)
-        lambdas = eigValueSh(laplacian, cuda=cuda)
-        lambdas = torch.sort(lambdas)[0]
-        lambda_gap = getLamdaGaplist(lambdas)
-        num_of_spk = torch.argmax(lambda_gap[: min(max_num_speakers, lambda_gap.shape[0])]) + 1
+    # with torch.no_grad():
+    laplacian = getLaplacian(affinity_mat)
+    lambdas = eigValueSh(laplacian, cuda=cuda)
+    lambdas = torch.sort(lambdas)[0]
+    lambda_gap = getLamdaGaplist(lambdas)
+    num_of_spk = torch.argmax(lambda_gap[: min(max_num_speakers, lambda_gap.shape[0])]) + 1
     return num_of_spk, lambdas, lambda_gap
 
 
@@ -850,7 +850,7 @@ class SpectralClustering:
         return embedding[:n_spks].T
 
 
-@torch.jit.script
+# @torch.jit.script
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
