@@ -1637,7 +1637,7 @@ class ModelPT(LightningModule, Model):
                 and self.cfg.freeze_updates.get('enabled', False)
             ):
                 setattr(self, '_freeze_cfg', OmegaConf.to_container(self.cfg.freeze_updates))
-                self._freeze_cfg['is_frozen'] = {k:False for k in self._freeze_cfg['modules'].keys()}
+                self._freeze_cfg['is_frozen'] = {k: False for k in self._freeze_cfg['modules'].keys()}
             else:
                 setattr(self, '_freeze_cfg', None)
 
@@ -1661,7 +1661,7 @@ class ModelPT(LightningModule, Model):
         if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
             if self.training and hasattr(self, "trainer") and self.trainer is not None:
                 num_updates = self.trainer.global_step + 1
-                
+
                 for ml, m_steps in self._freeze_cfg['modules'].items():
                     # we could do hasattr check here, but it's too expensive for each step
                     # consequently you'll throw an error if the module name doesn't exist
@@ -1691,7 +1691,7 @@ class ModelPT(LightningModule, Model):
                     if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
-    
+
     def on_train_end(self):
         """ PyTorch Lightning hook:
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
