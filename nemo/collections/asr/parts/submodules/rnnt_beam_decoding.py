@@ -425,7 +425,8 @@ class BeamRNNTInfer(Typing):
             not_blank = True
             symbols_added = 0
 
-            while not_blank and (symbols_added < self.max_candidates):
+            # TODO: Figure out how to remove this hard coding afterwords
+            while not_blank and (symbols_added < 5):
                 ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
@@ -918,13 +919,17 @@ class BeamRNNTInfer(Typing):
                 B = sorted(A, key=lambda x: x.score, reverse=True)[:beam]
                 B = self.recombine_hypotheses(B)
 
-            # If B_ is empty list, then we may be able to early exit
-            elif len(batch_ids) == len(batch_removal_ids):
                 if self.preserve_alignments:
                     # convert Ti-th logits into a torch array
                     for B_i in B:
-                        B_i.alignments.append([])  # blank buffer for next timestep
+                        # Check if the last token emitted at last timestep was a blank
+                        # If so, move to next timestep
+                        logp, label = B_i.alignments[-1][-1]  # The last alignment of this step
+                        if int(label) == self.blank:
+                            B_i.alignments.append([])  # blank buffer for next timestep
 
+            # If B_ is empty list, then we may be able to early exit
+            elif len(batch_ids) == len(batch_removal_ids):
                 # break early
                 break
 
