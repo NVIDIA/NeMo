@@ -350,6 +350,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
                 'num_micro_batches_with_partial_activation_checkpoints', None
             ),
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -592,6 +594,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             dtype=self.autocast_dtype,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             sync_batch_comm=self.cfg.get('sync_batch_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stage of the pipeline returns losses
