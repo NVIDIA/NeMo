@@ -777,9 +777,9 @@ To enable freezing, add the following to your config:
     freeze_updates:
       enabled: true  # set to false if you want to disable freezing
       
-    modules:   # list all of the modules you want to have freezing logic for
-      encoder: 200      # module will be frozen for the first 200 training steps
-      decoder: [50, -1] # module will be frozen at step 50 and will remain frozen until training ends
-      joint: [10, 100]  # module will be frozen between step 10 and step 100 (step >= 10 and step <= 100)
-      transcoder: -1    # module will be frozen for the entire training run
+      modules:   # list all of the modules you want to have freezing logic for
+        encoder: 200       # module will be frozen for the first 200 training steps
+        decoder: [50, -1]  # module will be frozen at step 50 and will remain frozen until training ends
+        joint: [10, 100]   # module will be frozen between step 10 and step 100 (step >= 10 and step <= 100)
+        transcoder: -1     # module will be frozen for the entire training run
 
