@@ -14,8 +14,9 @@
 
 import copy
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
+from omegaconf import OmegaConf
 
 import editdistance
 import numpy as np
@@ -193,6 +194,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
+
+        # Convert dataclass to config object
+        if is_dataclass(decoding_cfg):
+            decoding_cfg = OmegaConf.structured(decoding_cfg)
+
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.num_extra_outputs = joint.num_extra_outputs
