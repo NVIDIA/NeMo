@@ -26,8 +26,13 @@ LATEST_RELEASE=$(git -c 'versionsort.suffix=-' \
 # expected TORCHAUDIO_BUILD_VERSION=*.**.*
 TORCHAUDIO_BUILD_VERSION=${LATEST_RELEASE:8:1}${PYTORCH_VERSION:1:5}
 
+TORCH_MAJOR_VERSION=$(python3 -c "major_version = \"${PYTORCH_VERSION}\".split('.')[0]; print(major_version)")
 TORCH_MINOR_VERSION=$(python3 -c "minor_version = \"${PYTORCH_VERSION}\".split('.')[1]; print(minor_version)")
 TORCHAUDIO_MINOR_VERSION=$(python3 -c "minor_version = \"${LATEST_RELEASE}\".rsplit('.')[-1]; print(minor_version)")
+
+if [[ $TORCH_MAJOR_VERSION -ne 1 ]]; then
+    echo "WARNING: Pytorch major version different from 1 not supported"
+fi
 
 echo "Latest torchaudio release: ${LATEST_RELEASE:8:4}"
 echo "Pytorch version: ${PYTORCH_VERSION:0:6}"
