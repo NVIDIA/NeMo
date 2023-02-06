@@ -1004,11 +1004,6 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
-        if self.preserve_alignments:
-            raise NotImplementedError(
-                "`preseve_alignments` is not implemented for Modified Adaptive Expansion Search."
-            )
-
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
@@ -1032,6 +1027,11 @@ class BeamRNNTInfer(Typing):
         ]
 
         cache = {}
+
+        # Initialize alignment buffer
+        if self.preserve_alignments:
+            for hyp in init_tokens:
+                hyp.alignments = [[]]
 
         # Decode a batch of beam states and scores
         beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state)
@@ -1060,8 +1060,15 @@ class BeamRNNTInfer(Typing):
                 dec_out=[beam_dec_out[0]],
                 lm_state=lm_state,
                 lm_scores=lm_scores,
+                timestep=[-1],
+                length=0,
             )
         ]
+
+        # Initialize alignment buffer
+        if self.preserve_alignments:
+            for hyp in kept_hyps:
+                hyp.alignments = [[]]
 
         for t in range(encoded_lengths):
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
@@ -1110,6 +1117,8 @@ class BeamRNNTInfer(Typing):
                             dec_state=hyp.dec_state,
                             lm_state=hyp.lm_state,
                             lm_scores=hyp.lm_scores,
+                            timestep=hyp.timestep[:],
+                            length=t,
                         )
 
                         # If the expansion was for blank
@@ -1120,6 +1129,7 @@ class BeamRNNTInfer(Typing):
                             # new_hyp.y_sequence.append(int(k))
                             if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
                                 new_hyp.y_sequence.append(int(k))
+                                new_hyp.timestep.append(t)
 
                                 # TODO: Setup LM
                                 if self.language_model is not None:
@@ -1130,11 +1140,35 @@ class BeamRNNTInfer(Typing):
 
                                 list_exp.append(new_hyp)
 
+                        # Preserve alignments
+                        if self.preserve_alignments:
+                            new_hyp.alignments = copy.deepcopy(hyp.alignments)
+
+                            if k == self.blank:
+                                new_hyp.alignments[-1].append(
+                                    (beam_logp[i].clone().cpu(), torch.tensor(self.blank, dtype=torch.int32)),
+                                )
+                            else:
+                                new_hyp.alignments[-1].append(
+                                    (beam_logp[i].clone().cpu(), torch.tensor(new_hyp.y_sequence[-1], dtype=torch.int32)),
+                                )
+
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit
                 if not list_exp:
                     kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[:beam]
 
+                    # Update aligments with next step
+                    if self.preserve_alignments:
+                        # convert Ti-th logits into a torch array
+                        for h_i in kept_hyps:
+                            # Check if the last token emitted at last timestep was a blank
+                            # If so, move to next timestep
+                            logp, label = h_i.alignments[-1][-1]  # The last alignment of this step
+                            if int(label) == self.blank:
+                                h_i.alignments.append([])  # blank buffer for next timestep
+
+                    # Early exit
                     break
 
                 else:
@@ -1183,6 +1217,17 @@ class BeamRNNTInfer(Typing):
 
                         # Copy the expanded hypothesis
                         hyps = list_exp[:]
+
+                        # Update aligments with next step
+                        if self.preserve_alignments:
+                            # convert Ti-th logits into a torch array
+                            for h_i in hyps:
+                                # Check if the last token emitted at last timestep was a blank
+                                # If so, move to next timestep
+                                logp, label = h_i.alignments[-1][-1]  # The last alignment of this step
+                                if int(label) == self.blank:
+                                    h_i.alignments.append([])  # blank buffer for next timestep
+
                     else:
                         # Extract the log probabilities
                         beam_logp = torch.log_softmax(
@@ -1208,6 +1253,22 @@ class BeamRNNTInfer(Typing):
 
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = sorted(list_b + list_exp, key=lambda x: x.score, reverse=True)[:beam]
+
+                        # Update aligments with next step
+                        if self.preserve_alignments:
+                            # convert Ti-th logits into a torch array
+                            for h_i in kept_hyps:
+                                # Check if the last token emitted at last timestep was a blank
+                                # If so, move to next timestep
+                                logp, label = h_i.alignments[-1][-1]  # The last alignment of this step
+                                if int(label) == self.blank:
+                                    h_i.alignments.append([])  # blank buffer for next timestep
+
+        # Remove trailing empty list of alignments
+        if self.preserve_alignments:
+            for h in kept_hyps:
+                if len(h.alignments[-1]) == 0:
+                    del h.alignments[-1]
 
         # Sort the hypothesis with best scores
         return self.sort_nbest(kept_hyps)
