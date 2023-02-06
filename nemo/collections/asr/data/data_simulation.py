@@ -31,7 +31,7 @@ from omegaconf import DictConfig, OmegaConf
 from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.spatial.transform import Rotation
-from scipy.stats import beta, gamma, halfnorm
+from scipy.stats import beta, gamma
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
@@ -46,7 +46,6 @@ from nemo.collections.asr.parts.utils.manifest_utils import (
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
     combine_float_overlaps,
-    combine_int_overlaps,
     getOverlapRange,
     isOverlap,
     labels_to_rttmfile,
@@ -1333,7 +1332,7 @@ class MultiSpeakerSimulator(object):
             x = [float(num) for num in x_raw.split()]
             all_sample_list.append([x[0], x[1]])
 
-        self._merged_speech_intervals = combine_int_overlaps(all_sample_list)
+        self._merged_speech_intervals = combine_float_overlaps(all_sample_list)
         total_speech_in_secs = sum([x[1] - x[0] for x in self._merged_speech_intervals])
         total_silence_in_secs = session_len_samples / self._params.data_simulator.sr - total_speech_in_secs
         sess_speech_len_rttm = int(total_speech_in_secs * self._params.data_simulator.sr)
