@@ -311,7 +311,10 @@ class MegatronBertModel(MegatronBaseModel):
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
-            loss_mean = torch.tensor([0.0, 0.0]).cuda()
+            if self.cfg.bert_binary_head == True:
+                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
+            else:
+                loss_mean = torch.tensor([0.0, 0.0]).cuda()
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
