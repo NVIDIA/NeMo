@@ -1,4 +1,5 @@
 data_simulator:
+            # desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len)
   manifest_filepath: ??? # Manifest file with paths to single speaker audio files
 
   sr: 16000 # Sampling rate of the input audio files from the manifest

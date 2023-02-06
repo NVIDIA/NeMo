@@ -927,10 +927,10 @@ class MultiSpeakerSimulator(object):
                 average_rms = torch.sqrt(split_sum * 1.0 / split_length)
                 self._sentence = self._sentence / (1.0 * average_rms) * self._volume[speaker_turn]
 
-    def _silence_vs_overlap_selector(self, running_len_samples: int, session_len_samples: int):
+    def _silence_vs_overlap_selector(self, running_len_samples: int, non_silence_len_samples: int) -> bool:
         """
         Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
-        to the amount of the gap between current raito and session mean in config.
+        to the amount of the gap between current ratio and session mean in config.
 
         Args:
             running_len_samples (int): Length of the current session in samples.
@@ -938,11 +938,6 @@ class MultiSpeakerSimulator(object):
         Returns:
             add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
         """
-        if self.sess_speech_len_rttm == 0:
-            non_silence_len_samples = running_len_samples - self.sess_silence_len
-        else:
-            non_silence_len_samples = self.sess_speech_len_rttm
-
         if running_len_samples > 0:
             self.current_silence_ratio = (running_len_samples - self.sess_speech_len_rttm) / running_len_samples
             self.current_overlap_ratio = self.sess_overlap_len / non_silence_len_samples
@@ -980,13 +975,16 @@ class MultiSpeakerSimulator(object):
             new_start (int): New starting position in the session accounting for overlap or silence
         """
         running_len_samples = start + length
+        # `length` is the length of the current sentence to be added, so not included in self.sess_speech_len_rttm
+        non_silence_len_samples = self.sess_speech_len_rttm + length
 
         # compare silence and overlap ratios
-        add_overlap = self._silence_vs_overlap_selector(running_len_samples, session_len_samples)
+        add_overlap = self._silence_vs_overlap_selector(running_len_samples, non_silence_len_samples)
 
         # choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
-            desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len_rttm)
+            # desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len_rttm)
+            desired_overlap_amount = self._sample_from_overlap_model(non_silence_len_samples)
             new_start = start - desired_overlap_amount
 
             # avoid overlap at start of clip
