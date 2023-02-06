@@ -1964,11 +1964,6 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             prev_speaker = speaker_turn
             prev_len_samples = length
 
-        if self.sess_silence_len < running_len_samples * self.sess_silence_mean:
-            import ipdb
-
-            ipdb.set_trace()
-
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
             avg_power_array = torch.mean(array[is_speech == 1] ** 2)
