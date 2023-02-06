@@ -215,13 +215,15 @@ class MultiSpeakerSimulator(object):
         self._audio_read_buffer_dict = {}
         self._noise_read_buffer_dict = {}
 
+        self.running_speech_len_samples = 0
+        self.running_silence_len_samples = 0
+        self.running_overlap_len_samples = 0
+
         self.sess_silence_mean = 0
-        self.sess_silence_len = 0
         self.per_silence_min_len = 0
         self.per_silence_max_len = 0
 
         self.sess_overlap_mean = 0
-        self.sess_overlap_len = 0
         self.per_overlap_min_len = 0
         self.per_overlap_max_len = 0
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
@@ -640,7 +642,7 @@ class MultiSpeakerSimulator(object):
         Thus, we employ the following formula to determine the amount of silence to add:
 
             running_ratio = running_len_samples / session_len_samples
-            silence_mean = (session_len_samples*(self.sess_silence_mean) - self.sess_silence_len) * running_ratio.
+            silence_mean = (session_len_samples*(self.sess_silence_mean) - self.running_silence_len_samples) * running_ratio.
 
         `running_ratio` is the proportion of the created session compared to the targeted total session length.
 
@@ -654,7 +656,9 @@ class MultiSpeakerSimulator(object):
             silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
         """
         running_ratio = running_len_samples / session_len_samples
-        silence_mean = (session_len_samples * (self.sess_silence_mean) - self.sess_silence_len) * running_ratio
+        silence_mean = (
+            session_len_samples * (self.sess_silence_mean) - self.running_silence_len_samples
+        ) * running_ratio
         if silence_mean > 0:
             silence_var = self._params.data_simulator.session_params.per_silence_var
             silence_amount = (
@@ -674,7 +678,7 @@ class MultiSpeakerSimulator(object):
         When we add an overlap occurrence, we want to meet the desired overlap ratio defined by `self.sess_overlap_mean`.
         Let `overlap_mean` be the desired overlap amount, then the mean and variance of the gamma distribution is given by:
 
-            self.sess_overlap_mean = (overlap_mean + self.sess_overlap_len) / (overlap_mean + non_silence_len_samples)
+            self.sess_overlap_mean = (overlap_mean + self.running_overlap_len_samples) / (overlap_mean + non_silence_len_samples)
 
         The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`. 
         We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
@@ -687,7 +691,7 @@ class MultiSpeakerSimulator(object):
             desired_overlap_amount (int): 
                 Amount of overlap between segments (in terms of number of samples).
         """
-        overlap_mean = ((self.sess_overlap_mean * non_silence_len_samples) - self.sess_overlap_len) / (
+        overlap_mean = ((self.sess_overlap_mean * non_silence_len_samples) - self.running_overlap_len_samples) / (
             1 - self.sess_overlap_mean
         )
         overlap_mean = max(0, overlap_mean)
@@ -940,8 +944,8 @@ class MultiSpeakerSimulator(object):
             add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
         """
         if running_len_samples > 0:
-            self.current_silence_ratio = (running_len_samples - self.sess_speech_len_rttm) / running_len_samples
-            self.current_overlap_ratio = self.sess_overlap_len / non_silence_len_samples
+            self.current_silence_ratio = (running_len_samples - self.running_speech_len_samples) / running_len_samples
+            self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
         else:
             self.current_silence_ratio, self.current_overlap_ratio = 0, 0
 
@@ -976,15 +980,15 @@ class MultiSpeakerSimulator(object):
             new_start (int): New starting position in the session accounting for overlap or silence
         """
         running_len_samples = start + length
-        # `length` is the length of the current sentence to be added, so not included in self.sess_speech_len_rttm
-        non_silence_len_samples = self.sess_speech_len_rttm + length
+        # `length` is the length of the current sentence to be added, so not included in self.running_speech_len_samples
+        non_silence_len_samples = self.running_speech_len_samples + length
 
         # compare silence and overlap ratios
         add_overlap = self._silence_vs_overlap_selector(running_len_samples, non_silence_len_samples)
 
         # choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
-            # desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len_rttm)
+            # desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.running_silence_len_samples_rttm)
             desired_overlap_amount = self._sample_from_overlap_model(non_silence_len_samples)
             new_start = start - desired_overlap_amount
 
@@ -1012,30 +1016,17 @@ class MultiSpeakerSimulator(object):
 
             if overlap_amount < desired_overlap_amount:
                 self._missing_overlap += desired_overlap_amount - overlap_amount
-            self.sess_overlap_len += overlap_amount
+            self.running_overlap_len_samples += overlap_amount
 
         # if we are not adding overlap, add silence
         else:
             silence_amount = self._sample_from_silence_model(running_len_samples, session_len_samples)
-            # if the current session is not having enough silence, enforce silence at `enforce_silence_threshold` point.
-            enforce_silence_threshold = session_len_samples * self.sess_silence_mean
-            if session_len_samples - enforce_silence_threshold < running_len_samples:
-                enforce_silence_amount = max(
-                    silence_amount,
-                    int(
-                        session_len_samples * self.sess_silence_mean
-                        - (running_len_samples - self.sess_speech_len_rttm)
-                    ),
-                )
-                new_start = start + enforce_silence_amount
-                self.sess_silence_len += enforce_silence_amount
+
             # truncate the silence if it is going beyond the session length.
-            elif start + length + silence_amount > session_len_samples and not enforce:
-                new_start = max(session_len_samples - length, 0)
-                self.sess_silence_len += session_len_samples - start - length
+            if start + length + silence_amount > session_len_samples and not enforce:
+                new_start = max(session_len_samples - length, start)
             else:
                 new_start = start + silence_amount
-                self.sess_silence_len += silence_amount
 
         return new_start
 
@@ -1224,9 +1215,8 @@ class MultiSpeakerSimulator(object):
         """
         Initialize some params for silence insertion in the current session
         """
-        self.sess_silence_len = 0
-        self.sess_silence_len_rttm = 0
-        self.sess_speech_len_rttm = 0
+        self.running_silence_len_samples = 0
+        self.running_speech_len_samples = 0
         self.per_silence_min_len = int(
             max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
         )
@@ -1243,7 +1233,7 @@ class MultiSpeakerSimulator(object):
         """
         Initialize some params for overlap insertion in the current session
         """
-        self.sess_overlap_len = 0
+        self.running_overlap_len_samples = 0
         self.per_overlap_min_len = int(
             max(0, self._params.data_simulator.session_params.per_overlap_min) * self._params.data_simulator.sr
         )
@@ -1314,15 +1304,13 @@ class MultiSpeakerSimulator(object):
             overlap_mean = mean
         return overlap_mean
 
-    def _get_session_silence_from_rttm(self, rttm_list: List[str], session_len_samples: int, running_len_samples: int):
+    def _get_session_silence_from_rttm(self, rttm_list: List[str], running_len_samples: int):
         """
         Calculate the total speech and silence duration in the current session using RTTM file.
 
         Args:
             rttm_list (list):
                 List of RTTM timestamps
-            session_len_samples (int):
-                The targeted number of samples in the current session
             running_len_samples (int):
                 Total number of samples generated so far in the current session
 
@@ -1339,10 +1327,10 @@ class MultiSpeakerSimulator(object):
 
         self._merged_speech_intervals = combine_float_overlaps(all_sample_list)
         total_speech_in_secs = sum([x[1] - x[0] for x in self._merged_speech_intervals])
-        total_silence_in_secs = session_len_samples / self._params.data_simulator.sr - total_speech_in_secs
-        sess_speech_len_rttm = int(total_speech_in_secs * self._params.data_simulator.sr)
-        sess_silence_len_rttm = int(total_silence_in_secs * self._params.data_simulator.sr)
-        return sess_speech_len_rttm, sess_silence_len_rttm
+        total_silence_in_secs = running_len_samples / self._params.data_simulator.sr - total_speech_in_secs
+        sess_speech_len = int(total_speech_in_secs * self._params.data_simulator.sr)
+        sess_silence_len = int(total_silence_in_secs * self._params.data_simulator.sr)
+        return sess_speech_len, sess_silence_len
 
     def _generate_session(
         self,
@@ -1466,8 +1454,8 @@ class MultiSpeakerSimulator(object):
                 ctm_list.append(entry)
 
             running_len_samples = np.maximum(running_len_samples, end)
-            self.sess_speech_len_rttm, self.sess_silence_len_rttm = self._get_session_silence_from_rttm(
-                rttm_list, session_len_samples, running_len_samples
+            self.running_speech_len_samples, self.running_silence_len_samples = self._get_session_silence_from_rttm(
+                rttm_list, running_len_samples
             )
 
             self._furthest_sample[speaker_turn] = running_len_samples
