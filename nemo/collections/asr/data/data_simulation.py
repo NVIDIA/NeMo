@@ -134,12 +134,20 @@ class MultiSpeakerSimulator(object):
       turn_prob (float): Probability of switching speakers after each utterance
       mean_overlap (float): Mean proportion of overlap in the overall speaking time (overlap lengths are sampled from 
                             half normal distribution)
-      mean_silence (float): Mean proportion of silence to speaking time in the audio session (overlap lengths are 
-                            sampled from half normal distribution)
-      mean_silence_var (float): Variance for mean silence in different audio sessions.
+      mean_silence (float): Mean proportion of silence to speaking time in the audio session. Should be in range [0, 1).
+      mean_silence_var (float): Variance for mean silence in all audio sessions. 
+                                This value should be 0 <= mean_silence_var < mean_silence * (1 - mean_silence).
       per_silence_var (float):  Variance for each silence in an audio session, set large values (e.g., 20) for de-correlation.
       per_silence_min (float): Minimum duration for each silence, default to 0.
       per_silence_max (float): Maximum duration for each silence, default to -1 for no maximum.
+      mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and 
+                            recommend [0, 0.15] range for accurate results.
+      mean_overlap_var (float): Variance for mean overlap in all audio sessions. 
+                                This value should be 0 <= mean_overlap_var < mean_overlap * (1 - mean_overlap).
+      per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths 
+                               with the latest speech segment lengths
+      per_overlap_min (float): Minimum per overlap duration in seconds
+      per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum
       start_window (bool): Whether to window the start of sentences to smooth the audio signal (and remove silence at 
                             the start of the clip)
       window_type (str): Type of windowing used when segmenting utterances ("hamming", "hann", "cosine")
@@ -624,7 +632,7 @@ class MultiSpeakerSimulator(object):
 
         return release_buffer, window_amount
 
-    def _sample_from_silence_model(self, running_len_samples: int, session_len_samples) -> int:
+    def _sample_from_silence_model(self, running_len_samples: int, session_len_samples: int) -> int:
         """
         Sample from the silence model to determine the amount of silence to add between sentences.
         Gamma distribution is employed for modeling the highly skewed distribution of silence length distribution.
@@ -919,7 +927,7 @@ class MultiSpeakerSimulator(object):
                 average_rms = torch.sqrt(split_sum * 1.0 / split_length)
                 self._sentence = self._sentence / (1.0 * average_rms) * self._volume[speaker_turn]
 
-    def _silence_vs_overlap_selector(self, running_len_samples: int, session_len_samples):
+    def _silence_vs_overlap_selector(self, running_len_samples: int, session_len_samples: int):
         """
         Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
         to the amount of the gap between current raito and session mean in config.
