@@ -692,13 +692,13 @@ class BeamRNNTInfer(Typing):
                         # If the sequence is not in seq_A, add it as the blank token
                         # In this step, we dont add a token but simply update score
                         _temp_hyp = Hypothesis(
-                                score=(hyp.score + float(beam_logp[j, self.blank])),
-                                y_sequence=hyp.y_sequence[:],
-                                dec_state=hyp.dec_state,
-                                lm_state=hyp.lm_state,
-                                timestep=hyp.timestep[:],
-                                length=encoded_lengths,
-                            )
+                            score=(hyp.score + float(beam_logp[j, self.blank])),
+                            y_sequence=hyp.y_sequence[:],
+                            dec_state=hyp.dec_state,
+                            lm_state=hyp.lm_state,
+                            timestep=hyp.timestep[:],
+                            length=encoded_lengths,
+                        )
 
                         # Preserve the blank token alignment
                         if self.preserve_alignments:
@@ -707,9 +707,7 @@ class BeamRNNTInfer(Typing):
                                 (beam_logp[j].clone(), torch.tensor(self.blank, dtype=torch.int32)),
                             )
 
-                        A.append(
-                            _temp_hyp
-                        )
+                        A.append(_temp_hyp)
                     else:
                         # merge the existing blank hypothesis score with current score.
                         dict_pos = seq_A.index(hyp.y_sequence)
@@ -1154,7 +1152,10 @@ class BeamRNNTInfer(Typing):
                                 )
                             else:
                                 new_hyp.alignments[-1].append(
-                                    (beam_logp[i].clone().cpu(), torch.tensor(new_hyp.y_sequence[-1], dtype=torch.int32)),
+                                    (
+                                        beam_logp[i].clone().cpu(),
+                                        torch.tensor(new_hyp.y_sequence[-1], dtype=torch.int32),
+                                    ),
                                 )
 
                 # If there were no token expansions in any of the hypotheses,

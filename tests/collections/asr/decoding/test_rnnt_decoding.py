@@ -1,20 +1,18 @@
 import copy
 import os
+from functools import lru_cache
 
 import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from functools import lru_cache
-
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecoding, RNNTBPEDecodingConfig
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
+from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-
-from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__

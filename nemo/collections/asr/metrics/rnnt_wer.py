@@ -16,11 +16,11 @@ import copy
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
-from omegaconf import OmegaConf
 
 import editdistance
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
