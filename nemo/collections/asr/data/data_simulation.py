@@ -934,6 +934,7 @@ class MultiSpeakerSimulator(object):
 
         Args:
             running_len_samples (int): Length of the current session in samples.
+            non_silence_len_samples (int): Length of the signal that is not silence in samples.
 
         Returns:
             add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
