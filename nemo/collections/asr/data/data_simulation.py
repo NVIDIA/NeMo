@@ -1307,9 +1307,7 @@ class MultiSpeakerSimulator(object):
             overlap_mean = mean
         return overlap_mean
 
-    def _get_session_silence_from_rttm(
-        self, rttm_list: List[str], session_len_samples: int, running_len_samples: int
-    ):
+    def _get_session_silence_from_rttm(self, rttm_list: List[str], session_len_samples: int, running_len_samples: int):
         """
         Calculate the total speech and silence duration in the current session using RTTM file.
 
