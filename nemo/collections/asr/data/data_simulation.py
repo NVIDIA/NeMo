@@ -110,7 +110,7 @@ class MultiSpeakerSimulator(object):
         - Faster random sampling routine 
         - Fixed sentence duration bug 
         - Silence and overlap length sampling algorithms are updated to guarantee `mean_silence` approximation
-        - Silence length enforcing feature is added
+        - Silence length enforcing feature
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -1295,7 +1295,6 @@ class MultiSpeakerSimulator(object):
         if var > 0:
             a = mean ** 2 * (1 - mean) / var - mean
             b = mean * (1 - mean) ** 2 / var - (1 - mean)
-            overlap_mean = beta(a, b).rvs()
             if a < 0 or b < 0:
                 raise ValueError(
                     f"Beta(a, b), a = {a:.3f} and b = {b:.3f} should be both greater than 0. "
@@ -1303,6 +1302,7 @@ class MultiSpeakerSimulator(object):
                     f"`mean_overlap_var` should be less than `mean_overlap * (1 - mean_overlap)`. "
                     f"Please check `mean_overlap_var` and try again."
                 )
+            overlap_mean = beta(a, b).rvs()
         else:
             overlap_mean = mean
         return overlap_mean
