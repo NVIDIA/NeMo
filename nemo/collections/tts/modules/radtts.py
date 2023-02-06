@@ -443,6 +443,7 @@ class RadTTSModule(NeuralModule, Exportable):
         attn = None
         attn_soft = None
         attn_hard = None
+        attn_logprob = None
         if 'atn' in self.include_modules or 'dec' in self.include_modules:
             # make sure to do the alignments before folding
             attn_mask = ~get_mask_from_lengths(in_lens)[..., None]
