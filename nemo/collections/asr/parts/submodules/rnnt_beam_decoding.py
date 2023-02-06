@@ -48,6 +48,10 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
         if hyp.dec_state is not None:
             hyp.dec_state = _states_to_device(hyp.dec_state)
 
+        # Remove -1 from timestep
+        if hyp.timestep is not None and len(hyp.timestep) > 0 and hyp.timestep[0] == -1:
+            hyp.timestep = hyp.timestep[1:]
+
     return hypotheses
 
 

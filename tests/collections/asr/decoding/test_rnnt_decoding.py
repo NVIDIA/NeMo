@@ -89,8 +89,6 @@ def get_model_encoder_output(data_dir, model_name):
 
 
 def decode_text_from_greedy_hypotheses(hyps, decoding):
-    hypotheses = []
-
     decoded_hyps = decoding.decode_hypothesis(hyps)  # type: List[str]
 
     return decoded_hyps
@@ -111,93 +109,84 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
 
 
 class TestRNNTDecoding:
+    @pytest.mark.unit
+    def test_constructor(self):
+        cfg = RNNTDecodingConfig()
+        vocab = char_vocabulary()
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, vocabulary=vocab)
+        assert decoding is not None
 
-    # @pytest.mark.unit
-    # def test_constructor(self):
-    #     cfg = RNNTDecodingConfig()
-    #     vocab = char_vocabulary()
-    #     decoder = get_rnnt_decoder(vocab_size=len(vocab))
-    #     joint = get_rnnt_joint(vocab_size=len(vocab))
-    #     decoding = RNNTDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, vocabulary=vocab)
-    #     assert decoding is not None
-    #
-    # @pytest.mark.unit
-    # def test_constructor_subword(self, tmp_tokenizer):
-    #     cfg = RNNTBPEDecodingConfig()
-    #     vocab = tmp_tokenizer.vocab
-    #     decoder = get_rnnt_decoder(vocab_size=len(vocab))
-    #     joint = get_rnnt_joint(vocab_size=len(vocab))
-    #     decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=tmp_tokenizer)
-    #     assert decoding is not None
+    @pytest.mark.unit
+    def test_constructor_subword(self, tmp_tokenizer):
+        cfg = RNNTBPEDecodingConfig()
+        vocab = tmp_tokenizer.vocab
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=tmp_tokenizer)
+        assert decoding is not None
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.with_downloads
-    # @pytest.mark.unit
-    # def test_greedy_decoding_preserve_alignments(self, test_data_dir):
-    #     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
-    #
-    #     print("Encoded length", encoded_len, encoded.shape)
-    #     beam = greedy_decode.GreedyRNNTInfer(
-    #         model.decoder,
-    #         model.joint,
-    #         blank_index=model.joint.num_classes_with_blank - 1,
-    #         max_symbols_per_step=5,
-    #         preserve_alignments=True,
-    #     )
-    #
-    #     enc_out = encoded
-    #     enc_len = encoded_len
-    #
-    #     with torch.no_grad():
-    #         hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
-    #         hyp = decode_text_from_greedy_hypotheses(hyps, model.decoding)
-    #         hyp = hyp[0]
-    #
-    #         assert hyp.alignments is not None
-    #
-    #         # Use the following commented print statements to check
-    #         # the alignment of other algorithms compared to the default
-    #         print("Text", hyp.text)
-    #         for t in range(len(hyp.alignments)):
-    #             t_u = []
-    #             for u in range(len(hyp.alignments[t])):
-    #                 logp, label = hyp.alignments[t][u]
-    #                 assert torch.is_tensor(logp)
-    #                 assert torch.is_tensor(label)
-    #
-    #                 t_u.append(int(label))
-    #
-    #             print(f"Tokens at timestep {t} = {t_u}")
-    #         print()
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    def test_greedy_decoding_preserve_alignments(self, test_data_dir):
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.with_downloads
+        beam = greedy_decode.GreedyRNNTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=model.joint.num_classes_with_blank - 1,
+            max_symbols_per_step=5,
+            preserve_alignments=True,
+        )
+
+        enc_out = encoded
+        enc_len = encoded_len
+
+        with torch.no_grad():
+            hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
+            hyp = decode_text_from_greedy_hypotheses(hyps, model.decoding)
+            hyp = hyp[0]
+
+            assert hyp.alignments is not None
+
+            # Use the following commented print statements to check
+            # the alignment of other algorithms compared to the default
+            # print("Text", hyp.text)
+            for t in range(len(hyp.alignments)):
+                t_u = []
+                for u in range(len(hyp.alignments[t])):
+                    logp, label = hyp.alignments[t][u]
+                    assert torch.is_tensor(logp)
+                    assert torch.is_tensor(label)
+
+                    t_u.append(int(label))
+
+            #     print(f"Tokens at timestep {t} = {t_u}")
+            # print()
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
-            # {"search_type": "greedy"},
-            # {"search_type": "default", "beam_size": 2,},
+            {"search_type": "greedy"},
+            {"search_type": "default", "beam_size": 2,},
             {"search_type": "alsd", "alsd_max_target_len": 0.5, "beam_size": 2,},
-            # {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2, },
-            # {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
-            # {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
+            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2,},
+            {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
+            {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
         ],
     )
     def test_beam_decoding_preserve_alignments(self, test_data_dir, beam_config):
         beam_size = beam_config.pop("beam_size", 1)
-        #
-        # decoder = get_rnnt_decoder(vocab_size=len(token_list))
-        # joint_net = get_rnnt_joint(vocab_size=len(token_list))
         model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
-
-        print("beam type", beam_config['search_type'])
-        print("Encoded length", encoded_len, encoded.shape)
-
         beam = beam_decode.BeamRNNTInfer(
             model.decoder,
             model.joint,
@@ -209,11 +198,12 @@ class TestRNNTDecoding:
 
         enc_out = encoded
         enc_len = encoded_len
+        blank_id = torch.tensor(model.joint.num_classes_with_blank - 1, dtype=torch.int32)
 
         with torch.no_grad():
             hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
             hyp, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
-            hyp = hyp[0]
+            hyp = hyp[0]  # best hypothesis
             all_hyps = all_hyps[0]
 
             assert hyp.alignments is not None
@@ -224,7 +214,11 @@ class TestRNNTDecoding:
             # Use the following commented print statements to check
             # the alignment of other algorithms compared to the default
             for idx, hyp_ in enumerate(all_hyps):  # type: (int, rnnt_utils.Hypothesis)
-                print("Hyp index", idx + 1, "text :", hyp_.text)
+                # print("Hyp index", idx + 1, "text :", hyp_.text)
+
+                # Alignment length (T) must match audio length (T)
+                assert len(hyp_.alignments) == enc_len[0]
+
                 for t in range(len(hyp_.alignments)):
                     t_u = []
                     for u in range(len(hyp_.alignments[t])):
@@ -234,7 +228,13 @@ class TestRNNTDecoding:
 
                         t_u.append(int(label))
 
-                    print(f"Tokens at timestep {t} = {t_u}")
-                print()
+                    # Blank token must be the last token in the current
+                    if len(t_u) > 1:
+                        assert t_u[-1] == blank_id
 
-                print("Timesteps", hyp_.timestep)
+                #     print(f"Tokens at timestep {t} = {t_u}")
+                # print()
+
+                assert len(hyp_.timestep) > 0
+                # print("Timesteps", hyp_.timestep)
+                # print()
