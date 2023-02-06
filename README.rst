@@ -228,7 +228,7 @@ Install it manually if not using the NVIDIA PyTorch container.
 
     git clone https://github.com/ericharper/apex.git
     cd apex
-    git checkout nm_v1.14.0
+    git checkout nm_v1.15.0
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 Transformer Engine
@@ -266,13 +266,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.12-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.01-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.12-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.01-py3
 
 Examples
 --------
