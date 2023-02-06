@@ -670,7 +670,7 @@ class MultiSpeakerSimulator(object):
             self.sess_overlap_mean = (overlap_mean + self.sess_overlap_len) / (overlap_mean + non_silence_len_samples)
 
         The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`. 
-        We use the above `overlap_mean` value as `overlap_mean` to sample overlap-length for each overlap occurrence.
+        We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
         
         Args:
             non_silence_len_samples (int): 
@@ -922,7 +922,8 @@ class MultiSpeakerSimulator(object):
 
     def _silence_vs_overlap_selector(self, running_len_samples: int, session_len_samples):
         """
-        Compare the current silence ratio to the current overlap ratio. 
+        Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
+        to the amount of the gap between current raito and session mean in config.
 
         Args:
             running_len_samples (int): Length of the current session in samples.
@@ -978,7 +979,6 @@ class MultiSpeakerSimulator(object):
 
         # choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
-            # desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len)
             desired_overlap_amount = self._sample_from_overlap_model(running_len_samples - self.sess_silence_len_rttm)
             new_start = start - desired_overlap_amount
 
@@ -1256,7 +1256,7 @@ class MultiSpeakerSimulator(object):
         The following constraints are applied to make a > 0 and b > 0:
 
             0 < mean_silence < 1
-            mean_silence_var < mean_silence * (1 - mean_silence)
+            0 < mean_silence_var < mean_silence * (1 - mean_silence)
 
         Args:
             silence_mean (float): 
@@ -1285,7 +1285,7 @@ class MultiSpeakerSimulator(object):
         The following constraints are applied to make a > 0 and b > 0:
 
             0 < mean_overlap < 1
-            mean_overlap_var < mean_overlap * (1 - mean_overlap)
+            0 < mean_overlap_var < mean_overlap * (1 - mean_overlap)
 
         Returns:
             overlap_mean (float):
@@ -1309,7 +1309,7 @@ class MultiSpeakerSimulator(object):
         return overlap_mean
 
     def _get_session_silence_from_rttm(
-        self, rttm_list: List[str], session_len_samples: int, running_len_samples_samples: int
+        self, rttm_list: List[str], session_len_samples: int, running_len_samples: int
     ):
         """
         Calculate the total speech and silence duration in the current session using RTTM file.
@@ -1319,7 +1319,7 @@ class MultiSpeakerSimulator(object):
                 List of RTTM timestamps
             session_len_samples (int):
                 The targeted number of samples in the current session
-            running_len_samples_samples (int):
+            running_len_samples (int):
                 Total number of samples generated so far in the current session
 
         Returns:
@@ -1370,7 +1370,7 @@ class MultiSpeakerSimulator(object):
         base_speaker_dominance = np.copy(speaker_dominance)
         self._set_speaker_volume()
 
-        running_len_samples_samples, prev_len_samples = 0, 0
+        running_len_samples, prev_len_samples = 0, 0
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._noise_samples = noise_samples
@@ -1395,9 +1395,9 @@ class MultiSpeakerSimulator(object):
         self.sess_silence_mean = self._get_session_silence_mean()
         self.sess_overlap_mean = self._get_session_overlap_mean()
 
-        while running_len_samples_samples < session_len_samples or enforce:
+        while running_len_samples < session_len_samples or enforce:
             # enforce num_speakers
-            if running_len_samples_samples > enforce_time * session_len_samples and enforce:
+            if running_len_samples > enforce_time * session_len_samples and enforce:
                 speaker_dominance, enforce = self._increase_speaker_dominance(base_speaker_dominance, enforce_counter)
                 if enforce:
                     enforce_counter += 1
@@ -1406,7 +1406,7 @@ class MultiSpeakerSimulator(object):
             speaker_turn = self._get_next_speaker(prev_speaker, speaker_dominance)
 
             # build sentence (only add if remaining length >  specific time)
-            max_samples_in_sentence = session_len_samples - running_len_samples_samples
+            max_samples_in_sentence = session_len_samples - running_len_samples
             if enforce:
                 max_samples_in_sentence = float('inf')
             elif (
@@ -1423,7 +1423,7 @@ class MultiSpeakerSimulator(object):
             start = self._add_silence_or_overlap(
                 speaker_turn,
                 prev_speaker,
-                running_len_samples_samples,
+                running_len_samples,
                 length,
                 session_len_samples,
                 prev_len_samples,
@@ -1461,12 +1461,12 @@ class MultiSpeakerSimulator(object):
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
 
-            running_len_samples_samples = np.maximum(running_len_samples_samples, end)
+            running_len_samples = np.maximum(running_len_samples, end)
             self.sess_speech_len_rttm, self.sess_silence_len_rttm = self._get_session_silence_from_rttm(
-                rttm_list, session_len_samples, running_len_samples_samples
+                rttm_list, session_len_samples, running_len_samples
             )
 
-            self._furthest_sample[speaker_turn] = running_len_samples_samples
+            self._furthest_sample[speaker_turn] = running_len_samples
             prev_speaker = speaker_turn
             prev_len_samples = length
 
@@ -1859,7 +1859,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         base_speaker_dominance = np.copy(speaker_dominance)
         self._set_speaker_volume()
 
-        running_len_samples_samples, prev_len_samples = 0, 0  # starting point for each sentence
+        running_len_samples, prev_len_samples = 0, 0  # starting point for each sentence
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._noise_samples = noise_samples
@@ -1886,9 +1886,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         array = torch.zeros((session_len_samples, self._params.data_simulator.rir_generation.mic_config.num_channels))
         is_speech = torch.zeros(session_len_samples)
 
-        while running_len_samples_samples < session_len_samples or enforce:
+        while running_len_samples < session_len_samples or enforce:
             # enforce num_speakers
-            if running_len_samples_samples > enforce_time * session_len_samples and enforce:
+            if running_len_samples > enforce_time * session_len_samples and enforce:
                 speaker_dominance, enforce = self._increase_speaker_dominance(base_speaker_dominance, enforce_counter)
                 if enforce:
                     enforce_counter += 1
@@ -1898,7 +1898,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
             # build sentence (only add if remaining length >  specific time)
             max_samples_in_sentence = (
-                session_len_samples - running_len_samples_samples - RIR_pad
+                session_len_samples - running_len_samples - RIR_pad
             )  # sentence will be RIR_len - 1 longer than the audio was pre-augmentation
             if enforce:
                 max_samples_in_sentence = float('inf')
@@ -1916,7 +1916,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             start = self._add_silence_or_overlap(
                 speaker_turn,
                 prev_speaker,
-                running_len_samples_samples,
+                running_len_samples,
                 length,
                 session_len_samples,
                 prev_len_samples,
@@ -1955,12 +1955,12 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
 
-            running_len_samples_samples = np.maximum(running_len_samples_samples, end)
-            self._furthest_sample[speaker_turn] = running_len_samples_samples
+            running_len_samples = np.maximum(running_len_samples, end)
+            self._furthest_sample[speaker_turn] = running_len_samples
             prev_speaker = speaker_turn
             prev_len_samples = length
 
-        if self.sess_silence_len < running_len_samples_samples * self.sess_silence_mean:
+        if self.sess_silence_len < running_len_samples * self.sess_silence_mean:
             import ipdb
 
             ipdb.set_trace()
