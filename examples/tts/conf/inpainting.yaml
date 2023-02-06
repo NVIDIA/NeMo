@@ -245,8 +245,13 @@ model:
   min_mask_duration: 0.5
   max_mask_duration: 1.0
 
+  discriminator:
+    warmup_steps: 10000
+    rampup_steps: 10000
+    batch_size: 64
+
   optim:
-    name: adamw
+    _target_: torch.optim.AdamW
     lr: 1e-3
     betas: [0.9, 0.999]
     weight_decay: 1e-6

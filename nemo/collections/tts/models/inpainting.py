@@ -32,6 +32,7 @@ from nemo.collections.tts.modules.transformer import FFTransformerDecoder, BiMod
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len, quantize_durations
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from mel_cepstral_distance import get_metrics_mels
+from nemo.core.optim import prepare_lr_scheduler
 
 
 import torch
@@ -57,6 +58,7 @@ from nemo.core.classes import (
 from nemo.core.neural_types.elements import (
     LossType,
     MelSpectrogramType,
+    LogitsType
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss
@@ -259,7 +261,7 @@ class InpaintingMSELoss(Loss):
     @property
     def output_types(self):
         return {
-            "loss": NeuralType(elements_type=LossType()),
+            "loss": NeuralType(elements_type=LogitsType()),
         }
 
     @typecheck()
@@ -276,6 +278,43 @@ class InpaintingMSELoss(Loss):
 
         avg_pixel_loss = mse_loss.sum() / gap_mask.sum()
         return avg_pixel_loss
+
+
+class DiscriminatorHingeLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "logits_gen": NeuralType(('B'), MelSpectrogramType()),
+            "logits_real": NeuralType(('B'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    def forward(self, logits_gen, logits_real):
+        zero = torch.zeros(len(logits_gen), dtype=logits_real.dtype)
+        loss_real = torch.mean(torch.maximum(zero, 1 - logits_real))
+        loss_gen = torch.mean(torch.maximum(zero, 1 + logits_gen))
+        return loss_gen, loss_real
+
+
+class FeatureMatchingLoss(Loss):
+
+    def forward(self, activations_real, activations_gen):
+        loss_per_layer = []
+        for activation_real_layer, activation_gen_layer in zip(
+            activations_real, activations_gen
+        ):
+            loss_per_layer += [F.l1_loss(
+                activation_real_layer,
+                activation_gen_layer,
+                reduction='sum'
+            )]
+
+        return sum(loss_per_layer) / len(loss_per_layer)
 
 
 class InpainterModel(ModelPT, Exportable):
@@ -344,46 +383,51 @@ class InpainterModel(ModelPT, Exportable):
 
         self.audio_sample_rate = spectrogrammer.sample_rate
         self.spectrogram_sample_stride = spectrogrammer.hop_length
-        self.discriminator = ConvDiscriminator(spectrogrammer.nfilt)
 
-    def _setup_normalizer(self, cfg):
-        if "text_normalizer" in cfg:
-            normalizer_kwargs = {}
+        self.discriminator = None
+        if 'discriminator' in cfg:
+            self.discriminator = ConvDiscriminator(spectrogrammer.nfilt)
+            self.discriminator_loss = DiscriminatorHingeLoss()
+            self.feature_matching_loss = FeatureMatchingLoss()
 
-            if "whitelist" in cfg.text_normalizer:
-                normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
-                )
+            self.discriminator_warmup_steps = cfg.discriminator.warmup_steps
+            self.discriminator_rampup_steps = cfg.discriminator.rampup_steps
+            self.discriminator_batch_size = cfg.discriminator.batch_size
 
-            try:
-                normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-            except Exception as e:
-                logging.error(e)
-                raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
-                )
+    def configure_optimizers(self):
+        if self.discriminator is None:
+            return super().configure_optimizers()
 
-            return normalizer
+        optim_config = self.cfg.optim.copy()
 
-    def _setup_tokenizer(self, cfg):
-        text_tokenizer_kwargs = {}
+        OmegaConf.set_struct(optim_config, False)
+        scheduler_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
 
-        if "g2p" in cfg.text_tokenizer:
-            g2p_kwargs = {}
+        optim_g = instantiate(optim_config, params=self.module.parameters(),)
+        optim_d = instantiate(
+            optim_config, params=self.discriminator.parameters())
 
-            if "phoneme_dict" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
-                )
+        sched_g = prepare_lr_scheduler(
+            optimizer=optim_g,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl
+        )
+        sched_d = prepare_lr_scheduler(
+            optimizer=optim_d,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl
+        )
+        # optim_g = self.setup_optimization(
+        #     optim_config, optim_kwargs=dict(params=self.module.parameters()))
+        # optim_d = self.setup_optimization(
+        #     optim_config,
+        #     optim_kwargs=dict(params=self.discriminator.parameters()))
+        # import code  # NOQA
+        # code.interact(local={**locals(), **globals()})
+        print('not instantiating schedulers because ATM')
 
-            if "heteronyms" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
-                )
-
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
-
-        return instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+        return [optim_g, optim_d]
 
     def forward(self, *args, **kwargs):
         spectrogram_preds, spectrogram_projections, token_embeddings = (
@@ -719,8 +763,15 @@ class InpainterModel(ModelPT, Exportable):
 
         return losses, outputs
 
-    def training_step(self, batch, batch_idx):
-        losses, specs = self.forward_pass(batch, batch_idx, training=False)
+    def training_step(self, batch, batch_idx, optimizer_idx=None):
+        if self.discriminator is None:
+            return self.training_step_simple(batch, batch_idx)
+
+        return self.training_step_with_discriminator(
+            batch, batch_idx, optimizer_idx)
+
+    def training_step_simple(self, batch, batch_idx):
+        losses, specs = self.forward_pass(batch, batch_idx, training=True)
 
         reconstruction_loss, dur_loss, pitch_loss = losses
 
@@ -760,8 +811,125 @@ class InpainterModel(ModelPT, Exportable):
 
         return train_loss
 
+    def training_step_with_discriminator(self, batch, batch_idx, optimizer_idx):
+        losses, specs = self.forward_pass(batch, batch_idx, training=True)
+
+        reconstruction_loss, dur_loss, pitch_loss = losses
+        (
+            text, text_lens,
+            mels, mels_masked,
+            spectrograms_pred, specs_len,
+            attn_hard
+        ) = specs
+
+        optim_g, optim_d = self.optimizers()
+
+        # chop the spectrograms and predicted spectrograms into chunks of the
+        # right size for the discriminator
+        spec_windows_real = []
+        spec_windows_gen = []
+        for spec, spec_pred, spec_len in zip(
+            mels, spectrograms_pred, specs_len
+        ):
+            window_size = self.discriminator.input_width
+            num_windows = spec_len // window_size
+            spec_windows_real += spec.split(window_size)[:num_windows]
+            spec_windows_gen += spec_pred.split(window_size)[:num_windows]
+
+        batch_real = torch.stack(random.sample(
+            spec_windows_real, self.discriminator_batch_size))
+        batch_gen = torch.stack(random.sample(
+            spec_windows_gen, self.discriminator_batch_size))
+
+        # # Train discriminator
+        # optim_d.zero_grad()
+        # logits_real, _ = self.discriminator(batch_real.detach())
+        # logits_gen, _ = self.discriminator(batch_gen.detach())
+        #
+        # disc_loss = self.discriminator_loss(
+        #     logits_gen=logits_gen, logits_real=logits_real)
+        # self.manual_backward(disc_loss)
+        # optim_d.step()
+        #
+        # # Train Inpainter
+        # optim_g.zero_grad()
+        # supervised_losses = reconstruction_loss + dur_loss + pitch_loss
+        #
+        # _, activations_real = self.discriminator(batch_real)
+        # _, activations_gen = self.discriminator(batch_gen)
+        #
+        # feature_matching_loss = self.feature_matching_loss(
+        #     activations_real=activations_real,
+        #     activations_gen=activations_gen,
+        # )
+        #
+        # feature_matching_loss *= 10 * linear_rampup_with_warmup(
+        #     batch_idx,
+        #     warmup_steps=self.discriminator_warmup_steps,
+        #     rampup_steps=self.discriminator_rampup_steps
+        # )
+        # loss_inpainter = supervised_losses + feature_matching_loss
+        #
+        # self.manual_backward(loss_inpainter)
+        # optim_g.step()
+
+        training_inpainter = optimizer_idx % 2 == 0
+        # Train discriminator
+        if not training_inpainter:
+            logits_real, _ = self.discriminator(batch_real.detach())
+            logits_gen, _ = self.discriminator(batch_gen.detach())
+
+            loss_gen, loss_real = self.discriminator_loss(
+                logits_gen=logits_gen, logits_real=logits_real)
+            loss = loss_gen + loss_real
+
+        # Train Inpainter
+        if training_inpainter:
+            supervised_losses = reconstruction_loss + dur_loss + pitch_loss
+
+            _, activations_real = self.discriminator(batch_real)
+            _, activations_gen = self.discriminator(batch_gen)
+
+            feature_matching_loss = self.feature_matching_loss(
+                activations_real=activations_real,
+                activations_gen=activations_gen,
+            )
+
+            feature_matching_loss *= 10 * linear_rampup_with_warmup(
+                batch_idx,
+                warmup_steps=self.discriminator_warmup_steps,
+                rampup_steps=self.discriminator_rampup_steps
+            )
+            loss_inpainter = supervised_losses + feature_matching_loss
+            loss = loss_inpainter
+
+        if self.log_train_spectrograms:
+            mcds = []
+            for mel, mel_pred in zip(mels, spectrograms_pred):
+                mel_cepstral_distance, _, _ = get_metrics_mels(
+                    mel.cpu().detach().numpy(),
+                    mel_pred.cpu().detach().numpy(),
+                    take_log=False
+                )
+                mcds += [mel_cepstral_distance]
+
+            self.log('train_mcd', sum(mcds) / len(mcds))
+
+            self._log_spectrograms(
+                specs_len[:3],
+                text_lens[:3],
+                mels[:3],
+                mels_masked[:3],
+                spectrograms_pred[:3],
+                attn_hard[:3],
+                'train'
+            )
+            self.log_train_spectrograms = False
+
+        return loss
+
     def validation_step(self, batch, batch_idx):
-        losses, specs = self.forward_pass(batch, batch_idx)
+        losses, specs = self.forward_pass(batch, batch_idx, training=False)
         (
             texts, text_lens,
             mels, mels_masked, mels_pred, mels_len,
@@ -941,9 +1109,11 @@ class InpainterModel(ModelPT, Exportable):
 
 class ConvDiscriminator(NeuralModule):
     """See SpeechPainter paper for this"""
+    input_width = 32
+
     def __init__(self, num_mels):
         super().__init__()
-        input_width = 32
+        input_width = self.input_width
         starting_filters = 2 ** 5
 
         self.layers = [
@@ -986,7 +1156,7 @@ class ConvDiscriminator(NeuralModule):
 
     def forward(self, spectrogram_slices):
         activations = []
-        h = spectrogram_slices
+        h = spectrogram_slices.unsqueeze(1)
         for layer in self.layers:
             h = layer(h)
             activations += [h]
@@ -1041,3 +1211,10 @@ class ConvUnit(NeuralModule):
         # part 2
         part_2 = self.norm_2(self.conv_2(self.pooling(x)))
         return part_1 + part_2
+
+
+def linear_rampup_with_warmup(step_nuber, warmup_steps, rampup_steps):
+    adjusted_step_number = max(0, (step_nuber - warmup_steps))
+
+    multiplier = min(1., adjusted_step_number / rampup_steps)
+    return multiplier

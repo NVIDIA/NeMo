@@ -64,7 +64,7 @@ class TestInpainting:
         c = 16
 
         example_input = torch.tensor(
-            np.random.normal(size=(1, 1, num_buckets, mel_height)),
+            np.random.normal(size=(1, num_buckets, mel_height)),
             dtype=torch.float32
         )
 
