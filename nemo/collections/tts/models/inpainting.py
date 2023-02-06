@@ -295,7 +295,10 @@ class DiscriminatorHingeLoss(Loss):
         }
 
     def forward(self, logits_gen, logits_real):
-        zero = torch.zeros(len(logits_gen), dtype=logits_real.dtype)
+        zero = torch.zeros(
+            len(logits_gen),
+            dtype=logits_real.dtype, device=logits_real.device
+        )
         loss_real = torch.mean(torch.maximum(zero, 1 - logits_real))
         loss_gen = torch.mean(torch.maximum(zero, 1 + logits_gen))
         return loss_gen, loss_real
