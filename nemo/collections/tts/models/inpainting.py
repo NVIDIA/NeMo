@@ -814,7 +814,9 @@ class InpainterModel(ModelPT, Exportable):
 
         return train_loss
 
-    def training_step_with_discriminator(self, batch, batch_idx, optimizer_idx):
+    def training_step_with_discriminator(
+        self, batch, batch_idx, optimizer_idx
+    ):
         losses, specs = self.forward_pass(batch, batch_idx, training=True)
 
         reconstruction_loss, dur_loss, pitch_loss = losses
@@ -885,6 +887,9 @@ class InpainterModel(ModelPT, Exportable):
             loss_gen, loss_real = self.discriminator_loss(
                 logits_gen=logits_gen, logits_real=logits_real)
             loss = loss_gen + loss_real
+            self.log("discriminator_loss", loss)
+            self.log("disc_loss_real", loss_real)
+            self.log("disc_loss_gen", loss_gen)
 
         # Train Inpainter
         if training_inpainter:
@@ -905,6 +910,10 @@ class InpainterModel(ModelPT, Exportable):
             )
             loss_inpainter = supervised_losses + feature_matching_loss
             loss = loss_inpainter
+            self.log("inpainter_loss", loss)
+            self.log("reconstruction_loss", reconstruction_loss)
+            self.log("dur_loss", dur_loss)
+            self.log("pitch_loss", pitch_loss)
 
         if self.log_train_spectrograms:
             mcds = []
