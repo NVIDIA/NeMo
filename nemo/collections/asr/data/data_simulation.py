@@ -45,10 +45,10 @@ from nemo.collections.asr.parts.utils.manifest_utils import (
     write_text,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    merge_float_intervals,
     get_overlap_range,
     is_overlap,
     labels_to_rttmfile,
+    merge_float_intervals,
 )
 from nemo.utils import logging
 
@@ -717,7 +717,9 @@ class MultiSpeakerSimulator(object):
                 if overlap_var > 0
                 else int(overlap_mean)
             )
-            desired_overlap_amount = max(self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len))
+            desired_overlap_amount = max(
+                self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len)
+            )
         else:
             desired_overlap_amount = 0
 
