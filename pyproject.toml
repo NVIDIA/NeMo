@@ -27,7 +27,7 @@ extend_skip = ["setup.py", "docs/source/conf.py"]
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
 # -vv will also display tests with durration = 0.00s
-addopts = "--verbose --pyargs --durations=0"  # always add these arguments to pytest
+addopts = "--verbose --pyargs --durations=0 --strict-markers"  # always add these arguments to pytest
 testpaths = ["tests"]
 # directories to ignore when discovering tests
 norecursedirs = [
