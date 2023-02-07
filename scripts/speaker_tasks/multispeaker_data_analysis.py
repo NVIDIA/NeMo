@@ -18,7 +18,24 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     load_speech_overlap_segments_from_rttm,
     plot_sample_from_rttm,
 )
+"""
+This script analyzes multi-speaker speech dataset and generates statistics.
+The input directory </path/to/rttm_and_wav_directory> is required to contain the following files:
+    - rttm files (*.rttm)
+    - wav files (*.wav)
 
+Usage:
+    python <NEMO_ROOT>/scripts/speaker_tasks/multispeaker_data_analysis.py \
+        </path/to/rttm_and_wav_directory> \
+        --session_dur 20 \
+        --silence_mean 0.2 \
+        --silence_var 100 \
+        --overlap_mean 0.15 \
+        --overlap_var 50 \
+        --num_workers 8 \
+        --num_samples 10 \
+        --output_dir <path/to/output_directory> 
+"""
 
 def process_sample(sess_dict: Dict) -> Dict:
     """
@@ -249,4 +266,5 @@ if __name__ == "__main__":
 
     visualize_multispeaker_data(input_dir=args.input_dir, output_dir=args.output_dir, num_samples=args.num_samples)
 
-    print("Done")
+    print("The multispeaker data analysis has been completed.")
+    print(f"Please check the output directory: \n{args.output_dir}")
