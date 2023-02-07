@@ -28,7 +28,7 @@ Preliminaries:
 
 # Building the Docs (Docker)
 
-- Simply call `bash build_docs.sh` to build your docs using Docker.
+- Simply call `bash build_docs.sh` to build your docs using Docker and then open `site/index.html` in your browser.
 - If you want to serve the pages insead, `docker run --rm -it -p 8000:8000 -v ${PWD}:/docs squidfunk/mkdocs-material`
 - To deploy the website - you should commit and push the changes to the new branch and let the Github Action handle it.
 
@@ -37,7 +37,7 @@ Preliminaries:
 
 - Install requirements : `pip install mkdocs-material` 
 - To serve the website locally (See changed automatically updated) - `mkdocs serve`
-- To build the website locally - `mkdocs build`
+- To build the website locally - `mkdocs build` and then open `site/index.html` in your browser.
 - To deploy the website - you should commit and push the changes to the new branch and let the Github Action handle it.
 
 # Steps to create a post
