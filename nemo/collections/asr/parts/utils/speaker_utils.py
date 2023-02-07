@@ -136,7 +136,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
             parameters.window_length_in_sec=[1.5,1.0,0.5]
             parameters.shift_length_in_sec=[0.75,0.5,0.25]
-            parameters.multiscale_weights=[0.33,0.33,0.33]
+            parameters.multiscale_weights=[1,1,1]
 
     In addition, you can also specify session-by-session multiscale weight. In this case, each dictionary key
     points to different weights.
@@ -560,7 +560,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, decimals=5):
     return offset, duration
 
 
-def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals=5):
+def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals=5):
     """
     Write the json dictionary into the specified manifest file.
 
@@ -573,6 +573,8 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
             Unique file id
         overlap_range_list (list):
             List containing overlapping ranges between target and source.
+        decimals (int):
+            Number of decimals to round the offset and duration values.
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     for (stt, end) in overlap_range_list:
@@ -815,7 +817,7 @@ def get_sub_range_list(target_range: List[float], source_range_list: List[List[f
             target_range = [(start, end)]
         source_range_list (list):
             List containing the subranges that need to be selected.
-            source_ragne = [(start0, end0), (start1, end1), ...]
+            source_range = [(start0, end0), (start1, end1), ...]
     Returns:
         out_range (list):
             List containing the overlap between target_range and
@@ -842,7 +844,7 @@ def write_rttm2manifest(
 
     Args:
         AUDIO_RTTM_MAP (dict):
-            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+            Dictionary containing keys to unique names, that contains audio filepath and rttm_filepath as its contents,
             these are used to extract oracle vad timestamps.
         manifest (str):
             The path to the output manifest file.
@@ -869,7 +871,7 @@ def write_rttm2manifest(
                 overlap_range_list = get_sub_range_list(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals)
+                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals)
     return manifest_file
 
 
@@ -1115,7 +1117,7 @@ def get_online_segments_from_slices(
     sample_rate: int,
 ) -> Tuple[int, List[torch.Tensor], List[List[float]], List[int]]:
     """
-    Create short speech segments from sclices for online processing purpose.
+    Create short speech segments from slices for online processing purpose.
 
     Args:
         sig (Tensor):
@@ -1205,7 +1207,7 @@ def get_online_subsegments_from_buffer(
         audio_buffer (Tensor):
             Tensor containing the raw time-series signal
         segment_indexes (list):
-            List containing the unique indices of semgents
+            List containing the unique indices of segments
         window (float):
             Window length in second
         shift (float):
@@ -1217,7 +1219,7 @@ def get_online_subsegments_from_buffer(
         sig_rangel_list (list):
             List containing the old and the newly added intervals (timestamps) of the speech segments
         sig_indexes (list):
-            List containing the old and the newly added unique indices of semgents
+            List containing the old and the newly added unique indices of segments
     """
     sigs_list: List[torch.Tensor] = []
     sig_rangel_list: List[List[float]] = []
