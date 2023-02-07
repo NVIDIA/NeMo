@@ -865,46 +865,45 @@ class InpainterModel(ModelPT, Exportable):
         training_inpainter = optimizer_idx % 2 == 0
         # Train Discriminator
         if not training_inpainter:
-            # logits_real, _ = self.discriminator(batch_real.detach())
-            # logits_gen, _ = self.discriminator(batch_gen.detach())
-            #
-            # loss_gen, loss_real = self.discriminator_loss(
-            #     logits_gen=logits_gen, logits_real=logits_real)
-            # loss = loss_gen + loss_real
-            # self.log("discriminator_loss", loss)
-            # self.log("disc_loss_real", loss_real)
-            # self.log("disc_loss_gen", loss_gen)
-            return
+            logits_real, _ = self.discriminator(batch_real.detach())
+            logits_gen, _ = self.discriminator(batch_gen.detach())
+
+            loss_gen, loss_real = self.discriminator_loss(
+                logits_gen=logits_gen, logits_real=logits_real)
+            loss = loss_gen + loss_real
+            self.log("discriminator_loss", loss)
+            self.log("disc_loss_real", loss_real)
+            self.log("disc_loss_gen", loss_gen)
 
         # Train Inpainter
         if training_inpainter:
             supervised_losses = reconstruction_loss + dur_loss + pitch_loss
             loss = supervised_losses
 
-            # _, activations_real = self.discriminator(batch_real)
-            # _, activations_gen = self.discriminator(batch_gen)
-            #
-            # feature_matching_loss = self.feature_matching_loss(
-            #     activations_real=activations_real,
-            #     activations_gen=activations_gen,
-            # )
-            #
-            # adversarial_amount = linear_rampup_with_warmup(
-            #     batch_idx,
-            #     warmup_steps=self.discriminator_warmup_steps,
-            #     rampup_steps=self.discriminator_rampup_steps
-            # )
-            # # 10 is the amount from the SpeechPainter paper
-            # feature_matching_loss *= 10 * adversarial_amount
-            # loss_inpainter = supervised_losses + feature_matching_loss
-            # loss = loss_inpainter
-            #
-            # self.log("inpainter_loss", loss)
-            # self.log("reconstruction_loss", reconstruction_loss)
-            # self.log("dur_loss", dur_loss)
-            # self.log("pitch_loss", pitch_loss)
-            # self.log("adversarial_amount", adversarial_amount)
-            # self.log("feature_matching_loss", feature_matching_loss)
+            _, activations_real = self.discriminator(batch_real)
+            _, activations_gen = self.discriminator(batch_gen)
+
+            feature_matching_loss = self.feature_matching_loss(
+                activations_real=activations_real,
+                activations_gen=activations_gen,
+            )
+
+            adversarial_amount = linear_rampup_with_warmup(
+                batch_idx,
+                warmup_steps=self.discriminator_warmup_steps,
+                rampup_steps=self.discriminator_rampup_steps
+            )
+            # 10 is the amount from the SpeechPainter paper
+            feature_matching_loss *= 10 * adversarial_amount
+            loss_inpainter = supervised_losses + feature_matching_loss
+            loss = loss_inpainter
+
+            self.log("inpainter_loss", loss)
+            self.log("reconstruction_loss", reconstruction_loss)
+            self.log("dur_loss", dur_loss)
+            self.log("pitch_loss", pitch_loss)
+            self.log("adversarial_amount", adversarial_amount)
+            self.log("feature_matching_loss", feature_matching_loss)
 
         if self.log_train_spectrograms:
             mcds = []
@@ -929,10 +928,6 @@ class InpainterModel(ModelPT, Exportable):
             )
             self.log_train_spectrograms = False
 
-        # print(f'batch_idx:{batch_idx}')
-        # print(f'optimizer_idx:{optimizer_idx}')
-        # import code  # NOQA
-        # code.interact(local={**locals(), **globals()})
         return loss
 
     def validation_step(self, batch, batch_idx):
