@@ -16,7 +16,7 @@ The `nemo_text_processing` Python package is based on WFST grammars :cite:`textp
 
      "123" -> "one hundred twenty three"
 
-NeMo has both a fast version which is deterministic :cite:`textprocessing-norm-zhang2021nemo` which has more language support and a context-aware version :cite:`textprocessing-norm-bakhturina2022shallow`.
+`nemo_text_processing` has both a fast version which is deterministic :cite:`textprocessing-norm-zhang2021nemo` which has more language support and a context-aware version :cite:`textprocessing-norm-bakhturina2022shallow`.
 In case of ambiguous input, e.g. 
 
 .. code-block:: bash
@@ -52,7 +52,7 @@ Audio-based TN can be used to normalize ASR training data.
 Installation
 ------------
 
-`nemo_text_processing` is automatically installed with `NeMo <https://github.com/NVIDIA/NeMo>`_. But it relies on `pynini` python library, which you need to install following below steps,
+If you have already installed `nemo_text_processing <https://github.com/NVIDIA/NeMo-text-processing>`_, it should have `pynini` python library. Otherwise install explicitly:
 
 .. code-block:: shell-session
 
