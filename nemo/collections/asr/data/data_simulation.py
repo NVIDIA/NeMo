@@ -336,7 +336,7 @@ class MultiSpeakerSimulator(object):
         Randomly select speaker IDs from the loaded manifest file.
 
         Returns:
-            speaker_ids (list): List of peaker IDs
+            speaker_ids (list): List of speaker IDs
         """
         all_speaker_ids = list(self._speaker_samples.keys())
         idx_list = np.random.permutation(len(all_speaker_ids))[
