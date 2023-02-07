@@ -100,7 +100,7 @@ class BiLSTM(nn.Module):
         ret = self.lstm_sorted(context, lens, hx=hx)
         return ret[unsort_ids]
 
-    def lstm_torchscript(self, context: Tensor, lens: Tensor) -> Tensor:
+    def lstm_nocast(self, context: Tensor, lens: Tensor) -> Tensor:
         dtype = context.dtype
         # autocast guard is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
@@ -109,8 +109,8 @@ class BiLSTM(nn.Module):
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
         self.bilstm.flatten_parameters()
-        if torch.jit.is_tracing() and not torch.onnx.is_in_onnx_export():
-            return self.lstm_torchscript(context, lens)
+        if torch.jit.is_tracing():
+            return self.lstm_nocast(context, lens)
         return self.lstm(context, lens)
 
 
@@ -711,31 +711,6 @@ class ConvAttention(torch.nn.Module):
             torch.nn.ReLU(),
             ConvNorm(n_mel_channels, n_att_channels, kernel_size=1, bias=True),
         )
-
-    def run_padded_sequence(self, sorted_idx, unsort_idx, lens, padded_data, recurrent_model):
-        """Sorts input data by previded ordering (and un-ordering) and runs the
-        packed data through the recurrent model
-
-        Args:
-            sorted_idx (torch.tensor): 1D sorting index
-            unsort_idx (torch.tensor): 1D unsorting index (inverse of sorted_idx)
-            lens: lengths of input data (sorted in descending order)
-            padded_data (torch.tensor): input sequences (padded)
-            recurrent_model (nn.Module): recurrent model to run data through
-        Returns:
-            hidden_vectors (torch.tensor): outputs of the RNN, in the original,
-            unsorted, ordering
-        """
-
-        # sort the data by decreasing length using provided index
-        # we assume batch index is in dim=1
-        padded_data = padded_data[:, sorted_idx]
-        padded_data = nn.utils.rnn.pack_padded_sequence(padded_data, lens)
-        hidden_vectors = recurrent_model(padded_data)[0]
-        hidden_vectors, _ = nn.utils.rnn.pad_packed_sequence(hidden_vectors)
-        # unsort the results at dim=1 and return
-        hidden_vectors = hidden_vectors[:, unsort_idx]
-        return hidden_vectors
 
     def forward(self, queries, keys, query_lens, mask=None, key_lens=None, attn_prior=None):
         """Attention mechanism for radtts. Unlike in Flowtron, we have no
