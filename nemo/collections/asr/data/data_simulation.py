@@ -116,13 +116,16 @@ class MultiSpeakerSimulator(object):
         cfg: OmegaConf configuration loaded from yaml file.
 
     Parameters:
-    manifest_filepath (str): Manifest file with paths to single speaker audio files
-    sr (int): Sampling rate of the input audio files from the manifest
-    random_seed (int): Seed to random number generator
+      manifest_filepath (str): Manifest file with paths to single speaker audio files
+      sr (int): Sampling rate of the input audio files from the manifest
+      random_seed (int): Seed to random number generator
+
     session_config:
       num_speakers (int): Number of unique speakers per multispeaker audio session
       num_sessions (int): Number of sessions to simulate
-      session_length (int): Length of each simulated multispeaker audio session (seconds)
+      session_length (int): Length of each simulated multispeaker audio session (seconds). Short sessions 
+                            (e.g. ~240 seconds) tend to fall short of the expected overlap-ratio and silence-ratio.
+    
     session_params:
       sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the 
                                      sentence length (in number of words)
@@ -164,19 +167,23 @@ class MultiSpeakerSimulator(object):
       min_volume (float): Minimum speaker volume (only used when variable normalization is used)
       max_volume (float): Maximum speaker volume (only used when variable normalization is used)
       end_buffer (float): Buffer at the end of the session to leave blank
+    
     outputs:
       output_dir (str): Output directory for audio sessions and corresponding label files
-      output_filename (str): Output filename for the wav and rttm files
+      output_filename (str): Output filename for the wav and RTTM files
       overwrite_output (bool): If true, delete the output directory if it exists
       output_precision (int): Number of decimal places in output files
+    
     background_noise: 
       add_bg (bool): Add ambient background noise if true
       background_manifest (str): Path to background noise manifest file
       snr (int): SNR for background noise (using average speaker power)
+    
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
       enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled 
                            between time 1 and 2)
+    
     segment_manifest: (parameters for regenerating the segment manifest file)
       window (float): Window length for segmentation
       shift (float): Shift length for segmentation 
@@ -473,7 +480,7 @@ class MultiSpeakerSimulator(object):
     ) -> Tuple[List[float], bool]:
         """
         Increase speaker dominance for unrepresented speakers (used only in enforce mode).
-        Increases the dominance for these speakers by the input factor (and then renormalizes the probabilities to 1).
+        Increases the dominance for these speakers by the input factor (and then re-normalizes the probabilities to 1).
 
         Args:
             base_speaker_dominance (list): Dominance values for each speaker.
@@ -1146,6 +1153,7 @@ class MultiSpeakerSimulator(object):
             session_name (str): Current session name.
             start (int): Current start of the audio file being inserted.
             speaker_id (int): LibriSpeech speaker ID for the current entry.
+        
         Returns:
             arr (list): List of ctm entries
         """
@@ -1213,7 +1221,7 @@ class MultiSpeakerSimulator(object):
 
     def _init_silence_params(self):
         """
-        Initialize some params for silence insertion in the current session
+        Initialize parameters for silence insertion in the current session.
         """
         self.running_silence_len_samples = 0
         self.running_speech_len_samples = 0
@@ -1231,7 +1239,7 @@ class MultiSpeakerSimulator(object):
 
     def _init_overlap_params(self):
         """
-        Initialize some params for overlap insertion in the current session
+        Initialize parameters for overlap insertion in the current session.
         """
         self.running_overlap_len_samples = 0
         self.per_overlap_min_len = int(
@@ -1248,7 +1256,7 @@ class MultiSpeakerSimulator(object):
 
     def _get_session_silence_mean(self):
         """
-        Get the target mean silence for current session using reparameterized Beta distribution.
+        Get the target mean silence for current session using re-parameterized Beta distribution.
         The following constraints are applied to make a > 0 and b > 0:
 
             0 < mean_silence < 1
@@ -1277,7 +1285,7 @@ class MultiSpeakerSimulator(object):
 
     def _get_session_overlap_mean(self):
         """
-        Get the target mean overlap for current session using reparameterized Beta distribution.
+        Get the target mean overlap for current session using re-parameterized Beta distribution.
         The following constraints are applied to make a > 0 and b > 0:
 
             0 < mean_overlap < 1
@@ -1525,6 +1533,7 @@ class MultiSpeakerSimulator(object):
         num_sessions = self._params.data_simulator.session_config.num_sessions
         source_noise_manifest = self._read_noise_manifest()
         queue = []
+        
         # add radomly sampled arguments to a list(queue) for multiprocessing
         for sess_idx in range(num_sessions):
             filename = self._params.data_simulator.outputs.output_filename + f"_{sess_idx}"
