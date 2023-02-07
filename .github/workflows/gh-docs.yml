@@ -5,6 +5,9 @@ on:
     paths:
       - "**"
 
+  schedule:
+    - cron: "0 0 * * *"  # daily at midnight
+
 # Set the access for individual scopes
 permissions: write-all
 
