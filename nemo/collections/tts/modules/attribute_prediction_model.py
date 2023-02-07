@@ -69,7 +69,8 @@ class BottleneckLayerLayer(nn.Module):
 
     def forward(self, x, lens):
         if self.reduction_factor > 1:
-            mask = get_mask_from_lengths(lens, x).unsqueeze(1)
+            # borisf: here, float() instead of to(x.dtype) to work arounf ONNX exporter bug
+            mask = get_mask_from_lengths(lens, x).unsqueeze(1).float()
             x = self.projection_fn(x, mask)
             if self.non_linearity == 'relu':
                 x = F.relu(x)
