@@ -842,20 +842,21 @@ class InpainterModel(ModelPT, Exportable):
         training_inpainter = optimizer_idx % 2 == 0
         # Train Discriminator
         if not training_inpainter:
-            logits_real, _ = self.discriminator(batch_real.detach())
-            logits_gen, _ = self.discriminator(batch_gen.detach())
-
-            loss_gen, loss_real = self.discriminator_loss(
-                logits_gen=logits_gen, logits_real=logits_real)
-            loss = loss_gen + loss_real
-            self.log("discriminator_loss", loss)
-            self.log("disc_loss_real", loss_real)
-            self.log("disc_loss_gen", loss_gen)
+            # logits_real, _ = self.discriminator(batch_real.detach())
+            # logits_gen, _ = self.discriminator(batch_gen.detach())
+            #
+            # loss_gen, loss_real = self.discriminator_loss(
+            #     logits_gen=logits_gen, logits_real=logits_real)
+            # loss = loss_gen + loss_real
+            # self.log("discriminator_loss", loss)
+            # self.log("disc_loss_real", loss_real)
+            # self.log("disc_loss_gen", loss_gen)
+            return
 
         # Train Inpainter
         if training_inpainter:
             supervised_losses = reconstruction_loss + dur_loss + pitch_loss
-            loss=supervised_losses
+            loss = supervised_losses
 
             # _, activations_real = self.discriminator(batch_real)
             # _, activations_gen = self.discriminator(batch_gen)
