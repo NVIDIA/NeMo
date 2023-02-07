@@ -57,7 +57,7 @@ def process_sample(x: Dict) -> Dict:
     return results
 
 
-def run_simulator_analysis(
+def run_multispeaker_data_analysis(
     input_dir,
     session_dur=None,
     silence_mean=None,
@@ -158,7 +158,7 @@ def run_simulator_analysis(
     return stats
 
 
-def visualize_samples(input_dir: str, output_dir: str, num_samples: int = 10) -> None:
+def visualize_multispeaker_data(input_dir: str, output_dir: str, num_samples: int = 10) -> None:
     rttm_list = list(Path(input_dir).glob("*.rttm"))
     idx_list = np.random.permutation(len(rttm_list))[:num_samples]
     print(f"Visualizing {num_samples} random samples")
@@ -195,7 +195,7 @@ if __name__ == "__main__":
         shutil.rmtree(str(output_dir))
     output_dir.mkdir(parents=True)
 
-    run_simulator_analysis(
+    run_multispeaker_data_analysis(
         input_dir=args.input_dir,
         session_dur=args.session_dur,
         silence_mean=args.silence_mean,
@@ -207,6 +207,6 @@ if __name__ == "__main__":
         num_workers=args.num_workers,
     )
 
-    visualize_samples(input_dir=args.input_dir, output_dir=args.output_dir, num_samples=args.num_samples)
+    visualize_multispeaker_data(input_dir=args.input_dir, output_dir=args.output_dir, num_samples=args.num_samples)
 
     print("Done")
