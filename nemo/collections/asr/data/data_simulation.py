@@ -270,8 +270,8 @@ class MultiSpeakerSimulator(object):
         if self._params.data_simulator.session_params.mean_silence_var < 0:
             raise Exception("Mean silence variance is not below 0")
         if (
-            self._params.data_simulator.session_params.mean_silence > 0 and
-            self._params.data_simulator.session_params.mean_silence_var
+            self._params.data_simulator.session_params.mean_silence > 0
+            and self._params.data_simulator.session_params.mean_silence_var
             >= self._params.data_simulator.session_params.mean_silence
             * (1 - self._params.data_simulator.session_params.mean_silence)
         ):
@@ -282,8 +282,8 @@ class MultiSpeakerSimulator(object):
         if self._params.data_simulator.session_params.mean_overlap_var < 0:
             raise Exception("Mean overlap variance is not larger than 0")
         if (
-            self._params.data_simulator.session_params.mean_overlap > 0 and 
-            self._params.data_simulator.session_params.mean_overlap_var
+            self._params.data_simulator.session_params.mean_overlap > 0
+            and self._params.data_simulator.session_params.mean_overlap_var
             >= self._params.data_simulator.session_params.mean_overlap
             * (1 - self._params.data_simulator.session_params.mean_overlap)
         ):
