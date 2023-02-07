@@ -45,9 +45,9 @@ from nemo.collections.asr.parts.utils.manifest_utils import (
     write_text,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    combine_float_overlaps,
-    getOverlapRange,
-    isOverlap,
+    merge_float_intervals,
+    get_overlap_range,
+    is_overlap,
     labels_to_rttmfile,
 )
 from nemo.utils import logging
@@ -709,14 +709,17 @@ class MultiSpeakerSimulator(object):
         if self.add_missing_overlap:
             overlap_mean += self._missing_overlap
 
-        overlap_var = self._params.data_simulator.session_params.per_overlap_var
+        if overlap_mean > 0:
+            overlap_var = self._params.data_simulator.session_params.per_overlap_var
 
-        desired_overlap_amount = (
-            int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
-            if overlap_var > 0
-            else int(overlap_mean)
-        )
-        desired_overlap_amount = max(self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len))
+            desired_overlap_amount = (
+                int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
+                if overlap_var > 0
+                else int(overlap_mean)
+            )
+            desired_overlap_amount = max(self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len))
+        else:
+            desired_overlap_amount = 0
 
         return desired_overlap_amount
 
@@ -1018,8 +1021,8 @@ class MultiSpeakerSimulator(object):
 
             # check overlap amount to calculate the actual amount of generated overlaps
             overlap_amount = 0
-            if isOverlap([prev_start, prev_end], [new_start, new_end]):
-                overlap_range = getOverlapRange([prev_start, prev_end], [new_start, new_end])
+            if is_overlap([prev_start, prev_end], [new_start, new_end]):
+                overlap_range = get_overlap_range([prev_start, prev_end], [new_start, new_end])
                 overlap_amount = max(overlap_range[1] - overlap_range[0], 0)
 
             if overlap_amount < desired_overlap_amount:
@@ -1334,7 +1337,7 @@ class MultiSpeakerSimulator(object):
             x = [float(num) for num in x_raw.split()]
             all_sample_list.append([x[0], x[1]])
 
-        self._merged_speech_intervals = combine_float_overlaps(all_sample_list)
+        self._merged_speech_intervals = merge_float_intervals(all_sample_list)
         total_speech_in_secs = sum([x[1] - x[0] for x in self._merged_speech_intervals])
         total_silence_in_secs = running_len_samples / self._params.data_simulator.sr - total_speech_in_secs
         sess_speech_len = int(total_speech_in_secs * self._params.data_simulator.sr)
