@@ -13,7 +13,6 @@ Preliminaries:
 
 - It is necessary to create a branch off of `NVIDIA/NeMo` and not a fork, so that the docs are built immediately on push.
 	- If you use a fork, that will also work but you will need to wait till the next day for changes to show up.
-
 - First, switch to the `gh-pages-src` branch
 - Create a new branch using `gh-pages-src` as the base, call it something else.
 - Make changes to this branch and push commits.
