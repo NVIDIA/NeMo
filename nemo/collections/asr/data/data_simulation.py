@@ -679,6 +679,7 @@ class MultiSpeakerSimulator(object):
             silence_amount = max(self.per_silence_min_len, min(silence_amount, self.per_silence_max_len))
         else:
             silence_amount = 0
+
         return silence_amount
 
     def _sample_from_overlap_model(self, non_silence_len_samples: int):
@@ -707,19 +708,16 @@ class MultiSpeakerSimulator(object):
         overlap_mean = max(self.per_overlap_min_len, min(max(0, overlap_mean), self.per_overlap_max_len))
         if self.add_missing_overlap:
             overlap_mean += self._missing_overlap
-        if overlap_mean > 0:
-            overlap_var = self._params.data_simulator.session_params.per_overlap_var
 
-            desired_overlap_amount = (
-                int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
-                if overlap_var > 0
-                else int(overlap_mean)
-            )
-            desired_overlap_amount = max(
-                self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len)
-            )
-        else:
-            desired_overlap_amount = 0
+        overlap_var = self._params.data_simulator.session_params.per_overlap_var
+
+        desired_overlap_amount = (
+            int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
+            if overlap_var > 0
+            else int(overlap_mean)
+        )
+        desired_overlap_amount = max(self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len))
+
         return desired_overlap_amount
 
     def _add_file(
