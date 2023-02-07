@@ -343,7 +343,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Only if there are newly obtained embeddings, update ranges and embeddings.
         elif self.segment_indexes[scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
-            # Get the global index of the first segment we want to keep in the buffer            
+            # Get the global index of the first segment we want to keep in the buffer
             global_stt_idx = max(max(self.memory_segment_indexes[scale_idx]) - self.memory_margin, 0)
 
             # Convert global index global_stt_idx to buffer index buffer_stt_idx
@@ -373,18 +373,18 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             == len(self.segment_indexes[scale_idx])
             == len(self.segment_range_ts[scale_idx])
         ):
-            raise ValueError("self.emb_vectors, self.segment_raw_audio, self.segment_indexes, and self.segment_range_ts "
-                             "should always have the same length, "
-                             f"but they have {len(self.emb_vectors[scale_idx])}, {len(self.segment_raw_audio[scale_idx])}, "
-                             f"{len(self.segment_indexes[scale_idx])}, and {len(self.segment_range_ts[scale_idx])}, respectively.")
-                                    
+            raise ValueError(
+                "self.emb_vectors, self.segment_raw_audio, self.segment_indexes, and self.segment_range_ts "
+                "should always have the same length, "
+                f"but they have {len(self.emb_vectors[scale_idx])}, {len(self.segment_raw_audio[scale_idx])}, "
+                f"{len(self.segment_indexes[scale_idx])}, and {len(self.segment_range_ts[scale_idx])}, respectively."
+            )
 
         if self.use_temporal_label_major_vote:
             cluster_label_hyp = self._temporal_label_major_vote()
         else:
             cluster_label_hyp = self.memory_cluster_labels
         return cluster_label_hyp
-
 
     @timeit
     @torch.no_grad()
