@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -218,6 +218,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+
+            # Enable overlapped param sync by default
+            if 'overlap_param_sync' not in optim_kwargs:
+                optim_kwargs['overlap_param_sync'] = True
+
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+
     def configure_optimizers(self):
 
         if self.with_distributed_adam:
@@ -327,6 +339,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if hasattr(module, 'embedding'):
                     for param in module.embedding.parameters():
                         param.data_ptr()
+
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
+            ignore_virtual=True
+        ):
+            # we prepare the micro batches for the apex fwd/bwd function
+            batch_for_pipeline = self.process_global_batch(batch)
+        else:
+            # The intermediate pipeline stages do not need any inputs from data loader
+            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
+            batch_for_pipeline = None
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
