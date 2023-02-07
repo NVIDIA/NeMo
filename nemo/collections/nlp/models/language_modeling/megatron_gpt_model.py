@@ -550,9 +550,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # Loss for a micro-batch (ub)
                 loss_for_mb = self.loss_func(batch['loss_mask'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = loss_mask.sum()
+                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
-                        assert loss_mask.count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
                     else:
                         loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
