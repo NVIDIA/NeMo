@@ -13,12 +13,12 @@
 # limitations under the License.
 
 [tool.isort]
-profile = "black"
-line_length = 119
-ignore_whitespace = true
-py_version = 38
-known_first_party = ["nemo"]
-known_third_party = ["nemo_text_processing", "examples", "scripts"]
+profile = "black"  # black-compatible
+line_length = 119  # should match black parameters
+ignore_whitespace = true  # ignore whitespace for compatibility with the initial style
+py_version = 38  # python 3.8 as a target version
+known_first_party = ["nemo"]  # FIRSTPARTY section
+known_third_party = ["nemo_text_processing", "examples", "scripts"]  # THIRDPARTY section
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"
 extend_skip = ["setup.py", "docs/source/conf.py"]
@@ -27,8 +27,9 @@ extend_skip = ["setup.py", "docs/source/conf.py"]
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
 # -vv will also display tests with durration = 0.00s
-addopts = "--verbose --pyargs --durations=0"
+addopts = "--verbose --pyargs --durations=0"  # always add these arguments to pytest
 testpaths = ["tests"]
+# directories to ignore when discovering tests
 norecursedirs = [
     "nemo",
     "nemo_text_processing",
@@ -47,6 +48,7 @@ norecursedirs = [
     "venv",
     "{arch}"
 ]
+# markers to select tests, use `pytest --markers` to see all available markers, `pytest -m "<marker>"` to select tests
 markers = [
     "unit: marks unit test, i.e. testing a single, well isolated functionality (deselect with '-m \"not unit\"')",
     "integration: marks test checking the elements when integrated into subsystems (deselect with '-m \"not integration\"')",
