@@ -1,4 +1,4 @@
-# NeMo Github Pages
+# NeMo Website - Github Pages
 
 This branch is the source of the content viewable in https://nvidia.github.io/NeMo/.
 In order to create a blog post on the NeMo Github.io website (https://nvidia.github.io/NeMo/) you will need to write a 
