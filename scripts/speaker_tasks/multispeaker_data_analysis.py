@@ -19,28 +19,63 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     plot_sample_from_rttm,
 )
 
+"""
+This script analyzes multi-speaker speech dataset and generates statistics.
+The input directory </path/to/rttm_and_wav_directory> is required to contain the following files:
+    - rttm files (*.rttm)
+    - wav files (*.wav)
 
-def process_sample(x: Dict) -> Dict:
+Usage:
+    python <NEMO_ROOT>/scripts/speaker_tasks/multispeaker_data_analysis.py \
+        </path/to/rttm_and_wav_directory> \
+        --session_dur 20 \
+        --silence_mean 0.2 \
+        --silence_var 100 \
+        --overlap_mean 0.15 \
+        --overlap_var 50 \
+        --num_workers 8 \
+        --num_samples 10 \
+        --output_dir <path/to/output_directory> 
+"""
+
+
+def process_sample(sess_dict: Dict) -> Dict:
     """
     Process each synthetic sample
+
+    Args:
+        sess_dict (dict): dictionary containing the following keys
+            rttm_file (str): path to the rttm file
+            session_dur (float): duration of the session (specified by argument)
+            precise (bool): whether to measure the precise duration of the session using sox
+
+    Returns:
+        results (dict): dictionary containing the following keys
+            session_dur (float): duration of the session
+            silence_len_list (list): list of silence durations of each silence occurrence
+            silence_dur (float): total silence duration in a session
+            silence_ratio (float): ratio of silence duration to session duration
+            overlap_len_list (list): list of overlap durations of each overlap occurrence
+            overlap_dur (float): total overlap duration
+            overlap_ratio (float): ratio of overlap duration to speech (non-silence) duration
     """
 
-    rttm_file = x["rttm_file"]
-    session_dur = x["session_dur"]
-    precise = x["precise"]
+    rttm_file = sess_dict["rttm_file"]
+    session_dur = sess_dict["session_dur"]
+    precise = sess_dict["precise"]
     if precise or session_dur is None:
         wav_file = rttm_file.parent / Path(rttm_file.stem + ".wav")
         session_dur = sox.file_info.duration(str(wav_file))
 
     speech_seg, overlap_seg = load_speech_overlap_segments_from_rttm(rttm_file)
-    speech_dur = sum([x[1] - x[0] for x in speech_seg])
+    speech_dur = sum([sess_dict[1] - sess_dict[0] for sess_dict in speech_seg])
 
     silence_seg = get_nonspeech_segments(speech_seg, session_dur)
-    silence_len_list = [x[1] - x[0] for x in silence_seg]
+    silence_len_list = [sess_dict[1] - sess_dict[0] for sess_dict in silence_seg]
     silence_dur = max(0, session_dur - speech_dur)
     silence_ratio = silence_dur / session_dur
 
-    overlap_len_list = [x[1] - x[0] for x in overlap_seg]
+    overlap_len_list = [sess_dict[1] - sess_dict[0] for sess_dict in overlap_seg]
     overlap_dur = sum(overlap_len_list) if len(overlap_len_list) else 0
     overlap_ratio = overlap_dur / speech_dur
 
@@ -69,6 +104,22 @@ def run_multispeaker_data_analysis(
     num_workers=1,
 ) -> Dict:
     rttm_list = list(Path(input_dir).glob("*.rttm"))
+    """
+    Analyze the multispeaker data and plot the distribution of silence and overlap durations.
+
+    Args:
+        input_dir (str): path to the directory containing the rttm files
+        session_dur (float): duration of the session (specified by argument)
+        silence_mean (float): mean of the silence duration distribution
+        silence_var (float): variance of the silence duration distribution
+        overlap_mean (float): mean of the overlap duration distribution
+        overlap_var (float): variance of the overlap duration distribution
+        precise (bool): whether to measure the precise duration of the session using sox
+        save_path (str): path to save the plots
+
+    Returns:
+        stats (dict): dictionary containing the statistics of the analyzed data
+    """
 
     print(f"Found {len(rttm_list)} files to be processed")
 
@@ -88,7 +139,7 @@ def run_multispeaker_data_analysis(
         )
 
     if num_workers <= 1:
-        results = [process_sample(x) for x in tqdm(queue)]
+        results = [process_sample(sess_dict) for sess_dict in tqdm(queue)]
     else:
         with multiprocessing.Pool(processes=num_workers) as p:
             results = list(tqdm(p.imap(process_sample, queue), total=len(queue), desc='Processing', leave=True,))
@@ -159,6 +210,14 @@ def run_multispeaker_data_analysis(
 
 
 def visualize_multispeaker_data(input_dir: str, output_dir: str, num_samples: int = 10) -> None:
+    """
+    Visualize a set of randomly sampled data in the input directory
+
+    Args:
+        input_dir (str): Path to the input directory
+        output_dir (str): Path to the output directory
+        num_samples (int): Number of samples to visualize
+    """
     rttm_list = list(Path(input_dir).glob("*.rttm"))
     idx_list = np.random.permutation(len(rttm_list))[:num_samples]
     print(f"Visualizing {num_samples} random samples")
@@ -209,4 +268,5 @@ if __name__ == "__main__":
 
     visualize_multispeaker_data(input_dir=args.input_dir, output_dir=args.output_dir, num_samples=args.num_samples)
 
-    print("Done")
+    print("The multispeaker data analysis has been completed.")
+    print(f"Please check the output directory: \n{args.output_dir}")
