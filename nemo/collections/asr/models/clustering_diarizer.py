@@ -19,7 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from copy import deepcopy
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -80,11 +80,15 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     All the parameters are passed through config file 
     """
 
-    def __init__(self, cfg: DictConfig, speaker_model=None):
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
-        # Convert config to support Hydra 1.0+ instantiation
-        cfg = model_utils.maybe_update_config_version(cfg)
+    def __init__(self, cfg: Union[DictConfig, Any], speaker_model=None):
+        if isinstance(cfg, DictConfig):
+            cfg = model_utils.convert_model_config_to_dict_config(cfg)
+            # Convert config to support Hydra 1.0+ instantiation
+            cfg = model_utils.maybe_update_config_version(cfg)
         self._cfg = cfg
+
+        default_device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._device = torch.device(cfg.device if cfg.device else default_device)
 
         # Diarizer set up
         self._diarizer_params = self._cfg.diarizer
@@ -106,8 +110,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # Clustering params
         self._cluster_params = self._diarizer_params.clustering.parameters
-        default_device = "cuda" if torch.cuda.is_available() else "cpu"
-        self._device = torch.device(cfg.device if cfg.device else default_device)
 
     @classmethod
     def list_available_models(cls):
@@ -119,7 +121,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
-            self._vad_model = EncDecClassificationModel.restore_from(model_path)
+            self._vad_model = EncDecClassificationModel.restore_from(model_path, map_location=self._device)
             logging.info("VAD model loaded locally from {}".format(model_path))
         else:
             if model_path not in get_available_model_names(EncDecClassificationModel):
@@ -128,8 +130,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 )
                 model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
-
+            self._vad_model = EncDecClassificationModel.from_pretrained(
+                model_name=model_path, map_location=self._device
+            )
         self._vad_window_length_in_sec = self._vad_params.window_length_in_sec
         self._vad_shift_length_in_sec = self._vad_params.shift_length_in_sec
         self.has_vad_model = True
@@ -143,10 +146,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
             if model_path is not None and model_path.endswith('.nemo'):
-                self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path)
+                self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=self._device)
                 logging.info("Speaker Model restored locally from {}".format(model_path))
             elif model_path.endswith('.ckpt'):
-                self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path)
+                self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(
+                    model_path, map_location=self._device
+                )
                 logging.info("Speaker Model restored locally from {}".format(model_path))
             else:
                 if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
@@ -155,7 +160,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                     )
                     model_path = "ecapa_tdnn"
                 logging.info("Loading pretrained {} model from NGC".format(model_path))
-                self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+                self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
+                    model_name=model_path, map_location=self._device
+                )
 
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
@@ -258,9 +265,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
 
+        vad_params = self._vad_params if isinstance(self._vad_params, (DictConfig, dict)) else self._vad_params.dict()
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
-            postprocessing_params=self._vad_params,
+            postprocessing_params=vad_params,
             frame_length_in_sec=frame_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
@@ -442,6 +450,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
+            device=self._device,
         )
 
         # Scoring

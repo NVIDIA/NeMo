@@ -18,6 +18,7 @@ import os
 import pickle as pkl
 import tempfile
 from collections import OrderedDict
+from pathlib import Path
 from statistics import mode
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -25,6 +26,7 @@ import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
+from pyannote.core import Annotation
 from pyannote.metrics.diarization import DiarizationErrorRate
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -41,6 +43,7 @@ from nemo.collections.asr.models.clustering_diarizer import (
     _VAD_MODEL,
     get_available_model_names,
 )
+from nemo.collections.asr.models.configs.msdd_config import NeuralInferenceConfig
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -49,8 +52,10 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_id_tup_dict,
     get_scale_mapping_argmat,
     get_uniq_id_list_from_manifest,
+    labels_to_pyannote_object,
     make_rttm_with_overlap,
     parse_scale_configs,
+    rttm_to_labels,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -850,7 +855,9 @@ class ClusterEmbedding:
         self.clus_diar_model._diarizer_params.speaker_embeddings.parameters = (
             self.cfg_diar_infer.diarizer.speaker_embeddings.parameters
         )
-        clustering_params_str = json.dumps(dict(self.clus_diar_model._cluster_params), indent=4)
+        cluster_params = self.clus_diar_model._cluster_params
+        cluster_params = dict(cluster_params) if isinstance(cluster_params, DictConfig) else cluster_params.dict()
+        clustering_params_str = json.dumps(cluster_params, indent=4)
 
         logging.info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
         logging.info(f"Clustering Parameters: {clustering_params_str}")
@@ -964,7 +971,7 @@ class NeuralDiarizer:
     overlap detection in speaker diarization.
     """
 
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: Union[DictConfig, NeuralInferenceConfig]):
         """ """
         self._cfg = cfg
 
@@ -982,8 +989,6 @@ class NeuralDiarizer:
         self._init_msdd_model(cfg)
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
-        self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
-        self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
         self.clustering_embedding = ClusterEmbedding(cfg_diar_infer=cfg, cfg_msdd_model=self.msdd_model.cfg)
@@ -1064,23 +1069,25 @@ class NeuralDiarizer:
         _speaker_model.load_state_dict(spk_emb_state_dict)
         return _speaker_model
 
-    def _init_msdd_model(self, cfg: DictConfig):
+    def _init_msdd_model(self, cfg: Union[DictConfig, NeuralInferenceConfig]):
+
         """
         Initialized MSDD model with the provided config. Load either from `.nemo` file or `.ckpt` checkpoint files.
         """
         model_path = cfg.diarizer.msdd_model.model_path
         if model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {model_path}")
-            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path)
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.device)
         elif model_path.endswith('.ckpt'):
             logging.info(f"Using local checkpoint from {model_path}")
-            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=model_path)
+            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
+                checkpoint_path=model_path, map_location=cfg.device
+            )
         else:
             if model_path not in get_available_model_names(EncDecDiarLabelModel):
                 logging.warning(f"requested {model_path} model name not available in pretrained models, instead")
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path)
-
+            self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path, map_location=cfg.device)
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
         if self.use_speaker_model_from_ckpt:
             self._speaker_model = self.extract_standalone_speaker_model()
@@ -1355,7 +1362,7 @@ class NeuralDiarizer:
         torch.set_grad_enabled(False)
         cumul_sample_count = [0]
         preds_list, targets_list, signal_lengths_list = [], [], []
-        uniq_id_list = get_uniq_id_list_from_manifest(self.manifest_filepath)
+        uniq_id_list = get_uniq_id_list_from_manifest(self.msdd_model.cfg.test_ds.manifest_filepath)
         test_data_collection = [d for d in self.msdd_model.data_collection]
         for sidx, test_batch in enumerate(tqdm(self.msdd_model.test_dataloader())):
             signals, signal_lengths, _targets, emb_vectors = test_batch
@@ -1394,9 +1401,11 @@ class NeuralDiarizer:
             f"     [Threshold: {threshold:.4f}] [use_clus_as_main={self.use_clus_as_main}] [diar_window={self.diar_window_length}]"
         )
         outputs = []
+        manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
+        rttm_map = audio_rttm_map(manifest_filepath)
         for k, (collar, ignore_overlap) in enumerate(self.diar_eval_settings):
             all_reference, all_hypothesis = make_rttm_with_overlap(
-                self.manifest_filepath,
+                manifest_filepath,
                 self.msdd_model.clus_test_label_dict,
                 preds_list,
                 threshold=threshold,
@@ -1408,8 +1417,114 @@ class NeuralDiarizer:
                 out_rttm_dir=self.out_rttm_dir,
             )
             output = score_labels(
-                self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
+                rttm_map, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
             )
             outputs.append(output)
         logging.info(f"  \n")
         return outputs
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        diar_model_name: str = 'diar_msdd_telephonic',
+        vad_model_name: str = 'vad_multilingual_marblenet',
+        speaker_model_name: str = 'titanet_large',
+        domain: Optional[str] = None,
+        device: Union[torch.device, str] = "auto",
+    ):
+        """
+        Instantiate a `NeuralDiarizer` to run Speaker Diarization.
+
+        Args:
+            diar_model_name (str): Path/Name of the neural diarization model to load.
+            vad_model_name (str): Path/Name of the voice activity detection (VAD) model to load.
+            speaker_model_name (str): Path/Name of the speaker model to load.
+            domain (str): Specific domain of thea udio, supports "telephonic" and "meeting" (default is general).
+            device (torch.device): Device we are running on. "auto selects CUDA if available ('cpu', 'cuda').
+
+        Returns:
+            `NeuralDiarizer`
+        """
+        cfg = NeuralInferenceConfig.from_domain(domain, device)
+        cfg.diarizer.msdd_model.model_path = diar_model_name
+        cfg.diarizer.vad.model_path = diar_model_name
+        cfg.diarizer.speaker_embeddings.model_path = diar_model_name
+        return cls(cfg)
+
+    def __call__(
+        self,
+        inference_input: Union[str, List[str]],
+        max_speakers: Optional[int] = None,
+        num_speakers: Optional[int] = None,
+        batch_size: int = 64,
+        num_workers: int = 1,
+        intermediate_dir: Optional[str] = None,
+    ) -> Union[Annotation, List[Annotation]]:
+        """
+        Run the `NeuralDiarizer` inference pipeline.
+
+        Args:
+            inference_input (str, list): Audio path, or a list of audio paths to run speaker diarization on.
+            max_speakers (int): If known, the max number of speakers in the file(s).
+            num_speakers (int): If known, the exact number of speakers in the file(s).
+            batch_size (int): Batch size when running inference.
+            num_workers (int): Number of workers to use in data-loading.
+            intermediate_dir (str): Path to store intermediate files during inference (default temp directory).
+        Returns:
+            `pyannote.Annotation` for each audio path, containing speaker labels and segment timestamps.
+        """
+        with tempfile.TemporaryDirectory(dir=intermediate_dir) as tmpdir:
+            # assume single file if string
+            inference_input = [inference_input,] if isinstance(inference_input, str) else inference_input
+            manifest_path = os.path.join(tmpdir, 'manifest.json')
+            meta = [
+                {
+                    'audio_filepath': audio_path,
+                    'offset': 0,
+                    'duration': None,
+                    'label': 'infer',
+                    'text': '-',
+                    'num_speakers': num_speakers,
+                    'rttm_filepath': None,
+                    'uem_filepath': None,
+                }
+                for audio_path in inference_input
+            ]
+            with open(manifest_path, 'w') as f:
+                f.write('\n'.join(json.dumps(x) for x in meta))
+
+            self._initialize_configs(
+                manifest_path=manifest_path,
+                max_speakers=max_speakers,
+                num_speakers=num_speakers,
+                tmpdir=tmpdir,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            )
+
+            self.msdd_model.cfg.test_ds.manifest_filepath = manifest_path
+            self.diarize()
+
+            pred_labels_clus = [
+                rttm_to_labels(f'{tmpdir}/pred_rttms/{Path(audio_path).stem}.rttm') for audio_path in inference_input
+            ]
+            annotations = [labels_to_pyannote_object(pred_labels) for pred_labels in pred_labels_clus]
+        return annotations[0] if len(annotations) == 1 else annotations
+
+    def _initialize_configs(
+        self,
+        manifest_path: str,
+        max_speakers: Optional[int],
+        num_speakers: Optional[int],
+        tmpdir: tempfile.TemporaryDirectory,
+        batch_size: int,
+        num_workers: int,
+    ) -> None:
+        self._cfg.batch_size = batch_size
+        self._cfg.num_workers = num_workers
+        self._cfg.diarizer.manifest_filepath = manifest_path
+        self._cfg.diarizer.out_dir = tmpdir
+        self._cfg.diarizer.clustering.oracle_num_speakers = num_speakers is not None
+        if max_speakers:
+            self._cfg.diarizer.clustering.max_num_speakers = max_speakers
+        self.transfer_diar_params_to_model_params(self.msdd_model, self._cfg)
