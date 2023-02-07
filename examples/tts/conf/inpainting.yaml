@@ -246,8 +246,8 @@ model:
   max_mask_duration: 1.0
 
   discriminator:
-    warmup_steps: 10000
-    rampup_steps: 10000
+    warmup_steps: 20000
+    rampup_steps: 20000
     batch_size: 64
 
   optim:

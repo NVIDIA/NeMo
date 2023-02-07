@@ -889,7 +889,7 @@ class InpainterModel(ModelPT, Exportable):
             )
 
             adversarial_amount = linear_rampup_with_warmup(
-                batch_idx,
+                self.global_step,
                 warmup_steps=self.discriminator_warmup_steps,
                 rampup_steps=self.discriminator_rampup_steps
             )
