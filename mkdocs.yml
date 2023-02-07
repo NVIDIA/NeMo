@@ -143,7 +143,11 @@ markdown_extensions:
       auto_append:
         - includes/abbreviations.md
 
-# Page tree
+################################################################################################
+
+# Begin Writing Page Navigation HERE !
+
+# Page Tree
 nav:
   - Home: index.md
   - 2022:

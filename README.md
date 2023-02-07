@@ -19,6 +19,12 @@ Preliminaries:
 - Open Pull Request - **Make sure that **base** is `gh-pages-src` and **compare** is `<your branch name>`.
 - Assign to reviewer and update PR with comments
 - Merge PR. Changes should show up in the website in a few minutes after Github Actions builds the page.
+- **Note**: If you submitted a PR using a branch from **NVIDIA/NeMo**, the docs should automatically build and overwrite the original docs.
+   - This is ok - **in case you close the PR, the branch reverts to original version and the correct docs are shown again.**
+- If you submitted using a `fork/branch`, then the PR will not auto build (though the checks will “pass”). 
+  - This is because forked PR have Github Action workers which do not have write permission to the Github repo (even if author is part of the repo with write permissions. So the changes will show up only after merging the PR.
+
+
 
 # Building the Docs (Docker)
 
@@ -59,7 +65,7 @@ up during the PR it must be a branch directly from NVIDIA/NeMo.
     - These steps will be noted below, so just note them and delete the template text 
 
 7) Write down post content
-    - This is extended markdown - al ordinaryl markdown rules apply.
+    - This is extended markdown - all ordinary markdown rules apply.
     - Extensions are listed below :
     - References of Material for MkDocs has a great section about all the extension - https://squidfunk.github.io/mkdocs-material/reference/ 
     - These have mostly been enabled already, you can directly use them.
@@ -71,7 +77,62 @@ up during the PR it must be a branch directly from NVIDIA/NeMo.
     - Diagrams (via Mermaid.js) - https://squidfunk.github.io/mkdocs-material/reference/diagrams/
     - Footnotes - https://squidfunk.github.io/mkdocs-material/reference/footnotes/#footnotes
     - Expanded Text formatting - https://squidfunk.github.io/mkdocs-material/reference/formatting/
-    - Images [**READ NOTE ABOUT IMAGES BELOW**] - https://squidfunk.github.io/mkdocs-material/reference/images/#image-alignment
+    - Images [**READ NOTE ABOUT IMAGES BELOW**](#note-about-images-) - https://squidfunk.github.io/mkdocs-material/reference/images/#image-alignment
+
+# Steps to update the Index Page
+
+1) Create a new branch from the gh-pages-src branch on NeMo. Note that you should not use a fork/branch to do this, for the changes to show 
+up during the PR it must be a branch directly from NVIDIA/NeMo.
+    - If you prefer to not showcase the post until merge, then and only then consider using the fork/branch method.
+
+2) Open the directory docs/overrides/ folder. Here you will find `home.html`.
+
+3) The Index Page is a custom website build without mkdocs. It is a simple HTML file with some custom CSS and JS. 
+    - The CSS and JS are in the assets/stylesheets and assets/javascript folder respectively.
+    - There is some inline CSS and JS in the `home.html` file itself.
+    - The CSS and JS are not minified, so you can easily read and understand what is happening.
+    - The HTML file is also not minified, so you can easily read and understand what is happening.
+
+4) The `home.html` file is divided into a few sections - 
+   - `Hero Banner`: Contains the text and buttons at the very top of the page.
+   - `What is NeMo?`: Contains the text regarding what NeMo is.
+   - `LLM with NeMo`: Contains the text regarding NeMo Megatron.
+   - `OSS Community`: Contains the text regarding the NeMo integration with PTL and Hydra.
+   - `RIVA`: Contains the text regarding NVIDIA RIVA.
+
+# Publishing content
+
+Once your post content is ready (blogpost, website), you can now begin to publish it on Github Pages.
+
+1) Go to the `mkdocs.yml` file and scroll to the very bottom to the section called `Page Tree`.
+2) There will be a nested list of articles.
+
+```yaml
+
+nav:
+    - Home: index.md
+    - 2023:
+        - blogs/2023/2023-02-NeMo-101.md
+        - blogs/2023/2023-01-NeMo-101.md
+    - 2022:
+        - blogs/2022/2022-02-NeMo-101.md
+        - ...
+
+```
+
+3) First, select the **year** which matches your post.
+4) Then, copy the relative path (inside of docs) that corresponds to your post.
+      - Usually of the format `blogs/{YYYY}/{YYYY}-{MM}-{Title}.md`
+5) Now, **we need to sort the post such that the first post is always the latest**.
+6) IE: First item after Home should be {Current Year} and inside it should be the **latest blog**. **All other blogs should be pushed down the list**.
+7) Build your docs locally to make sure it looks correct.
+   - Make sure you have docker installed, then call `bash build_docs.sh`.
+   - It should build most of the documentation for your page and then you can open the **site folder**.
+   - Inside **site** folder, open the **index.md** file.
+   - Then browse to your actual blogpost. **Note: You may need to reclick the page url if it doesnt auto show up.**
+8) Submit your changes to the `gh-pages-src` branch following [instructions above](#workflow)
+
+
 
 # Note about Images:
 	
