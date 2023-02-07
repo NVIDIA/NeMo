@@ -58,6 +58,7 @@ elif os.path.exists('README.rst'):
 
 else:
     long_description = 'See ' + __homepage__
+    long_description_content_type = "text/plain"
 
 
 ###############################################################################
@@ -143,12 +144,7 @@ tests_requirements = extras_require["test"]
 
 class StyleCommand(distutils_cmd.Command):
     __LINE_WIDTH = 119
-    __ISORT_BASE = (
-        'isort '
-        # These two lines makes isort compatible with black.
-        '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
-        f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
-    )
+    __ISORT_BASE = 'isort '
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'
     user_options = [
