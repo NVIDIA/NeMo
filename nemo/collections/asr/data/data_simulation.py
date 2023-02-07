@@ -982,8 +982,8 @@ class MultiSpeakerSimulator(object):
         Returns new overlapped (or shifted) start position after inserting overlap or silence.
 
         Args:
-            speaker_turn (int): Current speaker turn.
-            prev_speaker (int): Previous speaker turn.
+            speaker_turn (int): The integer index of the current speaker turn.
+            prev_speaker (int): The integer index of the previous speaker turn.
             start (int): Current start of the audio file being inserted.
             length (int): Length of the audio file being inserted.
             session_len_samples (int): Maximum length of the session in terms of number of samples
@@ -1336,8 +1336,8 @@ class MultiSpeakerSimulator(object):
         """
         all_sample_list = []
         for x_raw in rttm_list:
-            x = [float(num) for num in x_raw.split()]
-            all_sample_list.append([x[0], x[1]])
+            x = [token for token in x_raw.split()]
+            all_sample_list.append([float(x[0]), float(x[1])])
 
         self._merged_speech_intervals = merge_float_intervals(all_sample_list)
         total_speech_in_secs = sum([x[1] - x[0] for x in self._merged_speech_intervals])
@@ -1502,6 +1502,9 @@ class MultiSpeakerSimulator(object):
     def generate_sessions(self, random_seed: int = None):
         """
         Generate several multispeaker audio sessions and corresponding list files.
+
+        Args:
+            random_seed (int): random seed for reproducibility
         """
         logging.info(f"Generating Diarization Sessions")
         if random_seed is None:
