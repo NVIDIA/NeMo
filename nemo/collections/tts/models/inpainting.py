@@ -411,24 +411,17 @@ class InpainterModel(ModelPT, Exportable):
         optim_d = instantiate(
             optim_config, params=self.discriminator.parameters())
 
-        sched_g = prepare_lr_scheduler(
-            optimizer=optim_g,
-            scheduler_config=scheduler_config,
-            train_dataloader=self._train_dl
-        )
-        sched_d = prepare_lr_scheduler(
-            optimizer=optim_d,
-            scheduler_config=scheduler_config,
-            train_dataloader=self._train_dl
-        )
-        # optim_g = self.setup_optimization(
-        #     optim_config, optim_kwargs=dict(params=self.module.parameters()))
-        # optim_d = self.setup_optimization(
-        #     optim_config,
-        #     optim_kwargs=dict(params=self.discriminator.parameters()))
-        # import code  # NOQA
-        # code.interact(local={**locals(), **globals()})
-        print('not instantiating schedulers because ATM')
+        # sched_g = prepare_lr_scheduler(
+        #     optimizer=optim_g,
+        #     scheduler_config=scheduler_config,
+        #     train_dataloader=self._train_dl
+        # )
+        # sched_d = prepare_lr_scheduler(
+        #     optimizer=optim_d,
+        #     scheduler_config=scheduler_config,
+        #     train_dataloader=self._train_dl
+        # )
+        print('WARNING not instantiating schedulers when training with discriminator')
 
         return [optim_g, optim_d]
 
@@ -846,6 +839,11 @@ class InpainterModel(ModelPT, Exportable):
         batch_gen = torch.stack(random.sample(
             spec_windows_gen, self.discriminator_batch_size))
 
+        # print(f'batch_idx:{batch_idx}')
+        # print(f'optimizer_idx:{optimizer_idx}')
+        # import code  # NOQA
+        # code.interact(local={**locals(), **globals()})
+
         # # Train discriminator
         # optim_d.zero_grad()
         # logits_real, _ = self.discriminator(batch_real.detach())
@@ -943,6 +941,10 @@ class InpainterModel(ModelPT, Exportable):
             )
             self.log_train_spectrograms = False
 
+        # print(f'batch_idx:{batch_idx}')
+        # print(f'optimizer_idx:{optimizer_idx}')
+        # import code  # NOQA
+        # code.interact(local={**locals(), **globals()})
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -1132,6 +1134,7 @@ class ConvDiscriminator(NeuralModule):
         super().__init__()
         input_width = self.input_width
         starting_filters = 2 ** 5
+        # starting_filters = 2
 
         self.layers = [
             torch.nn.Conv2d(
