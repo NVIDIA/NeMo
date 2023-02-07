@@ -10,6 +10,9 @@ num_workers: 1
 sample_rate: 16000
 batch_size: 64
 device: null # can specify a specific device, i.e: cuda:1 (default cuda if cuda available, else cpu)
+map_location: null
+verbose: True # enable additional logging
+evaluate: True # enable evaluation (if RTTM files are passed in, else ignore)
 
 diarizer:
   manifest_filepath: ???
