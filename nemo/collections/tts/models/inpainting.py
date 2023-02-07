@@ -43,6 +43,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.nn import Linear, MSELoss
 import matplotlib.pyplot as plt
+from nemo.utils.app_state import AppState
+
 
 from nemo.collections.tts.modules.transformer import (
     BiModalTransformerEncoder,
@@ -403,27 +405,48 @@ class InpainterModel(ModelPT, Exportable):
 
         optim_config = self.cfg.optim.copy()
 
+        # Adding some fields needed to init a scheduler properly
         OmegaConf.set_struct(optim_config, False)
         scheduler_config = optim_config.pop("sched", None)
+        scheduler_config['t_max_epochs'] = self.trainer.max_epochs
+        scheduler_config['t_accumulate_grad_batches'] = (
+            self.trainer.accumulate_grad_batches)
+        scheduler_config['t_limit_train_batches'] = (
+            self.trainer.limit_train_batches)
+
+        # copied from ModelPT
+        app_state = AppState()
+        if app_state.data_parallel_size is not None:
+            scheduler_config['t_num_workers'] = app_state.data_parallel_size
+        elif app_state.model_parallel_size is None:
+            scheduler_config['t_num_workers'] = (
+                self.trainer.num_devices * self.trainer.num_nodes)
+        else:
+            scheduler_config['t_num_workers'] = (
+                self.trainer.num_devices * self.trainer.num_nodes
+            ) / app_state.model_parallel_size
+
         OmegaConf.set_struct(optim_config, True)
 
         optim_g = instantiate(optim_config, params=self.module.parameters(),)
         optim_d = instantiate(
             optim_config, params=self.discriminator.parameters())
 
-        # sched_g = prepare_lr_scheduler(
-        #     optimizer=optim_g,
-        #     scheduler_config=scheduler_config,
-        #     train_dataloader=self._train_dl
-        # )
-        # sched_d = prepare_lr_scheduler(
-        #     optimizer=optim_d,
-        #     scheduler_config=scheduler_config,
-        #     train_dataloader=self._train_dl
-        # )
-        print('WARNING not instantiating schedulers when training with discriminator')
+        sched_g = prepare_lr_scheduler(
+            optimizer=optim_g,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl
+        )
+        sched_d = prepare_lr_scheduler(
+            optimizer=optim_d,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl
+        )
 
-        return [optim_g, optim_d]
+        if sched_g is None or sched_d is None:
+            raise ValueError('Error making schedulers')
+
+        return [optim_g, optim_d], [sched_g, sched_d]
 
     def forward(self, *args, **kwargs):
         spectrogram_preds, spectrogram_projections, token_embeddings = (
