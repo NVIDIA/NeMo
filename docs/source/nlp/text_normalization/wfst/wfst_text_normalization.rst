@@ -59,9 +59,15 @@ If you have already installed `nemo_text_processing <https://github.com/NVIDIA/N
     pip install pynini==2.1.5
 
 or if this fails on missing OpenFst headers:
+<<<<<<< HEAD
 
 .. code-block:: shell-session
 
+=======
+
+.. code-block:: shell-session
+
+>>>>>>> Tn doc 16 (#5954)
     conda install -c conda-forge pynini=2.1.5
 
 
