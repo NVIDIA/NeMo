@@ -8,6 +8,33 @@ Preliminaries:
 - It is preferred to use Visual Studio Code for writing markdown for mkdocs. You can use any ide to commit and manage your PR.
 - You can setup autocomplete for mkdocs.yml by following the VS Code specific instructions here - https://squidfunk.github.io/mkdocs-material/creating-your-site/?h=vscode#minimal-configuration
 
+
+# Workflow
+
+- It is necessary to create a branch off of `NVIDIA/NeMo` and not a fork, so that the docs are built immediately on push.
+	- If you use a fork, that will also work but you will need to wait till the next day for changes to show up.
+
+- First, switch to the `gh-pages-src` branch
+- Create a new branch using `gh-pages-src` as the base, call it something else.
+- Make changes to this branch and push commits.
+- Open Pull Request - **Make sure that **base** is `gh-pages-src` and **compare** is `<your branch name>`.
+- Assign to reviewer and update PR with comments
+- Merge PR. Changes should show up in the website in a few minutes after Github Actions builds the page.
+
+# Building the Docs (Docker)
+
+- Simply call `bash build_docs.sh` to build your docs using Docker.
+- If you want to serve the pages insead, `docker run --rm -it -p 8000:8000 -v ${PWD}:/docs squidfunk/mkdocs-material`
+- To deploy the website - you should commit and push the changes to the new branch and let the Github Action handle it.
+
+
+# Building the Docs (Local)
+
+- Install requirements : `pip install mkdocs-material` 
+- To serve the website locally (See changed automatically updated) - `mkdocs serve`
+- To build the website locally - `mkdocs build`
+- To deploy the website - you should commit and push the changes to the new branch and let the Github Action handle it.
+
 # Steps to create a post
 
 1) Create a new branch from the gh-pages-src branch on NeMo. Note that you should not use a fork/branch to do this, for the changes to show 
