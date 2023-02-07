@@ -1265,7 +1265,7 @@ def load_rttm_file(filepath: str) -> pd.DataFrame:
     """
     if not Path(filepath).exists():
         raise ValueError(f"File not found: {filepath}")
-    data = pd.read_csv(filepath, sep=" ", delimiter=None, header=None)
+    data = pd.read_csv(filepath, sep="\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
 
     data['start'] = data['start'].astype(float)
