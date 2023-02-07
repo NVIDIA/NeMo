@@ -473,7 +473,7 @@ class TokenizeCreateMasksClipWorker:
             max_seq_length: max number of tokens in an input sequence including [CLS] and [SEP] tokens. If number of
                 tokens in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence
                 are removed
-            tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
+            tokenizer: a tokenizer instance which has properties ``bos_id``, ``pad_id``, ``eos_id``, ``unk_id``
             punct_label_ids: dict to map punctuation labels to label ids. Starts with pad_label->0.
             capit_label_ids: dict to map capitalization labels to label ids. Starts with pad_label->0.
             pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
@@ -542,7 +542,7 @@ class TokenizeCreateMasksClipWorker:
         queries = zip(queries, audio_queries) if audio_queries else zip(queries, dummy)
         for i, (query, audio_query) in enumerate(queries):
             words = query.split()
-            input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
+            input_ids, subtokens_mask = [self.tokenizer.bos_id], [0]
             _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
             pad_id = self.punct_label_ids[self.pad_label]
             punct_labels = [pad_id]
@@ -562,10 +562,10 @@ class TokenizeCreateMasksClipWorker:
                 capit_labels.extend([capit_query_labels[j]] * len(word_ids))
 
             # add eos token
-            input_ids.append(self.tokenizer.sep_id)
+            input_ids.append(self.tokenizer.eos_id)
             subtokens_mask.append(0)
 
-            all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
+            all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.eos_id), dtype=np.int32))
             all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
 
             punct_labels.append(pad_id)
@@ -628,7 +628,7 @@ def _get_features(
         queries: text sequences
         max_seq_length: max number of tokens in an input sequence including [CLS] and [SEP] tokens. If number of tokens
             in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence are removed
-        tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
+        tokenizer: a tokenizer instance which has properties ``bos_id``, ``pad_id``, ``eos_id``, ``unk_id``
         punct_label_ids: dict to map punctuation labels to label ids. Starts with pad_label->0.
         capit_label_ids: dict to map capitalization labels to label ids. Starts with pad_label->0.
         pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
@@ -749,8 +749,8 @@ def create_masks_and_segment_ids(
     input_ids: np.ndarray,
     subtokens_mask: np.ndarray,
     pad_id: int,
-    cls_id: int,
-    sep_id: int,
+    bos_id: int,
+    eos_id: int,
     ignore_start_end: bool,
     ignore_extra_tokens: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -771,8 +771,8 @@ def create_masks_and_segment_ids(
         subtokens_mask: a boolean array of shape ``[Batch, Time]`` which elements are ``True`` if they correspond to
             the first token of some word
         pad_id: an id of padding token
-        cls_id: an id of [CLS] token
-        sep_id: an id of [SEP] token
+        bos_id: an id of [CLS] token
+        eos_id: an id of [SEP] token
         ignore_start_end: whether to compute loss for [CLS] and [SEP] tokens
         ignore_extra_tokens: whether to compute loss for not first tokens in words
 
@@ -783,7 +783,7 @@ def create_masks_and_segment_ids(
     """
     segment_ids = np.zeros_like(input_ids, dtype=np.int8)
     input_mask = np.not_equal(input_ids, pad_id)
-    special_mask = np.equal(input_ids, cls_id) & np.equal(input_ids, sep_id)
+    special_mask = np.equal(input_ids, bos_id) & np.equal(input_ids, eos_id)
     if ignore_start_end:
         if ignore_extra_tokens:
             loss_mask = subtokens_mask
@@ -923,7 +923,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         max_seq_length (:obj:`int`): max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS]
             and [SEP] tokens. Sequences which are too long will be clipped by removal of tokens from the end of the
             sequence.
-        tokenizer (:obj:`TokenizerSpec`): a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``,
+        tokenizer (:obj:`TokenizerSpec`): a tokenizer instance which has properties ``unk_id``, ``eos_id``, ``bos_id``,
             ``eos_id``.
         num_samples (:obj:`int`, `optional`, defaults to :obj:`-1`): a number of samples you want to use for the
             dataset. If ``-1``, use all dataset. Useful for testing.
@@ -1795,8 +1795,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     batch_input_ids,
                     batch_subtokens_mask,
                     self.tokenizer.pad_id,
-                    self.tokenizer.cls_id,
-                    self.tokenizer.sep_id,
+                    self.tokenizer.bos_id,
+                    self.tokenizer.eos_id,
                     self.ignore_start_end,
                     self.ignore_extra_tokens,
                 )
@@ -1913,8 +1913,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     batch['input_ids'],
                     batch['subtokens_mask'],
                     self.tokenizer.pad_id,
-                    self.tokenizer.cls_id,
-                    self.tokenizer.sep_id,
+                    self.tokenizer.bos_id,
+                    self.tokenizer.eos_id,
                     self.ignore_start_end,
                     self.ignore_extra_tokens,
                 )

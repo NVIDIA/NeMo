@@ -591,6 +591,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     ]
     files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
     logging.info(f"Found {len(files_to_repack_with_matches)} files for repacking.")
+
     files_to_repack_with_matches = deque(files_to_repack_with_matches)
     total_batches_in_repacked_files = 0
     initial_number_of_files_to_repack = len(files_to_repack_with_matches)
@@ -773,7 +774,7 @@ def create_tarred_dataset(
         tokenizer_name (:obj:`str`): a name of the tokenizer used for tokenization of source sequences. Possible
             options are ``'sentencepiece'``, ``'word'``, ``'char'``, HuggingFace tokenizers. For more options see
             function ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties
-            ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``.
+            ``bos_id``, ``pad_id``, ``eos_id``, ``unk_id``.
         tokenizer_model (:obj:`Union[os.PathLike, str]`, `optional`): a path to a tokenizer model required for
             ``'sentencepiece'`` tokenizer.
         vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to a vocabulary file which can be used in
@@ -1221,8 +1222,8 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             batch['input_ids'],
             batch['subtokens_mask'],
             self.tokenizer.pad_id,
-            self.tokenizer.cls_id,
-            self.tokenizer.sep_id,
+            self.tokenizer.bos_id,
+            self.tokenizer.eos_id,
             self.ignore_start_end,
             self.ignore_extra_tokens,
         )

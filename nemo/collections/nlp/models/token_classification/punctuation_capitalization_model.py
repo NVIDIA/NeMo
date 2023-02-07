@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from tqdm import tqdm
@@ -51,11 +52,13 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
+from nemo.core.classes import ModelPT
+from transformers import BertConfig, BertModel, DistilBertConfig, DistilBertModel
 
 __all__ = ['PunctuationCapitalizationModel']
 
 
-class PunctuationCapitalizationModel(NLPModel, Exportable):
+class PunctuationCapitalizationModel(ModelPT, Exportable):
     """
     A model for restoring punctuation and capitalization in text. The model is usually used together with ASR model
     because ASR models often return text without punctuation and capitalization.
@@ -99,9 +102,24 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.label_ids_are_set: bool = False
         self.punct_label_ids: Optional[Dict[str, int]] = None
         self.capit_label_ids: Optional[Dict[str, int]] = None
+
+        self.tokenizer = self._setup_tokenizer(cfg.tokenizer)
+
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
+
+        # initialize the model with the config
+        if cfg.language_model.pretrained_model_name == "bert-base-uncased":
+            model_config = BertConfig(vocab_size=self.tokenizer.vocab_size, max_position_embeddings=512)
+            self.bert_model = BertModel(config=model_config)
+        elif cfg.language_model.pretrained_model_name == "distilbert-base-uncased":
+            model_config = DistilBertConfig(vocab_size=self.tokenizer.vocab_size, max_position_embeddings=512)
+            self.bert_model = DistilBertModel(config=model_config)
+        else:
+            raise ValueError
+
+        self.hidden_size = self.bert_model.config.hidden_size
 
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -125,6 +143,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         self.loss = CrossEntropyLoss(logits_ndim=3)
         self.agg_loss = AggregatorLoss(num_inputs=2)
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            tokenizer_model=cfg.tokenizer_model,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+        )
+        return tokenizer
 
     @typecheck()
     def forward(
@@ -151,9 +178,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
                   ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
         """
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if "DistilBert" in type(self.bert_model).__name__:
+            hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)[0]
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )[0]
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
 
@@ -768,6 +798,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
             tar_metadata_file = Path(cfg.ds_item) / cfg.tar_metadata_file
+
             dataset = BertPunctuationCapitalizationTarredDataset(
                 metadata_file=tar_metadata_file,
                 tokenizer=self.tokenizer,
@@ -781,6 +812,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 label_info_save_dir=cfg.label_info_save_dir,
                 use_audio=cfg.use_audio,
             )
+
             dataset.check_for_label_consistency_with_model_config(
                 self.punct_label_ids,
                 self.capit_label_ids,
