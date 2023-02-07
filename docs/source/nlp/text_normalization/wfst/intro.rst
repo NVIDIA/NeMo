@@ -3,7 +3,7 @@ WFST-based (Inverse) Text Normalization
 
 NeMo supports Text Normalization (TN), audio-based TN and Inverse Text Normalization (ITN) tasks.
 
-.. note::
+.. warning::
 
     *TN/ITN is transitioning from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
 
