@@ -1537,7 +1537,7 @@ class MultiSpeakerSimulator(object):
         num_sessions = self._params.data_simulator.session_config.num_sessions
         source_noise_manifest = self._read_noise_manifest()
         queue = []
-        
+
         # add radomly sampled arguments to a list(queue) for multiprocessing
         for sess_idx in range(num_sessions):
             filename = self._params.data_simulator.outputs.output_filename + f"_{sess_idx}"
