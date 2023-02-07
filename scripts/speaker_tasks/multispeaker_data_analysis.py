@@ -18,6 +18,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     load_speech_overlap_segments_from_rttm,
     plot_sample_from_rttm,
 )
+
 """
 This script analyzes multi-speaker speech dataset and generates statistics.
 The input directory </path/to/rttm_and_wav_directory> is required to contain the following files:
@@ -36,6 +37,7 @@ Usage:
         --num_samples 10 \
         --output_dir <path/to/output_directory> 
 """
+
 
 def process_sample(sess_dict: Dict) -> Dict:
     """
