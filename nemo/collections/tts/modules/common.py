@@ -159,9 +159,8 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        mask = get_mask_from_lengths(lens)
+        mask = get_mask_from_lengths(lens, context)
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
-        context = context[:, :, : mask.shape[-1]]
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
         # Apply Bidirectional LSTM

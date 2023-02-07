@@ -603,6 +603,11 @@ class RadTTSModule(NeuralModule, Exportable):
         batch_size = text.shape[0]
         if in_lens is None:
             in_lens = text.new_ones((batch_size,), dtype=torch.int64) * text.shape[1]
+            txt_len_pad_removed = text.shape[1]
+        else:
+            txt_len_pad_removed = torch.max(in_lens)
+            text = text[:, :txt_len_pad_removed]
+
         spk_vec = self.encode_speaker(speaker_id)
 
         if speaker_id_text is None:
@@ -620,7 +625,6 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(1, token_duration_max)
 
-        txt_len_pad_removed = txt_enc.shape[2]
         if pace is None:
             pace = txt_enc.new_ones((batch_size, txt_len_pad_removed))
         else:
