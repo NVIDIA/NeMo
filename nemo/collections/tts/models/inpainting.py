@@ -839,43 +839,6 @@ class InpainterModel(ModelPT, Exportable):
         batch_gen = torch.stack(random.sample(
             spec_windows_gen, self.discriminator_batch_size))
 
-        # print(f'batch_idx:{batch_idx}')
-        # print(f'optimizer_idx:{optimizer_idx}')
-        # import code  # NOQA
-        # code.interact(local={**locals(), **globals()})
-
-        # # Train discriminator
-        # optim_d.zero_grad()
-        # logits_real, _ = self.discriminator(batch_real.detach())
-        # logits_gen, _ = self.discriminator(batch_gen.detach())
-        #
-        # disc_loss = self.discriminator_loss(
-        #     logits_gen=logits_gen, logits_real=logits_real)
-        # self.manual_backward(disc_loss)
-        # optim_d.step()
-        #
-        # # Train Inpainter
-        # optim_g.zero_grad()
-        # supervised_losses = reconstruction_loss + dur_loss + pitch_loss
-        #
-        # _, activations_real = self.discriminator(batch_real)
-        # _, activations_gen = self.discriminator(batch_gen)
-        #
-        # feature_matching_loss = self.feature_matching_loss(
-        #     activations_real=activations_real,
-        #     activations_gen=activations_gen,
-        # )
-        #
-        # feature_matching_loss *= 10 * linear_rampup_with_warmup(
-        #     batch_idx,
-        #     warmup_steps=self.discriminator_warmup_steps,
-        #     rampup_steps=self.discriminator_rampup_steps
-        # )
-        # loss_inpainter = supervised_losses + feature_matching_loss
-        #
-        # self.manual_backward(loss_inpainter)
-        # optim_g.step()
-
         training_inpainter = optimizer_idx % 2 == 0
         # Train Discriminator
         if not training_inpainter:
@@ -892,31 +855,32 @@ class InpainterModel(ModelPT, Exportable):
         # Train Inpainter
         if training_inpainter:
             supervised_losses = reconstruction_loss + dur_loss + pitch_loss
+            loss=supervised_losses
 
-            _, activations_real = self.discriminator(batch_real)
-            _, activations_gen = self.discriminator(batch_gen)
-
-            feature_matching_loss = self.feature_matching_loss(
-                activations_real=activations_real,
-                activations_gen=activations_gen,
-            )
-
-            adversarial_amount = linear_rampup_with_warmup(
-                batch_idx,
-                warmup_steps=self.discriminator_warmup_steps,
-                rampup_steps=self.discriminator_rampup_steps
-            )
-            # 10 is the amount from the SpeechPainter paper
-            feature_matching_loss *= 10 * adversarial_amount
-            loss_inpainter = supervised_losses + feature_matching_loss
-            loss = loss_inpainter
-
-            self.log("inpainter_loss", loss)
-            self.log("reconstruction_loss", reconstruction_loss)
-            self.log("dur_loss", dur_loss)
-            self.log("pitch_loss", pitch_loss)
-            self.log("adversarial_amount", adversarial_amount)
-            self.log("feature_matching_loss", feature_matching_loss)
+            # _, activations_real = self.discriminator(batch_real)
+            # _, activations_gen = self.discriminator(batch_gen)
+            #
+            # feature_matching_loss = self.feature_matching_loss(
+            #     activations_real=activations_real,
+            #     activations_gen=activations_gen,
+            # )
+            #
+            # adversarial_amount = linear_rampup_with_warmup(
+            #     batch_idx,
+            #     warmup_steps=self.discriminator_warmup_steps,
+            #     rampup_steps=self.discriminator_rampup_steps
+            # )
+            # # 10 is the amount from the SpeechPainter paper
+            # feature_matching_loss *= 10 * adversarial_amount
+            # loss_inpainter = supervised_losses + feature_matching_loss
+            # loss = loss_inpainter
+            #
+            # self.log("inpainter_loss", loss)
+            # self.log("reconstruction_loss", reconstruction_loss)
+            # self.log("dur_loss", dur_loss)
+            # self.log("pitch_loss", pitch_loss)
+            # self.log("adversarial_amount", adversarial_amount)
+            # self.log("feature_matching_loss", feature_matching_loss)
 
         if self.log_train_spectrograms:
             mcds = []
