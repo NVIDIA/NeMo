@@ -14,12 +14,14 @@
 
 import copy
 import os
-from typing import Optional, Union, Dict
-import torch
+from typing import Dict, Optional, Union
 
+import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
@@ -28,8 +30,6 @@ from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTC
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
-from nemo.collections.asr.data import audio_to_text_dataset
 
 
 class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
