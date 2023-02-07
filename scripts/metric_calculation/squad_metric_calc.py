@@ -111,7 +111,7 @@ def main():
         type=str,
         help="The field in the json file that contains the ground truth tokens",
         default="answer",
-    ) 
+    )
 
     args = parser.parse_args()
 
