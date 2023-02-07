@@ -38,6 +38,7 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     LayerType = ApexGuardDefaults()
 
+from pdb import set_trace as bp
 
 def get_language_model(
     hidden_size,
@@ -624,7 +625,7 @@ class TransformerLanguageModel(MegatronModule):
 
         rotary_pos_emb = None
         if self.use_rotary_position_embeddings:
-            n, _, _ = encoder_input.shape
+            n = self.max_position_embeddings
             rotary_pos_emb = self.rotary_pos_emb(n)
 
         # encoder.
