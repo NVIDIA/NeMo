@@ -12,25 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import os
 from functools import lru_cache
 
 import pytest
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
+from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
-from nemo.utils.config_utils import assert_dataclass_signature_match
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -167,7 +165,7 @@ class TestRNNTDecoding:
 
             # Use the following commented print statements to check
             # the alignment of other algorithms compared to the default
-            # print("Text", hyp.text)
+            print("Text", hyp.text)
             for t in range(len(hyp.alignments)):
                 t_u = []
                 for u in range(len(hyp.alignments[t])):
@@ -177,13 +175,13 @@ class TestRNNTDecoding:
 
                     t_u.append(int(label))
 
-            #     print(f"Tokens at timestep {t} = {t_u}")
-            # print()
+                print(f"Tokens at timestep {t} = {t_u}")
+            print()
 
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
-    @pytest.mark.with_downloads
+    # @pytest.mark.skipif(
+    #     not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    # )
+    # @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
@@ -223,10 +221,11 @@ class TestRNNTDecoding:
             if beam_config['search_type'] == 'alsd':
                 assert len(all_hyps) <= int(beam_config['alsd_max_target_len'] * float(enc_len[0]))
 
+            print("Beam search algorithm :", beam_config['search_type'])
             # Use the following commented print statements to check
             # the alignment of other algorithms compared to the default
             for idx, hyp_ in enumerate(all_hyps):  # type: (int, rnnt_utils.Hypothesis)
-                # print("Hyp index", idx + 1, "text :", hyp_.text)
+                print("Hyp index", idx + 1, "text :", hyp_.text)
 
                 # Alignment length (T) must match audio length (T)
                 assert len(hyp_.alignments) == enc_len[0]
@@ -244,9 +243,13 @@ class TestRNNTDecoding:
                     if len(t_u) > 1:
                         assert t_u[-1] == blank_id
 
-                #     print(f"Tokens at timestep {t} = {t_u}")
-                # print()
+                        # No blank token should be present in the current timestep other than at the end
+                        for token in t_u[:-1]:
+                            assert token != blank_id
+
+                    print(f"Tokens at timestep {t} = {t_u}")
+                print()
 
                 assert len(hyp_.timestep) > 0
-                # print("Timesteps", hyp_.timestep)
-                # print()
+                print("Timesteps", hyp_.timestep)
+                print()
