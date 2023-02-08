@@ -845,7 +845,7 @@ class ClusterEmbedding:
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
         self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer, speaker_model=self._speaker_model)
         self._out_dir = self.clus_diar_model._diarizer_params.out_dir
-        self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
+        self.out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(self.out_rttm_dir, exist_ok=True)
 
         self.clus_diar_model._cluster_params = self.cfg_diar_infer.diarizer.clustering.parameters
@@ -1454,15 +1454,21 @@ class NeuralDiarizer:
             diarizer = cls(cfg)
         elif domain in ['meeting', 'general']:
             cfg = NeuralInferenceConfig.from_domain(domain, device)
-            cfg.diarizer.msdd_model.model_path = None 
+            cfg.diarizer.msdd_model.model_path = diar_model_name
             cfg.diarizer.vad.model_path = diar_model_name
-            cfg.diarizer.speaker_embeddings.model_path = diar_model_name
+            cfg.diarizer.out_dir = "./"
+            cfg.diarizer.speaker_embeddings.model_path = speaker_model_name
+            # cfg.diarizer.speaker_embeddings.parameters.save_embeddings = True
             diarizer = ClusteringDiarizer(cfg)
+            cls.diarize = diarizer.diarize
+            cls._diarizer_params = cfg.diarizer
+            diarizer = cls(cfg)
         else:
             raise ValueError(f"Domain name: {domain} is not supported domain name.")
         return diarizer
 
-    def __call__(
+    # def __call__(
+    def diarize_audio(
         self,
         inference_input: Union[str, List[str]],
         max_speakers: Optional[int] = None,
@@ -1514,8 +1520,9 @@ class NeuralDiarizer:
             )
 
             self.msdd_model.cfg.test_ds.manifest_filepath = manifest_path
+            self._diarizer_params.out_dir = tmpdir # Incase we use clustering diarizer
             self.diarize()
-
+            
             pred_labels_clus = [
                 rttm_to_labels(f'{tmpdir}/pred_rttms/{Path(audio_path).stem}.rttm') for audio_path in inference_input
             ]
@@ -1535,6 +1542,7 @@ class NeuralDiarizer:
         self._cfg.num_workers = num_workers
         self._cfg.diarizer.manifest_filepath = manifest_path
         self._cfg.diarizer.out_dir = tmpdir
+        self._diarizer_params = self._cfg.diarizer
         self._cfg.diarizer.clustering.oracle_num_speakers = num_speakers is not None
         if max_speakers:
             self._cfg.diarizer.clustering.max_num_speakers = max_speakers

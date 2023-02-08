@@ -18,6 +18,7 @@ from typing import Dict, Optional, Tuple, Union
 import torch
 import os
 import requests
+import tempfile
 from omegaconf import OmegaConf
 from lightning_fabric.utilities.exceptions import MisconfigurationException
 
@@ -176,12 +177,14 @@ class NeuralInferenceConfig(DiarizerComponentConfig):
     sample_rate: int = 16000
     
     @staticmethod 
-    def _download_yaml(url: str, temp_yaml: str = './temp.yaml'):
+    def _download_yaml(url: str, temp_dir: str = './'):
         read_handle = requests.get(url)  
-        with open('./temp.yaml', 'wb') as f:
-            f.write(read_handle.content)
-        yaml_config = OmegaConf.load(temp_yaml)
-        os.remove(temp_yaml)
+        # with open('./temp.yaml', 'wb') as f:
+        #     f.write(read_handle.content)
+        with tempfile.TemporaryDirectory(dir=temp_dir) as temp_yaml:
+            with open(f"{temp_yaml}/temp.yaml", 'wb') as f:
+                f.write(read_handle.content)
+            yaml_config = OmegaConf.load(f"{temp_yaml}/temp.yaml")
         return yaml_config
 
     @staticmethod 
@@ -200,11 +203,6 @@ class NeuralInferenceConfig(DiarizerComponentConfig):
 
     @classmethod
     def from_domain(cls, domain: Optional[str], device: Union[torch.device, str]):
-        # if domain not in DEFAULT_DOMAIN_PARAMETERS:
-        #     raise MisconfigurationException(
-        #         f"The domain {domain} does not exist. "
-        #         f"Please pick a domain from: {DEFAULT_DOMAIN_PARAMETERS.keys()}"
-        #     )
         if domain is None:
             return DiarizerConfig()
         else:
