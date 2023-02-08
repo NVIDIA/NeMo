@@ -248,7 +248,7 @@ model:
   discriminator:
     warmup_steps: 20000
     rampup_steps: 20000
-    batch_size: 64
+    batch_size: 128
 
   optim:
     _target_: torch.optim.AdamW

@@ -713,7 +713,7 @@ class InpainterModel(ModelPT, Exportable):
             audio, audio_lens,
             text, text_lens,
             align_prior_matrix,
-            pitch, pitch_lens
+            pitch, pitch_lens,
         ) = batch
 
         mels, spec_len = self.preprocessor(
@@ -865,6 +865,8 @@ class InpainterModel(ModelPT, Exportable):
         training_inpainter = optimizer_idx % 2 == 0
         # Train Discriminator
         if not training_inpainter:
+            if self.global_step < (self.discriminator_warmup_steps - 1000):
+                return
             logits_real, _ = self.discriminator(batch_real.detach())
             logits_gen, _ = self.discriminator(batch_gen.detach())
 
@@ -894,8 +896,8 @@ class InpainterModel(ModelPT, Exportable):
                 rampup_steps=self.discriminator_rampup_steps
             )
             # 10 is the amount from the SpeechPainter paper
-            feature_matching_loss *= 10 * adversarial_amount
-            loss_inpainter = supervised_losses + feature_matching_loss
+            feature_matching_loss_scaled = feature_matching_loss * (10 * adversarial_amount)
+            loss_inpainter = supervised_losses + feature_matching_loss_scaled
             loss = loss_inpainter
 
             self.log("inpainter_loss", loss)
@@ -903,6 +905,7 @@ class InpainterModel(ModelPT, Exportable):
             self.log("dur_loss", dur_loss)
             self.log("pitch_loss", pitch_loss)
             self.log("adversarial_amount", adversarial_amount)
+            self.log("feature_matching_loss_scaled", feature_matching_loss_scaled)
             self.log("feature_matching_loss", feature_matching_loss)
 
         if self.log_train_spectrograms:
