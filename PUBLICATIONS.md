@@ -7,6 +7,22 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 # Automatic Speech Recognition (ASR)
 
 <details>
+  <summary>2023</summary>
+
+  * [Fast Entropy-Based Methods of Word-Level Confidence Estimation for End-to-End Automatic Speech Recognition](https://ieeexplore.ieee.org/abstract/document/10022960)
+  * [Damage Control During Domain Adaptation for Transducer Based Automatic Speech Recognition](https://ieeexplore.ieee.org/abstract/document/10023219)
+
+</details>
+
+<details>
+  <summary>2022</summary>
+
+  * [Multi-blank Transducers for Speech Recognition](https://arxiv.org/abs/2211.03541)
+  * [Accidental Learners: Spoken Language Identification in Multilingual Self-Supervised Models](https://arxiv.org/abs/2211.05103)
+
+</details>
+
+<details>
   <summary>2021</summary>
   
   * [Citrinet: Closing the Gap between Non-Autoregressive and Autoregressive End-to-End Models for Automatic Speech Recognition](https://arxiv.org/abs/2104.01721)
@@ -14,6 +30,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   * [CarneliNet: Neural Mixture Model for Automatic Speech Recognition](https://arxiv.org/abs/2107.10708)
   * [CTC Variations Through New WFST Topologies](https://arxiv.org/abs/2110.03098)
   * [A Toolbox for Construction and Analysis of Speech Datasets](https://openreview.net/pdf?id=oJ0oHQtAld)
+  * 
   
 </details>
 
@@ -44,9 +61,9 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 ## Speaker Recognition (SpkR)
 
 <details>
-  <summary>2021</summary>
+  <summary>2022</summary>
   
-  * [TitaNet: Neural Model for speaker representation with 1D Depth-wise separable convolutions and global context]( https://arxiv.org/pdf/2110.04410.pdf) 
+  * [TitaNet: Neural Model for Speaker Representation with 1D Depth-Wise Separable Convolutions and Global Context](https://ieeexplore.ieee.org/abstract/document/9746806)
 
 </details>
 
@@ -123,6 +140,14 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 # Text To Speech (TTS)
 
 <details>
+  <summary>2022</summary>
+    
+  * [Adapter-Based Extension of Multi-Speaker Text-to-Speech Model for New Speakers](https://arxiv.org/abs/2211.00585)
+  * 
+
+</details>
+
+<details>
   <summary>2021</summary>
   
   * [TalkNet: Fully-Convolutional Non-Autoregressive Speech Synthesis Model](https://www.isca-speech.org/archive/interspeech_2021/beliaev21_interspeech.html)
@@ -140,6 +165,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   <summary>2022</summary>
   
   * [Shallow Fusion of Weighted Finite-State Transducer and Language Model for Text Normalization](https://arxiv.org/abs/2203.15917)
+  * [Thutmose Tagger: Single-pass neural model for Inverse Text Normalization](https://arxiv.org/abs/2208.00064)
 
 </details>
 
