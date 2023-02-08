@@ -258,7 +258,9 @@ class MultiSpeakerSimulator(object):
             self._params.data_simulator.session_params.turn_prob = self._turn_prob_min
 
         if self._params.data_simulator.session_params.sentence_length_params[0] <= 0:
-            raise Exception("k (number of success until the exp. ends) in Sentence length parameter value must be a positive number")
+            raise Exception(
+                "k (number of success until the exp. ends) in Sentence length parameter value must be a positive number"
+            )
 
         if not (0 < self._params.data_simulator.session_params.sentence_length_params[1] <= 1):
             raise Exception("p (success probability) value in Sentence length parameter (k, p) must be in range (0,1]")
