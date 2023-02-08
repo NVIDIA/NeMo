@@ -607,7 +607,7 @@ class RadTTSModule(NeuralModule, Exportable):
         else:
             txt_len_pad_removed = torch.max(in_lens)
             # borisf : this should not be needed as long as we have properly formed input batch
-            txt_enc = txt_enc[:, :txt_len_pad_removed]
+            text = text[:, :txt_len_pad_removed]
 
         spk_vec = self.encode_speaker(speaker_id)
 
