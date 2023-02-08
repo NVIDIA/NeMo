@@ -24,7 +24,7 @@ The manifest file contains the following fields:
 
 Usage:
     python build_synthetic_vad_manifest.py \
-        --input_dir /path/to/synthetic/data> \
+        --input_dir /path/to/synthetic/data \
         --frame_length 0.04 \
         --output_file /path/to/output/manifest.json
 """
