@@ -250,7 +250,7 @@ class MultiSpeakerSimulator(object):
                 "Turn probability is less than {self._turn_prob_min} while enforce_num_speakers=True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
             )
             self._params.data_simulator.session_params.turn_prob = self._turn_prob_min
-        
+
         if self._params.data_simulator.session_params.sentence_length_params[0] <= 0:
             raise Exception(
                 "k (number of success until the exp. ends) in Sentence length parameter value must be a positive number"
