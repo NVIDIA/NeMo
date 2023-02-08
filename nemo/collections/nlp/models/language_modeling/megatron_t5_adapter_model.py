@@ -323,7 +323,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                 logging.info(f'Validation accuracy: {val_acc}')
             else:
                 val_acc = torch.tensor(0.0).cuda()
-            
+
             self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
