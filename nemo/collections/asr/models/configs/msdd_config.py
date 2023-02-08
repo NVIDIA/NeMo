@@ -16,49 +16,6 @@ from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
 import torch
-from lightning_fabric.utilities.exceptions import MisconfigurationException
-
-DEFAULT_DOMAIN_PARAMETERS = {
-    "meeting": dict(
-        vad=dict(
-            shift_length_in_sec=0.01,
-            onset=0.8,
-            offset=0.5,
-            pad_onset=0,
-            pad_offset=0,
-            min_duration_on=0,
-            min_duration_off=0.6,
-        ),
-        speaker_embeddings=dict(
-            window_length_in_sec=(3.0, 2.5, 2.0, 1.5, 1.0, 0.5),
-            shift_length_in_sec=(1.5, 1.25, 1.0, 0.75, 0.5, 0.25),
-            multiscale_weights=(1, 1, 1, 1, 1, 1),
-        ),
-        clustering=dict(sparse_search_volume=30),
-        msdd_model=dict(),
-    ),
-    "telephonic": dict(
-        vad=dict(
-            window_length_in_sec=0.15,
-            shift_length_in_sec=0.01,
-            smoothing="median",
-            overlap=0.5,
-            onset=0.1,
-            offset=0.1,
-            pad_onset=0.1,
-            pad_offset=0,
-            min_duration_on=0,
-            min_duration_off=0.2,
-        ),
-        speaker_embeddings=dict(
-            window_length_in_sec=(1.5, 1.25, 1.0, 0.75, 0.5),
-            shift_length_in_sec=(0.75, 0.625, 0.5, 0.375, 0.25),
-            multiscale_weights=(1, 1, 1, 1, 1),
-        ),
-        clustering=dict(sparse_search_volume=30),
-        msdd_model=dict(),
-    ),
-}
 
 
 @dataclass
@@ -89,29 +46,29 @@ class DiarizerComponentConfig:
 class VADConfig(DiarizerComponentConfig):
     model_path: str = "vad_multilingual_marblenet"  # .nemo local model path or pretrained VAD model name
     external_vad_manifest: Optional[str] = None
-    window_length_in_sec: float = 0.63  # Window length in sec for VAD context input
-    shift_length_in_sec: float = 0.08  # Shift length in sec for generate frame level VAD prediction
-    smoothing: Union[str, bool] = False  # False or type of smoothing method (eg: median)
+    window_length_in_sec: float = 0.15  # Window length in sec for VAD context input
+    shift_length_in_sec: float = 0.01  # Shift length in sec for generate frame level VAD prediction
+    smoothing: Union[str, bool] = "median"  # False or type of smoothing method (eg: median)
     overlap: float = 0.5  # Overlap ratio for overlapped mean/median smoothing filter
-    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
-    offset: float = 0.3  # Offset threshold for detecting the end of a speech
-    pad_onset: float = 0.2  # Adding durations before each speech segment
-    pad_offset: float = 0.2  # Adding durations after each speech segment
-    min_duration_on: float = 0.5  # Threshold for small non_speech deletion
-    min_duration_off: float = 0.5  # Threshold for short speech segment deletion
+    onset: float = 0.1  # Onset threshold for detecting the beginning and end of a speech
+    offset: float = 0.1  # Offset threshold for detecting the end of a speech
+    pad_onset: float = 0.1  # Adding durations before each speech segment
+    pad_offset: float = 0  # Adding durations after each speech segment
+    min_duration_on: float = 0  # Threshold for small non_speech deletion
+    min_duration_off: float = 0.2  # Threshold for short speech segment deletion
     filter_speech_first: bool = True
 
 
 @dataclass
 class SpeakerEmbeddingsConfig(DiarizerComponentConfig):
     # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
-    model_path: str = "titanet_large"
+    model_path: Optional[str] = None
     # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
-    window_length_in_sec: Tuple[float] = (1.9, 1.2, 0.5)
+    window_length_in_sec: Tuple[float] = (1.5, 1.25, 1.0, 0.75, 0.5)
     # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
-    shift_length_in_sec: Tuple[float] = (0.95, 0.6, 0.25)
+    shift_length_in_sec: Tuple[float] = (0.75, 0.625, 0.5, 0.375, 0.25)
     # Weight for each scale. None (for single scale) or list with window/shift scale count. ex) [0.33,0.33,0.33]
-    multiscale_weights: Tuple[float] = (1, 1, 1)
+    multiscale_weights: Tuple[float] = (1, 1, 1, 1, 1)
     # save speaker embeddings in pickle format. True if clustering result is used for other models, such as MSDD.
     save_embeddings: bool = True
 
@@ -127,7 +84,7 @@ class ClusteringConfig(DiarizerComponentConfig):
     # Determines the range of p-value search: 0 < p <= max_rp_threshold.
     max_rp_threshold: float = 0.25
     # The higher the number, the more values will be examined with more time.
-    sparse_search_volume: int = 10
+    sparse_search_volume: int = 30
     # If True, take a majority vote on multiple p-values to estimate the number of speakers.
     maj_vote_spk_count: bool = False
 
@@ -172,27 +129,15 @@ class NeuralInferenceConfig(DiarizerComponentConfig):
     num_workers: int = 1
     sample_rate: int = 16000
 
-    @classmethod
-    def from_domain(cls, domain: Optional[str], device: Union[torch.device, str]):
-        if not domain:
-            return DiarizerConfig()
-        if domain not in DEFAULT_DOMAIN_PARAMETERS:
-            raise MisconfigurationException(
-                f"The domain {domain} does not exist. "
-                f"Please pick a domain from: {DEFAULT_DOMAIN_PARAMETERS.keys()}"
-            )
-        config = DEFAULT_DOMAIN_PARAMETERS[domain]
-
-        return NeuralInferenceConfig(
-            DiarizerConfig(
-                vad=VADConfig(**config["vad"]),
-                speaker_embeddings=SpeakerEmbeddingsConfig(**config["speaker_embeddings"]),
-                clustering=ClusteringConfig(**config["clustering"]),
-                msdd_model=MSDDConfig(**config["msdd_model"]),
-            ),
-            device=device,
-        )
-
     def __post_init__(self):
         if self.device == "auto":
             self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    @classmethod
+    def init_config(cls, diar_model_path: str, vad_model_path: str, device):
+        return NeuralInferenceConfig(
+            DiarizerConfig(
+                vad=VADConfig(model_path=vad_model_path), msdd_model=MSDDConfig(model_path=diar_model_path),
+            ),
+            device=device,
+        )

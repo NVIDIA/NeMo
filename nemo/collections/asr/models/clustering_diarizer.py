@@ -271,6 +271,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             postprocessing_params=vad_params,
             frame_length_in_sec=frame_length_in_sec,
             num_workers=self._cfg.num_workers,
+            out_dir=self._vad_dir,
         )
 
         AUDIO_VAD_RTTM_MAP = {}

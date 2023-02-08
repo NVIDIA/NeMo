@@ -1428,8 +1428,6 @@ class NeuralDiarizer:
         cls,
         diar_model_name: str = 'diar_msdd_telephonic',
         vad_model_name: str = 'vad_multilingual_marblenet',
-        speaker_model_name: str = 'titanet_large',
-        domain: Optional[str] = None,
         device: Union[torch.device, str] = "auto",
     ):
         """
@@ -1438,48 +1436,45 @@ class NeuralDiarizer:
         Args:
             diar_model_name (str): Path/Name of the neural diarization model to load.
             vad_model_name (str): Path/Name of the voice activity detection (VAD) model to load.
-            speaker_model_name (str): Path/Name of the speaker model to load.
-            domain (str): Specific domain of thea udio, supports "telephonic" and "meeting" (default is general).
             device (torch.device): Device we are running on. "auto selects CUDA if available ('cpu', 'cuda').
 
         Returns:
             `NeuralDiarizer`
         """
-        cfg = NeuralInferenceConfig.from_domain(domain, device)
-        cfg.diarizer.msdd_model.model_path = diar_model_name
-        cfg.diarizer.vad.model_path = diar_model_name
-        cfg.diarizer.speaker_embeddings.model_path = diar_model_name
+        cfg = NeuralInferenceConfig.init_config(
+            diar_model_path=diar_model_name, vad_model_path=vad_model_name, device=device
+        )
         return cls(cfg)
 
     def __call__(
         self,
-        inference_input: Union[str, List[str]],
-        max_speakers: Optional[int] = None,
-        num_speakers: Optional[int] = None,
+        audio_filepath: str,
         batch_size: int = 64,
         num_workers: int = 1,
-        intermediate_dir: Optional[str] = None,
+        max_speakers: Optional[int] = None,
+        num_speakers: Optional[int] = None,
+        out_dir: Optional[str] = None,
     ) -> Union[Annotation, List[Annotation]]:
         """
         Run the `NeuralDiarizer` inference pipeline.
 
         Args:
-            inference_input (str, list): Audio path, or a list of audio paths to run speaker diarization on.
+            audio_filepath (str, list): Audio path to run speaker diarization on.
             max_speakers (int): If known, the max number of speakers in the file(s).
             num_speakers (int): If known, the exact number of speakers in the file(s).
             batch_size (int): Batch size when running inference.
             num_workers (int): Number of workers to use in data-loading.
-            intermediate_dir (str): Path to store intermediate files during inference (default temp directory).
+            out_dir (str): Path to store intermediate files during inference (default temp directory).
         Returns:
             `pyannote.Annotation` for each audio path, containing speaker labels and segment timestamps.
         """
-        with tempfile.TemporaryDirectory(dir=intermediate_dir) as tmpdir:
-            # assume single file if string
-            inference_input = [inference_input,] if isinstance(inference_input, str) else inference_input
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=out_dir) as tmpdir:
             manifest_path = os.path.join(tmpdir, 'manifest.json')
             meta = [
                 {
-                    'audio_filepath': audio_path,
+                    'audio_filepath': audio_filepath,
                     'offset': 0,
                     'duration': None,
                     'label': 'infer',
@@ -1488,8 +1483,8 @@ class NeuralDiarizer:
                     'rttm_filepath': None,
                     'uem_filepath': None,
                 }
-                for audio_path in inference_input
             ]
+
             with open(manifest_path, 'w') as f:
                 f.write('\n'.join(json.dumps(x) for x in meta))
 
@@ -1505,11 +1500,8 @@ class NeuralDiarizer:
             self.msdd_model.cfg.test_ds.manifest_filepath = manifest_path
             self.diarize()
 
-            pred_labels_clus = [
-                rttm_to_labels(f'{tmpdir}/pred_rttms/{Path(audio_path).stem}.rttm') for audio_path in inference_input
-            ]
-            annotations = [labels_to_pyannote_object(pred_labels) for pred_labels in pred_labels_clus]
-        return annotations[0] if len(annotations) == 1 else annotations
+            pred_labels_clus = rttm_to_labels(f'{tmpdir}/pred_rttms/{Path(audio_filepath).stem}.rttm')
+        return labels_to_pyannote_object(pred_labels_clus)
 
     def _initialize_configs(
         self,
