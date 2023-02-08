@@ -505,6 +505,7 @@ class IPATokenizer(BaseTokenizer):
         locale="en-US",
         punct=True,
         non_default_punct_list=None,
+        fixed_vocab=None,
         *,
         space=' ',
         silence=None,
@@ -522,6 +523,11 @@ class IPATokenizer(BaseTokenizer):
                 Specify None if implementing custom logic for a new locale.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
+            fixed_vocab: List of valid grapheme/phoneme tokens for the model.
+                Set only if overriding the default vocab generation process (reading from G2P dict).
+                If set, any dataset entries that have unincluded graphemes will be filtered out, and any words whose
+                pronunciations have unincluded phonemes will be treated as OOV.
+                Defaults to None, which means default vocab generation is used.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
             apostrophe: Whether to use apostrophe or not.
@@ -546,8 +552,14 @@ class IPATokenizer(BaseTokenizer):
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
 
-        # Build tokens list
-        tokens = set(g2p.symbols)
+        # Build tokens list if fixed_vocab isn't set
+        if fixed_vocab:
+            tokens = set(fixed_vocab)
+            self.set_fixed_vocab = True     # Used to check whether dataset entries need filtering
+            g2p.replace_symbols(tokens)
+        else:
+            tokens = set(g2p.symbols)
+            self.set_fixed_vocab = False
 
         if apostrophe:
             tokens.add("'")
@@ -572,6 +584,8 @@ class IPATokenizer(BaseTokenizer):
             self.silence, tokens = len(tokens), tokens + [silence]
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
+
+        self.tokens_set = set(self.tokens)  # To save some repeated work when filtering entries
 
         self.punct = punct
         self.pad_with_space = pad_with_space

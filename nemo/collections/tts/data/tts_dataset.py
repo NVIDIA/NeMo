@@ -185,7 +185,6 @@ class TTSDataset(Dataset):
         self.phoneme_probability = None
         if isinstance(self.text_tokenizer, BaseTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
-            self.tokens = text_tokenizer.tokens
             self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
         else:
             if text_tokenizer_pad_id is None:
@@ -195,7 +194,6 @@ class TTSDataset(Dataset):
                 raise ValueError(f"tokens must be specified if text_tokenizer is not BaseTokenizer")
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
-            self.tokens = tokens
         self.cache_text = True if self.phoneme_probability is None else False
 
         # Initialize text normalizer if specified
@@ -247,6 +245,17 @@ class TTSDataset(Dataset):
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
+
+                    # Check whether the user passed in a fixed vocab
+                    # If so, entries with illegal graphemes should be filtered out
+                    if self.text_tokenizer.set_fixed_vocab:
+                        normalized_text = file_info["normalized_text"]
+                        text_set = set(normalized_text)
+                        # Skip if set difference between graphemes in text and valid tokens set is nonempty
+                        set_diff = text_set - self.text_tokenizer.tokens_set
+                        if set_diff:
+                            logging.warning(f"Skipping entry, found illegal grapheme(s) [{set_diff}] in text: [{normalized_text}]")
+                            continue
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
