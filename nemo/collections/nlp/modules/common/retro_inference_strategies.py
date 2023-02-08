@@ -160,6 +160,16 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
                     self._store_retrieved(tokens, chunks)
                 self.retrieved.append(chunks)
 
+    def call_prospero(self, query, neighbors):
+        sentence_list = []
+        for q in query:
+            text = self.tokenizer.ids_to_text(q)
+            sentence_list.append(text)
+        query = sentence_list
+
+        # Insert get call here
+
+
     def prepare_batch_at_step(
         self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
     ) -> Tuple[List[torch.Tensor], List[int]]:
