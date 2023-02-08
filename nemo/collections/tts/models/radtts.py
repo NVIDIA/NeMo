@@ -470,8 +470,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         for i, _ in enumerate(inp):
             len_i = random.randint(64, max_dim)
             lens.append(len_i)
-            inp[i, len_i:] = pad_id
+            # inp[i, len_i:] = pad_id
         lens = torch.tensor(lens, device=par.device, dtype=torch.int32)
+        lens[0] = max_dim
 
         inputs = {
             'text': inp,
@@ -512,9 +513,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             durs_predicted,
             volume[:, :truncated_length].unsqueeze(-1),
             pace[:, :truncated_length],
-            replicate_to_nearest_multiple=True,
             group_size=self.model.n_group_size,
-            in_lens=lens,
+            dur_lens=lens,
         )
         volume_extended = volume_extended.squeeze(2).float()
         return mel.float(), n_frames, dur.float(), volume_extended

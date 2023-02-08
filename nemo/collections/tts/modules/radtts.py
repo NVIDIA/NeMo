@@ -606,7 +606,8 @@ class RadTTSModule(NeuralModule, Exportable):
             txt_len_pad_removed = text.shape[1]
         else:
             txt_len_pad_removed = torch.max(in_lens)
-            text = text[:, :txt_len_pad_removed]
+            # borisf : this should not be needed as long as we have properly formed input batch
+            txt_enc = txt_enc[:, :txt_len_pad_removed]
 
         spk_vec = self.encode_speaker(speaker_id)
 
@@ -631,12 +632,7 @@ class RadTTSModule(NeuralModule, Exportable):
             pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
-            dur,
-            txt_enc.transpose(1, 2),
-            pace,
-            replicate_to_nearest_multiple=True,
-            group_size=self.n_group_size,
-            in_lens=in_lens,
+            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size, dur_lens=in_lens,
         )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
@@ -682,9 +678,8 @@ class RadTTSModule(NeuralModule, Exportable):
                 dur,
                 pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1),
                 pace,
-                replicate_to_nearest_multiple=True,
                 group_size=self.n_group_size,
-                in_lens=in_lens,
+                dur_lens=in_lens,
             )
             f0_bias = pitch_shift_spec_len.squeeze(-1) + f0_bias
 
