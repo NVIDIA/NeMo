@@ -437,11 +437,12 @@ class InpainterModel(ModelPT, Exportable):
             scheduler_config=scheduler_config,
             train_dataloader=self._train_dl
         )
-        sched_d = prepare_lr_scheduler(
-            optimizer=optim_d,
-            scheduler_config=scheduler_config,
-            train_dataloader=self._train_dl
-        )
+        # sched_d = prepare_lr_scheduler(
+        #     optimizer=optim_d,
+        #     scheduler_config=scheduler_config,
+        #     train_dataloader=self._train_dl
+        # )
+        sched_d = None
 
         if sched_g is None or sched_d is None:
             raise ValueError('Error making schedulers')
