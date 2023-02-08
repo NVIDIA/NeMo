@@ -24,6 +24,7 @@ from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tokenizer_wrapper import TextToSpeechTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
@@ -170,7 +171,7 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
-    if (library != 'byte-level') and (
+    if (library != 'byte-level') and (library != 'tts') and (
         model_name is None and (tokenizer_model is None or not os.path.isfile(tokenizer_model))
     ):
         raise ValueError("No Tokenizer path provided or file does not exist!")
@@ -207,8 +208,10 @@ def get_nmt_tokenizer(
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
     elif library == 'tabular':
         return TabularTokenizer(vocab_file, delimiter=delimiter)
+    elif library == 'tts':
+        return TextToSpeechTokenizer(phoneme_dict=tokenizer_model, heteronyms=vocab_file)
     else:
         raise NotImplementedError(
             'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
-            'libraries.'
+            ' libraries.'
         )

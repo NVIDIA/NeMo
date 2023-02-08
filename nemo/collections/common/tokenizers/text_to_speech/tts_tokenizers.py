@@ -374,7 +374,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
-        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
+        text_preprocessing_func=english_text_preprocessing,
     ):
         """English phoneme-based tokenizer.
         Args:
@@ -441,7 +441,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
     def encode(self, text):
         """See base class for more information."""
 
-        text = self.text_preprocessing_func(text)
+        text = self.text_preprocessing_func(text, lower=False)
         g2p_text = self.g2p(text)  # TODO: handle infer
         return self.encode_from_g2p(g2p_text, text)
 

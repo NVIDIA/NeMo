@@ -557,7 +557,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         special_tokens={},
     ):
 
-        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level', 'tts']
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers
@@ -743,8 +743,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         decoder_tokenizer,
         global_rank,
         world_size,
-        multilingual,
-        multilingual_ids,
+        multilingual=None,
+        multilingual_ids=None,
     ):
         if cfg.get("use_tarred_dataset", False) or cfg.get("dataset_type", "") == "tarred":
             if cfg.get("metadata_file") is None:

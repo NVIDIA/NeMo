@@ -210,7 +210,7 @@ class FastPitchModule(NeuralModule):
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "num_frames": NeuralType(('B'), LengthsType()),
             "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),

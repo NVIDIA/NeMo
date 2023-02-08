@@ -23,6 +23,7 @@ from collections import Counter
 
 import numpy as np
 import torch
+from torch.utils.data import default_collate
 from tqdm.auto import tqdm
 
 from nemo.utils import logging
@@ -621,3 +622,38 @@ def load_data_indices(idx_file: str, data_file: str, savename: str):
             return indices, idx_file, data_dir
 
     return None, idx_file, data_dir
+
+
+def bitext_collate_fn(batch, src_pad_id, tgt_pad_id, mask_pad_id=0):
+    """
+    Collate batch of src ids, src mask, tgt ids, tgt mask, labels.
+    Allows to merge several batches with sequences of different lengths.
+    Args:
+        batch (LongTensor, LongTensor, LongTensor, LongTensor, LongTensor):
+            A tuple of tuples of source text tokens, source text masks,
+            target tokens, target tokens mask, and labels.
+        src_pad_id: source tokenizer pad id
+        tgt_pad_id: target tokenizer pad id
+        mask_pad_is: value which corresponds to masked tokens
+    """
+
+    max_src_len, max_tgt_len = 0, 0
+    for b in batch:
+        max_src_len = max(max_src_len, b[0].shape[1])
+        max_tgt_len = max(max_tgt_len, b[2].shape[1])
+
+    if len(batch) == 1:
+        return default_collate(batch)
+
+    max_len = [max_src_len, max_src_len, max_tgt_len, max_tgt_len, max_tgt_len]
+    pad_ids = [src_pad_id, mask_pad_id, tgt_pad_id, mask_pad_id, tgt_pad_id]
+
+    padded_batch = []
+    for b in batch:
+        padded_batch.append([])
+        for i in range(5):
+            pad_width = ((0, 0), (0, max_len[i]-b[i].shape[1]))
+            padded_array = np.pad(b[i], pad_width=pad_width, constant_values=pad_ids[i])
+            padded_batch[-1].append(padded_array)
+
+    return default_collate(padded_batch)

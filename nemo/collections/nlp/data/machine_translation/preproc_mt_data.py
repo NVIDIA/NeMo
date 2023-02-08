@@ -326,6 +326,7 @@ class MTDataPreproc:
             library=encoder_tokenizer_name,
             model_name=encoder_model_name,
             tokenizer_model=encoder_tokenizer_model,
+            vocab_file=encoder_model_name,
             bpe_dropout=encoder_bpe_dropout,
             r2l=encoder_r2l,
             legacy=encoder_tokenizer_legacy,
