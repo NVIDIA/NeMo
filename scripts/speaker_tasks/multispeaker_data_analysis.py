@@ -122,6 +122,8 @@ def run_multispeaker_data_analysis(
     """
 
     print(f"Found {len(rttm_list)} files to be processed")
+    if len(rttm_list) == 0:
+        raise ValueError(f"No rttm files found in {input_dir}")
 
     silence_duration = 0.0
     total_duration = 0.0
