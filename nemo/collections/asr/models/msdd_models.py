@@ -1190,6 +1190,7 @@ class NeuralDiarizer(LightningModule):
         thresholds = list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold)
         if self._cfg.evaluate:
             return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
+        return
 
     def get_range_average(
         self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
