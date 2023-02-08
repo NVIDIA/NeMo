@@ -128,6 +128,16 @@ You may find the example config files of Conformer-Transducer model with charact
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
 
+Fast-Conformer
+--------------
+
+The Fast Conformer (CTC and RNNT) models have a faster version of the Conformer encoder and differ from it as follows:
+
+* 8x depthwise convolutional subsampling with 256 channels
+* Reduced convolutional kernel size of 9 in the conformer blocks
+
+The Fast Conformer encoder is about 2.4x faster compared to the regular Conformer encoder without a significant model quality loss.
+
 Cache-aware Streaming Conformer
 -------------------------------
 
