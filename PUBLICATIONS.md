@@ -30,7 +30,6 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   * [CarneliNet: Neural Mixture Model for Automatic Speech Recognition](https://arxiv.org/abs/2107.10708)
   * [CTC Variations Through New WFST Topologies](https://arxiv.org/abs/2110.03098)
   * [A Toolbox for Construction and Analysis of Speech Datasets](https://openreview.net/pdf?id=oJ0oHQtAld)
-  * 
   
 </details>
 
@@ -143,7 +142,6 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   <summary>2022</summary>
     
   * [Adapter-Based Extension of Multi-Speaker Text-to-Speech Model for New Speakers](https://arxiv.org/abs/2211.00585)
-  * 
 
 </details>
 
