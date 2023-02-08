@@ -267,8 +267,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._optimizer.zero_grad()
         batch_for_pipeline = self.process_batch(batch)
-        # TODO (Peter): Tensor shape here is taken from the encoder sequence length but if we have
-        # dynamic sequence lengths it can't be hardcoded from the config. Without PP this shape is ignored
+
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = batch_for_pipeline[0].shape[1]
             tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -318,7 +317,10 @@ class MegatronBertModel(MegatronBaseModel):
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
-            loss_mean = torch.tensor([0.0, 0.0]).cuda()
+            if self.cfg.bert_binary_head == True:
+                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
+            else:
+                loss_mean = torch.tensor([0.0, 0.0]).cuda()
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -483,13 +485,13 @@ class MegatronBertModel(MegatronBaseModel):
             loss_mask = batch['loss_mask'].float()
             lm_labels = batch['labels'].long()
             padding_mask = batch['padding_mask'].long()
-        print(f"Rank {self.local_rank} Ids: {tokens}")
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
     def _build_LDDL_data(self, cfg):
         from lddl.torch2 import get_bert_pretrain_data_loader2
         from lddl.torch2.utils import barrier, get_rank
         from lddl.utils import mkdir
+        import logging
         # TODO: Should we set all these datasets to None?
         self._train_ds = None
         self._validation_ds = None
@@ -513,13 +515,13 @@ class MegatronBertModel(MegatronBaseModel):
             },
             mlm_probability=.15,
             base_seed=self.cfg.seed,
+            log_level= logging.NOTSET,
             log_dir="/tmp/log",
             return_raw_samples=False,  # This may need to be taken a look at
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
         )
-        print("completed building loader")
     
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
