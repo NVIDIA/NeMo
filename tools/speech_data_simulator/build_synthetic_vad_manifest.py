@@ -9,8 +9,42 @@ from tqdm import tqdm
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.vad_utils import get_frame_labels, load_speech_segments_from_rttm
 
+"""
+This script generates a manifest file for synthetic data generated using the NeMo multispeaker speech data simulator.
+The audio created from the simulator can be used to train a VAD model using the manifest file contains the following fields:
+The manifest file contains the following fields:
+    
+    audio_filepath (str): Path to audio file.
+    offset (float): Offset in seconds for the start of the audio file.
+    duration (float): Duration in seconds for the audio file.
+    text (str): Transcription of the audio file.
+    label (list): List of frame labels for the audio file.
+    orig_sample_rate (int): Original sample rate of the audio file.
+    vad_frame_unit_secs (float): Duration in seconds for each frame label.
+
+Usage:
+    python build_synthetic_vad_manifest.py \
+        --input_dir /path/to/synthetic/data> \
+        --frame_length 0.04 \
+        --output_file /path/to/output/manifest.json
+"""
+
 
 def generate_manifest_entry(inputs):
+    """
+    Generates a manifest entry for a single audio file. 
+    This function is parallelized using multiprocessing.Pool.
+
+    Args:
+        inputs (tuple): Tuple containing audio file path and frame length in seconds.
+            inputs[0]: 
+                audio_filepath (str): Path to audio file.
+            inputs[1]: 
+                vad_frame_unit_secs (float): Duration in seconds for each frame label.
+
+    Returns:
+        entry (dict): Dictionary containing manifest entry.
+    """
     audio_filepath, vad_frame_unit_secs = inputs
     audio_filepath = Path(audio_filepath)
     y, sr = librosa.load(str(audio_filepath))
