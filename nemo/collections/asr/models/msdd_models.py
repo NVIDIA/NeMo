@@ -28,7 +28,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pyannote.core import Annotation
 from pyannote.metrics.diarization import DiarizationErrorRate
-from pytorch_lightning import Trainer
+from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
@@ -651,7 +651,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         return f1_score, simple_acc
 
 
-class ClusterEmbedding:
+class ClusterEmbedding(torch.nn.Module):
     """
     This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
     The methods in this class is used for the inference of MSDD models.
@@ -677,16 +677,19 @@ class ClusterEmbedding:
             The index of the base-scale which is the shortest scale among the given multiple scales
     """
 
-    def __init__(self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig):
+    def __init__(
+        self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig, speaker_model: Optional[EncDecSpeakerLabelModel]
+    ):
+        super().__init__()
         self.cfg_diar_infer = cfg_diar_infer
         self._cfg_msdd = cfg_msdd_model
-        self.clus_diar_model = None
-        self._speaker_model = None
+        self._speaker_model = speaker_model
         self.scale_window_length_list = list(
             self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec
         )
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
+        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer, speaker_model=self._speaker_model)
 
     def prepare_cluster_embs_infer(self):
         """
@@ -843,7 +846,6 @@ class ClusterEmbedding:
         self.cfg_diar_infer.diarizer.out_dir = emb_dir
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
-        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer, speaker_model=self._speaker_model)
         self._out_dir = self.clus_diar_model._diarizer_params.out_dir
         self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
         os.makedirs(self.out_rttm_dir, exist_ok=True)
@@ -964,7 +966,7 @@ class ClusterEmbedding:
         return emb_scale_seq_dict
 
 
-class NeuralDiarizer:
+class NeuralDiarizer(LightningModule):
     """
     Class for inference based on multiscale diarization decoder (MSDD). MSDD requires initializing clustering results from
     clustering diarizer. Overlap-aware diarizer requires separate RTTM generation and evaluation modules to check the effect of
@@ -972,7 +974,7 @@ class NeuralDiarizer:
     """
 
     def __init__(self, cfg: Union[DictConfig, NeuralInferenceConfig]):
-        """ """
+        super().__init__()
         self._cfg = cfg
 
         # Parameter settings for MSDD model
@@ -991,8 +993,9 @@ class NeuralDiarizer:
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
-        self.clustering_embedding = ClusterEmbedding(cfg_diar_infer=cfg, cfg_msdd_model=self.msdd_model.cfg)
-        self.clustering_embedding._speaker_model = self._speaker_model
+        self.clustering_embedding = ClusterEmbedding(
+            cfg_diar_infer=cfg, cfg_msdd_model=self.msdd_model.cfg, speaker_model=self._speaker_model
+        )
 
         # Parameters for creating diarization results from MSDD outputs.
         self.clustering_max_spks = self.msdd_model._cfg.max_num_of_spks
@@ -1042,7 +1045,7 @@ class NeuralDiarizer:
             self.msdd_model.save_to(neural_diar_model)
             self.clus_diar.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> Dict:
+    def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> EncDecSpeakerLabelModel:
         """
         MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone speaker model and save it to
         `self.spk_emb_state_dict` to be loaded separately for clustering diarizer.
@@ -1077,17 +1080,19 @@ class NeuralDiarizer:
         model_path = cfg.diarizer.msdd_model.model_path
         if model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {model_path}")
-            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.device)
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.map_location)
         elif model_path.endswith('.ckpt'):
             logging.info(f"Using local checkpoint from {model_path}")
             self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
-                checkpoint_path=model_path, map_location=cfg.device
+                checkpoint_path=model_path, map_location=cfg.map_location
             )
         else:
             if model_path not in get_available_model_names(EncDecDiarLabelModel):
                 logging.warning(f"requested {model_path} model name not available in pretrained models, instead")
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path, map_location=cfg.device)
+            self.msdd_model = EncDecDiarLabelModel.from_pretrained(
+                model_name=model_path, map_location=cfg.map_location
+            )
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
         if self.use_speaker_model_from_ckpt:
             self._speaker_model = self.extract_standalone_speaker_model()
@@ -1426,23 +1431,24 @@ class NeuralDiarizer:
     @classmethod
     def from_pretrained(
         cls,
-        diar_model_name: str = 'diar_msdd_telephonic',
+        model_name: str,
         vad_model_name: str = 'vad_multilingual_marblenet',
-        device: Union[torch.device, str] = "auto",
+        map_location: Optional[torch.device] = None,
     ):
         """
         Instantiate a `NeuralDiarizer` to run Speaker Diarization.
 
         Args:
-            diar_model_name (str): Path/Name of the neural diarization model to load.
+            model_name (str): Path/Name of the neural diarization model to load.
             vad_model_name (str): Path/Name of the voice activity detection (VAD) model to load.
-            device (torch.device): Device we are running on. "auto selects CUDA if available ('cpu', 'cuda').
+            map_location (torch.device): Optional torch.device() to map the instantiated model to a device.
+                By default, (None), it will select a GPU if available, falling back to CPU otherwise.
 
         Returns:
             `NeuralDiarizer`
         """
         cfg = NeuralInferenceConfig.init_config(
-            diar_model_path=diar_model_name, vad_model_path=vad_model_name, device=device
+            diar_model_path=model_name, vad_model_path=vad_model_name, map_location=map_location
         )
         return cls(cfg)
 
@@ -1520,3 +1526,13 @@ class NeuralDiarizer:
         if max_speakers:
             self._cfg.diarizer.clustering.max_num_speakers = max_speakers
         self.transfer_diar_params_to_model_params(self.msdd_model, self._cfg)
+
+    @classmethod
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        return EncDecDiarLabelModel.list_available_models()

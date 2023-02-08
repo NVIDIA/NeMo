@@ -124,20 +124,17 @@ class DiarizerConfig(DiarizerComponentConfig):
 @dataclass
 class NeuralInferenceConfig(DiarizerComponentConfig):
     diarizer: DiarizerConfig = DiarizerConfig()
-    device: Union[torch.device, str] = 'auto'  # device to run on. "auto" selects CUDA if available, else CPU.
+    device: torch.device = torch.device('cpu')
+    map_location: Optional[torch.device] = None
     batch_size: int = 64
     num_workers: int = 1
     sample_rate: int = 16000
 
-    def __post_init__(self):
-        if self.device == "auto":
-            self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
     @classmethod
-    def init_config(cls, diar_model_path: str, vad_model_path: str, device):
+    def init_config(cls, diar_model_path: str, vad_model_path: str, map_location: torch.device):
         return NeuralInferenceConfig(
             DiarizerConfig(
                 vad=VADConfig(model_path=vad_model_path), msdd_model=MSDDConfig(model_path=diar_model_path),
             ),
-            device=device,
+            map_location=map_location,
         )
