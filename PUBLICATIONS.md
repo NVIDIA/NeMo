@@ -18,7 +18,6 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   <summary>2022</summary>
 
   * [Multi-blank Transducers for Speech Recognition](https://arxiv.org/abs/2211.03541)
-  * [Accidental Learners: Spoken Language Identification in Multilingual Self-Supervised Models](https://arxiv.org/abs/2211.05103)
 
 </details>
 
@@ -79,6 +78,15 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 ## Speech Classification
 
 <details>
+  <summary>2022</summary>
+  
+  * [AmberNet: A Compact End-to-End Model for Spoken Language Identification](https://arxiv.org/abs/2210.15781)
+  * [Accidental Learners: Spoken Language Identification in Multilingual Self-Supervised Models](https://arxiv.org/abs/2211.05103)
+
+
+</details>
+
+<details>
   <summary>2021</summary>
   
   * [MarbleNet: Deep 1D Time-Channel Separable Convolutional Neural Network for Voice Activity Detection](https://ieeexplore.ieee.org/abstract/document/9414470/)
@@ -96,9 +104,29 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 
 --------
 
+## Speech Translation
+
+<details>
+  <summary>2022</summary>
+  
+  * [NVIDIA NeMo Offline Speech Translation Systems for IWSLT 2022](https://aclanthology.org/2022.iwslt-1.18/)
+
+</details>
+
+
+--------
+
 # Natural Language Processing (NLP)
 
 ## Language Modeling
+
+<details>
+  <summary>2022</summary>
+
+  * [Evaluating Parameter Efficient Learning for Generation](https://arxiv.org/abs/2210.13673)
+  * [Text Mining Drug/Chemical-Protein Interactions using an Ensemble of BERT and T5 Based Models](https://arxiv.org/abs/2111.15617)
+
+</details>
 
 <details>
   <summary>2021</summary>
@@ -108,6 +136,13 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 </details>
 
 ## Neural Machine Translation
+
+<details>
+    <summary>2022</summary>
+
+  * [Finding the Right Recipe for Low Resource Domain Adaptation in Neural Machine Translation](https://arxiv.org/abs/2206.01137)
+
+</details>
 
 <details>
   <summary>2021</summary>
