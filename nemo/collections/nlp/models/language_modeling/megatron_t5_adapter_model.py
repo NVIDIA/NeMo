@@ -103,12 +103,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
 
-    def validation_step_accuracy_computation(self, enc_input, enc_mask, labels):
+    def compute_accuracy(self, enc_input, enc_mask, encoder_input, labels):
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
-            encoder_input=None,
+            encoder_input=encoder_input,
         )
 
         processed_inputs, processed_preds, processed_labels = [], [], []
@@ -148,11 +148,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
         mode = self.training
         self.eval()
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         if self.cfg.get('report_validation_accuracy', False):
-            metrics = self.validation_step_accuracy_computation(enc_input, enc_mask, labels)
+            metrics = self.compute_accuracy(enc_input, enc_mask, labels)
             metrics['loss'] = loss_mean
         else:
             metrics = {'loss': loss_mean}
@@ -163,7 +164,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
             enc_mask=enc_mask,
@@ -322,7 +324,10 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             else:
                 val_acc = torch.tensor(0.0).cuda()
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+        self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
