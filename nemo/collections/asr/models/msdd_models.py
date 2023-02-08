@@ -861,8 +861,8 @@ class ClusterEmbedding(torch.nn.Module):
         cluster_params = dict(cluster_params) if isinstance(cluster_params, DictConfig) else cluster_params.dict()
         clustering_params_str = json.dumps(cluster_params, indent=4)
 
-        logging.info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
-        logging.info(f"Clustering Parameters: {clustering_params_str}")
+        self.log_info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
+        self.log_info(f"Clustering Parameters: {clustering_params_str}")
         scores = self.clus_diar_model.diarize(batch_size=self.cfg_diar_infer.batch_size)
 
         # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
@@ -920,7 +920,7 @@ class ClusterEmbedding(torch.nn.Module):
         )
         file_exists = os.path.exists(clus_label_path)
         if not file_exists:
-            logging.info(f"Clustering label file {clus_label_path} does not exist.")
+            self.log_info(f"Clustering label file {clus_label_path} does not exist.")
         return file_exists, clus_label_path
 
     def load_clustering_labels(self, out_dir):
@@ -935,7 +935,7 @@ class ClusterEmbedding(torch.nn.Module):
                 List containing clustering results in string format.
         """
         file_exists, clus_label_path = self.check_clustering_labels(out_dir)
-        logging.info(f"Loading cluster label file from {clus_label_path}")
+        self.log_info(f"Loading cluster label file from {clus_label_path}")
         with open(clus_label_path) as f:
             clus_labels = f.readlines()
         return clus_labels
@@ -957,13 +957,17 @@ class ClusterEmbedding(torch.nn.Module):
             pickle_path = os.path.join(
                 out_dir, 'speaker_outputs', 'embeddings', f'subsegments_scale{scale_index}_embeddings.pkl'
             )
-            logging.info(f"Loading embedding pickle file of scale:{scale_index} at {pickle_path}")
+            self.log_info(f"Loading embedding pickle file of scale:{scale_index} at {pickle_path}")
             with open(pickle_path, "rb") as input_file:
                 emb_dict = pkl.load(input_file)
             for key, val in emb_dict.items():
                 emb_dict[key] = val
             emb_scale_seq_dict[scale_index] = emb_dict
         return emb_scale_seq_dict
+
+    def log_info(self, *args, **kwargs):
+        if self.cfg_diar_infer.verbose:
+            logging.info(*args, **kwargs)
 
 
 class NeuralDiarizer(LightningModule):
@@ -1079,17 +1083,17 @@ class NeuralDiarizer(LightningModule):
         """
         model_path = cfg.diarizer.msdd_model.model_path
         if model_path.endswith('.nemo'):
-            logging.info(f"Using local nemo file from {model_path}")
+            self.log_info(f"Using local nemo file from {model_path}")
             self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.map_location)
         elif model_path.endswith('.ckpt'):
-            logging.info(f"Using local checkpoint from {model_path}")
+            self.log_info(f"Using local checkpoint from {model_path}")
             self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
                 checkpoint_path=model_path, map_location=cfg.map_location
             )
         else:
             if model_path not in get_available_model_names(EncDecDiarLabelModel):
                 logging.warning(f"requested {model_path} model name not available in pretrained models, instead")
-            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self.log_info("Loading pretrained {} model from NGC".format(model_path))
             self.msdd_model = EncDecDiarLabelModel.from_pretrained(
                 model_name=model_path, map_location=cfg.map_location
             )
@@ -1172,7 +1176,7 @@ class NeuralDiarizer(LightningModule):
         self.msdd_model.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
         self.msdd_model.emb_seq_test = cluster_embeddings.emb_seq_test
 
-    def diarize(self) -> List[Optional[List[Tuple[DiarizationErrorRate, Dict]]]]:
+    def diarize(self) -> Optional[List[Optional[List[Tuple[DiarizationErrorRate, Dict]]]]]:
         """
         Launch diarization pipeline which starts from VAD (or a oracle VAD stamp generation), initialization clustering and multiscale diarization decoder (MSDD).
         Note that the result of MSDD can include multiple speakers at the same time. Therefore, RTTM output of MSDD needs to be based on `make_rttm_with_overlap()`
@@ -1184,7 +1188,8 @@ class NeuralDiarizer(LightningModule):
         self.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         thresholds = list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold)
-        return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
+        if self._cfg.evaluate:
+            return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
 
     def get_range_average(
         self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
@@ -1384,7 +1389,7 @@ class NeuralDiarizer(LightningModule):
 
         if self._cfg.diarizer.msdd_model.parameters.seq_eval_mode:
             f1_score, simple_acc = self.msdd_model.compute_accuracies()
-            logging.info(f"Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
+            self.log_info(f"Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
         integrated_preds_list = self.get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, targets_list, signal_lengths_list
 
@@ -1402,7 +1407,7 @@ class NeuralDiarizer(LightningModule):
                     - If threshold is 1.0, no overlap speech is detected and only detect major speaker.
                     - If threshold is 0.0, all speakers are considered active at any time step.
         """
-        logging.info(
+        self.log_info(
             f"     [Threshold: {threshold:.4f}] [use_clus_as_main={self.use_clus_as_main}] [diar_window={self.diar_window_length}]"
         )
         outputs = []
@@ -1425,7 +1430,7 @@ class NeuralDiarizer(LightningModule):
                 rttm_map, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
             )
             outputs.append(output)
-        logging.info(f"  \n")
+        self.log_info(f"  \n")
         return outputs
 
     @classmethod
@@ -1434,6 +1439,7 @@ class NeuralDiarizer(LightningModule):
         model_name: str,
         vad_model_name: str = 'vad_multilingual_marblenet',
         map_location: Optional[torch.device] = None,
+        verbose: bool = False,
     ):
         """
         Instantiate a `NeuralDiarizer` to run Speaker Diarization.
@@ -1443,12 +1449,12 @@ class NeuralDiarizer(LightningModule):
             vad_model_name (str): Path/Name of the voice activity detection (VAD) model to load.
             map_location (torch.device): Optional torch.device() to map the instantiated model to a device.
                 By default, (None), it will select a GPU if available, falling back to CPU otherwise.
-
+            verbose (bool): Enable verbose logging when loading models/running diarization.
         Returns:
             `NeuralDiarizer`
         """
         cfg = NeuralInferenceConfig.init_config(
-            diar_model_path=model_name, vad_model_path=vad_model_name, map_location=map_location
+            diar_model_path=model_name, vad_model_path=vad_model_name, map_location=map_location, verbose=verbose,
         )
         return cls(cfg)
 
@@ -1536,3 +1542,7 @@ class NeuralDiarizer(LightningModule):
             List of available pre-trained models.
         """
         return EncDecDiarLabelModel.list_available_models()
+
+    def log_info(self, *args, **kwargs) -> None:
+        if self._cfg.verbose:
+            logging.info(*args, **kwargs)

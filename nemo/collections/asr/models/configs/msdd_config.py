@@ -126,15 +126,18 @@ class NeuralInferenceConfig(DiarizerComponentConfig):
     diarizer: DiarizerConfig = DiarizerConfig()
     device: torch.device = torch.device('cpu')
     map_location: Optional[torch.device] = None
+    verbose: bool = False
+    evaluate: bool = False
     batch_size: int = 64
     num_workers: int = 1
     sample_rate: int = 16000
 
     @classmethod
-    def init_config(cls, diar_model_path: str, vad_model_path: str, map_location: torch.device):
+    def init_config(cls, diar_model_path: str, vad_model_path: str, map_location: torch.device, verbose: bool):
         return NeuralInferenceConfig(
             DiarizerConfig(
                 vad=VADConfig(model_path=vad_model_path), msdd_model=MSDDConfig(model_path=diar_model_path),
             ),
             map_location=map_location,
+            verbose=verbose,
         )

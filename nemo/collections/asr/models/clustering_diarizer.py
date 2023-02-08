@@ -117,14 +117,14 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
             self._vad_model = EncDecClassificationModel.restore_from(model_path, map_location=self._cfg.map_location)
-            logging.info("VAD model loaded locally from {}".format(model_path))
+            self.log_info("VAD model loaded locally from {}".format(model_path))
         else:
             if model_path not in get_available_model_names(EncDecClassificationModel):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
                 model_path = "vad_telephony_marblenet"
-            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self.log_info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(
                 model_name=model_path, map_location=self._cfg.map_location
             )
@@ -144,19 +144,19 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
                 self._speaker_model = EncDecSpeakerLabelModel.restore_from(
                     model_path, map_location=self._cfg.map_location
                 )
-                logging.info("Speaker Model restored locally from {}".format(model_path))
+                self.log_info("Speaker Model restored locally from {}".format(model_path))
             elif model_path.endswith('.ckpt'):
                 self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(
                     model_path, map_location=self._cfg.map_location
                 )
-                logging.info("Speaker Model restored locally from {}".format(model_path))
+                self.log_info("Speaker Model restored locally from {}".format(model_path))
             else:
                 if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
                     logging.warning(
                         "requested {} model name not available in pretrained models, instead".format(model_path)
                     )
                     model_path = "ecapa_tdnn"
-                logging.info("Loading pretrained {} model from NGC".format(model_path))
+                self.log_info("Loading pretrained {} model from NGC".format(model_path))
                 self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
                     model_name=model_path, map_location=self._cfg.map_location
                 )
@@ -247,7 +247,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
         else:
             # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
             # smoothing_method would be either in majority vote (median) or average (mean)
-            logging.info("Generating predictions with overlapping input segments")
+            self.log_info("Generating predictions with overlapping input segments")
             smoothing_pred_dir = generate_overlap_vad_seq(
                 frame_pred_dir=self._vad_dir,
                 smoothing_method=self._vad_params.smoothing,
@@ -259,7 +259,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
             self.vad_pred_dir = smoothing_pred_dir
             frame_length_in_sec = 0.01
 
-        logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+        self.log_info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
 
         vad_params = self._vad_params if isinstance(self._vad_params, (DictConfig, dict)) else self._vad_params.dict()
         table_out_dir = generate_vad_segment_table(
@@ -284,7 +284,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
     def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
-        logging.info(
+        self.log_info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
         )
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
@@ -306,13 +306,14 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
             manifest_vad_input = self._diarizer_params.manifest_filepath
 
             if self._auto_split:
-                logging.info("Split long audio file to avoid CUDA memory issue")
+                self.log_info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
                     'input': manifest_vad_input,
                     'window_length_in_sec': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
+                    'out_dir': self._diarizer_params.out_dir,
                 }
                 manifest_vad_input = prepare_manifest(config)
             else:
@@ -339,7 +340,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
         This method extracts speaker embeddings from segments passed through manifest_file
         Optionally you may save the intermediate speaker embeddings for debugging or any use. 
         """
-        logging.info("Extracting embeddings for Diarization")
+        self.log_info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
         self.embeddings = {}
         self._speaker_model.eval()
@@ -382,7 +383,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
             name = os.path.join(embedding_dir, prefix)
             self._embeddings_file = name + f'_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
-            logging.info("Saved embedding files to {}".format(embedding_dir))
+            self.log_info("Saved embedding files to {}".format(embedding_dir))
 
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w', encoding='utf-8') as fp:
@@ -453,18 +454,16 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
             clustering_params=self._cluster_params,
             device=self._speaker_model.device,
         )
-
-        # Scoring
-        score = score_labels(
-            self.AUDIO_RTTM_MAP,
-            all_reference,
-            all_hypothesis,
-            collar=self._diarizer_params.collar,
-            ignore_overlap=self._diarizer_params.ignore_overlap,
-        )
-
-        logging.info("Outputs are saved in {} directory".format(os.path.abspath(self._diarizer_params.out_dir)))
-        return score
+        self.log_info("Outputs are saved in {} directory".format(os.path.abspath(self._diarizer_params.out_dir)))
+        if self._cfg.evaluate:
+            # Scoring
+            return score_labels(
+                self.AUDIO_RTTM_MAP,
+                all_reference,
+                all_hypothesis,
+                collar=self._diarizer_params.collar,
+                ignore_overlap=self._diarizer_params.ignore_overlap,
+            )
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
@@ -546,3 +545,7 @@ class ClusteringDiarizer(Model, DiarizationMixin, torch.nn.Module):
                 os.chdir(cwd)
 
         return instance
+
+    def log_info(self, *args, **kwargs):
+        if self._cfg.verbose:
+            logging.info(*args, **kwargs)
