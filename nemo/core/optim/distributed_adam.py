@@ -16,6 +16,7 @@ import torch
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
 from apex.transformer import parallel_state
 
+
 def _str_to_dtype(dtype):
     if isinstance(dtype, torch.dtype):
         return dtype
@@ -31,6 +32,7 @@ def _str_to_dtype(dtype):
     else:
         raise ValueError(f'unsupported dtype ({dtype})')
 
+
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
     """Wrapper class that supports NeMo-Megatron optimizations
 
@@ -38,6 +40,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     into the main_grad buffer instead of the grad buffer.
 
     """
+
     def __init__(self, params, disable_distributed_parameters=False, **kwargs):
 
         # Initialize process groups
@@ -60,9 +63,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         distopt_params = params
         dtype = kwargs['dtype'] if 'dtype' in kwargs else torch.float32
         grad_sync_dtype = kwargs['grad_sync_dtype'] if 'grad_sync_dtype' in kwargs else dtype
-        if (
-            (dtype != torch.float32 or grad_sync_dtype != torch.float32)
-            and any(getattr(param, '_with_fp32_optimizer', False) for param in params)
+        if (dtype != torch.float32 or grad_sync_dtype != torch.float32) and any(
+            getattr(param, '_with_fp32_optimizer', False) for param in params
         ):
 
             # Find params that require explicit FP32 optimizer
@@ -82,10 +84,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             for name in ('lr', 'betas', 'eps', 'weight_decay', 'amsgrad'):
                 if name in kwargs:
                     adamw_kwargs[name] = kwargs[name]
-            self.fp32_optim = torch.optim.AdamW(
-                self._fp32_optim_main_params,
-                **adamw_kwargs,
-            )
+            self.fp32_optim = torch.optim.AdamW(self._fp32_optim_main_params, **adamw_kwargs)
 
         # Construct distributed optimizer
         super().__init__(distopt_params, **kwargs)
@@ -153,14 +152,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 if parameters is None:
                     fp32_optim_params = self._fp32_optim_model_params
                 else:
-                    fp32_optim_params = [
-                        param for param in parameters
-                        if param in self._fp32_optim_model_params
-                    ]
-                    parameters = [
-                        param for param in parameters
-                        if param not in self._fp32_optim_model_params
-                    ]
+                    fp32_optim_params = [param for param in parameters if param in self._fp32_optim_model_params]
+                    parameters = [param for param in parameters if param not in self._fp32_optim_model_params]
 
             # Compute norm of local gradients for distributed optimizer
             grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type)
