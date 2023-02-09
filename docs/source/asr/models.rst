@@ -136,7 +136,17 @@ The Fast Conformer (CTC and RNNT) models have a faster version of the Conformer 
 * 8x depthwise convolutional subsampling with 256 channels
 * Reduced convolutional kernel size of 9 in the conformer blocks
 
-The Fast Conformer encoder is about 2.4x faster compared to the regular Conformer encoder without a significant model quality loss.
+The Fast Conformer encoder is about 2.4x faster than the regular Conformer encoder without a significant model quality degradation.
+128 subsampling channels yield a 2.7x speedup vs baseline but model quality starts to degrade.
+With local attention, inference is possible on audios >1 hrs (256 subsampling channels) / >2 hrs (128 channels).
+
+Fast Conformer models were trained using CosineAnnealing learning rate decay.
+
+You may find the example CTC config at 
+``<NeMo_git_root>/examples/asr/conf/conformer/fastconformer/fastconformer_ctc_bpe.yaml`` and
+the transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fastconformer_transducer_bpe.yaml``
+
+Note that both configs are subword-based. Character-based models are not expected to work well with CTC with 8x subsampling, although the Transducer models should work (we have not been able to test this).
 
 Cache-aware Streaming Conformer
 -------------------------------
