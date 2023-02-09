@@ -311,11 +311,11 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int) -> torch.
     Binarize top-p values for each row from the given affinity matrix.
     """
     binarized_affinity_mat = torch.zeros_like(affinity_mat).int()
-    for i in range(affinity_mat.shape[0]):
-        line = affinity_mat[i, :]
-        sorted_idx = torch.argsort(line, descending=True)
-        indices = sorted_idx[:p_value]
-        binarized_affinity_mat[indices, i] = torch.ones(indices.shape[0]).to(affinity_mat.device).int()
+    sorted_matrix = torch.argsort(affinity_mat, dim=1, descending=True)[:, :p_value]
+    binarized_affinity_mat[sorted_matrix.T, torch.arange(affinity_mat.shape[0])] = (
+        torch.ones(1).to(affinity_mat.device).int()
+    )
+
     return binarized_affinity_mat
 
 
