@@ -136,7 +136,6 @@ def initialize_sagemaker() -> None:
 
         if dist.get_local_rank():
             _install_system_libraries()
-        print("WORLD SIZE NEMO", dist.get_world_size())
         return dist.barrier()  # wait for main process
     _install_system_libraries()
     return
