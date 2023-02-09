@@ -19,6 +19,7 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.distributed as dist
+import requests
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import ComboRetrievalService
@@ -155,19 +156,29 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         for i in range(0, context_length, 64):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
-                chunks = self.service.get_knn(tokens, self.neighbors)
+                # chunks = self.service.get_knn(tokens, self.neighbors)
+                chunks = self.get_prospero_knn(tokens, self.neighbors)
                 if self.store_retrieved:
                     self._store_retrieved(tokens, chunks)
                 self.retrieved.append(chunks)
 
-    def call_prospero(self, query, neighbors):
+    def get_prospero_knn(self, query, neighbors):
         sentence_list = []
         for q in query:
-            text = self.tokenizer.ids_to_text(q)
+            text = self.model.tokenizer.ids_to_text(q)
             sentence_list.append(text)
         query = sentence_list
+        input_dict = {
+            "collections": query,
+        }
+        response = requests.post(url="http://127.0.0.1:5002/dummy", json=input_dict)
+        fragments = response.json()[0]["fragments"]
+        output_tensors = []
+        for i in fragments:
+            split_text = i["content"]
+            output_tensors.append(split_text)
 
-        # Insert get call here
+        return torch.tensor([output_tensors], dtype=torch.int64)
 
 
     def prepare_batch_at_step(
@@ -178,13 +189,15 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         if context_length % 64 == 0:
             # added a new retrieval context
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context, self.neighbors)
+            # chunks = self.service.get_knn(token_context, self.neighbors)
+            chunks = self.get_prospero_knn(token_context, self.neighbors)
             if self.store_retrieved:
                 self._store_retrieved(token_context, chunks)
             self.retrieved.append(chunks)
         elif self.frequent_query and len(self.retrieved) > 0:
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context, self.neighbors)
+            # chunks = self.service.get_knn(token_context, self.neighbors)
+            chunks = self.get_prospero_knn(token_context, self.neighbors)
             if self.store_retrieved:
                 self._store_retrieved(token_context, chunks)
             self.retrieved[-1] = chunks
@@ -206,7 +219,10 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
-        retrieved = torch.tensor(np.array(self.retrieved), device=torch.cuda.current_device())
+        retrieved = self.retrieved[0].unsqueeze(0)
+        retrieved.to(torch.cuda.current_device())
+        # np_array = np.array(current_tensor)
+        # retrieved = torch.tensor([current_tensor], device=torch.cuda.current_device())
         if retrieved.numel() != 0:
             retrieved = retrieved.transpose(0, 1).contiguous()
         if self.megatron_lm_compatible:
