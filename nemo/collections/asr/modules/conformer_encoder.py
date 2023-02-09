@@ -511,8 +511,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
-        cache_last_channel = cache_last_channel.transpose(0, 1)
-        cache_last_time = cache_last_time.transpose(0, 1)
+        if cache_last_channel is not None:
+            cache_last_channel = cache_last_channel.transpose(0, 1)
+        if cache_last_time is not None:
+            cache_last_time = cache_last_time.transpose(0, 1)
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         max_audio_length: int = audio_signal.size(-1)
 
@@ -558,7 +560,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             padding_length = length
             cache_last_channel_next = None
             cache_len = 0
-            offset = torch.zeros_lke(length)
+            offset = torch.zeros_like(length)
 
         if self.self_attention_model == 'abs_pos':
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
@@ -632,10 +634,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        cache_last_channel_len = torch.clamp(
-            (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
-        )
         if cache_last_channel is not None:
+            cache_last_channel_len = torch.clamp(
+                (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
+            )
             return (
                 audio_signal,
                 length,

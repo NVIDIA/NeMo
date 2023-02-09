@@ -188,7 +188,7 @@ class ExportableEncDecModel(Exportable):
         """
         if hasattr(self.input_module, 'forward_for_export'):
             if cache_last_channel is None and cache_last_time is None:
-                encoder_output = self.input_module.forward_for_export(input, length)
+                encoder_output = self.input_module.forward_for_export(audio_signal=input, length=length)
             else:
                 encoder_output = self.input_module.forward_for_export(
                     audio_signal=input,
@@ -210,12 +210,12 @@ class ExportableEncDecModel(Exportable):
             decoder_input = encoder_output
         if hasattr(self.output_module, 'forward_for_export'):
             if cache_last_channel is None and cache_last_time is None:
-                ret = self.output_module.forward_for_export(decoder_input)
+                ret = self.output_module.forward_for_export(encoder_output=decoder_input)
             else:
-                ret = self.output_module.forward_for_export(decoder_input)
+                ret = self.output_module.forward_for_export(encoder_output=decoder_input)
         else:
             if cache_last_channel is None and cache_last_time is None:
-                ret = self.output_module(decoder_input)
+                ret = self.output_module(encoder_output=decoder_input)
             else:
                 ret = self.output_module(encoder_output=decoder_input)
         if cache_last_channel is None and cache_last_time is None:
