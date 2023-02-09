@@ -281,7 +281,8 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
             Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
         """
         tokenizer = self.model.tokenizer
-        all_lookups = self.service.get_knn(questions, 1 + self.neighbors)
+        # all_lookups_old = self.service.get_knn(questions, 1 + self.neighbors)
+        all_lookups = self.get_prospero_knn(questions, 1 + self.neighbors)
         # hack to add "source: " tag
         prepend_ids = np.array(tokenizer.text_to_ids('source: '))
         all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
@@ -311,6 +312,20 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
+
+    def get_prospero_knn(self, query, neighbors):
+        input_dict = {
+            "query": query[0],
+            "k": neighbors,
+        }
+        response = requests.post(url=self.prospero_url, json=input_dict)
+        fragments = response.json()[0]["fragments"]
+        output_tensors = []
+        for i in fragments:
+            split_text = i["content"]
+            output_tensors.append(split_text)
+
+        return torch.tensor([output_tensors], dtype=torch.int64)
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         self.retrieved = []
