@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
-import logging
 import pickle
 import threading
-import time
 from typing import List, Union
 
 import faiss
@@ -30,10 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_s
     DynamicFaissRetrievalService,
     FaissRetrievalService,
 )
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import (
-    FaissRetrievalResource,
-)
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock
 
 weights = None
 

@@ -65,9 +65,9 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
+        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None, updatable: bool = False,
     ):
-        self.updatable = False
+        self.updatable = updatable
         self.tokenizer = tokenizer
         self.service_ip = service_ip
         self.service_port = service_port
@@ -103,8 +103,7 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
     def __init__(
         self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
     ):
-        super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port)
-        self.updatable = True
+        super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port, updatable=True)
 
     def add_docs_to_index(self, query: List[str], add_eos: bool = True):
         """
