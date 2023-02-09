@@ -140,7 +140,7 @@ The Fast Conformer encoder is about 2.4x faster than the regular Conformer encod
 128 subsampling channels yield a 2.7x speedup vs baseline but model quality starts to degrade.
 With local attention, inference is possible on audios >1 hrs (256 subsampling channels) / >2 hrs (128 channels).
 
-Fast Conformer models were trained using CosineAnnealing learning rate decay.
+Fast Conformer models were trained using CosineAnnealing (instead of Noam) as the scheduler.
 
 You may find the example CTC config at 
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/fastconformer_ctc_bpe.yaml`` and
