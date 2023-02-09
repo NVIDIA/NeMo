@@ -14,7 +14,6 @@
 
 import pytest
 import torch
-from omegaconf import DictConfig
 
 from nemo.collections.tts.helpers.helpers import regulate_len
 
