@@ -63,6 +63,14 @@ model:
     truncate_field: context
     answer_field: answer
 
+  - taskname: "taskname" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {prompt} {completion}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10]
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "completion"
+
   p_tuning: # P-tuning specific params
       encoder_type: "mlp" # Either "mlp" or "lstm", mlp is default
       num_layers: 2 # 2 recommended for MLP, 1 recommended for LSTM, must be at least 2 for mlp
