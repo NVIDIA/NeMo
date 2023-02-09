@@ -148,6 +148,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if force or self._grad_norm is None:
 
             # Identify params for explicit FP32 optimizer
+            fp32_optim_params = []
             if self._fp32_optim is not None:
                 if parameters is None:
                     fp32_optim_params = self._fp32_optim_model_params
@@ -189,7 +190,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 scaler_state = grad_scaler._per_optimizer_states[id(self)]
                 for _, found_inf in scaler_state['found_inf_per_device'].items():
                     if found_inf.item():
-                        return
+                        return loss
 
             # Apply explicit FP32 optimizer
             self._fp32_optim_grad_sync()
