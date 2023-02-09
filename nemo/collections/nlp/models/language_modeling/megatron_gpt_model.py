@@ -340,16 +340,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
-            # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = self.process_global_batch(batch)
-        else:
-            # The intermediate pipeline stages do not need any inputs from data loader
-            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
-            batch_for_pipeline = None
-
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
