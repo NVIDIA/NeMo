@@ -442,10 +442,14 @@ class InpainterModel(ModelPT, Exportable):
         #     scheduler_config=scheduler_config,
         #     train_dataloader=self._train_dl
         # )
-        sched_d = None
+        # basically a scheduler that does nothing
+        sched_d = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=optim_d,
+            lr_lambda=lambda x: 1.0
+        )
 
-        if sched_g is None or sched_d is None:
-            raise ValueError('Error making schedulers')
+        # if sched_g is None or sched_d is None:
+        #     raise ValueError('Error making schedulers')
 
         return [optim_g, optim_d], [sched_g, sched_d]
 
