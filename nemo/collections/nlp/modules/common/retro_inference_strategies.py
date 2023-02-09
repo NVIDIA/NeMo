@@ -36,6 +36,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.store = dist.FileStore('/tmp/filestore_eval', -1)
         self.store.set('neighbors', str(args['neighbors']))
         self.megatron_lm_compatible = args['megatron_lm_compatible']
+        self.prospero_url = args.get("prospero_url", "http://127.0.0.1:5002/dummy")
         combo_cfg = args['combo_service']
         self.service = ComboRetrievalService(
             tokenizer=self.model.tokenizer, service_ip=combo_cfg['service_ip'], service_port=combo_cfg['service_port']
@@ -169,9 +170,10 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             sentence_list.append(text)
         query = sentence_list
         input_dict = {
-            "collections": query,
+            "query": query,
+            "k": neighbors,
         }
-        response = requests.post(url="http://127.0.0.1:5002/dummy", json=input_dict)
+        response = requests.post(url=self.prospero_url, json=input_dict)
         fragments = response.json()[0]["fragments"]
         output_tensors = []
         for i in fragments:
