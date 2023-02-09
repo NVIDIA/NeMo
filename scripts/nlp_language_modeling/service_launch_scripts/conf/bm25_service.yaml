@@ -1,0 +1,14 @@
+tokenizer:
+  library: 'megatron'
+  type: 'GPT2BPETokenizer'
+  model: null
+  vocab_file: null
+  merge_file: null 
+  delimiter: null # only used for tabular tokenizer
+service:
+  filepath: null
+  sliding_window_length: 240
+  sliding_length: 64
+  max_answer_length: 128
+  nctx: 20
+  port: 17111  # server port number
