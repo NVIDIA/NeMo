@@ -22,6 +22,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.huggingface import get_huggingface_lm_model
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from tqdm import tqdm
@@ -349,6 +350,7 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         capit_res = self.metrics[mode]['capit_class_report'][dataloader_idx].compute()
         capit_precision, capit_recall, capit_f1, capit_report = capit_res
         self.metrics[mode]['capit_class_report'][dataloader_idx].reset()
+        dataloader_name = self._validation_names[dataloader_idx].upper()
         log_dict = {
             'log': {
                 f'{mode}_loss': loss,
@@ -360,8 +362,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
                 f'{mode}_capit_recall': capit_recall,
             }
         }
-        logging.info(f'Punctuation report: {punct_report}')
-        logging.info(f'Capitalization report: {capit_report}')
+
+        logging.info(f'Punctuation report {dataloader_name}: {punct_report}')
+        logging.info(f'Capitalization report {dataloader_name}: {capit_report}')
         return log_dict
 
     def multi_validation_epoch_end(self, outputs: Any, dataloader_idx: int = 0) -> Dict[str, Dict[str, torch.Tensor]]:
