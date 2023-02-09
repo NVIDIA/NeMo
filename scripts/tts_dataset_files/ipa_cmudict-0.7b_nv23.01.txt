@@ -48,7 +48,7 @@
 ;;;  NOTES  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;;   Updated two words and removed two words
-;;;   - changed WHATEVER ˌwʌˈtɛvɚ to WHATEVER ˌwʌtˈɛvɚ and deleted WHATEVER(1)
+;;;   - changed WHATEVER ˌwʌˈtɛvɚ to WHATEVER ˌwʌtˈɛvɚ and deleted WHATEVER(1).
 ;;;   - updated WHATEVER'S to ˌwʌtˈɛvɚz and delete WHATEVER'S(1).
 ;;;
 ;;;  [20080401] (air)  New dict file format introduced
