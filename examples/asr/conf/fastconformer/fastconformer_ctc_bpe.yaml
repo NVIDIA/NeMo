@@ -6,7 +6,7 @@
 
 # You may find more info about Fast Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
 
-name: "Fastconformer-CTC-BPE"
+name: "FastConformer-CTC-BPE"
 
 model:
   sample_rate: 16000
