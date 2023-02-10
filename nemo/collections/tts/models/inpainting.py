@@ -316,7 +316,7 @@ class FeatureMatchingLoss(Loss):
             loss_per_layer += [F.l1_loss(
                 activation_real_layer,
                 activation_gen_layer,
-                reduction='sum'
+                reduction='mean'
             )]
 
         return sum(loss_per_layer) / len(loss_per_layer)
