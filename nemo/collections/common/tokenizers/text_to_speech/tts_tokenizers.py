@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
 
-from nemo_text_processing.g2p.data.data_utils import (
+from nemo.collections.tts.g2p.data.data_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
@@ -447,11 +447,11 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
         """
-        Encodes text that has already been run through G2P.
-        Called for encoding to tokens after text preprocessing and G2P.
+        Encodes text that has already been run through G2P_paper.
+        Called for encoding to tokens after text preprocessing and G2P_paper.
 
         Args:
-            g2p_text: G2P's output, could be a mixture of phonemes and graphemes,
+            g2p_text: G2P_paper's output, could be a mixture of phonemes and graphemes,
                 e.g. "see OOV" -> ['S', 'IY1', ' ', 'O', 'O', 'V']
             raw_text: original raw input
         """
@@ -534,11 +534,11 @@ class IPATokenizer(BaseTokenizer):
         """
         if not hasattr(g2p, "symbols"):
             logging.error(
-                f"Please make sure the G2P module passed into the IPATokenizer has a `symbols` attribute. "
+                f"Please make sure the G2P_paper module passed into the IPATokenizer has a `symbols` attribute. "
                 f"This is required in order to build the tokenizer vocabulary.\n"
                 f"Expected e.g. IPAG2P, found {type(g2p)}"
             )
-            raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
+            raise ValueError("G2P_paper modules passed into the IPATokenizer must have `symbols` defined.")
 
         if locale is not None:
             validate_locale(locale)
@@ -596,14 +596,14 @@ class IPATokenizer(BaseTokenizer):
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None) -> List[int]:
         """
-        Tokenize the `g2p_text` that has been already run through G2P. Each item in the `g2p_text` would be encoded as
+        Tokenize the `g2p_text` that has been already run through G2P_paper. Each item in the `g2p_text` would be encoded as
         one of the integer IDs predefined in `self._token2id`. Note that this function should be called after
         `self.text_preprocessing_func` and `self.g2p` functions
 
         Args:
-            g2p_text (List[str]): a sequence of tokens from G2P's output. It could be a sequence of phonemes, a sequence
+            g2p_text (List[str]): a sequence of tokens from G2P_paper's output. It could be a sequence of phonemes, a sequence
                 of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`, which is the
-                G2P's output of the text "see OOV", where '#' is prepended to each grapheme in order to distinguish
+                G2P_paper's output of the text "see OOV", where '#' is prepended to each grapheme in order to distinguish
                 graphemes from phonemes if there are overlaps in between. The prefix '#' can be customized in
                 `nemo_text_processing.g2p.modules.IPAG2P.grapheme_prefix`.
             raw_text (str): the original text after calling `self.text_preprocessing_func`. It is optional. It is only
@@ -732,11 +732,11 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
         """
-        Encodes text that has already been run through G2P.
-        Called for encoding to tokens after text preprocessing and G2P.
+        Encodes text that has already been run through G2P_paper.
+        Called for encoding to tokens after text preprocessing and G2P_paper.
 
         Args:
-            g2p_text: G2P's output, could be a mixture of Chinese phonemes and English letters.
+            g2p_text: G2P_paper's output, could be a mixture of Chinese phonemes and English letters.
             raw_text: original raw input
         """
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)

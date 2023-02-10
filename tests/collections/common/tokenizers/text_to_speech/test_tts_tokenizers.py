@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from nemo_text_processing.g2p.modules import IPAG2P
+from nemo.collections.tts.g2p.modules import IPAG2P
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
