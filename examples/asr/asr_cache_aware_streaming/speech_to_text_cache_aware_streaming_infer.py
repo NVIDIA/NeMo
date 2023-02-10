@@ -121,7 +121,7 @@ def perform_streaming_unified(asr_model, streaming_buffer, compare_vs_offline=Fa
     asr_model.encoder.export_streaming_support = True
 
     cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
+        batch_size=batch_size, device=torch.device("cuda")
     )
 
     previous_hypotheses = None
@@ -132,6 +132,8 @@ def perform_streaming_unified(asr_model, streaming_buffer, compare_vs_offline=Fa
     transcribed_texts = []
 
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+        chunk_audio = chunk_audio.to(torch.device("cuda"))
+        chunk_lengths = chunk_lengths.to(torch.device("cuda"))
         logging.debug(f"chunk_audio.size() {chunk_audio.size()}")
         with torch.inference_mode():
             with autocast():

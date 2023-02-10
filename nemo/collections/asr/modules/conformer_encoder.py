@@ -113,9 +113,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         Returns:
             A tuple of input examples.
         """
-        dev = next(self.parameters()).device
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
-        input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
+        # dev = next(self.parameters()).device
+        dev = torch.device("cuda")
+        input_example = torch.randn(max_batch, self._feat_in, 57).to(dev)
+        input_example_length = torch.randint(1, 57, (max_batch,)).to(dev)
 
         if hasattr(self, 'export_cache_support') and self.export_cache_support:
             cache_last_channel = torch.randn(self.n_layers, max_batch, max_dim, self.d_model).to(dev)
@@ -393,7 +394,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         Pre-calculates internal seq_range mask.
         """
         self.max_audio_length = max_audio_length
-        device = next(self.parameters()).device
+        # device = next(self.parameters()).device
+        device = torch.device("cuda")
         self.pos_enc.extend_pe(max_audio_length, device)
 
         if self.self_attention_model != "rel_pos_local_attn":
@@ -548,8 +550,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         # Create the self-attention and padding masks
         pad_mask, att_mask = self._create_masks(max_audio_length, padding_length, offset, audio_signal.device)
-        # print(f"pad_mask.size(): {pad_mask.size()}")
-        # print(f"pad_mask: {pad_mask}")
 
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
@@ -614,6 +614,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
             pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
             # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
+            # raise Exception("att_mask dev " + str(self.att_mask.device))
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
             att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
