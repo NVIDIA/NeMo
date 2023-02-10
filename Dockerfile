@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.11-py3
-
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.01-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -25,6 +24,7 @@ FROM ${BASE_IMAGE} as nemo-deps
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y \
     libsndfile1 sox \
     libfreetype6 \
@@ -34,8 +34,11 @@ RUN apt-get update && \
 
 WORKDIR /tmp/
 
-RUN git clone https://github.com/NVIDIA/apex.git -b 22.11-devel && \
+# TODO: Remove once this Apex commit (1/19/23) is included in PyTorch
+# container
+RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
+    git checkout c0a0b0f69d2d5a98bd141be12ee8e5eebd3ec7ca && \
     pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
@@ -65,7 +68,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.14.0
+ARG NEMO_VERSION=1.16.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -85,6 +88,10 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
 # install pinned numba version
 # RUN conda install -c conda-forge numba==0.54.1
 
+# Pinned to numba==0.53.1 to avoid bug in training with num_workers > 0
+# The bug still exists with PTL 1.8.4, this is just a temporary workaround.
+RUN pip install numba==0.53.1
+
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
 COPY scripts /workspace/nemo/scripts
@@ -99,4 +106,4 @@ RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> 
 # Prepare AIS CLI
 ARG AIS_VERSION=v1.3.15
 ARG AIS_BIN=https://github.com/NVIDIA/aistore/releases/download/${AIS_VERSION}/ais-linux-amd64.tar.gz
-RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/.
+RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/. && rm ais-linux-amd64.tar.gz

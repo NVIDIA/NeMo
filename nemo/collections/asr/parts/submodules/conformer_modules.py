@@ -17,10 +17,12 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttentionLongformer,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.collections.common.parts import adapter_modules
@@ -90,6 +92,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
             )
+        elif self_attention_model == 'rel_pos_local_attn':
+            self.self_attn = RelPositionMultiHeadAttentionLongformer(
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
+                max_cache_len=MHA_max_cache_len,
+                att_context_size=att_context_size,
+            )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
@@ -97,7 +109,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
-                f"valid values can be from ['rel_pos', 'abs_pos']"
+                f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos']"
             )
 
         # second feed forward module
@@ -143,6 +155,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 key=x,
                 value=x,
                 mask=att_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
+        elif self.self_attention_model == 'rel_pos_local_attn':
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                pad_mask=pad_mask,
                 pos_emb=pos_emb,
                 cache=cache_last_channel,
                 cache_next=cache_last_channel_next,
@@ -301,6 +323,8 @@ class ConformerConvolution(nn.Module):
             self.batch_norm = nn.InstanceNorm1d(dw_conv_input_dim)
         elif norm_type == 'layer_norm':
             self.batch_norm = nn.LayerNorm(dw_conv_input_dim)
+        elif norm_type == 'fused_batch_norm':
+            self.batch_norm = FusedBatchNorm1d(dw_conv_input_dim)
         elif norm_type.startswith('group_norm'):
             num_groups = int(norm_type.replace("group_norm", ""))
             self.batch_norm = nn.GroupNorm(num_groups=num_groups, num_channels=d_model)

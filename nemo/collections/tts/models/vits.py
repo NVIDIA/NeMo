@@ -31,9 +31,12 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
 from nemo.collections.tts.torch.data import DistributedBucketSampler
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types.elements import AudioSignal, FloatType, Index, IntType, TokenIndex
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators.experimental import experimental
 
 HAVE_WANDB = True
 try:
@@ -42,6 +45,7 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
+@experimental
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -162,12 +166,22 @@ class VitsModel(TextToWaveform):
             return [optim_g, optim_d]
 
     # for inference
-    def forward(self, tokens, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=1000):
+    @typecheck(
+        input_types={
+            "tokens": NeuralType(('B', 'T_text'), TokenIndex()),
+            "speakers": NeuralType(('B',), Index(), optional=True),
+            "noise_scale": NeuralType(('B',), FloatType(), optional=True),
+            "length_scale": NeuralType(('B',), FloatType(), optional=True),
+            "noise_scale_w": NeuralType(('B',), FloatType(), optional=True),
+            "max_len": NeuralType(('B',), IntType(), optional=True),
+        }
+    )
+    def forward(self, tokens, speakers=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=1000):
         text_len = torch.tensor([tokens.size(-1)]).to(int).to(tokens.device)
         audio_pred, attn, y_mask, (z, z_p, m_p, logs_p) = self.net_g.infer(
             tokens,
             text_len,
-            sid=sid,
+            speakers=speakers,
             noise_scale=noise_scale,
             length_scale=length_scale,
             noise_scale_w=noise_scale_w,
@@ -245,9 +259,9 @@ class VitsModel(TextToWaveform):
         metrics = {
             "loss_gen": loss_gen,
             "loss_fm": loss_fm,
-            "loss_mel * c_mel": loss_mel,
+            "loss_mel": loss_mel,
             "loss_dur": loss_dur,
-            "loss_kl * c_kl": loss_kl,
+            "loss_kl": loss_kl,
             "loss_gen_all": loss_gen_all,
             "loss_disc_all": loss_disc_all,
             "grad_gen": norm_g,
@@ -358,8 +372,20 @@ class VitsModel(TextToWaveform):
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
         list_of_models = []
-        # TODO: List available models??
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_vits",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_vits/versions/1.13.0/files/vits_ljspeech_fp16_full.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz. This model has been tested on generating female English "
+            "voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
         return list_of_models
 
-    def convert_text_to_waveform(self, *, tokens, sid=None):
-        return self(tokens, sid=sid)[0].squeeze(1)
+    @typecheck(
+        input_types={"tokens": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),},
+        output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())},
+    )
+    def convert_text_to_waveform(self, *, tokens, speakers=None):
+        audio = self(tokens=tokens, speakers=speakers)[0].squeeze(1)
+        return audio

@@ -114,7 +114,7 @@ class ConvReluNorm(nn.Module):
 
 class DDSConv(nn.Module):
     """
-    Dialted and Depth-Separable Convolution
+    Dilated and Depth-Separable Convolution
     """
 
     def __init__(self, channels, kernel_size, n_layers, p_dropout=0.0):
@@ -513,13 +513,13 @@ class TextEncoder(nn.Module):
         self.emb = nn.Embedding(n_vocab, hidden_channels, padding_idx=padding_idx)
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
 
-        self.encoder = Encoder(hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout)
+        self.encoder = AttentionEncoder(hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout)
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths):
         x = self.emb(x) * math.sqrt(self.hidden_channels)  # [b, t, h]
         x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x.size(2)), 1).to(x.dtype)
+        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x), 1).to(x.dtype)
 
         x = self.encoder(x * x_mask, x_mask)
         stats = self.proj(x) * x_mask
@@ -582,7 +582,7 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths, g=None):
-        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x.size(2)), 1).to(x.dtype).to(device=x.device)
+        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x), 1).to(x.dtype).to(device=x.device)
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
@@ -845,15 +845,15 @@ class SynthesizerTrn(nn.Module):
         if n_speakers > 1:
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
 
-    def forward(self, text, text_len, spec, spec_len, sid=None):
-        x, mean_prior, logscale_prior, x_mask = self.enc_p(text, text_len)
+    def forward(self, text, text_len, spec, spec_len, speakers=None):
+        x, mean_prior, logscale_prior, text_mask = self.enc_p(text, text_len)
         if self.n_speakers > 1:
-            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
+            g = self.emb_g(speakers).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
-        z, mean_posterior, logscale_posterior, y_mask = self.enc_q(spec, spec_len, g=g)
-        z_p = self.flow(z, y_mask, g=g)
+        z, mean_posterior, logscale_posterior, spec_mask = self.enc_q(spec, spec_len, g=g)
+        z_p = self.flow(z, spec_mask, g=g)
 
         with torch.no_grad():
             # negative cross-entropy
@@ -868,17 +868,17 @@ class SynthesizerTrn(nn.Module):
             neg_cent4 = torch.sum(-0.5 * (mean_prior ** 2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
-            attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
+            attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(spec_mask, -1)
             attn = maximum_path(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
 
         w = attn.sum(2)
         if self.use_sdp:
-            l_length = self.dp(x, x_mask, w, g=g)
-            l_length = l_length / torch.sum(x_mask)
+            l_length = self.dp(x, text_mask, w, g=g)
+            l_length = l_length / torch.sum(text_mask)
         else:
-            logw_ = torch.log(w + 1e-6) * x_mask
-            logw = self.dp(x, x_mask, g=g)
-            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)  # for averaging
+            logw_ = torch.log(w + 1e-6) * text_mask
+            logw = self.dp(x, text_mask, g=g)
+            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(text_mask)  # for averaging
 
         # expand prior
         mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(
@@ -895,27 +895,27 @@ class SynthesizerTrn(nn.Module):
             l_length,
             attn,
             ids_slice,
-            x_mask,
-            y_mask,
+            text_mask,
+            spec_mask,
             (z, z_p, mean_prior, logscale_prior, mean_posterior, logscale_posterior),
         )
 
-    def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
-        x, mean_prior, logscale_prior, x_mask = self.enc_p(x, x_lengths)
-        if self.n_speakers > 1 and sid is not None:
-            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
+    def infer(self, text, text_len, speakers=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
+        x, mean_prior, logscale_prior, text_mask = self.enc_p(text, text_len)
+        if self.n_speakers > 1 and speakers is not None:
+            g = self.emb_g(speakers).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
         if self.use_sdp:
-            logw = self.dp(x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w)
+            logw = self.dp(x, text_mask, g=g, reverse=True, noise_scale=noise_scale_w)
         else:
-            logw = self.dp(x, x_mask, g=g)
-        w = torch.exp(logw) * x_mask * length_scale
+            logw = self.dp(x, text_mask, g=g)
+        w = torch.exp(logw) * text_mask * length_scale
         w_ceil = torch.ceil(w)
         audio_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(x_mask.dtype)
-        attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(audio_mask, -1)
+        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(text_mask.dtype)
+        attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(audio_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
         mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(
@@ -931,10 +931,10 @@ class SynthesizerTrn(nn.Module):
         return audio, attn, audio_mask, (z, z_p, mean_prior, logscale_prior)
 
     # Can be used for emotions
-    def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
+    def voice_conversion(self, y, y_lengths, speaker_src, speaker_tgt):
         assert self.n_speakers > 1, "n_speakers have to be larger than 1."
-        g_src = self.emb_g(sid_src).unsqueeze(-1)
-        g_tgt = self.emb_g(sid_tgt).unsqueeze(-1)
+        g_src = self.emb_g(speaker_src).unsqueeze(-1)
+        g_tgt = self.emb_g(speaker_tgt).unsqueeze(-1)
         z, m_q, logs_q, y_mask = self.enc_q(y, y_lengths, g=g_src)
         z_p = self.flow(z, y_mask, g=g_src)
         z_hat = self.flow(z_p, y_mask, g=g_tgt, reverse=True)
@@ -945,7 +945,7 @@ class SynthesizerTrn(nn.Module):
 ##############
 # Attentions #
 ##############
-class Encoder(nn.Module):
+class AttentionEncoder(nn.Module):
     def __init__(
         self,
         hidden_channels,
@@ -990,86 +990,6 @@ class Encoder(nn.Module):
             y = self.attn_layers[i](x, x, attn_mask)
             y = self.drop(y)
             x = self.norm_layers_1[i](x + y)
-            y = self.ffn_layers[i](x, x_mask)
-            y = self.drop(y)
-            x = self.norm_layers_2[i](x + y)
-        x = x * x_mask
-        return x
-
-
-class Decoder(nn.Module):
-    def __init__(
-        self,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size=1,
-        p_dropout=0.0,
-        proximal_bias=False,
-        proximal_init=True,
-        **kwargs
-    ):
-        super().__init__()
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
-        self.p_dropout = p_dropout
-        self.proximal_bias = proximal_bias
-        self.proximal_init = proximal_init
-
-        self.drop = nn.Dropout(p_dropout)
-        self.self_attn_layers = nn.ModuleList()
-        self.norm_layers_0 = nn.ModuleList()
-        self.encdec_attn_layers = nn.ModuleList()
-        self.norm_layers_1 = nn.ModuleList()
-        self.ffn_layers = nn.ModuleList()
-        self.norm_layers_2 = nn.ModuleList()
-        for i in range(self.n_layers):
-            self.self_attn_layers.append(
-                MultiHeadAttention(
-                    hidden_channels,
-                    hidden_channels,
-                    n_heads,
-                    p_dropout=p_dropout,
-                    proximal_bias=proximal_bias,
-                    proximal_init=proximal_init,
-                )
-            )
-            self.norm_layers_0.append(LayerNorm(hidden_channels))
-            self.encdec_attn_layers.append(
-                MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout)
-            )
-            self.norm_layers_1.append(LayerNorm(hidden_channels))
-            self.ffn_layers.append(
-                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout, causal=True)
-            )
-            self.norm_layers_2.append(LayerNorm(hidden_channels))
-
-    def forward(self, x, x_mask, h, h_mask):
-        """
-        x: decoder input
-        h: encoder output
-        """
-        self_attn_mask = (
-            torch.tril(torch.ones(x_mask.size(2), x_mask.size(2)))
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .to(device=x.device, dtype=x.dtype)
-        )
-        encdec_attn_mask = h_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
-        x = x * x_mask
-        for i in range(self.n_layers):
-            y = self.self_attn_layers[i](x, x, self_attn_mask)
-            y = self.drop(y)
-            x = self.norm_layers_0[i](x + y)
-
-            y = self.encdec_attn_layers[i](x, h, encdec_attn_mask)
-            y = self.drop(y)
-            x = self.norm_layers_1[i](x + y)
-
             y = self.ffn_layers[i](x, x_mask)
             y = self.drop(y)
             x = self.norm_layers_2[i](x + y)

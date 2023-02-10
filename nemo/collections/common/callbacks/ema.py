@@ -13,7 +13,6 @@
 # limitations under the License.
 import contextlib
 import copy
-import logging
 import os
 import threading
 from typing import Any, Dict, Iterable
@@ -22,6 +21,7 @@ import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Callback
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 
 class EMA(Callback):
@@ -117,25 +117,26 @@ class EMA(Callback):
     ) -> None:
         checkpoint_callback = trainer.checkpoint_callback
 
-        if trainer.ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
+        # use the connector as NeMo calls the connector directly in the exp_manager when restoring.
+        connector = trainer._checkpoint_connector
+        ckpt_path = connector.resume_checkpoint_path
+
+        if ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
             ext = checkpoint_callback.FILE_EXTENSION
-            if trainer.ckpt_path.endswith(f'-EMA{ext}'):
-                logging.info(
+            if ckpt_path.endswith(f'-EMA{ext}'):
+                rank_zero_info(
                     "loading EMA based weights. "
                     "The callback will treat the loaded EMA weights as the main weights"
                     " and create a new EMA copy when training."
                 )
                 return
-            ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
+            ema_path = ckpt_path.replace(ext, f'-EMA{ext}')
             if os.path.exists(ema_path):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
 
-                # this is wrong, basically when we save the EMA weights, optimizer_states actually contains the model parameters
-                # as we swapped the model parameters with the state dict parameters.
-                # we could enforce that if you trained with EMA and want to continue training
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
                 del ema_state_dict
-                logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
+                rank_zero_info("EMA state has been restored.")
             else:
                 raise MisconfigurationException(
                     "Unable to find the associated EMA weights when re-loading, "
@@ -327,7 +328,6 @@ class EMAOptimizer(torch.optim.Optimizer):
             'current_step': self.current_step,
             'decay': self.decay,
             'every_n_steps': self.every_n_steps,
-            'device': self.device,
         }
         return state_dict
 
@@ -338,7 +338,6 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.ema_params = tuple(param.to(self.device) for param in copy.deepcopy(state_dict['ema']))
         self.current_step = state_dict['current_step']
         self.decay = state_dict['decay']
-        self.device = state_dict['device']
         self.every_n_steps = state_dict['every_n_steps']
         self.rebuild_ema_params = False
 

@@ -55,7 +55,7 @@ class Normalizer:
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
         whitelist: path to a file with whitelist replacements
-        post_process: WFST-based post processing, e.g. to remove extra spaces added during TN.
+        post_process: WFST-based post-processing, e.g. to remove extra spaces added during TN.
             Note: punct_post_process flag in normalize() supports all languages.
     """
 
@@ -75,8 +75,8 @@ class Normalizer:
         self.post_processor = None
 
         if lang == "en":
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
             from nemo_text_processing.text_normalization.en.verbalizers.post_processing import PostProcessingFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
 
             if post_process:
                 self.post_processor = PostProcessingFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)

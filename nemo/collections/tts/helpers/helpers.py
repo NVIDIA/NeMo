@@ -43,14 +43,14 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence
+from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
+from einops import rearrange
 from numba import jit, prange
-from numpy import ndarray
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
@@ -133,12 +133,36 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.device)
 
 
-def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
-    if max_len is None:
-        max_len = lengths.max()
-    ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
-    mask = (ids < lengths.unsqueeze(1)).bool()
+def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[torch.Tensor] = None,) -> torch.Tensor:
+    """Constructs binary mask from a 1D torch tensor of input lengths
+
+    Args:
+        lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
+        x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask 
+    Returns:
+        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
+    """
+    if lengths is None:
+        assert x is not None
+        return torch.ones(x.shape[-1], dtype=torch.bool, device=x.device)
+    else:
+        if x is None:
+            max_len = torch.max(lengths)
+        else:
+            max_len = x.shape[-1]
+    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
+    mask = ids < lengths.unsqueeze(1)
     return mask
+
+
+@torch.jit.script
+def sort_tensor(context: torch.Tensor, lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+    unsort_ids = torch.zeros_like(ids_sorted)
+    for i in range(ids_sorted.shape[0]):
+        unsort_ids[ids_sorted[i]] = i
+    context = context[ids_sorted]
+    return context, lens_sorted, unsort_ids
 
 
 @jit(nopython=True)
@@ -406,6 +430,23 @@ def plot_pitch_to_numpy(pitch, ylim_range=None):
     return data
 
 
+def plot_multipitch_to_numpy(pitch_gt, pitch_pred, ylim_range=None):
+    fig, ax = plt.subplots(figsize=(12, 3))
+    plt.plot(pitch_gt, label="Ground truth")
+    plt.plot(pitch_pred, label="Predicted")
+    if ylim_range is not None:
+        plt.ylim(ylim_range)
+    plt.xlabel("Frames")
+    plt.ylabel("Pitch")
+    plt.legend()
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
 def plot_spectrogram_to_numpy(spectrogram):
     spectrogram = spectrogram.astype(np.float32)
     fig, ax = plt.subplots(figsize=(12, 3))
@@ -478,7 +519,15 @@ def remove(conv_list):
     return new_conv_list
 
 
-def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
+def regulate_len(
+    durations,
+    enc_out,
+    pace=1.0,
+    mel_max_len=None,
+    replicate_to_nearest_multiple=False,
+    group_size=2,
+    in_lens: torch.tensor = None,
+):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
 
@@ -486,15 +535,25 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
         durations (torch.tensor): A tensor of shape (batch x enc_length) that represents how many times to repeat each
             token in enc_out.
         enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
-        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.
-        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
+        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
             max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
+        replicate_to_nearest_multiple (bool): replicate the last element specified by durations[i, in_lens[i] - 1] until the
+            full length of the sequence is the next nearest multiple of group_size
+        group_size (int): factor used by replicate_to_nearest_multiple
+        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor
     """
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
+
+    if replicate_to_nearest_multiple:
+        to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
+        to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
+        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
+        reps = reps + to_pad_expanded
+        dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
@@ -527,6 +586,80 @@ def split_view(tensor, split_size: int, dim: int = 0):
     return tensor.reshape(*new_shape)
 
 
+def slice_segments(x, ids_str, segment_size=4):
+    """
+    Time-wise slicing (patching) of bathches for audio/spectrogram
+    [B x C x T] -> [B x C x segment_size]
+    """
+    ret = torch.zeros_like(x[:, :, :segment_size])
+    for i in range(x.size(0)):
+        idx_str = ids_str[i]
+        idx_end = idx_str + segment_size
+        x_i = x[i]
+        if idx_end >= x.size(2):
+            # pad the sample if it is shorter than the segment size
+            x_i = torch.nn.functional.pad(x_i, (0, (idx_end + 1) - x.size(2)))
+        ret[i] = x_i[:, idx_str:idx_end]
+    return ret
+
+
+def rand_slice_segments(x, x_lengths=None, segment_size=4):
+    """
+    Chooses random indices and slices segments from batch
+    [B x C x T] -> [B x C x segment_size]
+    """
+    b, d, t = x.size()
+    if x_lengths is None:
+        x_lengths = t
+    ids_str_max = x_lengths - segment_size + 1
+    ids_str_max = ids_str_max.to(device=x.device)
+    ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
+
+    ret = slice_segments(x, ids_str, segment_size)
+
+    return ret, ids_str
+
+
+def clip_grad_value_(parameters, clip_value, norm_type=2):
+    if isinstance(parameters, torch.Tensor):
+        parameters = [parameters]
+    parameters = list(filter(lambda p: p.grad is not None, parameters))
+    norm_type = float(norm_type)
+    if clip_value is not None:
+        clip_value = float(clip_value)
+
+    total_norm = 0
+    for p in parameters:
+        param_norm = p.grad.data.norm(norm_type)
+        total_norm += param_norm.item() ** norm_type
+        if clip_value is not None:
+            p.grad.data.clamp_(min=-clip_value, max=clip_value)
+    total_norm = total_norm ** (1.0 / norm_type)
+    return total_norm
+
+
+def convert_pad_shape(pad_shape):
+    l = pad_shape[::-1]
+    pad_shape = [item for sublist in l for item in sublist]
+    return pad_shape
+
+
+def generate_path(duration, mask):
+    """
+    duration: [b, 1, t_x]
+    mask: [b, 1, t_y, t_x]
+    """
+    b, _, t_y, t_x = mask.shape
+    cum_duration = torch.cumsum(duration, -1)
+
+    cum_duration_flat = cum_duration.view(b * t_x)
+    path = get_mask_from_lengths(cum_duration_flat, torch.Tensor(t_y).reshape(1, 1, -1)).to(mask.dtype)
+    path = path.view(b, t_x, t_y)
+    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
+    path = path.unsqueeze(1).transpose(2, 3) * mask
+    return path
+
+
 def process_batch(batch_data, sup_data_types_set):
     batch_dict = {}
     batch_index = 0
@@ -538,3 +671,43 @@ def process_batch(batch_data, sup_data_types_set):
                 batch_dict[name + "_lens"] = batch_data[batch_index]
                 batch_index = batch_index + 1
     return batch_dict
+
+
+def to_device_recursive(e, device: torch.device):
+    """
+    Use .to(device) on all tensors within nested lists, tuples, values ofdicts
+    Returns a new structure with tensors moved to target device, leaving other data intact.
+
+    The intended use is to move collections of tensors to a device while:
+        - avoiding calling specific movers like .cpu() or .cuda()
+        - avoiding stuff like .to(torch.device("cuda:{some_variable}"))
+    """
+    if isinstance(e, (list, tuple)):
+        return [to_device_recursive(elem, device) for elem in e]
+    elif isinstance(e, dict):
+        return {key: to_device_recursive(value, device) for key, value in e.items()}
+    elif isinstance(e, torch.Tensor):
+        return e.to(device)
+    else:
+        return e
+
+
+def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
+    """
+    For tensors containing sequences, zero out out-of-bound elements given lengths of every element in the batch.
+
+    tensor: tensor of shape (B, D, L) or (B, D1, D2, L),
+    lengths: LongTensor of shape (B,)
+    """
+    batch_size, *_, max_lengths = tensor.shape
+
+    if len(tensor.shape) == 3:
+        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1")
+    elif len(tensor.shape) == 4:
+        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1 1")
+    else:
+        raise ValueError("Can only mask tensors of shape B x D x L and B x D1 x D2 x L")
+
+    return tensor * mask
