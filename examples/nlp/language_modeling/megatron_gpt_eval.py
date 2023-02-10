@@ -18,6 +18,7 @@ import threading
 import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.plugins.environments import LightningEnvironment
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -155,7 +156,7 @@ class RequestDataSet(Dataset):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), plugins=[LightningEnvironment()], **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
