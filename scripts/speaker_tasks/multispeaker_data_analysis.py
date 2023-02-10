@@ -195,7 +195,7 @@ def run_multispeaker_data_analysis(
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 14))
     fig.suptitle(
-        f"Average session={total_duration/len(rttm_list):.2f} seconds, num={len(rttm_list)} total={total_duration/3600: .2f} hours"
+        f"Average session={total_duration/len(rttm_list):.2f} seconds, num sessions={len(rttm_list)}, total={total_duration/3600:.2f} hours"
     )
     sns.histplot(silence_ratio_all, ax=ax1)
     ax1.set_xlabel("Silence ratio in a session")
