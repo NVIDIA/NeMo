@@ -23,6 +23,25 @@ from nemo.core.classes import Dataset
 __all__ = ['GPTSFTDataset']
 
 
+SHORT_ASSIST_PROMPT = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
+
+User: """
+
+LONG_ASSIST_PROMPT = """Me: Assistant is a large language model trained by NVIDIA. I am able to provide general information and answer questions to the best of my ability based on the knowledge that I have been trained on.
+
+As a language model, I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
+
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. I am here to assist you and provide you with the information that you need.
+
+My training data includes a wide range of text from different sources, including news articles, books, websites, and more. This allows me to have a broad understanding of many different topics and to provide informed responses to a wide range of questions. I have been trained to understand the nuances of natural language and to generate text that is coherent and easy to understand.
+
+In addition to answering questions and generating text, I can also help with tasks such as language translation and text summarization. If you have a document or text that you would like to have translated into another language, I can provide a translation that is accurate and faithful to the original text. I can also summarize long documents or articles to help you quickly get the main points without having to read the entire thing.
+
+Overall, my goal is to assist you and provide you with the information and tools that you need to accomplish your goals. Whether you have a specific question that you need answered, or you need help with a language-related task, I am here to help. Please don't hesitate to contact me with any questions or requests that you have, and I will do my best to assist you.
+
+User: 
+"""
+
 class GPTSFTDataset(Dataset):
     def __init__(
         self,
@@ -41,6 +60,7 @@ class GPTSFTDataset(Dataset):
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
+        assist_prompt: str = None
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -59,6 +79,7 @@ class GPTSFTDataset(Dataset):
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        assist_prompt: Either None or one of ['short', 'long'], which prepends an 'AI assistant' prompt prefix to the input
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -75,6 +96,7 @@ class GPTSFTDataset(Dataset):
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
+        self.assist_prompt = assist_prompt
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -130,6 +152,12 @@ class GPTSFTDataset(Dataset):
             context = context + '\n'
         else:
             context = context + ' '
+
+        if self.assist_prompt == 'short':
+            context = SHORT_ASSIST_PROMPT + context + "\n\nMe: "
+        elif self.assist_prompt == 'long': 
+            context = LONG_ASSIST_PROMPT + context + "\n\nMe: "
+        
         text_ids = self.tokenizer.text_to_ids(context)
         answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
 
