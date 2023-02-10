@@ -95,7 +95,7 @@ class TestDataUtils:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_any_locale_word_tokenize_with_numbers(self):
-        input_text = "Three times× four^teen ÷divided by [movies] on \slash."
+        input_text = r"Three times× four^teen ÷divided by [movies] on \slash."
         expected_output = self._create_expected_output(
             [
                 "three",
@@ -127,7 +127,8 @@ class TestDataUtils:
     def test_get_heteronym_spans(self):
         supported_heteronyms = ["live", "read", "protest", "diffuse", "desert"]
         sentences = [
-            "I live in California. I READ a book. Only people who have already gained something are willing to protest. He reads a book!",
+            "I live in California. I READ a book. Only people who have already gained something are willing to protest."
+            " He reads a book!",
             "Yesterday, I read a book.",
             "He read a book last night and pre-diffuse and LivE-post and pre-desert-post.",
             "the soldier deserted the desert in desert.",
