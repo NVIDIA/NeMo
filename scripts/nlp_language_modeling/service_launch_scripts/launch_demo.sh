@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+clean_up() {
+    kill -- -$$
+}
 
 depends_on () {
     HOST=$1
@@ -45,7 +48,6 @@ python scripts/nlp_language_modeling/service_launch_scripts/start_bert_service.p
           sentence_bert.sentence_bert=all-mpnet-base-v2 \
           sentence_bert.devices=$BERT_DEVICES \
           sentence_bert.port=${BERT_PORT} &
-
 
 depends_on "0.0.0.0" ${BERT_PORT}
 
@@ -106,3 +108,7 @@ python scripts/nlp_language_modeling/service_launch_scripts/start_web_service.py
           username=test \
           password=${PASSWORD} \
           port=${WEB_PORT}
+
+
+echo "clean up dameons: $$"
+clean_up
