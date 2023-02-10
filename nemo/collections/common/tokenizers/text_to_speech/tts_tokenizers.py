@@ -605,7 +605,7 @@ class IPATokenizer(BaseTokenizer):
                 of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`, which is the
                 G2P_paper's output of the text "see OOV", where '#' is prepended to each grapheme in order to distinguish
                 graphemes from phonemes if there are overlaps in between. The prefix '#' can be customized in
-                `nemo_text_processing.g2p.modules.IPAG2P.grapheme_prefix`.
+                `nemo.collections.tts.g2p.modules.IPAG2P.grapheme_prefix`.
             raw_text (str): the original text after calling `self.text_preprocessing_func`. It is optional. It is only
                 used to deliver a warning message that some graphemes from the original text are skipped.
 

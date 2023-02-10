@@ -1,4 +1,4 @@
-name: G2P_paper-Conformer-CTC
+name: G2P-Conformer-CTC
 
 # Dataset info
 train_manifest: ???

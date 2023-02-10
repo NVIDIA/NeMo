@@ -13,7 +13,7 @@ sup_data_types: null
 
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.10.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
+whitelist_path: "scripts/tts_dataset_files/en/whitelist_lj_speech.tsv"
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -66,7 +66,7 @@ model:
     apostrophe: true
     pad_with_space: false
     g2p:
-      _target_: nemo_text_processing.g2p.modules.IPAG2P
+      _target_: nemo.collections.tts.g2p.modules.IPAG2P
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
       phoneme_probability: 0.8
