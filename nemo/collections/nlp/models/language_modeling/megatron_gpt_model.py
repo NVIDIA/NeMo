@@ -187,6 +187,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             openai_gelu=self.cfg.get('openai_gelu', False),
             normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
             position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+            rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
+            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
             attention_type=self.cfg.get('attention_type', 'multihead'),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),

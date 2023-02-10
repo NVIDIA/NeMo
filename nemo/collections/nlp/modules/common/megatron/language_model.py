@@ -75,6 +75,9 @@ def get_language_model(
     transformer_block_type='pre_ln',
     normalize_attention_scores=True,
     position_embedding_type='learned_absolute',
+    attention_type='multihead',
+    share_embeddings_and_output_weights=True,
+    rotary_percentage=1.0,
     multi_query_attention=False,
     bias_dropout_add_fusion=True,
     bias=True,
@@ -143,6 +146,8 @@ def get_language_model(
         bias_activation_fusion=bias_activation_fusion,
         bias_dropout_add_fusion=bias_dropout_add_fusion,
         bias=bias,
+        rotary_percentage=rotary_percentage,
+        share_embeddings_and_output_weights=share_embeddings_and_output_weights,
         masked_softmax_fusion=masked_softmax_fusion,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         activation=activation,
@@ -448,7 +453,7 @@ class TransformerLanguageModel(MegatronModule):
         position_embedding_type='learned_absolute',
         rotary_percentage=1.0,
         multi_query_attention=False,
-        untie_embeddings_and_output_weights=False,
+        share_embeddings_and_output_weights=True,
         gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
@@ -468,7 +473,7 @@ class TransformerLanguageModel(MegatronModule):
         reduce_amax=True,
         use_emha=False,
     ):
-        super(TransformerLanguageModel, self).__init__(share_token_embeddings=not untie_embeddings_and_output_weights)
+        super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -485,7 +490,7 @@ class TransformerLanguageModel(MegatronModule):
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
-        self.untie_embeddings_and_output_weights = untie_embeddings_and_output_weights
+        self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
         if kv_channels is None:
 
@@ -505,6 +510,7 @@ class TransformerLanguageModel(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=self.hidden_dropout,
                 sequence_parallel=sequence_parallel,
+                position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
             )
             self._embedding_key = 'embedding'
@@ -614,7 +620,7 @@ class TransformerLanguageModel(MegatronModule):
                 self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=sequence_parallel)
                 self._pooler_key = 'pooler'
 
-        if self.untie_embeddings_and_output_weights:
+        if not self.share_embeddings_and_output_weights:
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.hidden_size,
                 self.vocab_size,
@@ -662,7 +668,9 @@ class TransformerLanguageModel(MegatronModule):
         # enc_attn_mask: [1, 1, s, s]
 
         if self.position_embedding_type == 'rope':
-            if enc_hidden_states is not None:
+            if not set_inference_key_value_memory and inference_max_sequence_len is not None:
+                rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
+            elif enc_hidden_states is not None:
                 rotary_pos_emb = self.rotary_pos_emb(enc_hidden_states.size(0))
             else:
                 rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
@@ -678,7 +686,7 @@ class TransformerLanguageModel(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                rotary_pos_emb=(rotary_pos_emb, None, None) # This assumes that this being used as a GPT/BERT model only (no cross-attention)
+                rotary_pos_emb=(rotary_pos_emb, None, None) if rotary_pos_emb is not None else None # This assumes that this being used as a GPT/BERT model only (no cross-attention)
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

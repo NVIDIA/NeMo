@@ -118,7 +118,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
-        self.glu_activation_family = activation in ['geglu', 'reglu', 'swiglu', 'squared-relu']
+        self.glu_activation_family = activation in ['geglu', 'reglu', 'swiglu']
         bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
 
         if bias_activation_fusion_unavailable and bias_activation_fusion:

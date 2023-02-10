@@ -132,8 +132,9 @@ class GPTModel(MegatronModule):
         transformer_block_type='pre_ln',
         normalize_attention_scores=True,
         position_embedding_type='learned_absolute',
+        rotary_percentage=1.0,
         attention_type='multihead',
-        untie_embedding_and_output_weights=False,
+        share_embeddings_and_output_weights=True,
         gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
@@ -159,7 +160,7 @@ class GPTModel(MegatronModule):
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = sequence_parallel
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
-        self.untie_embedding_and_output_weights = untie_embedding_and_output_weights
+        self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
         if kv_channels is None:
             assert (
@@ -201,6 +202,8 @@ class GPTModel(MegatronModule):
             activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
             normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
+            rotary_percentage=rotary_percentage,
+            share_embeddings_and_output_weights=share_embeddings_and_output_weights,
             bias=bias,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -271,7 +274,7 @@ class GPTModel(MegatronModule):
             return post_language_model_processing(
                 lm_output,
                 labels,
-                self.language_model.output_layer.weight if self.untie_embeddings_and_output_weights else self.word_embeddings_weight(),
+                self.language_model.output_layer.weight if not self.share_embeddings_and_output_weights else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,
