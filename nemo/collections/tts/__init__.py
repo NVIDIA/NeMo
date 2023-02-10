@@ -14,3 +14,4 @@
 
 import nemo.collections.tts.helpers
 import nemo.collections.tts.models
+import nemo.collections.tts.g2p
