@@ -76,12 +76,22 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('restore_from_path')):
             save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
-        frozen_model_cfg = MegatronGPTModel.restore_from(
-            cfg.get('restore_from_path'),
-            trainer=trainer,
-            return_config=True,
-            # save_restore_connector=save_restore_connector,
+
+        frozen_model_cfg = MegatronRetrievalModel.restore_from(
+            cfg.get('restore_from_path'), trainer=self._trainer, return_config=True, save_restore_connector=save_restore_connector,
         )
+
+        with open_dict(frozen_model_cfg):
+            # work around for the fused softmax bug
+            frozen_model_cfg.masked_softmax_fusion = False
+            frozen_model_cfg.precision = self._trainer.precision
+
+        # frozen_model_cfg = MegatronGPTModel.restore_from(
+        #     cfg.get('restore_from_path'),
+        #     trainer=trainer,
+        #     return_config=True,
+        #     # save_restore_connector=save_restore_connector,
+        # )
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = False
@@ -107,13 +117,20 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-        if cfg.get('restore_from_path', None):
-            self.frozen_model = MegatronGPTModel.restore_from(
-                cfg.get('restore_from_path'),
-                trainer=trainer,
-                save_restore_connector=save_restore_connector,
-                override_config_path=frozen_model_cfg,
-            ).to(dtype=self.autocast_dtype)
+        self.frozen_model = MegatronRetrievalModel.restore_from(
+            cfg.get('restore_from_path'),
+            trainer=self._trainer,
+            save_restore_connector=save_restore_connector,
+            override_config_path=frozen_model_cfg,
+        ).to(dtype=self.autocast_dtype)
+
+        # if cfg.get('restore_from_path', None):
+        #     self.frozen_model = MegatronGPTModel.restore_from(
+        #         cfg.get('restore_from_path'),
+        #         trainer=trainer,
+        #         save_restore_connector=save_restore_connector,
+        #         override_config_path=frozen_model_cfg,
+        #     ).to(dtype=self.autocast_dtype)
 
 
         for _, layer in self.frozen_model.named_modules():
@@ -159,8 +176,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         logging.info("Done")
 
-    def load_model_state_dict(self, checkpoint) -> None:
-        self.load_state_dict(state_dict())
+    # def load_model_state_dict(self, checkpoint) -> None:
+    #     self.load_state_dict(state_dict())
 
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
