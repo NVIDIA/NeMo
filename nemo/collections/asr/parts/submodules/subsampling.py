@@ -189,6 +189,7 @@ class ConvSubsampling(torch.nn.Module):
                             kernel_size=self._kernel_size,
                             stride=self._stride,
                             padding=None,
+                            device=torch.device("cuda"),
                         )
                     )
                 else:
@@ -199,6 +200,7 @@ class ConvSubsampling(torch.nn.Module):
                             kernel_size=self._kernel_size,
                             stride=self._stride,
                             padding=self._left_padding,
+                            device=torch.device("cuda"),
                         )
                     )
                 layers.append(activation)
@@ -215,7 +217,7 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
-        self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
+        self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out, device=torch.device("cuda"))
         self.conv = torch.nn.Sequential(*layers)
 
     def get_sampling_frames(self):
