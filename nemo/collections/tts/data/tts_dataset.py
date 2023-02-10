@@ -57,6 +57,7 @@ from nemo.collections.tts.torch.tts_data_types import (
 )
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+from nemo_text_processing.g2p.data.data_utils import set_grapheme_case
 
 try:
     from nemo_text_processing.text_normalization.normalize import Normalizer
@@ -250,7 +251,7 @@ class TTSDataset(Dataset):
                     # If so, entries with illegal graphemes should be filtered out
                     if self.text_tokenizer.set_fixed_vocab:
                         normalized_text = file_info["normalized_text"]
-                        text_set = set(normalized_text)
+                        text_set = set(set_grapheme_case(normalized_text, self.text_tokenizer.g2p.grapheme_case))
                         # Skip if set difference between graphemes in text and valid tokens set is nonempty
                         set_diff = text_set - self.text_tokenizer.tokens_set
                         if set_diff:

@@ -564,7 +564,7 @@ class IPAG2P(BaseG2p):
 
         for word, prons in self.phoneme_dict.items():
             # Check for illegal grapheme in the word itself
-            word_diff = set(word) - new_symbols
+            word_diff = set(set_grapheme_case(word, self.grapheme_case)) - new_symbols
             if word_diff:
                 deletion_words.append(word)
                 continue
