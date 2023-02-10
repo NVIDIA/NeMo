@@ -24,8 +24,9 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu, squared_relu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
 
 try:
@@ -83,7 +84,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
 
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu', 'squared-relu']:
-            raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu, squared-relu are supported.")
+            raise ValueError(
+                f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu, squared-relu are supported."
+            )
 
         no_async_tensor_model_parallel_allreduce = (
             parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel

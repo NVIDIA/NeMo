@@ -274,7 +274,9 @@ class GPTModel(MegatronModule):
             return post_language_model_processing(
                 lm_output,
                 labels,
-                self.language_model.output_layer.weight if not self.share_embeddings_and_output_weights else self.word_embeddings_weight(),
+                self.language_model.output_layer.weight
+                if not self.share_embeddings_and_output_weights
+                else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,
