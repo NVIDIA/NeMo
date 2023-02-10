@@ -98,7 +98,7 @@ Key Features
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN, UnivNet
-    * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
+    * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E, VITS
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
 * `Tools <https://github.com/NVIDIA/NeMo/tree/stable/tools>`_
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
@@ -251,13 +251,13 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, requires `Pynin
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.14.0`` comes with container ``nemo:22.11``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.15.0`` comes with container ``nemo:22.12``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:22.11
+    docker pull nvcr.io/nvidia/nemo:22.12
 
 To build a nemo container with Dockerfile from a branch, please run 
 
