@@ -555,7 +555,7 @@ class IPATokenizer(BaseTokenizer):
         # Build tokens list if fixed_vocab isn't set
         if fixed_vocab:
             tokens = set(fixed_vocab)
-            self.set_fixed_vocab = True     # Used to check whether dataset entries need filtering
+            self.set_fixed_vocab = True  # Used to check whether dataset entries need filtering
             g2p.replace_symbols(tokens)
         else:
             tokens = set(g2p.symbols)

@@ -25,6 +25,7 @@ import librosa
 import numpy as np
 import torch
 from einops import rearrange
+from nemo_text_processing.g2p.data.data_utils import set_grapheme_case
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -57,7 +58,6 @@ from nemo.collections.tts.torch.tts_data_types import (
 )
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo_text_processing.g2p.data.data_utils import set_grapheme_case
 
 try:
     from nemo_text_processing.text_normalization.normalize import Normalizer
@@ -255,7 +255,9 @@ class TTSDataset(Dataset):
                         # Skip if set difference between graphemes in text and valid tokens set is nonempty
                         set_diff = text_set - self.text_tokenizer.tokens_set
                         if set_diff:
-                            logging.warning(f"Skipping entry, found illegal grapheme(s) [{set_diff}] in text: [{normalized_text}]")
+                            logging.warning(
+                                f"Skipping entry, found illegal grapheme(s) [{set_diff}] in text: [{normalized_text}]"
+                            )
                             continue
 
                     if self.cache_text:

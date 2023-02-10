@@ -580,7 +580,7 @@ class IPAG2P(BaseG2p):
             if len(legal_prons) != len(prons):
                 if not keep_alternate:  # Remove the word and entry fully
                     deletion_words.append(word)
-                else:   # Need to check if all prons were illegal
+                else:  # Need to check if all prons were illegal
                     if not legal_prons:
                         deletion_words.append(word)
                     else:
