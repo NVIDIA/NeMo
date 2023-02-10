@@ -113,7 +113,7 @@ VITS is an end-to-end speech synthesis model, which generates raw waveform audio
 
     .. image:: images/vits_model.png
         :align: center
-        :alt: rad-aligner model
+        :alt: vits model
         :scale: 25%
 
 References
