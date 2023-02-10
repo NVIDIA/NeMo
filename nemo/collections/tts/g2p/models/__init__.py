@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.tts.g2p.models.t5_g2p import T5G2PModel
 from nemo.collections.tts.g2p.models.ctc_g2p import CTCG2PModel
+from nemo.collections.tts.g2p.models.t5_g2p import T5G2PModel
 
 __all__ = ["T5G2PModel", "CTCG2PModel"]

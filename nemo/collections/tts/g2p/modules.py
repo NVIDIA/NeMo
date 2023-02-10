@@ -23,6 +23,8 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import nltk
 import torch
+
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import validate_locale
 from nemo.collections.tts.g2p.data.data_utils import (
     GRAPHEME_CASE_MIXED,
     GRAPHEME_CASE_UPPER,
@@ -32,8 +34,6 @@ from nemo.collections.tts.g2p.data.data_utils import (
     normalize_unicode_text,
     set_grapheme_case,
 )
-
-from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import validate_locale
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
