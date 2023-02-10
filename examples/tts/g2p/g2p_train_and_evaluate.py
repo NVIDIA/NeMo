@@ -16,14 +16,13 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from nemo.collections.tts.g2p.models import G2PModel
 from utils import get_model
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
+from nemo.collections.tts.g2p.models import G2PModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
-
 
 """
 This script supports training of G2PModels 

@@ -19,17 +19,16 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
 
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
+    get_grapheme_character_set,
+    get_ipa_punctuation_list,
+    validate_locale,
+)
 from nemo.collections.tts.g2p.data.data_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
     spanish_text_preprocessing,
-)
-
-from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
-    get_grapheme_character_set,
-    get_ipa_punctuation_list,
-    validate_locale,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental

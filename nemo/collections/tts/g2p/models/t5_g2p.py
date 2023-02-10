@@ -17,13 +17,13 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 from hydra.utils import instantiate
-from nemo.collections.tts.g2p.data.t5_g2p import T5G2PDataset
-from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.tts.g2p.data.t5_g2p import T5G2PDataset
+from nemo.collections.tts.g2p.models.g2p_model import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
 from nemo.utils import logging
