@@ -109,7 +109,7 @@ End2End Models
 
 VITS
 ~~~~~~~~~~~~~~~
-VITS is an end-to-end speech synthesis model, which generates raw waveform audios from grapheme/phoneme input. It uses Variational Autoencoder to combine GlowTTS-like spectrogram generator with HiFi-GAN vocoder model. Also, it has separate flow-based duration predictor, which samples alignments from noise with conditioning on text.  Please refer to :cite:`tts-models-kim2021conditional` for details.
+VITS is an end-to-end speech synthesis model, which generates raw waveform audios from grapheme/phoneme input. It uses Variational Autoencoder to combine GlowTTS-like spectrogram generator with HiFi-GAN vocoder model. Also, it has separate flow-based duration predictor, which samples alignments from noise with conditioning on text.  Please refer to :cite:`tts-models-kim2021conditional` for details. The model is experemental yet, so we do not guarantee clean running.
 
     .. image:: images/vits_model.png
         :align: center
