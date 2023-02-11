@@ -18,8 +18,8 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -119,7 +119,7 @@ class MegatronBertModel(MegatronBaseModel):
                     self.model = converted_model
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
-            
+
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // mp_size
@@ -191,7 +191,14 @@ class MegatronBertModel(MegatronBaseModel):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = next(dataloader_iter)
-                tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = batch['tokens'], batch['types'], batch['sentence_order'], batch['loss_mask'], batch['lm_labels'], batch['padding_mask']
+                tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
+                    batch['tokens'],
+                    batch['types'],
+                    batch['sentence_order'],
+                    batch['loss_mask'],
+                    batch['lm_labels'],
+                    batch['padding_mask'],
+                )
             else:
                 batch = next(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
