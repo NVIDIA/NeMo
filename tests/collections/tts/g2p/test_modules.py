@@ -325,7 +325,7 @@ class TestIPAG2P:
         expected_output_mixed = (
             [char for char in "həˈɫoʊ ɛnˈvɪdiəz ˈɛɹˌpɔɹts ˈdʒoʊnzɪz ˈɛɹˌpɔɹts ˈwɝɫdz"]
             + [" "]
-            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "Kitty"]
+            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "kitty"]
             + ["!"]
         )
 
