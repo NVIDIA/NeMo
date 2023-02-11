@@ -201,6 +201,10 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             else:
                 batch = next(dataloader_iter)
+                print('Debug statement')
+                print(batch)
+                print(type(batch))
+                print(batch.keys())
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['tokens'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
