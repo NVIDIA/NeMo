@@ -163,12 +163,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         self._input_types = self._output_types = None
         self.export_config = {
-            "emb_range": (0, cfg.symbols_embedding_dim),
+            "emb_range": (0, self.fastpitch.encoder.word_emb.num_embeddings),
             "enable_volume": False,
             "enable_ragged_batches": False,
         }
         if self.fastpitch.speaker_emb is not None:
-            self.export_config["num_speakers"] = cfg.n_speakers  # self.fastpitch.speaker_emb.num_embeddings
+            self.export_config["num_speakers"] = cfg.n_speakers
 
     def _get_default_text_tokenizer_conf(self):
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
@@ -678,12 +678,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         """
         par = next(self.fastpitch.parameters())
         inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
-        inputs.pop('lens')
+        if 'enable_ragged_batches' not in self.export_config:
+            inputs.pop('batch_lengths', None)
+        print(inputs)
         return (inputs,)
 
     def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
         if self.export_config["enable_ragged_batches"]:
-            _, text, pitch, pace, volume_tensor = batch_from_ragged(
+            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
                 text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
             )
             if volume is not None:

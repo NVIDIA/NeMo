@@ -87,7 +87,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.cfg = cfg
         self.log_train_images = False
         self.export_config = {
-            "emb_range": (0, self.model_config.n_text_dim),
+            "emb_range": (16, 64),
             "enable_volume": True,
             "enable_ragged_batches": False,
             "num_speakers": self.model_config.n_speakers,
@@ -435,13 +435,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text": NeuralType(tensor_shape, TokenIndex()),
             "lens": NeuralType(('B')),
             "speaker_id": NeuralType(('B'), Index()),
             "speaker_id_text": NeuralType(('B'), Index()),
             "speaker_id_attributes": NeuralType(('B'), Index()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
-            "pace": NeuralType(('B', 'T')),
+            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
+            "pace": NeuralType(tensor_shape),
         }
         self._output_types = {
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
@@ -449,33 +449,39 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
         }
         if self.export_config["enable_volume"]:
-            self._input_types["volume"] = NeuralType(('B', 'T'), optional=True)
+            self._input_types["volume"] = NeuralType(tensor_shape, optional=True)
             self._output_types["volume_aligned"] = NeuralType(('B', 'T_spec'), RegressionValuesType())
 
     def input_example(self, max_batch=1, max_dim=400):
-        par = next(self.parameters())
+        par = next(self.model.parameters())
         inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
-        print(inputs)
-        inputs.update(
-            {
-                'speaker_id': inputs["speaker"],
-                'speaker_id_text': inputs["speaker"],
-                'speaker_id_attributes': inputs["speaker"],
-            }
-        )
-        inputs.pop("speaker", None)
-        return (inputs,)
+        speaker = inputs["speaker"]
+        inp = inputs['text']
+        pad_id = self.tokenizer.pad
+        inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
+
+        new_inputs = {
+            'text': inp,
+            'lens': inputs['batch_lengths'],
+            'speaker_id': speaker,
+            'speaker_id_text': speaker,
+            'speaker_id_attributes': speaker,
+            'pitch': inputs['pitch'],
+            'pace': inputs['pace'],
+            'volume': inputs['volume'],
+        }
+
+        return (new_inputs,)
 
     def forward_for_export(
         self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
     ):
         if self.export_config["enable_ragged_batches"]:
-            lens, text, pitch, pace, volume_tensor = batch_from_ragged(
-                text, pitch, pace, batch_lengths=lens, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
+            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
+                text, pitch, pace, batch_lengths=lens, padding_idx=self.tokenizer_pad, volume=volume
             )
             if volume is not None:
                 volume = volume_tensor
-
         lens = lens.to(dtype=torch.int64)
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,

@@ -52,6 +52,7 @@ def radtts_model():
     model = RadTTSModel(cfg=cfg.model)
     app_state.is_model_being_restored = False
     model.eval()
+    model.export_config['enable_ragged_batches'] = True
     return model
 
 
