@@ -8,7 +8,7 @@ export_dir: ???
 sup_data_path: ???
 sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"]
 
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/tts.tsv"
+whitelist_path: null # default https://github.com/NVIDIA/NeMo-text-processing/blob/main/nemo_text_processing/text_normalization/en/data/whitelist/tts.tsv will be used
 
 # these frame-wise values depend on pitch_fmin and pitch_fmax, you can get values
 # by running `scripts/dataset_processing/tts/extract_sup_data.py`
