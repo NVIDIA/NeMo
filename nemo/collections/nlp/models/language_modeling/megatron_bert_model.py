@@ -193,6 +193,7 @@ class MegatronBertModel(MegatronBaseModel):
                 batch = next(dataloader_iter)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = batch['tokens'], batch['types'], batch['sentence_order'], batch['loss_mask'], batch['lm_labels'], batch['padding_mask']
             else:
+                batch = next(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['tokens'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
