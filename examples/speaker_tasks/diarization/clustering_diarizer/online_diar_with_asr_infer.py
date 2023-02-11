@@ -14,6 +14,7 @@
 
 from scipy.io import wavfile
 from nemo.collections.asr.parts.utils.diarization_utils import OnlineDiarWithASR, write_txt
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from pytorch_lightning import seed_everything
 from nemo.core.config import hydra_runner
 import torch
@@ -69,7 +70,8 @@ def main(cfg):
     write_txt(f"{diar._out_dir}/print_script.sh", "")
     
     if cfg.diarizer.asr.parameters.streaming_simulation:
-        samplerate, sdata = wavfile.read(diar.single_audio_file_path)
+        # samplerate, sdata = wavfile.read(diar.single_audio_file_path)
+        sdata = get_samples(diar.single_audio_file_path)
         if  diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset'] and diar.AUDIO_RTTM_MAP[diar.uniq_id]['duration']:
             
             offset = samplerate*diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset']

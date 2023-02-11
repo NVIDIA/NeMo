@@ -1120,8 +1120,11 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self, 
         curr_emb,
         base_segment_indexes,
+        max_num_speakers: int,
+        max_rp_threshold: float,
+        enhanced_count_thres: int,
+        sparse_search_volume: int,
         frame_index: int, 
-        enhanced_count_thres: int = 40, 
         cuda: bool = False,
     ) -> torch.Tensor:
         """
@@ -1131,15 +1134,24 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Y = self.forward_infer(
         curr_emb=curr_emb,
         base_segment_indexes=base_segment_indexes,
+        max_num_speakers=max_num_speakers,
+        max_rp_threshold=max_rp_threshold,
+        enhanced_count_thres=enhanced_count_thres,
+        sparse_search_volume=sparse_search_volume,
         frame_index=frame_index,
         cuda=cuda,)
         return Y
 
     def forward_infer(
         self, 
-        curr_emb,
-        base_segment_indexes,
-        frame_index: int, 
+        curr_emb: torch.Tensor,
+        base_segment_indexes: torch.Tensor,
+        max_num_speakers: int = 4,
+        max_rp_threshold: float = 0.15,
+        enhanced_count_thres: int = 40,
+        sparse_search_volume: int = 5,
+        fixed_thres: float = -1.0,
+        frame_index: int = 0, 
         cuda: bool = False,
     ) -> torch.Tensor:
         """
@@ -1165,6 +1177,11 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Y (Tensor):
                 Speaker labels for history embeddings and current embedding inputs
         """
+        self.max_num_speakers = max_num_speakers
+        self.max_rp_threshold = max_rp_threshold
+        self.enhanced_count_thres = enhanced_count_thres
+        self.sparse_search_volume = sparse_search_volume
+        self.fixed_thres = fixed_thres
         # Merge the closest embeddings and reduce the size of the embedding count.
         concat_emb, add_new = self.get_reduced_mat(
             emb_in=curr_emb, base_segment_indexes=base_segment_indexes,

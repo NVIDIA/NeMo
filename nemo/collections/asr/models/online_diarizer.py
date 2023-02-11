@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import time
 from copy import deepcopy
@@ -321,7 +320,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
         return maj_vote_labels
 
-    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, is_online: bool,) -> torch.Tensor:
+    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, is_online: bool) -> torch.Tensor:
         """
         Save the temporary input to the class memory buffer.
 
@@ -368,17 +367,26 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             )
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels[global_stt_idx:] = deepcopy(total_cluster_labels[global_stt_idx:])
-                assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
+                if len(self.memory_cluster_labels) != len(self.memory_segment_ranges[scale_idx]):
+                    raise ValueError(
+                        "self.memory_cluster_labels and self.memory_segment_ranges should always have the same length, "
+                        f"but they have {len(self.memory_cluster_labels)} and {len(self.memory_segment_ranges[scale_idx])}."
+                    )
 
             # Remove unnecessary old values
             self._clear_memory(scale_idx)
 
-        assert (
+        if not (
             len(self.emb_vectors[scale_idx])
             == len(self.segment_raw_audio[scale_idx])
             == len(self.segment_indexes[scale_idx])
             == len(self.segment_range_ts[scale_idx])
-        )
+        ):
+            raise ValueError("self.emb_vectors, self.segment_raw_audio, self.segment_indexes, and self.segment_range_ts "
+                             "should always have the same length, "
+                             f"but they have {len(self.emb_vectors[scale_idx])}, {len(self.segment_raw_audio[scale_idx])}, "
+                             f"{len(self.segment_indexes[scale_idx])}, and {len(self.segment_range_ts[scale_idx])}, respectively.")
+                                    
 
         if self.use_temporal_label_major_vote:
             cluster_label_hyp = self._temporal_label_major_vote()
@@ -541,7 +549,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-
             # Step 1: Get subsegments for embedding extraction.
             audio_sigs, segment_ranges, range_inds = self.online_segmentor.run_online_segmentation(
                 audio_buffer=audio_buffer,

@@ -65,7 +65,7 @@ diarizer:
       word_ts_anchor_offset: 0.15  # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
       max_word_ts_length_in_sec: 0.6
       fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide a VAD model to use this feature.
-      colored_text: True  # If True, use colored text to distinguish speakers in the output transcript.
+      colored_text: Tru  # If True, use colored text to distinguish speakers in the output transcript.
       print_time: True # If True, the start and end time of each speaker turn is printed in the output transcript.
       break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
       streaming_simulation: True

@@ -920,7 +920,7 @@ class FrameBatchVAD:
             )
             logprob = torch.softmax(logits, dim=-1)
             logprob = logprob[:, 1].cpu()
-            print(logprob) 
+            # print(logprob) 
             # TODO To debug so weird.
             prev_all_logprobs = self.all_logprobs.clone()
             self.all_logprobs[:self.prev_pred_len] = prev_all_logprobs[-self.prev_pred_len:]

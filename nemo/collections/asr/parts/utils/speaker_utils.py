@@ -1065,7 +1065,6 @@ def get_speech_labels_for_update(
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
-# @torch.jit.script
 def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
     """
     For online speaker diarization.
@@ -1098,8 +1097,6 @@ def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[fl
     cursor_index = len(segment_range_ts) - count
     return cursor_for_old_segments, cursor_index
 
-
-# @torch.jit.script
 def get_online_segments_from_slices(
     sig: torch.Tensor,
     buffer_start: float,
@@ -1171,8 +1168,6 @@ def get_online_segments_from_slices(
 
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
 
-
-# @torch.jit.script
 def get_online_subsegments_from_buffer(
     buffer_start: float,
     buffer_end: float,
@@ -1229,6 +1224,7 @@ def get_online_subsegments_from_buffer(
         subsegments = get_subsegments(
             offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0]),
         )
+
         ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             sig=audio_buffer,
             buffer_start=buffer_start,

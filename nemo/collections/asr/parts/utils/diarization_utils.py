@@ -36,12 +36,9 @@ from nemo.collections.asr.metrics.der import (
 )
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ClusteringDiarizer, OnlineClusteringDiarizer
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.decoder_timestamps_utils import (
     WERBPE_TS,
     ASRDecoderTimeStamps,
-    FrameBatchASRLogits,
     FrameBatchASRLogitsSample,
     get_wer_feat_logit_single,
     get_vad_feat_logit_single
@@ -54,13 +51,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     rttm_to_labels,
     write_rttm2manifest,
 )
-from nemo.collections.asr.parts.utils.vad_utils import (
-    generate_overlap_vad_seq,
-    generate_vad_segment_table,
-    get_vad_stream_status,
-    prepare_manifest,
-)
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD, StreamingFeatureBufferer
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchVAD, StreamingFeatureBufferer
 
 import time 
 from nemo.utils import logging
@@ -1250,7 +1241,7 @@ class OfflineDiarWithASR:
             sentences (list):
                 List containing sentence dictionary
         """
-        # print the sentences in the .txt output
+        # display the sentences in the textfile output
         string_out = self.print_sentences(sentences)
         if self.params['break_lines']:
             string_out = self._break_lines(string_out)
@@ -1923,7 +1914,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
 
         offset = self.buffer_start - self.onset_delay_in_sec + 1
         vad_timestamps = offset + ts
-        if len(vad_timestamps) > 0 and vad_timestamps[0][0] <=0 :
+        if len(vad_timestamps) > 0 and vad_timestamps[0][0] <=0:
             vad_timestamps = []
 
         # TODO return vad_mask
@@ -2133,13 +2124,8 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         words, word_timestamps, offset = self.run_ASR_decoder_step(frame_mask=vad_mask)
 
         # Use ASR based VAD timestamp if no VAD timestamps are provided
-        # if vad_timestamps is None:
-        #     vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
-        #     print(vad_timestamps)
-
-        asr_vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
-        print("offset:", vad_offset, "vad_timestamps:", vad_timestamps)
-        print("offset:", offset, "asr_vad_timestamps:", asr_vad_timestamps)
+        if vad_timestamps is None:
+            vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
 
         # Sync diarization frame index with ASR frame index
         self.update_launcher_timestamps()
