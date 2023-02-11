@@ -706,3 +706,87 @@ def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
         raise ValueError("Can only mask tensors of shape B x D x L and B x D1 x D2 x L")
 
     return tensor * mask
+
+
+@torch.jit.script
+def batch_from_ragged(
+    text: torch.Tensor,
+    pitch: torch.Tensor,
+    pace: torch.Tensor,
+    batch_lengths: torch.Tensor,
+    padding_idx: int = -1,
+    volume: Optional[torch.Tensor] = None,
+):
+    batch_lengths = batch_lengths.to(torch.int64)
+    max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
+
+    index = 1
+    num_batches = batch_lengths.shape[0] - 1
+    texts = torch.zeros(num_batches, max_len, dtype=torch.int64, device=text.device) + padding_idx
+    pitches = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device)
+    paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    lens = torch.zeros(num_batches)
+    last_index = index - 1
+
+    while index < batch_lengths.shape[0]:
+        seq_start = batch_lengths[last_index]
+        seq_end = batch_lengths[index]
+        cur_seq_len = seq_end - seq_start
+
+        texts[last_index, :cur_seq_len] = text[seq_start:seq_end]
+        pitches[last_index, :cur_seq_len] = pitch[seq_start:seq_end]
+        paces[last_index, :cur_seq_len] = pace[seq_start:seq_end]
+        if volume is not None:
+            volumes[last_index, :cur_seq_len] = volume[seq_start:seq_end]
+
+        last_index = index
+        index += 1
+
+    return lens, texts, pitches, paces, volumes
+
+
+def sample_tts_input(
+    export_config, device, max_batch=1, max_dim=127,
+):
+    """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+    sz = (max_batch * max_dim,) if export_config["enable_ragged_batches"] else (max_batch, max_dim)
+    inp = torch.randint(*export_config["emb_range"], sz, device=device, dtype=torch.int64)
+    pitch = torch.randn(sz, device=device, dtype=torch.float32) * 0.5
+    pace = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+
+    inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+
+    if export_config["enable_volume"]:
+        volume = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        inputs['volume'] = volume
+    if export_config["enable_ragged_batches"]:
+        batch_lengths = torch.zeros((max_batch + 1), device=device, dtype=torch.int32)
+        left_over_size = sz[0]
+        batch_lengths[0] = 0
+        for i in range(1, max_batch):
+            length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=device)
+            batch_lengths[i] = length + batch_lengths[i - 1]
+            left_over_size -= length.detach().cpu().numpy()[0]
+        batch_lengths[-1] = left_over_size + batch_lengths[-2]
+
+        sum = 0
+        index = 1
+        while index < len(batch_lengths):
+            sum += batch_lengths[index] - batch_lengths[index - 1]
+            index += 1
+        assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
+    else:
+        batch_lengths = torch.randint(max_dim // 4, max_dim, (max_batch,), device=device, dtype=torch.int32)
+        batch_lengths[0] = max_dim
+    inputs['lens'] = batch_lengths
+
+    if "num_speakers" in export_config:
+        inputs['speaker'] = torch.randint(
+            0, export_config["num_speakers"], (max_batch,), device=device, dtype=torch.int64
+        )
+    return inputs
