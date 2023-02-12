@@ -143,8 +143,8 @@ With local attention, inference is possible on audios >1 hrs (256 subsampling ch
 Fast Conformer models were trained using CosineAnnealing (instead of Noam) as the scheduler.
 
 You may find the example CTC config at 
-``<NeMo_git_root>/examples/asr/conf/fastconformer/fastconformer_ctc_bpe.yaml`` and
-the transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fastconformer_transducer_bpe.yaml``
+``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml`` and
+the transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml``
 
 Note that both configs are subword-based (BPE).
 
