@@ -544,15 +544,6 @@ class IPAG2P(BaseG2p):
 
         return g2p_dict, symbols
 
-    # TODO @xueyang: deprecate this function because it is useless. If unknown graphemes appear, then apply_to_oov_words
-    #   should handle it.
-    def add_symbols(self, symbols: str) -> None:
-        """By default, the G2P symbols will be inferred from the words & pronunciations in the phoneme_dict.
-        Use this to add characters in the vocabulary that are not present in the phoneme_dict.
-        """
-        symbols = normalize_unicode_text(symbols)
-        self.symbols.update(symbols)
-
     def is_unique_in_phoneme_dict(self, word: str) -> bool:
         return len(self.phoneme_dict[word]) == 1
 
@@ -744,7 +735,7 @@ class ChineseG2p(BaseG2p):
             self.word_segmenter = lambda x: [x]
 
         try:
-            from pypinyin import lazy_pinyin, Style
+            from pypinyin import Style, lazy_pinyin
             from pypinyin_dict.pinyin_data import cc_cedict
         except ImportError as e:
             logging.error(e)

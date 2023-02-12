@@ -1,3 +1,4 @@
+
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +17,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.collections.tts.modules.common import ConvLSTMLinear, ConvNorm
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
+from nemo.collections.tts.modules.common import ConvLSTMLinear
+from nemo.collections.tts.modules.submodules import ConvNorm, MaskedInstanceNorm1d
+from nemo.collections.tts.modules.transformer import FFTransformer
 
 
 def get_attribute_prediction_model(config):
@@ -65,7 +69,9 @@ class BottleneckLayerLayer(nn.Module):
 
     def forward(self, x):
         if self.reduction_factor > 1:
-            x = self.projection_fn(x)
+            # borisf: here, float() instead of to(x.dtype) to work arounf ONNX exporter bug
+            mask = get_mask_from_lengths(lens, x).unsqueeze(1).float()
+            x = self.projection_fn(x, mask)
             if self.non_linearity == 'relu':
                 x = F.relu(x)
             elif self.non_linearity == 'leakyrelu':
@@ -74,12 +80,15 @@ class BottleneckLayerLayer(nn.Module):
 
 
 class DAP(AttributeProcessing):
-    def __init__(self, n_speaker_dim, bottleneck_hparams, take_log_of_input, arch_hparams):
+    def __init__(self, n_speaker_dim, bottleneck_hparams, take_log_of_input, arch_hparams, use_transformer=False):
         super(DAP, self).__init__(take_log_of_input)
         self.bottleneck_layer = BottleneckLayerLayer(**bottleneck_hparams)
 
         arch_hparams['in_dim'] = self.bottleneck_layer.out_dim + n_speaker_dim
-        self.feat_pred_fn = ConvLSTMLinear(**arch_hparams)
+        if use_transformer:
+            self.feat_pred_fn = FFTransformer(**arch_hparams)
+        else:
+            self.feat_pred_fn = ConvLSTMLinear(**arch_hparams)
 
     def forward(self, txt_enc, spk_emb, x, lens):
         if x is not None:
