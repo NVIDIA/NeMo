@@ -20,10 +20,10 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 class TestStochasticDepth:
     """Testing stochastic depth functionality."""
 
-    def test_stochastic_depth_model_creation():
+    def test_stochastic_depth_model_creation(self):
         """Testing basic model creation and the drop probs are correctly assigned."""
         n_layers = 4
-        model = ConformerEncoder(feat_in=10, n_layers=n_layers, d_model=5, feat_out=12)
+        model = ConformerEncoder(feat_in=10, n_layers=n_layers, d_model=4, feat_out=8)
 
         # checking that by default SD is disabled
         assert model.layer_drop_probs == [0.0] * n_layers
@@ -34,52 +34,52 @@ class TestStochasticDepth:
                 model = ConformerEncoder(
                     feat_in=10,
                     n_layers=n_layers,
-                    d_model=5,
-                    feat_out=12,
+                    d_model=4,
+                    feat_out=8,
                     stochastic_depth_drop_prob=drop_prob,
                     stochastic_depth_start_layer=start_layer,
                 )
                 L = n_layers - start_layer
-                assert model.layer_drop_probs == [0.0] * start_layer + [drop_prob * l / L for l in range(L)]
+                assert model.layer_drop_probs == [0.0] * start_layer + [drop_prob * l / (L - 1) for l in range(L)]
 
         # uniform mode
         for drop_prob in [0.3, 0.5, 0.9]:
             model = ConformerEncoder(
                 feat_in=10,
                 n_layers=n_layers,
-                d_model=5,
-                feat_out=12,
+                d_model=4,
+                feat_out=8,
                 stochastic_depth_drop_prob=drop_prob,
                 stochastic_depth_mode="uniform",
                 stochastic_depth_start_layer=start_layer,
             )
             L = n_layers - start_layer
-            assert model.layer_drop_probs == [0.0] * start_layer + [drop_prob] * n_layers
+            assert model.layer_drop_probs == [0.0] * start_layer + [drop_prob] * L
 
         # checking for errors
         for drop_prob in [-1.0, 1.0]:
-            with pytest.raises(ValueError, match="stochastic_depth_drop_prob has to be in [0, 1)."):
+            with pytest.raises(ValueError, match="stochastic_depth_drop_prob has to be in"):
                 model = ConformerEncoder(
                     feat_in=10,
                     n_layers=n_layers,
-                    d_model=5,
-                    feat_out=12,
+                    d_model=4,
+                    feat_out=8,
                     stochastic_depth_drop_prob=drop_prob,
                     stochastic_depth_mode="uniform",
                 )
 
-        with pytest.raises(ValueError, match='stochastic_depth_mode has to be one of ["linear", "uniform"].'):
+        with pytest.raises(ValueError, match="stochastic_depth_mode has to be one of"):
             model = ConformerEncoder(
-                feat_in=10, n_layers=n_layers, d_model=5, feat_out=12, stochastic_depth_mode="weird"
+                feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_mode="weird"
             )
 
         for start_layer in [-1, 5]:
-            with pytest.raises(ValueError, match="stochastic_depth_start_layer has to be in [0, num layers]."):
+            with pytest.raises(ValueError, match="stochastic_depth_start_layer has to be in"):
                 model = ConformerEncoder(
-                    feat_in=10, n_layers=n_layers, d_model=5, feat_out=12, stochastic_depth_start_layer=start_layer,
+                    feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_start_layer=start_layer,
                 )
 
-    def test_stochastic_depth_forward():
+    def test_stochastic_depth_forward(self):
         """Testing that forward works and we get randomness during training, but not during eval."""
         random_input = torch.rand((1, 2, 2))  # B x F x T
         random_length = torch.tensor([2, 2], dtype=torch.int64)
