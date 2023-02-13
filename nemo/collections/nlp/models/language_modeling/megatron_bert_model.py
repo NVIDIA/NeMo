@@ -54,8 +54,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from lddl.torch2 import get_bert_pretrain_data_loader2
     import logging
+
+    from lddl.torch2 import get_bert_pretrain_data_loader2
     HAVE_LDDL=True
 except (ImportError, ModuleNotFoundError):
     HAVE_LDDL=False
