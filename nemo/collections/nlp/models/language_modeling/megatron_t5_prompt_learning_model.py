@@ -31,7 +31,7 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -40,6 +40,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
     HAVE_APEX = True
 
@@ -190,7 +191,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Get seq length of batch
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -271,6 +272,28 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         forward_step_func"""
         self.frozen_model.enc_dec_model.set_input_tensor(input_tensor)
 
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def on_train_epoch_start(self) -> None:
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_train_epoch_start()
+
+    def on_validation_epoch_start(self) -> None:
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_validation_epoch_start()
+
     def training_step(self, batch, batch_idx):
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
@@ -290,15 +313,48 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
         return loss_mean
+
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+    def compute_accuracy(self, input_ids, enc_mask, encoder_input, labels):
+        predicted_token_ids, log_probs = self.frozen_model.decode(
+            tokens_enc=input_ids,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=self.decoder_seq_length,
+            encoder_input=encoder_input,
+            bos_id=self.tokenizer.pad_id
+            if self.cfg.data.get('decoder_starts_with_pad', False)
+            else self.tokenizer.bos_id,
+        )
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        return {
+            'predicted_token_ids': preds_text,
+            'labels': labels_text,
+            'enc_inputs': input_text,
+        }
 
     def validation_step(self, batch, batch_idx, inference=False):
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
         self.eval()
-
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(input_ids.size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         if self.first_stage_of_pipeline():
@@ -315,28 +371,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             encoder_input = None
 
-        predicted_token_ids, log_probs = self.frozen_model.decode(
-            tokens_enc=input_ids,
-            enc_mask=enc_mask,
-            num_tokens_to_generate=self.decoder_seq_length,
-            encoder_input=encoder_input,
-            bos_id=self.tokenizer.pad_id
-            if self.cfg.data.get('decoder_starts_with_pad', False)
-            else self.tokenizer.bos_id,
-        )
-        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        if self.cfg.get("report_validation_accuracy", False):
+            metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
+            metrics['loss'] = loss_mean
+        else:
+            metrics = {'loss': loss_mean}
 
         self.train(mode=mode)
         self.frozen_model.eval()
-        return {
-            'loss': loss_mean,
-            'predicted_token_ids': preds_text,
-            'labels': labels_text,
-            'enc_inputs': input_text,
-        }
+        return metrics
 
     def validation_epoch_end(self, outputs):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -357,47 +400,51 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
-        gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        if self.cfg.get("report_validation_accuracy", False):
+            gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
-        all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
-        all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
-        all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
 
-        assert len(all_preds) == len(all_labels)
-        assert len(all_preds) == len(all_inputs)
+            assert len(all_preds) == len(all_labels)
+            assert len(all_preds) == len(all_inputs)
 
-        # Gather inputs, preds, labels from all workers
-        torch.distributed.all_gather_object(
-            gather_results,
-            [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
-            group=parallel_state.get_data_parallel_group(),
-        )
+            # Gather inputs, preds, labels from all workers
+            torch.distributed.all_gather_object(
+                gather_results,
+                [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
+                group=parallel_state.get_data_parallel_group(),
+            )
 
-        # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
-        if parallel_state.get_data_parallel_rank() == 0:
+            # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+            if parallel_state.get_data_parallel_rank() == 0:
 
-            gather_results_dedup = list(set(itertools.chain(*gather_results)))
+                gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
-            correct = 0
-            for (input, pred, label) in gather_results_dedup:
-                if pred == label:
-                    correct += 1
+                correct = 0
+                for (input, pred, label) in gather_results_dedup:
+                    if pred == label:
+                        correct += 1
 
-            val_acc = correct / len(gather_results_dedup)
-            val_acc = torch.tensor(val_acc).cuda()
+                val_acc = correct / len(gather_results_dedup)
+                val_acc = torch.tensor(val_acc).cuda()
 
-            logging.info(f'Validation accuracy: {val_acc}')
-        else:
-            val_acc = torch.tensor(0.0).cuda()
+                logging.info(f'Validation accuracy: {val_acc}')
+            else:
+                val_acc = torch.tensor(0.0).cuda()
 
-        self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
-        logging.info(f'val_loss: {averaged_loss}')
+            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
         # Save inference ready .nemo checkpoint version
         if self.cfg.get("save_nemo_on_validation_end", False):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
+
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

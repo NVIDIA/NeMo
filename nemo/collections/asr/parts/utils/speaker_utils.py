@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import json
 import math
 import os
@@ -136,7 +137,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
             parameters.window_length_in_sec=[1.5,1.0,0.5]
             parameters.shift_length_in_sec=[0.75,0.5,0.25]
-            parameters.multiscale_weights=[0.33,0.33,0.33]
+            parameters.multiscale_weights=[1,1,1]
 
     In addition, you can also specify session-by-session multiscale weight. In this case, each dictionary key
     points to different weights.
@@ -441,8 +442,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
-        oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
-        use_torch_script (bool): Boolean that determines whether to use torch.jit.script for speaker clustering
 
     Returns:
         all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
@@ -459,7 +458,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
+    speaker_clustering = SpeakerClustering(cuda=cuda)
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
@@ -476,6 +475,8 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             num_speakers = -1
 
+        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
+
         cluster_labels = speaker_clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
@@ -487,7 +488,12 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             sparse_search_volume=int(clustering_params.sparse_search_volume),
         )
 
-        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
+        del uniq_embs_and_timestamps
+        if cuda:
+            torch.cuda.empty_cache()
+        else:
+            gc.collect()
+
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
@@ -555,7 +561,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, decimals=5):
     return offset, duration
 
 
-def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals=5):
+def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals=5):
     """
     Write the json dictionary into the specified manifest file.
 
@@ -568,6 +574,8 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
             Unique file id
         overlap_range_list (list):
             List containing overlapping ranges between target and source.
+        decimals (int):
+            Number of decimals to round the offset and duration values.
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     for (stt, end) in overlap_range_list:
@@ -595,14 +603,14 @@ def read_rttm_lines(rttm_file_path):
             List containing the strings from the RTTM file.
     """
     if rttm_file_path and os.path.exists(rttm_file_path):
-        f = open(rttm_file_path, 'r')
+        with open(rttm_file_path, 'r') as f:
+            lines = f.readlines()
     else:
         raise FileNotFoundError(
             "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
                 rttm_file_path
             )
         )
-    lines = f.readlines()
     return lines
 
 
@@ -631,7 +639,7 @@ def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
         raise ValueError("All files present in manifest contains silence, aborting next steps")
 
 
-# @torch.jit.script
+@torch.jit.script
 def is_overlap(rangeA: List[float], rangeB: List[float]) -> bool:
     """
     Check whether two ranges have overlap.
@@ -650,7 +658,7 @@ def is_overlap(rangeA: List[float], rangeB: List[float]) -> bool:
     return end1 > start2 and end2 > start1
 
 
-# @torch.jit.script
+@torch.jit.script
 def get_overlap_range(rangeA: List[float], rangeB: List[float]):
     """
     Calculate the overlapping range between rangeA and rangeB.
@@ -669,7 +677,7 @@ def get_overlap_range(rangeA: List[float], rangeB: List[float]):
     return [max(rangeA[0], rangeB[0]), min(rangeA[1], rangeB[1])]
 
 
-# @torch.jit.script
+@torch.jit.script
 def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     """
     Interval merging algorithm which has `O(N*logN)` time complexity. (N is number of intervals)
@@ -677,7 +685,7 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     This algorithm needs a sorted range list in terms of the start time.
     Note that neighboring numbers lead to a merged range.
 
-    Note: This function is designed to be compiled/imported with `# @torch.jit.script` decorator.
+    Note: This function is designed to be compiled/imported with `@torch.jit.script` decorator.
 
     Example:
         input: [(1, 10), (11, 20)]
@@ -731,7 +739,7 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
         return merged_list
 
 
-# @torch.jit.script
+@torch.jit.script
 def fl2int(x: float, decimals: int = 3) -> int:
     """
     Convert floating point number to integer.
@@ -739,7 +747,7 @@ def fl2int(x: float, decimals: int = 3) -> int:
     return torch.round(torch.tensor([x * (10 ** decimals)]), decimals=0).int().item()
 
 
-# @torch.jit.script
+@torch.jit.script
 def int2fl(x: int, decimals: int = 3) -> float:
     """
     Convert integer to floating point number.
@@ -747,7 +755,7 @@ def int2fl(x: int, decimals: int = 3) -> float:
     return torch.round(torch.tensor([x / (10 ** decimals)]), decimals=decimals).item()
 
 
-# @torch.jit.script
+@torch.jit.script
 def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: int = 2) -> List[List[float]]:
     """
     Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
@@ -791,7 +799,7 @@ def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: 
     return merged_ranges_float
 
 
-# @torch.jit.script
+@torch.jit.script
 def get_sub_range_list(target_range: List[float], source_range_list: List[List[float]]) -> List[List[float]]:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
@@ -810,7 +818,7 @@ def get_sub_range_list(target_range: List[float], source_range_list: List[List[f
             target_range = [(start, end)]
         source_range_list (list):
             List containing the subranges that need to be selected.
-            source_ragne = [(start0, end0), (start1, end1), ...]
+            source_range = [(start0, end0), (start1, end1), ...]
     Returns:
         out_range (list):
             List containing the overlap between target_range and
@@ -837,7 +845,7 @@ def write_rttm2manifest(
 
     Args:
         AUDIO_RTTM_MAP (dict):
-            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+            Dictionary containing keys to unique names, that contains audio filepath and rttm_filepath as its contents,
             these are used to extract oracle vad timestamps.
         manifest (str):
             The path to the output manifest file.
@@ -864,7 +872,7 @@ def write_rttm2manifest(
                 overlap_range_list = get_sub_range_list(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals)
+                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals)
     return manifest_file
 
 
@@ -947,7 +955,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
     return subsegments
 
 
-# @torch.jit.script
+@torch.jit.script
 def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,) -> torch.Tensor:
     """
     Extract time-series signal from the given audio buffer based on the start and end
@@ -971,7 +979,7 @@ def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sam
     return sig[start_idx:end_idx]
 
 
-# @torch.jit.script
+@torch.jit.script
 def check_ranges(range_tensor):
     """
     Check whether the range list has any faulty timestamp order.
@@ -989,7 +997,7 @@ def check_ranges(range_tensor):
     return True
 
 
-# @torch.jit.script
+@torch.jit.script
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
     For online segmentation. Force the list elements to be float type.
@@ -997,7 +1005,7 @@ def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
 
 
-# @torch.jit.script
+@torch.jit.script
 def get_speech_labels_for_update(
     frame_start: float,
     buffer_end: float,
@@ -1065,6 +1073,7 @@ def get_speech_labels_for_update(
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
+@torch.jit.script
 def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
     """
     For online speaker diarization.
@@ -1097,6 +1106,7 @@ def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[fl
     cursor_index = len(segment_range_ts) - count
     return cursor_for_old_segments, cursor_index
 
+@torch.jit.script
 def get_online_segments_from_slices(
     sig: torch.Tensor,
     buffer_start: float,
@@ -1107,7 +1117,7 @@ def get_online_segments_from_slices(
     sample_rate: int,
 ) -> Tuple[int, List[torch.Tensor], List[List[float]], List[int]]:
     """
-    Create short speech segments from sclices for online processing purpose.
+    Create short speech segments from slices for online processing purpose.
 
     Args:
         sig (Tensor):
@@ -1168,6 +1178,7 @@ def get_online_segments_from_slices(
 
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
 
+@torch.jit.script
 def get_online_subsegments_from_buffer(
     buffer_start: float,
     buffer_end: float,
@@ -1195,7 +1206,7 @@ def get_online_subsegments_from_buffer(
         audio_buffer (Tensor):
             Tensor containing the raw time-series signal
         segment_indexes (list):
-            List containing the unique indices of semgents
+            List containing the unique indices of segments
         window (float):
             Window length in second
         shift (float):
@@ -1207,7 +1218,7 @@ def get_online_subsegments_from_buffer(
         sig_rangel_list (list):
             List containing the old and the newly added intervals (timestamps) of the speech segments
         sig_indexes (list):
-            List containing the old and the newly added unique indices of semgents
+            List containing the old and the newly added unique indices of segments
     """
     sigs_list: List[torch.Tensor] = []
     sig_rangel_list: List[List[float]] = []
@@ -1224,7 +1235,6 @@ def get_online_subsegments_from_buffer(
         subsegments = get_subsegments(
             offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0]),
         )
-
         ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             sig=audio_buffer,
             buffer_start=buffer_start,
@@ -1594,7 +1604,8 @@ def embedding_normalize(embs, use_std=False, eps=1e-10):
     return embs
 
 
-class OnlineSegmentor(torch.nn.Module):
+@torch.jit.script
+class OnlineSegmentor:
     """
     Online Segmentor for online (streaming) diarizer.
     - The class instances created by this class takes time-series signal from the audio buffer and
@@ -1617,7 +1628,6 @@ class OnlineSegmentor(torch.nn.Module):
 
     def __init__(self, sample_rate: int):
         super().__init__()
-        # super(OnlineSegmentor, self).__init__()
         self.frame_start: float = 0.0
         self.buffer_start: float = 0.0
         self.buffer_end: float = 0.0
@@ -1652,9 +1662,9 @@ class OnlineSegmentor(torch.nn.Module):
         self,
         audio_buffer: torch.Tensor,
         vad_timestamps: torch.Tensor,
-        segment_raw_audio: list[torch.Tensor],
-        segment_range_ts: list[list[float]],
-        segment_indexes: list[int],
+        segment_raw_audio: List[torch.Tensor],
+        segment_range_ts: List[List[float]],
+        segment_indexes: List[int],
         window: float,
         shift: float,
     ):

@@ -87,6 +87,7 @@ class CallbackParams:
     always_save_nemo: bool = False
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
+    save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
 
 
 @dataclass
@@ -184,7 +185,8 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
+        # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
