@@ -74,16 +74,16 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                     from the `token_confidence`.
                 aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
-                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                measure_cfg: A dict-like object which contains the measure name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name: The measure name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Used if confidence_measure_cfg.name is set to `entropy`.
                         Supported values:
                             - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
@@ -93,7 +93,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
@@ -115,6 +115,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+                confidence_measure_cfg: Same as above, overrides confidence_cfg.measure_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.

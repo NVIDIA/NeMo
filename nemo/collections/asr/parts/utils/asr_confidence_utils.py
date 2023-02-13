@@ -18,30 +18,46 @@ from dataclasses import dataclass
 from functools import partial
 from typing import List, Optional
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
+class ConfidenceMeasureConstants:
+    NAMES = ("max_prob", "entropy")
+    ENTROPY_TYPES = ("gibbs", "tsallis", "renyi")
+    ENTROPY_NORMS = ("lin", "exp")
+
+
+class ConfidenceConstants:
+    AGGREGATIONS = ("mean", "min", "max", "prod")
+
+
 @dataclass
-class ConfidenceMethodConfig:
+class ConfidenceMeasureConfig:
     name: str = "entropy"
     entropy_type: str = "tsallis"
     temperature: float = 0.33
     entropy_norm: str = "exp"
 
     def __post_init__(self):
-        if self.name not in ("max_prob", "entropy"):
-            raise ValueError(f"`name` has to be one of the following: `max_prob`, `entropy`. Provided: {self.name}")
-        if self.entropy_type not in ("gibbs", "tsallis", "renui"):
+        if self.name not in ConfidenceMeasureConstants.NAMES:
             raise ValueError(
-                f"`entropy_type` has to be one of the following: `gibbs`, `tsallis`, `renui`. Provided: {self.entropy_type}"
+                f"`name` has to be one of the following: "
+                f"{'`' + '`, `'.join(ConfidenceMeasureConstants.NAMES) + '`'}. Provided: `{self.name}`"
+            )
+        if self.entropy_type not in ConfidenceMeasureConstants.ENTROPY_TYPES:
+            raise ValueError(
+                f"`entropy_type` has to be one of the following: "
+                f"{'`' + '`, `'.join(ConfidenceMeasureConstants.ENTROPY_TYPES) + '`'}. Provided: `{self.entropy_type}`"
             )
         if self.temperature <= 0.0:
             raise ValueError(f"`temperature` has to be > 0. Provided: {self.temperature}")
-        if self.entropy_norm not in ("lin", "exp"):
+        if self.entropy_norm not in ConfidenceMeasureConstants.ENTROPY_NORMS:
             raise ValueError(
-                f"`entropy_norm` has to be one of the following: `lin`, `exp`. Provided: {self.entropy_norm}"
+                f"`entropy_norm` has to be one of the following: "
+                f"{'`' + '`, `'.join(ConfidenceMeasureConstants.ENTROPY_NORMS) + '`'}. Provided: `{self.entropy_norm}`"
             )
 
 
@@ -52,12 +68,13 @@ class ConfidenceConfig:
     preserve_word_confidence: bool = False
     exclude_blank: bool = True
     aggregation: str = "min"
-    method_cfg: ConfidenceMethodConfig = ConfidenceMethodConfig()
+    measure_cfg: ConfidenceMeasureConfig = ConfidenceMeasureConfig()
 
     def __post_init__(self):
-        if self.aggregation not in ("mean", "min", "max", "prod"):
+        if self.aggregation not in ConfidenceConstants.AGGREGATIONS:
             raise ValueError(
-                f"`aggregation` has to be one of the following: `mean`, `min`, `max`, `prod`. Provided: {self.aggregation}"
+                f"`aggregation` has to be one of the following: "
+                f"{'`' + '`, `'.join(ConfidenceMeasureConstants.AGGREGATIONS) + '`'}. Provided: `{self.aggregation}`"
             )
 
 
@@ -70,8 +87,8 @@ def get_confidence_measure_bank():
         entropy_gibbs_exp: Gibbs entropy with exponential normalization
         entropy_tsallis_lin: Tsallis entropy with linear normalization
         entropy_tsallis_exp: Tsallis entropy with exponential normalization
-        entropy_renui_lin: Rényi entropy with linear normalization
-        entropy_renui_exp: Rényi entropy with exponential normalization
+        entropy_renyi_lin: Rényi entropy with linear normalization
+        entropy_renyi_exp: Rényi entropy with exponential normalization
 
     Returns:
         dictionary with lambda functions.
@@ -117,12 +134,12 @@ def get_confidence_measure_bank():
     confidence_measure_bank["entropy_tsallis_exp"] = (
         lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else entropy_tsallis_exp(x, v, t)
     )
-    confidence_measure_bank["entropy_renui_lin"] = (
+    confidence_measure_bank["entropy_renyi_lin"] = (
         lambda x, v, t: entropy_gibbs_lin_baseline(x, v)
         if t == 1.0
         else 1 + neg_entropy_temperature(x, t).log2() / (t - 1) / math.log(v, 2)
     )
-    confidence_measure_bank["entropy_renui_exp"] = (
+    confidence_measure_bank["entropy_renyi_exp"] = (
         lambda x, v, t: entropy_gibbs_exp_baseline(x, v)
         if t == 1.0
         else (neg_entropy_temperature(x, t).pow(1 / (t - 1)) * v - 1) / (v - 1)
@@ -160,48 +177,54 @@ class ConfidenceMeasureMixin(ABC):
     It initializes per-frame confidence measure.
     """
 
-    def _init_confidence_measure(self, confidence_method_cfg: Optional[DictConfig] = None):
+    def _init_confidence_measure(self, confidence_measure_cfg: Optional[DictConfig] = None):
         """Initialize per-frame confidence measure from config.
         """
-        if confidence_method_cfg is None:
-            confidence_method_cfg = OmegaConf.structured(ConfidenceMethodConfig())
+        # this ensures that post_init check is always executed
+        confidence_measure_cfg = OmegaConf.structured(
+            ConfidenceMeasureConfig()
+            if confidence_measure_cfg is None
+            else ConfidenceMeasureConfig(**confidence_measure_cfg)
+        )
 
-        # set confidence calculation method
+        # set confidence calculation measure
         # we suppose that self.blank_id == len(vocabulary)
         self.num_tokens = (self.blank_id if hasattr(self, "blank_id") else self._blank_index) + 1
-        self.temperature = confidence_method_cfg.temperature
+        self.temperature = confidence_measure_cfg.temperature
 
         # init confidence measure bank
         self.confidence_measure_bank = get_confidence_measure_bank()
 
-        method = None
+        measure = None
         # construct measure_name
         measure_name = ""
-        if confidence_method_cfg.name == "max_prob":
+        if confidence_measure_cfg.name == "max_prob":
             measure_name = "max_prob"
-        elif confidence_method_cfg.name == "entropy":
+        elif confidence_measure_cfg.name == "entropy":
             measure_name = '_'.join(
-                [confidence_method_cfg.name, confidence_method_cfg.entropy_type, confidence_method_cfg.entropy_norm]
+                [confidence_measure_cfg.name, confidence_measure_cfg.entropy_type, confidence_measure_cfg.entropy_norm]
             )
         else:
-            raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
+            raise ValueError(f"Unsupported `confidence_measure_cfg.name`: `{confidence_measure_cfg.name}`")
         if measure_name not in self.confidence_measure_bank:
             raise ValueError(f"Unsupported measure setup: `{measure_name}`")
-        method = partial(self.confidence_measure_bank[measure_name], v=self.num_tokens, t=self.temperature)
-        self._get_confidence = lambda x: method(x).tolist()
+        measure = partial(self.confidence_measure_bank[measure_name], v=self.num_tokens, t=self.temperature)
+        self._get_confidence = lambda x: measure(torch.nan_to_num(x)).tolist()
 
 
 class ConfidenceMixin(ABC):
     """Confidence Mixin class.
 
-    It initializes per-frame confidence measure.
+    It is responsible for confidence estimation method initialization and high-level confidence score calculation.
     """
 
     def _init_confidence(self, confidence_cfg: Optional[DictConfig] = None):
         """Initialize confidence-related fields and confidence aggregation function from config.
         """
-        if confidence_cfg is None:
-            confidence_cfg = OmegaConf.structured(ConfidenceConfig())
+        # this ensures that post_init check is always executed
+        confidence_cfg = OmegaConf.structured(
+            ConfidenceConfig() if confidence_cfg is None else ConfidenceConfig(**confidence_cfg)
+        )
 
         # extract the config
         self.preserve_word_confidence = confidence_cfg.get('preserve_word_confidence', False)
@@ -216,7 +239,7 @@ class ConfidenceMixin(ABC):
         )
         self.exclude_blank_from_confidence = confidence_cfg.get('exclude_blank', True)
         self.word_confidence_aggregation = confidence_cfg.get('aggregation', "min")
-        self.confidence_method_cfg = confidence_cfg.get('method_cfg', None)
+        self.confidence_measure_cfg = confidence_cfg.get('measure_cfg', None)
 
         # define aggregation functions
         self.confidence_aggregation_bank = get_confidence_aggregation_bank()
@@ -226,7 +249,7 @@ class ConfidenceMixin(ABC):
         if self.preserve_frame_confidence is False:
             if self.cfg.strategy in ['greedy', 'greedy_batch']:
                 self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
+                self.confidence_measure_cfg = self.cfg.greedy.get('confidence_measure_cfg', None)
 
     @abstractmethod
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
