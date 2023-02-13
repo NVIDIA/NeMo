@@ -192,34 +192,32 @@ class MegatronBertModel(MegatronBaseModel):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = next(dataloader_iter)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
-                    batch['tokens'],
+                    batch['text'],
                     batch['types'],
-                    batch['sentence_order'],
+                    batch['is_random'],
                     batch['loss_mask'],
-                    batch['lm_labels'],
+                    batch['labels'],
                     batch['padding_mask'],
                 )
+
+
             else:
                 batch = next(dataloader_iter)
-                print('Debug statement')
-                print(batch)
-                print(type(batch))
-                print(batch.keys())
                 if parallel_state.is_pipeline_first_stage():
-                    tokens = batch['tokens'].cuda(non_blocking=True)
+                    tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
-                    sentence_order = batch['sentence_order'].cuda(non_blocking=True)
+                    sentence_order = batch['is_random'].cuda(non_blocking=True)
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     loss_mask, lm_labels = None, None
                 elif parallel_state.is_pipeline_last_stage():
                     loss_mask = batch['loss_mask'].cuda(non_blocking=True)
-                    lm_labels = batch['lm_labels'].cuda(non_blocking=True)
-                    sentence_order = batch['sentence_order'].cuda(non_blocking=True)
+                    lm_labels = batch['labels'].cuda(non_blocking=True)
+                    sentence_order = batch['is_random'].cuda(non_blocking=True)
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     tokens, types = None, None
                 else:
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    sentence_order = batch['sentence_order'].cuda(non_blocking=True)
+                    sentence_order = batch['is_random'].cuda(non_blocking=True)
                     tokens, types, loss_mask, lm_labels = None, None, None, None
 
             if not self.cfg.bert_binary_head:
@@ -652,8 +650,6 @@ class MegatronBertModel(MegatronBaseModel):
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
         # Torch dataloader.
-        print('DEBUG STATEMENT')
-        print(type(dataset))
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
