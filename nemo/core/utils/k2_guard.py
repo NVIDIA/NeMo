@@ -21,8 +21,13 @@ If there is an error, the module will raise an exception with a helpful message.
 
 import textwrap
 
-__K2_MINIMUM_MAJOR_VERSION__ = 1
-__K2_MINIMUM_MINOR_VERSION__ = 11
+from packaging.version import Version
+from pytorch_lightning.utilities.imports import package_available
+
+__K2_MINIMUM_MAJOR_VERSION = 1
+__K2_MINIMUM_MINOR_VERSION = 111
+
+__K2_MINIMUM_VERSION = Version(f"{__K2_MINIMUM_MAJOR_VERSION}.{__K2_MINIMUM_MINOR_VERSION}")
 
 K2_INSTALLATION_MESSAGE = (
     "Could not import `k2`.\n"
@@ -34,23 +39,19 @@ K2_INSTALLATION_MESSAGE = (
     "as different versions of k2 may not interact with the NeMo code as expected."
 )
 
-try:
-    import k2
-
-    k2_major_version, k2_minor_version = map(int, k2.__dev_version__.split(".")[:2])
-    k2_version = (k2_major_version, k2_minor_version)
-    k2_minimum_required_version = (
-        __K2_MINIMUM_MAJOR_VERSION__,
-        __K2_MINIMUM_MINOR_VERSION__,
-    )
-    if k2_version < k2_minimum_required_version:
-        raise ImportError(
-            textwrap.dedent(
-                f"""
-                Minimum required k2 version: {__K2_MINIMUM_MAJOR_VERSION__}.{__K2_MINIMUM_MINOR_VERSION__};
-                Installed k2 version: {k2_major_version}.{k2_minor_version}
-                """
-            )
-        )
-except ModuleNotFoundError:
+if not package_available("k2"):
     raise ModuleNotFoundError(K2_INSTALLATION_MESSAGE)
+
+import k2  # noqa: E402
+
+__k2_version = Version(k2.__dev_version__)
+
+if __k2_version < __K2_MINIMUM_VERSION:
+    raise ImportError(
+        textwrap.dedent(
+            f"""
+            Minimum required k2 version: {__K2_MINIMUM_VERSION};
+            Installed k2 version: {__k2_version}
+            """
+        )
+    )
