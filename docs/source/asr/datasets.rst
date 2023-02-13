@@ -460,9 +460,9 @@ This can be achieved by setting ``defer_setup`` as
 
 .. code:: shell
 
-  model.train_ds.defer_setup=true
-  model.validation_ds.defer_setup=true
-  model.test_ds.defer_setup=true
+  ++model.train_ds.defer_setup=true
+  ++model.validation_ds.defer_setup=true
+  ++model.test_ds.defer_setup=true
 
 
 Complete Example
