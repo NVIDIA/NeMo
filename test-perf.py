@@ -1,3 +1,5 @@
+import argparse
+import sys
 import nemo
 import nemo.collections.asr as nemo_asr
 import onnxruntime
@@ -11,329 +13,260 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.classes.common import typecheck
 from collections import OrderedDict
 
-
-class MyEncDecCTCModelBPE(EncDecCTCModelBPE):
-    def __init__(self, *args, **kwargs):
-        super(MyEncDecCTCModelBPE, self).__init__(*args, **kwargs)
-        self.encoder.export_cache_support = True
-
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports."""
-        return OrderedDict(
-            {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=False),
-                "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=False),
-                "drop_extra_pre_encoded": NeuralType(tuple('B'), LengthsType(), optional=False),
-            }
-        )
-
-    @property
-    def output_types(self):
-        """Returns definitions of module output ports."""
-        return OrderedDict(
-            {
-                "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=False),
-                "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=False),
-                "drop_extra_pre_encoded_next": NeuralType(tuple('B'), LengthsType(), optional=False),
-            }
-        )
-
-    def input_example(self, max_batch=1, max_dim=256):
-        return self.encoder.input_example(max_batch=max_batch, max_dim=max_dim)
-
-    @typecheck()
-    def forward_for_export(self, audio_signal=None, length=None, cache_last_channel=None, cache_last_time=None, drop_extra_pre_encoded=None):
-        return self.forward_internal(audio_signal=audio_signal, length=length, cache_last_channel=cache_last_channel, cache_last_time=cache_last_time, drop_extra_pre_encoded=drop_extra_pre_encoded)
-
-    def forward_encoder(self, audio_signal=None, length=None, cache_last_channel=None, cache_last_time=None, drop_extra_pre_encoded=None):
-        if self.encoder.streaming_cfg is None:
-            self.encoder.setup_streaming_params()
-
-        encoder_output = self.encoder.forward(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            drop_extra_pre_encoded=drop_extra_pre_encoded,
-        )
-
-        if len(encoder_output) == 2:
-            encoded, encoded_len = encoder_output
-            cache_last_channel_next = cache_last_time_next = None
-        else:
-            encoded, encoded_len, cache_last_channel_next, cache_last_time_next, drop_extra_pre_encoded_next = encoder_output
-
-        if cache_last_channel_next is not None and self.encoder.streaming_cfg.last_channel_cache_size >= 0:
-            if self.encoder.streaming_cfg.last_channel_cache_size > 0:
-                cache_last_channel_next = cache_last_channel_next[
-                    :, :, -self.encoder.streaming_cfg.last_channel_cache_size :, :
-                ]
-            else:
-                cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
-        if True:
-            encoded = encoded[:, :, : self.encoder.streaming_cfg.valid_out_len]
-            encoded_len = torch.clamp(encoded_len, max=self.encoder.streaming_cfg.valid_out_len)
-
-        return encoded, encoded_len, cache_last_channel_next, cache_last_time_next, drop_extra_pre_encoded_next
-
-    def forward_internal(self, audio_signal, length, cache_last_channel, cache_last_time, drop_extra_pre_encoded):
-        enc, enc_len, cache_ch_next, cache_time_next, drop_next = self.forward_encoder(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            drop_extra_pre_encoded=drop_extra_pre_encoded)
-        #return enc, enc_len, cache_ch_next, cache_time_next
-        logits = self.decoder(encoder_output=enc)
-        return (logits, enc_len, cache_ch_next, cache_time_next, drop_next)
-
-    @typecheck()
-    def forward(self, audio_signal, length, cache_last_channel, cache_last_time, drop_extra_pre_encoded):
-        return self.forward_internal(audio_signal=audio_signal, length=length, cache_last_channel=cache_last_channel, cache_last_time=cache_last_time, drop_extra_pre_encoded=drop_extra_pre_encoded)
-
-
-def infer_nemo(nemo_model, audio, lens, cache_last_channel, cache_last_time, drop_extra_pre_encoded):
-    encoded, encoded_len, cache_last_channel_next, cahce_last_time_next = nemo_model.encoder.forward_for_export(processed_signal=audio, processed_signal_length=lens, cache_last_channel=cache_last_channel, cache_last_time=cache_last_time, drop_extra_pre_encoded=drop_extra_pre_encoded)
-    log_probs = nemo_model.decoder(encoder_output=encoded)
-    return log_probs
+import torch
+import torchvision.models as models
+from torch.profiler import profile, record_function, ProfilerActivity
+import io
 
 
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 
-def infer_onnx(model_path, audio, lens, cache_last_channel, cache_last_time, drop_extra_pre_encoded):
-    sess = onnxruntime.InferenceSession(model_path, providers=['CUDAExecutionProvider'])
-
-    for input in sess.get_inputs():
-        print(input.name)
-
-    ort_inputs = {}
-    ort_inputs[sess.get_inputs()[0].name] = to_numpy(audio)
-    ort_inputs[sess.get_inputs()[1].name] = to_numpy(lens)
-    ort_inputs[sess.get_inputs()[2].name] = to_numpy(cache_last_channel)
-    ort_inputs[sess.get_inputs()[3].name] = to_numpy(cache_last_time)
-    ort_inputs[sess.get_inputs()[4].name] = to_numpy(drop_extra_pre_encoded)
-
-    ort_outs = sess.run(None, ort_inputs)
-    return ort_outs[0]
-
-def old_main():
-    nemo_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
-
-    nemo_model.export_cache_support = True
-    nemo_model.encoder.export_cache_support = True
-    audio, lens, cache_last_channel, cache_last_time, drop_extra_pre_encoded = nemo_model.encoder.input_example()
-
-    nemo_log_probs = infer_nemo(nemo_model, audio, lens, cache_last_channel, cache_last_time, drop_extra_pre_encoded)
-    onnx_log_probs = infer_onnx('/models/cache-aware-ctc-onnx/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.onnx', audio, lens, cache_last_channel, cache_last_time, drop_extra_pre_encoded)
-
-    assert tuple(nemo_log_probs.size()) == tuple(onnx_log_probs.shape)
-
-    np.testing.assert_allclose(to_numpy(nemo_log_probs), onnx_log_probs, rtol=1e-03, atol=1e-05)
-    print("Looks Good")
+def create_ort_gpu_value(x, device="cuda", device_id=0):
+    return onnxruntime.OrtValue.ortvalue_from_numpy(x.detach().cpu().numpy(), device, device_id)
 
 
-#def do_save():
-#    nemo_model = MyEncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
+def main_perf_onnx_full_ctx(batch_size=128, profile=True):
+    # Inputs
+    audio_signal = create_ort_gpu_value(torch.randn((batch_size, 80, 57), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    length = create_ort_gpu_value(torch.full((batch_size,), 57, device=torch.device("cpu"), dtype=torch.int64, requires_grad=False))
+
+    # Outputs
+    logprobs = create_ort_gpu_value(torch.zeros((batch_size, 15, 1025), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+
+    opts = onnxruntime.SessionOptions()
+    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    if profile:
+        opts.enable_profiling = True
+    sess = onnxruntime.InferenceSession("full-context.onnx", providers=[('CUDAExecutionProvider', {"gpu_mem_limit": 40 * 1024 * 1024 * 1024, "do_copy_in_default_stream": False, "cudnn_conv_algo_search": "EXHAUSTIVE"})], sess_options=opts)
+    sess.disable_fallback()
+    io_binding = sess.io_binding()
+
+    io_binding.bind_input("audio_signal", "cuda", 0, np.float32, [batch_size, 80, 57], audio_signal.data_ptr())
+    io_binding.bind_input("length", "cuda", 0, np.int64, [batch_size,], length.data_ptr())
+
+    ort_outs = sess.get_outputs()
+
+    io_binding.bind_output(ort_outs[0].name, "cuda", 0, np.float32, [batch_size, 15, 1025], logprobs.data_ptr())
+
+    io_binding.synchronize_inputs()
+    total_time = []
+    total_audio_len = []
+    for _ in range(64):
+        start = time.time()
+        sess.run_with_iobinding(io_binding)
+        io_binding.synchronize_outputs()
+        stop = time.time()
+        total_time.append(stop - start)
+        total_audio_len.append((57 / 100) * batch_size)
+    print("============================================================")
+    print("Streaming onnx Performance")
+    print(f"batch size {batch_size}")
+    print(f"Inference took {sum(total_time)}s")
+    print(f"Total audio {sum(total_audio_len)}s")
+    print(f"min RTFx {total_audio_len[0] / min(total_time)}")
+    print(f"mean RTFx {sum(total_audio_len) / sum(total_time)}")
+    print("============================================================")
+
+    if profile:
+        prof_file = sess.end_profiling()
+        print("Saving onnx profile to ", prof_file)
 
 
-def main_enc_dec():
-    nemo_model = MyEncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
-    nemo_model.encoder.export_cache_support = True
+def main_perf_pt(batch_size=128):
+    with open("streaming-conformer.pt", "rb") as f:
+        buffer = io.BytesIO(f.read())
+    asr_model = torch.jit.load(buffer, map_location=torch.device("cuda"))
 
-    autocast = nullcontext
-    with autocast(), torch.no_grad(), torch.inference_mode():
-        nemo_model.to(device='cuda').freeze()
-        nemo_model.eval()
-        input_example = nemo_model.input_example(max_batch=32)
+    cache_last_channel = torch.zeros((batch_size, 18, 104, 512), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False)
+    cache_last_time = torch.zeros((batch_size, 18, 512, 30), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False)
+    cache_last_channel_len = torch.zeros((batch_size,), dtype=torch.int64, device=torch.device("cuda:0"), requires_grad=False)
+    audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"), requires_grad=False)
+    length = torch.full((batch_size,), 57, device=torch.device("cuda"), requires_grad=False)
 
-        _, desc = nemo_model.export(
-            'tmp.onnx',
-            input_example=input_example,
-            check_trace=False,
-            onnx_opset_version=None,
-            verbose=False,
+    total_time = []
+    total_audio_len = []
+    for _ in range(64):
+        start = time.time()
+        (
+            log_probs,
+            encoded_len,
+            cache_last_channel_next,
+            cache_last_time_next,
+            cache_last_channel_next_len,
+        ) = asr_model(
+            input=audio_signal,
+            length=length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+            cache_last_channel_len=cache_last_channel_len,
         )
+        stop = time.time()
+        total_time.append(stop - start)
+        total_audio_len.append((57 / 100) * batch_size)
+    print("============================================================")
+    print("Streaming Performance")
+    print(f"batch size {batch_size}")
+    print(f"Inference took {sum(total_time)}s")
+    print(f"Total audio {sum(total_audio_len)}s")
+    print(f"min RTFx {total_audio_len[0] / min(total_time)}")
+    print(f"mean RTFx {sum(total_audio_len) / sum(total_time)}")
+    print("============================================================")
 
-        nemo_outs = nemo_model.forward(
-            audio_signal=input_example[0],
-            length=input_example[1],
-            cache_last_channel=input_example[2],
-            cache_last_time=input_example[3],
-            drop_extra_pre_encoded=input_example[4],
+
+def main_perf_onnx(batch_size=128, profile=True):
+    # Inputs
+    cache_last_channel = create_ort_gpu_value(torch.randn((batch_size, 18, 104, 512), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    cache_last_time = create_ort_gpu_value(torch.randn((batch_size, 18, 512, 30), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    cache_last_channel_len = create_ort_gpu_value(torch.randint(1, 104, (batch_size,), device=torch.device("cpu"), dtype=torch.int64, requires_grad=False))
+
+    audio_signal = create_ort_gpu_value(torch.randn((batch_size, 80, 57), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    length = create_ort_gpu_value(torch.full((batch_size,), 57, device=torch.device("cpu"), dtype=torch.int64, requires_grad=False))
+
+    # Outputs
+    logprobs = create_ort_gpu_value(torch.zeros((batch_size, 13, 1025), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    encoded_len = create_ort_gpu_value(torch.zeros((batch_size,), device=torch.device("cpu"), dtype=torch.int32, requires_grad=False))
+    cache_last_channel_next = create_ort_gpu_value(torch.zeros((batch_size, 18, 104, 512), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    cache_last_time_next = create_ort_gpu_value(torch.zeros((batch_size, 18, 512, 30), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False))
+    cache_last_channel_next_len = create_ort_gpu_value(torch.zeros((batch_size,), device=torch.device("cpu"), dtype=torch.int64, requires_grad=False))
+
+    opts = onnxruntime.SessionOptions()
+    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    if profile:
+        opts.enable_profiling = True
+    sess = onnxruntime.InferenceSession("streaming-conformer.onnx", providers=[('CUDAExecutionProvider', {"gpu_mem_limit": 40 * 1024 * 1024 * 1024, "do_copy_in_default_stream": False, "cudnn_conv_algo_search": "EXHAUSTIVE"})], sess_options=opts)
+    sess.disable_fallback()
+    io_binding = sess.io_binding()
+
+    io_binding.bind_input("audio_signal", "cuda", 0, np.float32, [batch_size, 80, 57], audio_signal.data_ptr())
+    io_binding.bind_input("length", "cuda", 0, np.int64, [batch_size,], length.data_ptr())
+    io_binding.bind_input("cache_last_channel", "cuda", 0, np.float32, [batch_size, 18, 104, 512], cache_last_channel.data_ptr())
+    io_binding.bind_input("cache_last_time", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time.data_ptr())
+    io_binding.bind_input("cache_last_channel_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_len.data_ptr())
+
+    io_binding.bind_output("logprobs", "cuda", 0, np.float32, [batch_size, 13, 1025], logprobs.data_ptr())
+    io_binding.bind_output("encoded_lengths", "cuda", 0, np.int32, [batch_size,], encoded_len.data_ptr())
+    io_binding.bind_output("cache_last_channel_next", "cuda", 0, np.float32, [batch_size, 18, 104, 512], cache_last_channel_next.data_ptr())
+    io_binding.bind_output("cache_last_time_next", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time_next.data_ptr())
+    io_binding.bind_output("cache_last_channel_next_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_next_len.data_ptr())
+
+    io_binding.synchronize_inputs()
+    total_time = []
+    total_audio_len = []
+    for _ in range(64):
+        start = time.time()
+        sess.run_with_iobinding(io_binding)
+        io_binding.synchronize_outputs()
+        stop = time.time()
+        total_time.append(stop - start)
+        total_audio_len.append((57 / 100) * batch_size)
+    print("============================================================")
+    print("Streaming onnx Performance")
+    print(f"batch size {batch_size}")
+    print(f"Inference took {sum(total_time)}s")
+    print(f"Total audio {sum(total_audio_len)}s")
+    print(f"min RTFx {total_audio_len[0] / min(total_time)}")
+    print(f"mean RTFx {sum(total_audio_len) / sum(total_time)}")
+    print("============================================================")
+
+    if profile:
+        prof_file = sess.end_profiling()
+        print("Saving onnx profile to ", prof_file)
+
+
+def main_perf(batch_size=128):
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
+    with torch.inference_mode(), torch.no_grad():
+        asr_model.to(torch.device("cuda")).freeze()
+        asr_model.eval()
+        asr_model.encoder.export_streaming_support = False
+        asr_model.encoder.setup_streaming_params()
+
+        cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
+            batch_size=batch_size, device=torch.device("cuda"),
         )
+        audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"), requires_grad=False)
+        length = torch.full((batch_size,), 57, device=torch.device("cuda"), requires_grad=False)
 
-    sess = onnxruntime.InferenceSession('tmp.onnx', providers=['CUDAExecutionProvider'])
-    for o in sess.get_outputs():
-        print(o.name)
-    for o in sess.get_inputs():
-        print(o.name)
-
-    ort_inputs = {}
-    ort_inputs[sess.get_inputs()[0].name] = to_numpy(input_example[0])
-    ort_inputs[sess.get_inputs()[1].name] = to_numpy(input_example[1])
-    ort_inputs[sess.get_inputs()[2].name] = to_numpy(input_example[2])
-    ort_inputs[sess.get_inputs()[3].name] = to_numpy(input_example[3])
-    ort_inputs[sess.get_inputs()[4].name] = to_numpy(input_example[4])
-
-    ort_outs = sess.run(None, ort_inputs)
-    print(len(ort_outs))
-    for o in ort_outs:
-        print(o.shape)
-
-    tol = 0.1
-
-    assert len(ort_outs) == len(nemo_outs)
-    all_good = True
-    for i in range(len(ort_outs)):
-        print(f"Testing {sess.get_outputs()[i]}")
-        print(nemo_outs[i].size(), ort_outs[i].shape)
-        tout = torch.from_numpy(ort_outs[i])
-        if not torch.allclose(tout, nemo_outs[i].cpu(), rtol=tol, atol=100*tol):
-            print(f"verification vailed for output {sess.get_outputs()[i]}")
-            all_good = False
-    if all_good:
-        print('Looks Good!')
-    else:
-        print("Verification failed")
-
-    nemo_greedy = torch.argmax(nemo_outs[0], dim=-1).cpu()
-    ort_greedy  = torch.argmax(torch.from_numpy(ort_outs[1]), dim=-1).cpu()
-    if not torch.allclose(nemo_greedy, ort_greedy, rtol=tol, atol=100*tol):
-        print(f"Argmax validation failed")
-
-
-def main():
-    #nemo_model = MyEncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
-    nemo_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo')
-    #nemo_model.encoder.export_cache_support = True
-    nemo_model = nemo_model.encoder
-    nemo_model.export_cache_support = True
-    autocast = nullcontext
-    with autocast(), torch.no_grad(), torch.inference_mode():
-        nemo_model.to(device='cuda').freeze()
-        nemo_model.eval()
-        input_example = nemo_model.input_example(max_batch=32)
-
-        _, desc = nemo_model.export(
-            'tmp.onnx',
-            input_example=input_example,
-            check_trace=False,
-            onnx_opset_version=None,
-            verbose=False,
-        )
-
-        nemo_outs = nemo_model.forward(
-            audio_signal=input_example[0],
-            length=input_example[1],
-            cache_last_channel=input_example[2],
-            cache_last_time=input_example[3],
-            #drop_extra_pre_encoded=input_example[4],
-        )
-
-    sess = onnxruntime.InferenceSession('tmp.onnx', providers=['CUDAExecutionProvider'])
-    for o in sess.get_outputs():
-        print(o.name)
-    for o in sess.get_inputs():
-        print(o.name)
-
-    ort_inputs = {}
-    ort_inputs[sess.get_inputs()[0].name] = to_numpy(input_example[0])
-    ort_inputs[sess.get_inputs()[1].name] = to_numpy(input_example[1])
-    ort_inputs[sess.get_inputs()[2].name] = to_numpy(input_example[2])
-    ort_inputs[sess.get_inputs()[3].name] = to_numpy(input_example[3])
-    ort_inputs[sess.get_inputs()[4].name] = to_numpy(input_example[4])
-
-    ort_outs = sess.run(None, ort_inputs)
-    print(len(ort_outs))
-    for o in ort_outs:
-        print(o.shape)
-
-    tol = 0.1
-
-    assert len(ort_outs) == len(nemo_outs)
-    all_good = True
-    for i in range(len(ort_outs)):
-        print(f"Testing {sess.get_outputs()[i]}")
-        print(nemo_outs[i].size(), ort_outs[i].shape)
-        tout = torch.from_numpy(ort_outs[i])
-        if not torch.allclose(tout, nemo_outs[i].cpu(), rtol=tol, atol=100*tol):
-            print(f"verification vailed for output {sess.get_outputs()[i].name}")
-            all_good = False
-    if all_good:
-        print('Looks Good!')
-    else:
-        print("Verification failed")
-
-
-def main_perf():
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo').to(torch.device("cuda"))
-    with torch.inference_mode():
-        with torch.no_grad():
-            asr_model.encoder.export_streaming_support = True
-            batch_size = 128
-
-            cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-                batch_size=batch_size, device=torch.device("cuda")
+        total_audio_len = []
+        total_time = []
+        for _ in range(64):
+            start = time.time()
+            (
+                log_probs,
+                encoded_len,
+                cache_last_channel_next,
+                cache_last_time_next,
+                cache_last_channel_next_len,
+            ) = asr_model.forward_for_export(
+                input=audio_signal,
+                length=length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
             )
-            audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"))
-            length = torch.full((batch_size,), 57, device=torch.device("cuda"))
-
-            total_audio_len = 0.0
-            total_time = 0.0
-            for _ in range(384):
-                start = time.time()
-                (
-                    log_probs,
-                    encoded_len,
-                    cache_last_channel,
-                    cache_last_time,
-                    cache_last_channel_len,
-                ) = asr_model.forward_for_export(
-                    input=audio_signal,
-                    length=length,
-                    cache_last_channel=cache_last_channel,
-                    cache_last_time=cache_last_time,
-                    cache_last_channel_len=cache_last_channel_len,
-                )
-                stop = time.time()
-                total_time += stop - start
-                total_audio_len += (57 / 100) * batch_size
-            print(f"Inference took {total_time}s")
-            print(f"Total audio {total_audio_len}s")
-            print(f"RTFx {total_audio_len / total_time}")
+            stop = time.time()
+            total_time.append(stop - start)
+            total_audio_len.append((57 / 100) * batch_size)
+        print("============================================================")
+        print("Streaming Performance")
+        print(f"batch size {batch_size}")
+        print(f"Inference took {sum(total_time)}s")
+        print(f"Total audio {sum(total_audio_len)}s")
+        print(f"min RTFx {total_audio_len[0] / min(total_time)}")
+        print(f"mean RTFx {sum(total_audio_len) / sum(total_time)}")
+        print("============================================================")
 
 
-def main_perf_full_context():
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/Conformer-CTC-BPE_large_Riva_ASR_set_3.0_ep107.nemo').to(torch.device("cuda"))
-    with torch.inference_mode():
-        with torch.no_grad():
-            batch_size = 128
+def main_perf_full_context(batch_size=128):
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from('/models/Conformer-CTC-BPE_large_Riva_ASR_set_3.0_ep107.nemo')
+    with torch.inference_mode(), torch.no_grad():
+        asr_model.to(torch.device("cuda")).freeze()
+        asr_model.eval()
+        asr_model.encoder.export_streaming_support = True
+        asr_model.encoder.setup_streaming_params()
 
-            audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"))
-            length = torch.full((batch_size,), 57, device=torch.device("cuda"))
+        audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"))
+        length = torch.full((batch_size,), 57, device=torch.device("cuda"))
 
-            total_audio_len = 0.0
-            total_time = 0.0
-            for _ in range(384):
-                start = time.time()
-                log_probs = asr_model.forward_for_export(
-                    input=audio_signal,
-                    length=length,
-                )
-                stop = time.time()
-                total_time += stop - start
-                total_audio_len += (57 / 100) * batch_size
-            print(f"Inference took {total_time}s")
-            print(f"Total audio {total_audio_len}s")
-            print(f"RTFx {total_audio_len / total_time}")
+        total_audio_len = []
+        total_time = []
+        for _ in range(10):
+            start = time.time()
+            log_probs = asr_model.forward_for_export(
+                input=audio_signal,
+                length=length,
+            )
+            stop = time.time()
+            total_time.append(stop - start)
+            total_audio_len.append((57 / 100) * batch_size)
+        print("============================================================")
+        print("Full context Performance")
+        print(f"batch size {batch_size}")
+        print(f"Inference took {sum(total_time)}s")
+        print(f"Total audio {sum(total_audio_len)}s")
+        print(f"min RTFx {total_audio_len[0] / min(total_time)}")
+        print(f"mean RTFx {sum(total_audio_len) / sum(total_time)}")
+        print("============================================================")
 
 if __name__ == "__main__":
-    #main_perf()
-    main_perf_full_context()
+    #bs = int(sys.argv[1])
+
+    #with profile(activities=[ProfilerActivity.CPU], record_shapes=True) as prof:
+    #    with record_function("model_inference"):
+    #with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, profile_memory=True, with_stack=True) as prof:
+    #    with record_function("model_inference"):
+    #main_perf_onnx(bs)
+    for bs in (128,):
+        #main_perf(bs, profile=False)
+        main_perf_pt(bs)
+
+    #print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
+    #print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
+    #print(prof.key_averages(group_by_stack_n=5).table(sort_by="self_cuda_time_total", row_limit=2))
+
+    #prof.export_chrome_trace("trace2.json")
+    #prof.export_stacks("/tmp/profiler_stacks.txt", "self_cuda_time_total")
+
