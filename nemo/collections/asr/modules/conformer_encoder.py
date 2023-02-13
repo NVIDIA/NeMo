@@ -195,6 +195,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         stochastic_depth_drop_prob: float = 0.0,
         stochastic_depth_mode: str = "linear",
         stochastic_depth_start_layer: int = 0,
+        capture_output_at_layers: Optional[List[int]] = None,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -381,6 +382,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             raise ValueError('stochastic_depth_mode has to be one of ["linear", "uniform"].')
         self.layer_drop_probs = layer_drop_probs
+        self.capture_output_at_layers = capture_output_at_layers
+        if self.capture_output_at_layers is None:
+            self.capture_output_at_layers = []  # means it's disabled
+        self.captured_layer_outputs = []
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
@@ -486,8 +491,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pad_mask = pad_mask[:, cache_len:]
             if self.att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
-        import random
 
+        self.captured_layer_outputs = []
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
             original_signal = audio_signal
             audio_signal = layer(
@@ -520,6 +525,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
 
+            if lth in self.capture_output_at_layers:
+                self.captured_layer_outputs.append([audio_signal.clone(), length.clone()])
+
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
@@ -528,6 +536,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
+
+        for captured_output in self.captured_layer_outputs:
+            captured_output[0] = torch.transpose(captured_output[0], 1, 2)
 
         if cache_last_channel is not None:
             return audio_signal, length, cache_last_channel_next, cache_last_time_next
