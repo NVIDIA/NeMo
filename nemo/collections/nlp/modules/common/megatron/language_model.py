@@ -16,8 +16,8 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -624,8 +624,9 @@ class TransformerLanguageModel(MegatronModule):
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.hidden_size,
                 self.vocab_size,
-                bias=False, # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
-                init_method=self.init_method)
+                bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                init_method=self.init_method,
+            )
             self._output_layer_key = 'output_layer'
 
     def set_input_tensor(self, input_tensor):
@@ -686,7 +687,9 @@ class TransformerLanguageModel(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                rotary_pos_emb=(rotary_pos_emb, None, None) if rotary_pos_emb is not None else None # This assumes that this being used as a GPT/BERT model only (no cross-attention)
+                rotary_pos_emb=(rotary_pos_emb, None, None)
+                if rotary_pos_emb is not None
+                else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

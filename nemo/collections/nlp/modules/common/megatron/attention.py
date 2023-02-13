@@ -750,7 +750,9 @@ class CoreAttention(MegatronModule):
 
         if self.multi_query_attention:
             # [sq, b, np, hn] -> [b, np * sq, hn]
-            query_layer = query_layer.permute([1, 2, 0, 3]).reshape(output_size[0], output_size[1] * output_size[2], -1)
+            query_layer = query_layer.permute([1, 2, 0, 3]).reshape(
+                output_size[0], output_size[1] * output_size[2], -1
+            )
 
             # [sk, b, 1, hn] -> [b, hn, sk]
             key_layer = key_layer.squeeze(2).permute(1, 2, 0)
@@ -770,7 +772,7 @@ class CoreAttention(MegatronModule):
                 query_layer,  # [b * np, sq, hn]
                 key_layer,  # [b * np, hn, sk]
                 beta=0.0,
-                alpha=(1.0 / self.norm_factor)
+                alpha=(1.0 / self.norm_factor),
             )
         else:
             # [sq, b, np, hn] -> [sq, b * np, hn]
