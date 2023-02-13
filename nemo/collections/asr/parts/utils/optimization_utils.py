@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import torch
 
 @torch.jit.script
@@ -63,14 +62,7 @@ class LinearSumAssignmentSolver(object):
         path : 2D matrix containing the path taken through the matrix.
         marked : 2D matrix containing the marked zeros.
     """
-    def __init__(self, cost_matrix: torch.Tensor):
-        """
-        Initialize the solver with the given cost matrix.
-
-        Args:
-            cost_matrix (Tensor): 2D matrix containing cost matrix. 
-                                  Number of columns must be larger than number of rows.
-        """
+    def __init__(self, cost_matrix):
         self.cost_mat = cost_matrix
         row_len, col_len = self.cost_mat.shape
         self.zero_row = torch.tensor(0, dtype=torch.long).to(cost_matrix.device)
@@ -82,7 +74,7 @@ class LinearSumAssignmentSolver(object):
 
     def _reset_uncovered_mat(self):
         """
-        Reset all uncovered matrix elements. Assign `True` to all uncovered elements.
+        Clear all covered matrix cells and assign `True` to all uncovered elements.
         """
         self.row_uncovered[:] = True
         self.col_uncovered[:] = True
@@ -91,18 +83,20 @@ class LinearSumAssignmentSolver(object):
         """
         Step 1
 
-        For each row of the matrix, find the smallest element and
-        subtract it from every element in its row.
+        - For each row of the matrix, find the smallest element and subtract it from every element in its row.
+        - Go to Step 2.
         """
         self.cost_mat -= torch.min(self.cost_mat, dim=1)[0].unsqueeze(1)
+        return 2
 
     def _step2(self):
         """
         Step 2
 
-        - Find a zero in the resulting matrix. 
-        - If there is no marked zero in  its row or column, 
-          mark the zero. Repeat for each element in the matrix.
+        - Find a zero in the resulting cost matrix. 
+        - If there are no marked zeros in its row or column, mark the zero. 
+        - Repeat for each element in the matrix.
+        - Go to step 3.
         """
         ind_out = torch.where(self.cost_mat == 0)
         ind, val = list(ind_out[0]), list(ind_out[1])
@@ -113,15 +107,6 @@ class LinearSumAssignmentSolver(object):
                 self.row_uncovered[i] = False
 
         self._reset_uncovered_mat()
-
-    def _sub_n_find_zeros(self) -> int:
-        """
-        This function is performing step 1 and step 2 in the following wikipedia article:
-        https://en.wikipedia.org/wiki/Hungarian_algorithm
-
-        """
-        self._step1()
-        self._step2()
         return 3
 
     def _step3(self) -> int:
@@ -129,10 +114,9 @@ class LinearSumAssignmentSolver(object):
         Step 3
 
         - Cover each column containing a marked zero. 
-        - If n columns are covered,
-            the marked zeros describe a complete set of unique assignments.
-            In this case, Go to DONE (0 state)
-        - Otherwise, Go to Step 4.
+            - If n columns are covered, the marked zeros describe a complete set of unique assignments.
+              In this case, Go to Step 0 (Done state)
+            - Otherwise, Go to Step 4.
         """
         marked = (self.marked == 1)
         self.col_uncovered[torch.any(marked, dim=0)] = False
@@ -145,21 +129,20 @@ class LinearSumAssignmentSolver(object):
         """
         Step 4
 
-        Find a noncovered zero and prime it. If there is no marked zero
-        in the row containing this primed zero, Go to Step 5. Otherwise,
-        cover this row and uncover the column containing the marked
-        zero. Continue in this manner until there are no uncovered zeros
-        left. Save the smallest uncovered value and Go to Step 6.
+        - Find a noncovered zero and prime it. 
+            - If there is no marked zero in the row containing this primed zero, Go to Step 5.
+            - Otherwise, cover this row and uncover the column containing the marked zero. 
+        - Continue in this manner until there are no uncovered zeros left. 
+        - Save the smallest uncovered value.
+        - Go to Step 6.
         """
         # We convert to int as numpy operations are faster on int
         cost_mat = (self.cost_mat == 0).int()
         covered_cost_mat = cost_mat * self.row_uncovered.unsqueeze(1)
         covered_cost_mat *= self.col_uncovered.long()
-        n = self.cost_mat.shape[0]
-        m = self.cost_mat.shape[1]
-
+        row_len, col_len = self.cost_mat.shape
         while True:
-            urv = unravel_index(torch.argmax(covered_cost_mat).item(), torch.tensor([m, n]))
+            urv = unravel_index(torch.argmax(covered_cost_mat).item(), torch.tensor([col_len, row_len]))
             row, col = int(urv[0].item()), int(urv[1].item())
             if covered_cost_mat[row, col] == 0:
                 return 6
@@ -176,7 +159,7 @@ class LinearSumAssignmentSolver(object):
                     col = mark_col
                     self.row_uncovered[row] = False
                     self.col_uncovered[col] = True
-                    covered_cost_mat[:, col] = C[:, col] * self.row_uncovered
+                    covered_cost_mat[:, col] = cost_mat[:, col] * self.row_uncovered
                     covered_cost_mat[row] = 0
         return 0
 
@@ -188,10 +171,11 @@ class LinearSumAssignmentSolver(object):
         - Let Z0 represent the uncovered primed zero found in Step 4.
         - Let Z1 denote the marked zero in the column of Z0 (if any).
         - Let Z2 denote the primed zero in the row of Z1 (there will always be one).
-        - Continue until the series terminates at a primed zero that has no marked
-        zero in its column. Unmark each marked zero of the series, mark each
-        primed zero of the series, erase all primes and uncover every line in the
-        matrix. Return to Step 3
+        - Continue until the series terminates at a primed zero that has no marked zero in its column. 
+        - Unmark each marked zero of the series.
+        - Mark each primed zero of the series.
+        - Erase all primes and uncover every line in the matrix. 
+        - Return to Step 3
         """
         count = torch.tensor(0)
         path = self.path
@@ -248,63 +232,17 @@ class LinearSumAssignmentSolver(object):
         return 4
 
 @torch.jit.script
-def linear_sum_assignment__(cost_matrix):
-    """
-    Launcher function for the linear sum assignment problem solver.
-
-    Args:
-        cost_matrix (Tensor): The cost matrix of shape (N, M) 
-    """
-
-    cost_matrix = cost_matrix.clone().detach()
-
-    if len(cost_matrix.shape) != 2:
-        raise ValueError("2-d tensor is expected but got a {cost_matrix.shape} tensor" )
-
-    # The algorithm expects more columns than rows in the cost matrix.
-    if cost_matrix.shape[1] < cost_matrix.shape[0]:
-        cost_matrix = cost_matrix.T
-        transposed = True
-    else:
-        transposed = False
-
-    lap_solver = LinearSumAssignmentSolver(cost_matrix)
-    f_str: int = 0  if 0 in cost_matrix.shape else 1
-
-    import ipdb; ipdb.set_trace() 
-    # while step is not None:
-    while f_str != 0:
-        if f_str == 1:
-            f_str = lap_solver._step1()
-        elif f_str == 2:
-            f_str = lap_solver._step2()
-        elif f_str == 3:
-            f_str = lap_solver._step3()
-        elif f_str == 4:
-            f_str = lap_solver._step4()
-        elif f_str == 5:
-            f_str = lap_solver._step5()
-        elif f_str == 6:
-            f_str = lap_solver._step6()
-    
-    if transposed:
-        marked = lap_solver.marked.T
-    else:
-        marked = lap_solver.marked
-    return torch.where(marked == 1)
-
-
-
-
-@torch.jit.script
 def linear_sum_assignment(cost_matrix):
     """
-    Launcher function for the linear sum assignment problem solver.
+    Launch the linear sum assignment algorithm on a cost matrix.
 
     Args:
-        cost_matrix (Tensor): The cost matrix of shape (N, M) 
-    """
+        cost_matrix (Tensor): The cost matrix of shape (N, M) where M should be larger than N.
 
+    Returns:
+        row_index (Tensor): The row indices of the optimal assignments.
+        col_index (Tensor): The column indices of the optimal assignments.
+    """
     cost_matrix = cost_matrix.clone().detach()
 
     if len(cost_matrix.shape) != 2:
@@ -318,27 +256,26 @@ def linear_sum_assignment(cost_matrix):
         transposed = False
 
     lap_solver = LinearSumAssignmentSolver(cost_matrix)
-    f_str: int = 0  if 0 in cost_matrix.shape else 1
+    f_int: int = 0  if 0 in cost_matrix.shape else 1
 
-    # while step is not None:
-    while f_str != 0:
-        if f_str == 1:
-            f_str = lap_solver._step1()
-        elif f_str == 2:
-            f_str = lap_solver._step2()
-        elif f_str == 3:
-            f_str = lap_solver._step3()
-        elif f_str == 4:
-            f_str = lap_solver._step4()
-        elif f_str == 5:
-            f_str = lap_solver._step5()
-        elif f_str == 6:
-            f_str = lap_solver._step6()
+    # while step is not Done (step 0):
+    while f_int != 0:
+        if f_int == 1:
+            f_int = lap_solver._step1()
+        elif f_int == 2:
+            f_int = lap_solver._step2()
+        elif f_int == 3:
+            f_int = lap_solver._step3()
+        elif f_int == 4:
+            f_int = lap_solver._step4()
+        elif f_int == 5:
+            f_int = lap_solver._step5()
+        elif f_int == 6:
+            f_int = lap_solver._step6()
     
     if transposed:
         marked = lap_solver.marked.T
     else:
         marked = lap_solver.marked
-    return torch.where(marked == 1)
-
-
+    row_index, col_index = torch.where(marked == 1)
+    return row_index, col_index

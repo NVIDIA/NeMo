@@ -1627,7 +1627,6 @@ class OnlineSegmentor:
     """
 
     def __init__(self, sample_rate: int):
-        super().__init__()
         self.frame_start: float = 0.0
         self.buffer_start: float = 0.0
         self.buffer_end: float = 0.0

@@ -200,7 +200,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         for scale_idx in self.multiscale_args_dict['scale_dict'].keys():
             self.multiscale_embeddings_and_timestamps[scale_idx] = [None, None]
-            self.emb_vectors[scale_idx] = torch.tensor([])
+            # self.emb_vectors[scale_idx] = torch.tensor([])
+            self.emb_vectors[scale_idx] = None
             self.time_stamps[scale_idx] = []
             self.segment_range_ts[scale_idx] = []
             self.segment_raw_audio[scale_idx] = []
@@ -437,7 +438,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         if end_idx > stt_idx:
             torch_embs = self._run_embedding_extractor(audio_signal[stt_idx:end_idx])
-            if embeddings is None:
+            if embeddings is None or embeddings.shape[0] == 0:
                 embeddings = torch_embs
             else:
                 embeddings = torch.vstack((embeddings[:stt_idx, :], torch_embs))
