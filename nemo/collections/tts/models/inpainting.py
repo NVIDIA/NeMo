@@ -445,7 +445,7 @@ class InpainterModel(ModelPT, Exportable):
         # basically a scheduler that does nothing
         sched_d = torch.optim.lr_scheduler.LambdaLR(
             optimizer=optim_d,
-            lr_lambda=lambda x: 1.0
+            lr_lambda=lambda x: 1e-3
         )
 
         # if sched_g is None or sched_d is None:
