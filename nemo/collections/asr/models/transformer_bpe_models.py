@@ -426,10 +426,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         text_batches, speech_batches = [], []
         for i, b in enumerate(batch):
 
-            if len(b) == 4:
-                speech_batches.append(b)
-            elif all([isinstance(b_i, tuple) for b_i in b]):
+            if all([isinstance(b_i, tuple) for b_i in b]):
                 speech_batches.extend(b)
+            elif len(b) == 4:
+                speech_batches.append(b)
             else:
                 text_batches.append(b)
 
