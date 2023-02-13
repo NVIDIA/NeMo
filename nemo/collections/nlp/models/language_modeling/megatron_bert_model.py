@@ -200,7 +200,6 @@ class MegatronBertModel(MegatronBaseModel):
                     batch['padding_mask'],
                 )
 
-
             else:
                 batch = next(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
