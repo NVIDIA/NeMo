@@ -65,7 +65,9 @@ class CausalConv2D(nn.Conv2d):
     def forward(
         self, x,
     ):
-        x = F.pad(x, pad=(self._left_padding, self._right_padding, self._left_padding, self._right_padding))
+        x = torch.constant_pad_nd(
+            x, (self._left_padding, self._right_padding, self._left_padding, self._right_padding), 0
+        )
         x = super().forward(x)
         return x
 
@@ -140,30 +142,35 @@ class CausalConv1D(nn.Conv1d):
         )
 
     def update_cache(self, x, cache=None, cache_next=None):
+        # print("cache", cache.size())
+        # print("cache_next", cache_next.size())
+        # print("x", x.size())
         if cache is None:
-            x = F.pad(x, pad=(self._left_padding, self._right_padding))
+            x = torch.constant_pad_nd(x, (self._left_padding, self._right_padding), 0)
         else:
             input_x = x
             needed_cache = cache[self._cache_id, :, :, -self._max_cache_len :]
-            x = F.pad(x, pad=(0, self._right_padding))
+            # print("needed_cache", needed_cache.size())
+            x = torch.constant_pad_nd(x, (0, self._right_padding), 0)
+            # print("x post pad", x.size(), F.pad(x, (0, self._right_padding)).size())
             x = torch.cat((needed_cache, x), dim=-1)
 
         if cache_next is not None:
             input_x_size = torch.tensor(
                 input_x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=input_x.device
             )
-            input_x_size = input_x_size.clip(min=1, max=input_x.size(-1))
+            input_x_size = input_x_size.clamp(min=1, max=input_x.size(-1))
             input_x_kept = input_x[:, :, :input_x_size]
 
             cache_keep_size = torch.tensor(
                 input_x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=input_x.device
             )
-            cache_keep_size = cache_keep_size.clip(min=1, max=cache_next.size(-1))
+            cache_keep_size = cache_keep_size.clamp(min=1, max=cache_next.size(-1))
             # keep_in_cache_next(
             #    cache=cache, cache_next=cache_next, cache_keep_size=cache_keep_size, cache_id=self._cache_id
             # )
-            if cache_keep_size >= cache_next.size(-1):
-                raise Exception("!!!")
+            # if cache_keep_size >= cache_next.size(-1):
+            #    raise Exception("!!!")
             cache_next[self._cache_id, :, :, :-cache_keep_size] = cache[self._cache_id, :, :, cache_keep_size:]
             cache_next[self._cache_id, :, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
         return x

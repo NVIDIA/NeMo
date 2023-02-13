@@ -135,9 +135,11 @@ def nemo_export(argv):
     if args.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
         model.encoder.export_cache_support = True
         logging.info("Caching support is enabled.")
+        model.encoder.setup_streaming_params()
     if args.streaming_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_streaming_support"):
         model.encoder.export_streaming_support = True
         logging.info("Streaming export is enabled.")
+        model.encoder.setup_streaming_params()
 
     autocast = nullcontext
     if args.autocast:
