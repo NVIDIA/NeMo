@@ -445,7 +445,7 @@ class InpainterModel(ModelPT, Exportable):
         # basically a scheduler that does nothing
         sched_d = torch.optim.lr_scheduler.LambdaLR(
             optimizer=optim_d,
-            lr_lambda=lambda x: 1e-3
+            lr_lambda=lambda x: 1
         )
 
         # if sched_g is None or sched_d is None:
@@ -862,10 +862,19 @@ class InpainterModel(ModelPT, Exportable):
             spec_windows_real += spec.split(window_size)[:num_windows]
             spec_windows_gen += spec_pred.split(window_size)[:num_windows]
 
-        batch_real = torch.stack(random.sample(
-            spec_windows_real, self.discriminator_batch_size))
-        batch_gen = torch.stack(random.sample(
-            spec_windows_gen, self.discriminator_batch_size))
+        spec_windows_real = torch.stack(spec_windows_real)
+        spec_windows_gen = torch.stack(spec_windows_gen)
+
+        shuffle_indices = torch.randperm(
+            self.discriminator_batch_size, device=spectrograms_pred.device)
+
+        batch_real = spec_windows_real[shuffle_indices]
+        batch_gen = spec_windows_gen[shuffle_indices]
+
+        # batch_real = torch.stack(random.sample(
+        #     spec_windows_real, self.discriminator_batch_size))
+        # batch_gen = torch.stack(random.sample(
+        #     spec_windows_gen, self.discriminator_batch_size))
 
         training_inpainter = optimizer_idx % 2 == 0
         # Train Discriminator
