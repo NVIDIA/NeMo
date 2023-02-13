@@ -17,9 +17,10 @@ from itertools import permutations
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import torch
 from pyannote.core import Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
-from scipy.optimize import linear_sum_assignment
+from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
@@ -322,7 +323,7 @@ def calculate_session_cpWER(
         # Make a cost matrix and calculate a linear sum assignment on the cost matrix.
         # Row is hypothesis index and column is reference index
         cost_wer = np.array(lsa_wer_list).reshape([len(spk_hypothesis), len(spk_reference)])
-        row_hyp_ind, col_ref_ind = linear_sum_assignment(cost_wer)
+        row_hyp_ind, col_ref_ind = linear_sum_assignment(torch.tensor(cost_wer))
 
         # In case where hypothesis has more speakers, add words from residual speakers
         hyp_permed = [spk_hypothesis[k] for k in np.argsort(col_ref_ind)]

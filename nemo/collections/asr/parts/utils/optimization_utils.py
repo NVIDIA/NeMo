@@ -45,6 +45,11 @@ class LinearSumAssignmentSolver(object):
     the minimal cost. Note that the solution may not be unique and there could be multiple solutions that
     yield the same minimal cost.
 
+    Linear sum assignment problem is needed for the following tasks:
+        1. Permutation Invariant Loss for diarization model training
+        2. Label stitching for online speaker diarzation 
+        3. Concatenate permutation Word Error Rate (cp-WER) calculation 
+
     This implementation is based on the LAP solver from scipy: 
         https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py.
 

@@ -583,6 +583,7 @@ class TestSpeakerClustering:
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
         )
+        gt = gt.to(Y_out.device)
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
 
         # mc[-1] is the number of base scale segments
@@ -653,6 +654,7 @@ class TestSpeakerClustering:
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
         )
+        gt = gt.to(Y_out.device)
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
 
         # mc[-1] is the number of base scale segments
@@ -662,8 +664,8 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4])
-    @pytest.mark.parametrize("total_sec", [30])
-    @pytest.mark.parametrize("buffer_size", [30])
+    @pytest.mark.parametrize("total_sec", [40])
+    @pytest.mark.parametrize("buffer_size", [40])
     @pytest.mark.parametrize("sigma", [0.1])
     @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
     def test_online_speaker_clustering(self, n_spks, total_sec, buffer_size, sigma, seed):
@@ -675,7 +677,7 @@ class TestSpeakerClustering:
         emb_gen = em_s[-1]
         segment_indexes = ts_s[-1]
         if torch.cuda.is_available():
-            emb_gen, segment_indexes = emb_gen.to("cuda"), segment_indexes.to("cuda")
+            emb_gen, segment_indexes, gt = emb_gen.to("cuda"), segment_indexes.to("cuda"), gt.to("cuda")
             cuda = True
         else:
             cuda = False
@@ -699,11 +701,19 @@ class TestSpeakerClustering:
             curr_emb = emb_gen[0 : (frame_index + 1) * step_per_frame]
             base_segment_indexes = np.arange(curr_emb.shape[0])
 
-            # Save history embeddings
-            concat_emb, add_new = online_clus.get_reduced_mat(
-                emb_in=curr_emb, base_segment_indexes=base_segment_indexes
-            )
+            curr_emb = torch.tensor(curr_emb)
+            base_segment_indexes = torch.tensor(base_segment_indexes)
 
+            # Call clustering function
+            merged_clus_labels = online_clus.forward(curr_emb=curr_emb, 
+                                                    base_segment_indexes=base_segment_indexes, 
+                                                    max_num_speakers=8,
+                                                    max_rp_threshold=0.15,
+                                                    enhanced_count_thres=0,
+                                                    sparse_search_volume=30,
+                                                    frame_index=frame_index, 
+                                                    cuda=cuda)
+            
             # Check history_buffer_size and history labels
             assert (
                 online_clus.history_embedding_buffer_emb.shape[0] <= history_buffer_size
@@ -712,20 +722,14 @@ class TestSpeakerClustering:
                 online_clus.history_embedding_buffer_emb.shape[0]
                 == online_clus.history_embedding_buffer_label.shape[0]
             )
-
-            # Call clustering function
-            Y_concat = online_clus.forward_infer(emb=concat_emb, frame_index=frame_index, cuda=cuda)
-
             # Resolve permutations
-            merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
             assert len(merged_clus_labels) == (frame_index + 1) * step_per_frame
-            print(merged_clus_labels)
             # Resolve permutation issue by using stitch_cluster_labels function
-            merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
+            gt_part = gt[: len(merged_clus_labels)].to(merged_clus_labels.device)
+            merged_clus_labels = stitch_cluster_labels(Y_old=gt_part, Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))
 
         assert online_clus.is_online
-        assert add_new
         cumul_label_acc = sum(evaluation_list) / len(evaluation_list)
         assert cumul_label_acc > 0.9
 

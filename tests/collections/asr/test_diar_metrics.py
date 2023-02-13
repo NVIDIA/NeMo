@@ -18,7 +18,8 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.der import calculate_session_cpWER, calculate_session_cpWER_bruteforce
-
+from scipy.optimize import linear_sum_assignment  as _linear_sum_assignment
+from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 
 def word_count(spk_transcript):
     return sum([len(w.split()) for w in spk_transcript])
@@ -122,3 +123,32 @@ class TestConcatMinPermWordErrorRate:
         cpWER_perm, hyp_min_perm, ref_str = calculate_session_cpWER_bruteforce(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(cpWER_perm - cpWER))
         assert diff <= 1e-6
+
+
+class TestLinearSumAssignment:
+    """
+    Tests for linear sum assignment algorithm.
+    """
+    @pytest.mark.unit
+    @pytest.mark.parametrize("seed", [42, 142])
+    @pytest.mark.parametrize("cost_matrix_size", [5, 10, 20])
+    def test_hungarian_algorithm(self, cost_matrix_size, seed, max_int_cost=10):
+        """
+        Check whether linear sum algorithm is giving the same optimized cost with scipy optimize
+        linear sum assignment.
+        """
+        torch.manual_seed(seed)
+        
+        # Test integer cost matrix
+        cost_matrix = torch.randint(max_int_cost, (cost_matrix_size, cost_matrix_size))
+        _row_ind, _col_ind = _linear_sum_assignment(cost_matrix.numpy())
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+        assert torch.sum(cost_matrix[_row_ind,_col_ind]) == torch.sum(cost_matrix[row_ind,col_ind])
+        
+        # Test float cost matrix
+        cost_matrix = torch.rand(cost_matrix_size, cost_matrix_size)
+        _row_ind, _col_ind = _linear_sum_assignment(cost_matrix.numpy())
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        assert torch.sum(cost_matrix[_row_ind,_col_ind]) == torch.sum(cost_matrix[row_ind,col_ind])
+
