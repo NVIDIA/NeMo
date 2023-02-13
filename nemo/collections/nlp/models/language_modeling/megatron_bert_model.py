@@ -494,23 +494,12 @@ class MegatronBertModel(MegatronBaseModel):
             padding_mask = batch['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
-<<<<<<< HEAD
     def build_LDDL_data(self, cfg):
         if not HAVE_APEX:
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
             
-=======
-    def _build_LDDL_data(self, cfg):
-        import logging
-
-        from lddl.torch2 import get_bert_pretrain_data_loader2
-        from lddl.torch2.utils import barrier, get_rank
-        from lddl.utils import mkdir
-
-        # TODO: Should we set all these datasets to None?
->>>>>>> 33ed7860a91a6ce1abb9e6d00c735446dfcadcb4
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
