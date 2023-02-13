@@ -485,7 +485,7 @@ class MegatronBertModel(MegatronBaseModel):
             lm_labels = batch['labels'].long()
             loss_mask = batch['masked_lm_positions'].long()
             sentence_order = batch['next_sentence_labels'].long()
-        else: 
+        else:
             tokens = batch['text'].long()
             types = batch['types'].long()
             sentence_order = batch['is_random'].long()
@@ -494,12 +494,23 @@ class MegatronBertModel(MegatronBaseModel):
             padding_mask = batch['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
+<<<<<<< HEAD
     def build_LDDL_data(self, cfg):
         if not HAVE_APEX:
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
             
+=======
+    def _build_LDDL_data(self, cfg):
+        import logging
+
+        from lddl.torch2 import get_bert_pretrain_data_loader2
+        from lddl.torch2.utils import barrier, get_rank
+        from lddl.utils import mkdir
+
+        # TODO: Should we set all these datasets to None?
+>>>>>>> 33ed7860a91a6ce1abb9e6d00c735446dfcadcb4
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
@@ -518,18 +529,18 @@ class MegatronBertModel(MegatronBaseModel):
             data_loader_kwargs={
                 'batch_size': global_batch_size_on_this_data_parallel_rank,
                 'num_workers': self.cfg.data.num_workers,
-                'prefetch_factor': 2
+                'prefetch_factor': 2,
             },
-            mlm_probability=.15,
+            mlm_probability=0.15,
             base_seed=self.cfg.seed,
-            log_level= logging.NOTSET,
+            log_level=logging.NOTSET,
             log_dir="/tmp/log",
             return_raw_samples=False,  # This may need to be taken a look at
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
         )
-    
+
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
