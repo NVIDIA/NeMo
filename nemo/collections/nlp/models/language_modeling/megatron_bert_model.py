@@ -53,6 +53,13 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+try:
+    from lddl.torch2 import get_bert_pretrain_data_loader2
+    import logging
+    HAVE_LDDL=True
+except (ImportError, ModuleNotFoundError):
+    HAVE_LDDL=False
+    
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -487,19 +494,19 @@ class MegatronBertModel(MegatronBaseModel):
             padding_mask = batch['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
-    def _build_LDDL_data(self, cfg):
-        from lddl.torch2 import get_bert_pretrain_data_loader2
-        from lddl.torch2.utils import barrier, get_rank
-        from lddl.utils import mkdir
-        import logging
-        # TODO: Should we set all these datasets to None?
+    def build_LDDL_data(self, cfg):
+        if not HAVE_APEX:
+            raise ImportError(
+                "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
+            )
+            
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
         global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
-        # We run under the assumption that the datapath is the prefix if LDDL
+        # We run under the assumption that the datapath is the prefix if LDDL dataloader
         lddl_data_path = self.cfg.data.data_prefix[1]
         self._train_dl = get_bert_pretrain_data_loader2(
             lddl_data_path,
@@ -629,7 +636,7 @@ class MegatronBertModel(MegatronBaseModel):
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             if self.cfg.data.dataloader_type == "LDDL":
-                self._build_LDDL_data(self.cfg.data)
+                self.build_LDDL_data(self.cfg.data)
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
