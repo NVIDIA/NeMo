@@ -56,11 +56,11 @@ except (ImportError, ModuleNotFoundError):
 try:
     import logging
     from lddl.torch2 import get_bert_pretrain_data_loader2
-    
-    HAVE_LDDL=True
+
+    HAVE_LDDL = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_LDDL=False
-    
+    HAVE_LDDL = False
+
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -500,7 +500,7 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
-            
+
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
