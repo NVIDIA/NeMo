@@ -151,8 +151,7 @@ class GPTModel(MegatronModule):
         reduce_amax=True,
         use_emha=False,
     ):
-
-        super(GPTModel, self).__init__()
+        super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -231,9 +230,10 @@ class GPTModel(MegatronModule):
             use_emha=use_emha,
         )
 
-        self.initialize_word_embeddings(
-            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
-        )
+        if self.share_embeddings_and_output_weights:
+            self.initialize_word_embeddings(
+                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+            )
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
