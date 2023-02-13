@@ -178,14 +178,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     @property
     def disabled_deployment_input_names(self):
         if not self.export_cache_support:
-            return set(["cache_last_channel", "cache_last_time"])
+            return set(["cache_last_channel", "cache_last_time", "cache_last_channel_len"])
         else:
             return set()
 
     @property
     def disabled_deployment_output_names(self):
         if not self.export_cache_support:
-            return set(["cache_last_channel_next", "cache_last_time_next"])
+            return set(["cache_last_channel_next", "cache_last_time_next", "cache_last_channel_next_len"])
         else:
             return set()
 
@@ -405,7 +405,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             # Update across all ranks in the distributed system
             torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
 
-            seq_length = global_max_len.int().item()
+            seq_length = global_max_len.to(torch.int32).item()
 
         if seq_length > self.max_audio_length:
             self.set_max_audio_length(seq_length)
@@ -493,7 +493,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if cache_last_channel_next is not None:
             encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
-            encoded_len = torch.clamp(encoded_len.long(), max=self.streaming_cfg.valid_out_len).int()
+            encoded_len = torch.clamp(encoded_len.long(), max=self.streaming_cfg.valid_out_len).to(torch.int32)
 
         return encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_len
 
@@ -509,7 +509,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel_len=cache_last_channel_len,
         )
 
-    @typecheck()
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
@@ -517,7 +516,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel = cache_last_channel.transpose(0, 1)
         if cache_last_time is not None:
             cache_last_time = cache_last_time.transpose(0, 1)
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        # TODO this will be needed in some cases, though never in production because the cache size if fixed
+        # self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         max_audio_length: int = audio_signal.size(-1)
 
         if length is None:
@@ -526,7 +526,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
 
         if cache_last_time is not None:
-            cache_last_time_next = torch.zeros_like(cache_last_time)
+            cache_last_time_next = torch.zeros(
+                cache_last_time.size(), dtype=cache_last_time.dtype, device=cache_last_time.device
+            )
         else:
             cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
@@ -540,7 +542,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 # TODO: find a better solution
                 length = length - self.streaming_cfg.drop_extra_pre_encoded
-                length = torch.clamp(length.long(), min=0).int()
+                length = torch.clamp(length.long(), min=0).to(torch.int32)
 
         max_audio_length = audio_signal.size(1)
 
@@ -557,7 +559,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
             max_audio_length += cache_len
             padding_length = length + cache_len
-            offset = -cache_last_channel_len + cache_len
+            # offset = -cache_last_channel_len + cache_len
+            offset = (
+                torch.full(
+                    cache_last_channel_len.size(),
+                    cache_len,
+                    dtype=cache_last_channel_len.dtype,
+                    device=cache_last_channel_len.device,
+                )
+                - cache_last_channel_len
+            )
         else:
             padding_length = length
             cache_last_channel_next = None
@@ -610,6 +621,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 # and cause an increase in the WER
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, offset, audio_signal.device)
+            # uncomment to profile just one conformer layer
+            # break
 
             # saving tensors if required for interctc loss
             if self.is_access_enabled():
@@ -656,23 +669,26 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         pad_mask_off = torch.arange(0, max_audio_length, device=device).expand(
             padding_length.size(0), -1
         ) >= offset.unsqueeze(-1)
-        pad_mask = torch.logical_and(pad_mask_off, pad_mask_len)
+        # TODO torch_tensorrt doen't support this bool operation, need to use int32 as int8 precision is not configured
+        pad_mask = pad_mask_off.to(torch.int32) * pad_mask_len.to(torch.int32)
 
         if self.att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-            pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
+            pad_mask_for_att_mask = pad_mask_for_att_mask * pad_mask_for_att_mask.transpose(1, 2)
             # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
             # raise Exception("att_mask dev " + str(self.att_mask.device))
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
-            att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
+            att_mask = pad_mask_for_att_mask * att_mask.to(pad_mask_for_att_mask.device).to(
+                pad_mask_for_att_mask.dtype
+            )
 
-            att_mask = ~att_mask
+            att_mask = ~(att_mask.to(torch.bool))
         else:
             att_mask = None
 
-        pad_mask = ~pad_mask
+        pad_mask = ~(pad_mask.to(torch.bool))
 
         return pad_mask, att_mask
 

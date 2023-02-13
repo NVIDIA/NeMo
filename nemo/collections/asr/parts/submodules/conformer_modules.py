@@ -342,7 +342,8 @@ class ConformerConvolution(nn.Module):
 
         # Compute the activation function or use GLU for original Conformer
         if self.pointwise_activation == 'glu_':
-            x = nn.functional.glu(x, dim=1)
+            # x = nn.functional.glu(x, dim=1)
+            x = x[:, : x.size(1) // 2, :] * torch.sigmoid(x[:, x.size(1) // 2 :, :])
         else:
             x = self.pointwise_activation(x)
 

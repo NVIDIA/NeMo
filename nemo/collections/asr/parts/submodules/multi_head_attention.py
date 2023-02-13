@@ -161,16 +161,20 @@ class MultiHeadAttention(nn.Module):
             key = value = torch.cat((cache[self._cache_id], key), dim=1)
 
         if cache_next is not None:
-            q_keep_size = torch.tensor(q_length - self.cache_drop_size, dtype=torch.int64, device=cache.device).clip(
+            q_keep_size = torch.tensor(q_length - self.cache_drop_size, dtype=torch.int64, device=cache.device).clamp(
                 min=1
             )
             # if q_keep_size >= cache_next.size(-2):
             #    raise Exception("keep > cache_next.size(-2)")
             # keep_in_cache_next(cache=cache, cache_next=cache_next, keep_size=q_keep_size, cache_id=self._cache_id)
             cache_next[self._cache_id, :, :-q_keep_size, :] = cache[
-                self._cache_id, :, -(cache_next.size(2) - q_keep_size) :, :
+                self._cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
             ]
             cache_next[self._cache_id, :, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
+            # cache_next[self._cache_id, :, :, :] = torch.cat(
+            #    (cache[self._cache_id, :, -(cache_next.size(2) - q_keep_size):, :],
+            #     q_input[:, :q_keep_size, :]), dim=1,
+            # )
 
         return key, value, query
 
@@ -209,7 +213,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         b, h, qlen, pos_len = x.size()  # (b, h, t1, t2)
         # need to add a column of zeros on the left side of last dimension to perform the relative shifting
-        x = torch.nn.functional.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
+        x = torch.constant_pad_nd(x, (1, 0))  # (b, h, t1, t2+1)
         x = x.view(b, h, -1, qlen)  # (b, h, t2+1, t1)
         # need to drop the first row
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
@@ -321,10 +325,10 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             if w <= 0:
                 raise ValueError("When using local attention, context size must be set > 0")
             pad_len = (2 * w - T % (2 * w)) % (2 * w)  # pad time to 2w
-            q = F.pad(q, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            k = F.pad(k, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            v = F.pad(v, (0, 0, 0, pad_len))  # (batch, head, time, size)
-            mask = F.pad(pad_mask, (0, pad_len), value=1.0)
+            q = torch.constant_pad_nd(q, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            k = torch.constant_pad_nd(k, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            v = torch.constant_pad_nd(v, (0, 0, 0, pad_len))  # (batch, head, time, size)
+            mask = torch.constant_pad_nd(pad_mask, (0, pad_len), 1.0)
 
             q_with_bias_u = q + self.pos_bias_u.unsqueeze(1)  # (batch, head, time, size)
             q_with_bias_v = q + self.pos_bias_v.unsqueeze(1)  # (batch, head, time, size)
@@ -392,7 +396,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             output (torch.Tensor): (batch x head, chunk_count, 2w, 2w + 1)
 
         """
-        x_padded = F.pad(x, direction, value=padding_value)
+        x_padded = torch.constant_pad_nd(x, direction, padding_value)
         x_padded = x_padded.view(*x_padded.size()[:-2], x_padded.size(-1), x_padded.size(-2))
         return x_padded
 
@@ -408,7 +412,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         """
         # X = B x C x M x L
         B, C, M, L = x.size()
-        x = F.pad(x, (0, M + 1), value=padding_value)  # B x C x M x (L+M+1)
+        x = torch.constant_pad_nd(x, (0, M + 1), padding_value)  # B x C x M x (L+M+1)
         x = x.view(B, C, -1)  # B x C x ML+MM+M
         x = x[:, :, :-M]  # B x C x ML+MM
         x = x.view(B, C, M, M + L)  # B x C, M x L+M
@@ -556,7 +560,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         # (batch x head, time, size)
 
         # pad seqlen with w at the beginning of the sequence and another w at the end
-        padded_v = F.pad(v, (0, 0, w, w), value=-1)
+        padded_v = torch.constant_pad_nd(v, (0, 0, w, w), -1)
         # (batch x head, time + 2w, size)
 
         # chunk padded_v into chunks of size 3w and an overlap of size w
