@@ -366,15 +366,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.export_cache_support = False
 
         layer_drop_probs = [0.0] * len(self.layers)
-        if not (0 <= stochastic_depth_drop_prob <= 1.0):
-            raise ValueError("stochastic_depth_drop_prob has to be in [0, 1].")
+        if not (0 <= stochastic_depth_drop_prob < 1.0):
+            raise ValueError("stochastic_depth_drop_prob has to be in [0, 1).")
+        if not (0 <= stochastic_depth_start_layer <= len(self.layers)):
+            raise ValueError("stochastic_depth_start_layer has to be in [0, num layers].")
         L = len(self.layers) - stochastic_depth_start_layer
         layer_drop_probs = [0.0] * stochastic_depth_start_layer
         if stochastic_depth_mode == "linear":
-            # note that we never actually "reach" the desired drop_prob, since
-            # the final coefficient is (L - 1) / L. Thus it's valid to specify
-            # 1.0 as drop probability for linear case.
-            layer_drop_probs += [l / L * stochastic_depth_drop_prob for l in range(L)]
+            # we are dividing by L - 1 to ensure we start from 0 probability
+            # (never drop the first layer) and end with desired drop probability.
+            layer_drop_probs += [l / (L - 1) * stochastic_depth_drop_prob for l in range(L)]
         elif stochastic_depth_mode == "uniform":
             layer_drop_probs += [stochastic_depth_drop_prob] * L
         else:
@@ -485,43 +486,31 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pad_mask = pad_mask[:, cache_len:]
             if self.att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
+        import random
 
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
-            # note that we don't have to have "if" here, but it's probably
-            # better to fully separate the no stochastic depth case to make
-            # it clean without any additional calls like torch.rand
-            if drop_prob == 0.0:
-                audio_signal = layer(
-                    x=audio_signal,
-                    att_mask=att_mask,
-                    pos_emb=pos_emb,
-                    pad_mask=pad_mask,
-                    cache_last_channel=cache_last_channel,
-                    cache_last_time=cache_last_time,
-                    cache_last_channel_next=cache_last_channel_next,
-                    cache_last_time_next=cache_last_time_next,
-                )
-            else:
-                original_signal = audio_signal
-                audio_signal = layer(
-                    x=audio_signal,
-                    att_mask=att_mask,
-                    pos_emb=pos_emb,
-                    pad_mask=pad_mask,
-                    cache_last_channel=cache_last_channel,
-                    cache_last_time=cache_last_time,
-                    cache_last_channel_next=cache_last_channel_next,
-                    cache_last_time_next=cache_last_time_next,
-                )
-                if self.training:
-                    should_drop = torch.rand(1) < drop_prob
+            original_signal = audio_signal
+            audio_signal = layer(
+                x=audio_signal,
+                att_mask=att_mask,
+                pos_emb=pos_emb,
+                pad_mask=pad_mask,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_next=cache_last_channel_next,
+                cache_last_time_next=cache_last_time_next,
+            )
+            if self.training:
+                should_drop = torch.rand(1) < drop_prob
+                # adjusting to match expectation
+                if should_drop:
                     # that's not efficient, but it's hard to implement distributed
                     # version of dropping layers without deadlock or random seed meddling
-                    if should_drop:
-                        audio_signal = audio_signal * 0.0 + original_signal
-                else:
-                    # adjusting output scale properly to account for drop prob
-                    audio_signal = (1 - drop_prob) * (audio_signal - original_signal) + original_signal
+                    # so multiplying the signal by 0 to ensure all weights get gradients
+                    audio_signal = audio_signal * 0.0 + original_signal
+                elif drop_prob > 0.0:
+                    # not doing this operation if drop prob is 0 as it's identity in that case
+                    audio_signal = (audio_signal - original_signal) / (1.0 - drop_prob) + original_signal
 
             if self.reduction_position == lth:
                 audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
