@@ -252,6 +252,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs
+            # Note: Params with disabled overlapping are put in the
+            # last param bucket
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
@@ -278,7 +280,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             used_params = set()
             for bucket in buckets:
                 used_params.update(bucket)
-            buckets.append([p for p in self.parameters() if p not in used_params])
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -546,18 +548,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
                     loss_sum_and_ub_size_all_gpu = torch.cat(
                         [
-                            loss_sum_for_mb.clone().detach().view(1),
-                            torch.tensor([num_valid_samples_in_mb]).cuda().clone().detach(),
+                            loss_sum_for_ub.clone().detach().view(1),
+                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
                         ]
                     )
                     # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
                     torch.distributed.all_reduce(
-                        loss_sum_and_mb_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_mb, {'loss_sum_and_mb_size': loss_sum_and_mb_size_all_gpu}
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_mb])
-                    return loss_for_mb, {'avg': reduced_loss}
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -627,9 +629,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_mb_size']
+                    loss_sum['loss_sum_and_ub_size']
                     for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_mb_size'][1] > 0
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
                 ]
                 loss_sum = (
                     torch.vstack(loss_sum_tensors_list).sum(axis=0)
