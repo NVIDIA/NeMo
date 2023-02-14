@@ -855,6 +855,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.prefix = ""
 
         # Init ClearML Logging, if setted in config.
+        self.clearml_task = None
+        self.clearml_model = None
+        self.clearml_cfg = clearml_cfg
         if clearml_cfg:
             self._init_clearml(clearml_cfg)
 
