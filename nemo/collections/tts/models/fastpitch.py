@@ -680,17 +680,17 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
         if 'enable_ragged_batches' not in self.export_config:
             inputs.pop('batch_lengths', None)
-        print(inputs)
         return (inputs,)
 
     def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
+        n_volume = None
         if self.export_config["enable_ragged_batches"]:
-            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
+            n_text, n_pitch, n_pace, volume_tensor, n_lens = batch_from_ragged(
                 text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
             )
             if volume is not None:
-                volume = volume_tensor
-        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
+                n_volume = volume_tensor
+        return self.fastpitch.infer(text=n_text, pitch=n_pitch, pace=n_pace, volume=n_volume, speaker=speaker)
 
     def interpolate_speaker(
         self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id

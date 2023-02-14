@@ -482,7 +482,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             )
             if volume is not None:
                 volume = volume_tensor
-        lens = lens.to(dtype=torch.int64)
+        else:
+            lens = lens.to(dtype=torch.int64)
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,
             text,

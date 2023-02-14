@@ -717,13 +717,14 @@ def batch_from_ragged(
     padding_idx: int = -1,
     volume: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    batch_lengths = batch_lengths.to(torch.int64)
+
+    batch_lengths = batch_lengths.to(dtype=torch.int64)
     max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
 
     index = 1
     num_batches = batch_lengths.shape[0] - 1
     texts = torch.zeros(num_batches, max_len, dtype=torch.int64, device=text.device) + padding_idx
-    pitches = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device)
+    pitches = torch.ones(num_batches, max_len, dtype=torch.float32, device=text.device)
     paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     lens = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
@@ -764,7 +765,7 @@ def sample_tts_input(
         left_over_size = sz[0]
         batch_lengths[0] = 0
         for i in range(1, max_batch):
-            length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=device)
+            length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=device, dtype=torch.int32)
             batch_lengths[i] = length + batch_lengths[i - 1]
             left_over_size -= length.detach().cpu().numpy()[0]
         batch_lengths[-1] = left_over_size + batch_lengths[-2]
