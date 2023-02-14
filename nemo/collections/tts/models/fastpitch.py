@@ -95,19 +95,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
-            # TODO @xueyang: remove AudioToCharWithPriorAndPitchDataset because it has been deprecated already.
-            elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                logging.warning(
-                    "AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for"
-                    " training or finetuning. Only inference is supported."
-                )
-                tokenizer_conf = self._get_default_text_tokenizer_conf()
-                self._setup_tokenizer(tokenizer_conf)
-                assert self.vocab is not None
-                input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
-                input_fft_kwargs["padding_idx"] = self.vocab.pad
             else:
-                raise ValueError(f"Unknown dataset class: {self.ds_class_name}")
+                raise ValueError(f"Unknown dataset class: {self.ds_class_name}.")
 
         self._parser = None
         self._tb_logger = None
@@ -237,11 +226,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
             if ds_class_name == "TTSDataset":
-                self._parser = self.vocab.encode
-            elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                if self.vocab is None:
-                    tokenizer_conf = self._get_default_text_tokenizer_conf()
-                    self._setup_tokenizer(tokenizer_conf)
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
@@ -612,11 +596,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         list_of_models.append(model)
 
-        # zh, single speaker, 22050Hz, SFSpeech Bilingual Chinese/English dataset
+        # zh, single female speaker, 22050Hz, SFSpeech Bilingual Chinese/English dataset, improved model using richer
+        # dict and jieba word segmenter for polyphone disambiguation.
         model = PretrainedModelInfo(
             pretrained_model_name="tts_zh_fastpitch_sfspeech",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_zh_fastpitch_hifigan_sfspeech/versions/1.14.0/files/tts_zh_fastpitch_sfspeech.nemo",
-            description="This model is trained on a single female speaker in SFSpeech Bilingual Chinese/English dataset sampled at 22050Hz and can be used to generate female Mandarin Chinese voices.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_zh_fastpitch_hifigan_sfspeech/versions/1.15.0/files/tts_zh_fastpitch_sfspeech.nemo",
+            description="This model is trained on a single female speaker in SFSpeech Bilingual Chinese/English dataset"
+            " sampled at 22050Hz and can be used to generate female Mandarin Chinese voices. It is improved"
+            " using richer dict and jieba word segmenter for polyphone disambiguation.",
             class_=cls,
         )
         list_of_models.append(model)
