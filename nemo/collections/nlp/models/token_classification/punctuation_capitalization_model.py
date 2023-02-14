@@ -23,6 +23,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.huggingface import get_huggingface_lm_model
+import os
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from tqdm import tqdm
@@ -146,6 +147,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
     def _setup_tokenizer(self, cfg: DictConfig):
+        if self._is_model_being_restored() and not os.path.exists(cfg.tokenizer_model):
+            cfg.tokenizer_model = "/media/ebakhturina/DATA/nmt/iwslt23_tarred_withpc/yttm.model"
+
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             tokenizer_model=cfg.tokenizer_model,

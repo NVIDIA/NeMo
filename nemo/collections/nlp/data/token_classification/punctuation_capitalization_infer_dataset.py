@@ -136,7 +136,7 @@ def get_features_infer(
             logging.info(f'Ignoring query with id {q_i}')
             continue
         for i in range(0, max(len(query_st), length) - length + step, step):
-            subtokens = [tokenizer.cls_token] + query_st[i : i + length] + [tokenizer.sep_token]
+            subtokens = [tokenizer.bos_token] + query_st[i : i + length] + [tokenizer.eos_token]
             q_inp_ids.append(tokenizer.tokens_to_ids(subtokens))
             q_segment_ids.append([0] * len(subtokens))
             q_subtokens_mask.append([False] + stm[q_i][i : i + length] + [False])
