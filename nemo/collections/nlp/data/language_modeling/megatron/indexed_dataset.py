@@ -110,7 +110,7 @@ def deallocate_indexed_dataset_memory(indexed_dataset):
         indexed_dataset.doc_idx = None
 
 
-def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
+def make_dataset(path, impl, skip_warmup=True, impl_kwargs={}):
     # first handle text memap
     if impl == 'text_mmap':
         return TextMemMapDataset(path, **impl_kwargs)
@@ -427,7 +427,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
             return _Writer()
 
-        def __init__(self, path, skip_warmup=False):
+        def __init__(self, path, skip_warmup=True):
             with open(path, 'rb') as stream:
                 magic_test = stream.read(9)
                 assert self._HDR_MAGIC == magic_test, (
@@ -488,7 +488,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=True):
         super().__init__()
 
         self._path = None
