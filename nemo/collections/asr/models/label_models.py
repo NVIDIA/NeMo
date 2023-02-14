@@ -98,6 +98,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.world_size = 1
         self.cal_labels_occurrence_train = False
         self.labels_occurrence = None
+        self.labels = None
 
         num_classes = cfg.decoder.num_classes
 
@@ -152,7 +153,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self._macro_accuracy = Accuracy(num_classes=num_classes, top_k=1, average='macro', task='multiclass')
 
-        self.labels = None
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -390,7 +390,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self.log(f'{tag}_loss', loss_mean, sync_dist=True)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log(f'{tag}_acc_micro_top@{top_k}', score, sync_dist=True)
+            self.log(f'{tag}_acc_micro_top_{top_k}', score, sync_dist=True)
         self.log(f'{tag}_acc_macro', macro_accuracy_score, sync_dist=True)
 
         return {
@@ -453,10 +453,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             label: label corresponding to the trained model
         """
         _, logits = self.infer_file(path2audio_file=path2audio_file)
-        mapped_labels = list(self._cfg['train_ds']['labels'])
-        if mapped_labels is not None:
+        trained_labels = list(self._cfg['train_ds']['labels'])
+        if trained_labels is not None:
             label_id = logits.argmax(axis=1)
-            label = mapped_labels[int(label_id[0])]
+            label = trained_labels[int(label_id[0])]
         else:
             logging.info("labels are not saved to model, hence only outputting the label id index")
             label = logits.argmax(axis=1)
@@ -515,7 +515,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         To map predicted labels, one can do
             `arg_values = logits.argmax(axis=1)`
-            `pred_labels = list(map(lambda t : pred_labels[t], arg_values))`
+            `pred_labels = list(map(lambda t : trained_labels[t], arg_values))`
 
         Args:
             manifest_filepath: Path to manifest file
@@ -528,21 +528,20 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             embs: embeddings of files provided in manifest file
             logits: logits of final layer of EncDecSpeakerLabel Model
             gt_labels: labels from manifest file (needed for speaker enrollment and testing)
-            mapped_labels: Classification labels sorted in the order that they are mapped by the trained model
+            trained_labels: Classification labels sorted in the order that they are mapped by the trained model
 
         """
         mode = self.training
         self.freeze()
         self.eval()
         self.to(device)
-        mapped_labels = self._cfg['train_ds']['labels']
-        if mapped_labels is not None:
-            mapped_labels = list(mapped_labels)
+        trained_labels = self._cfg['train_ds']['labels']
+        if trained_labels is not None:
+            trained_labels = list(trained_labels)
 
         featurizer = WaveformFeaturizer(sample_rate=sample_rate)
-        dataset = AudioToSpeechLabelDataset(
-            manifest_filepath=manifest_filepath, labels=mapped_labels, featurizer=featurizer
-        )
+
+        dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
 
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
@@ -562,10 +561,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             gt_labels.extend(labels.cpu().numpy())
             embs.extend(emb.cpu().numpy())
 
+        gt_labels = list(map(lambda t: dataset.id2label[t], gt_labels))
+
         self.train(mode=mode)
         if mode is True:
             self.unfreeze()
 
         logits, embs, gt_labels = np.asarray(logits), np.asarray(embs), np.asarray(gt_labels)
 
-        return embs, logits, gt_labels, mapped_labels
+        return embs, logits, gt_labels, trained_labels

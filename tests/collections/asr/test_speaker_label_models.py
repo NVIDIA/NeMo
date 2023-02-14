@@ -27,7 +27,9 @@ from nemo.collections.asr.models import EncDecSpeakerLabelModel
 class EncDecSpeechLabelModelTest(TestCase):
     @pytest.mark.unit
     def test_constructor(self):
-        preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',}
+        preprocessor = {
+            '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+        }
         encoder = {
             '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
             'feat_in': 64,
@@ -45,7 +47,7 @@ class EncDecSpeechLabelModelTest(TestCase):
                     'separable': False,
                 }
             ],
-            }
+        }
 
         decoder = {
             '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
@@ -73,7 +75,9 @@ class EncDecSpeechLabelModelTest(TestCase):
 
     @pytest.mark.unit
     def test_ecapa_enc_dec(self):
-        preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',}
+        preprocessor = {
+            '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+        }
         encoder = {
             '_target_': 'nemo.collections.asr.modules.ECAPAEncoder',
             'feat_in': 80,
@@ -81,7 +85,7 @@ class EncDecSpeechLabelModelTest(TestCase):
             'kernel_sizes': [5, 3, 3, 3, 1],
             'dilations': [1, 1, 1, 1, 1],
             'scale': 2,
-            }
+        }
 
         decoder = {
             '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
@@ -193,7 +197,7 @@ class TestEncDecSpeechLabelModel:
                 entry = {"audio_filepath": filename, "duration": 4.5, "label": 'en'}
                 fp.write(json.dumps(entry) + '\n')
 
-            embs, logits, gt_labels, mapped_labels = lang_model.batch_inference(temp_manifest, device=device)
-            pred_label = mapped_labels[logits.argmax(axis=-1)[0]]
-            true_label = mapped_labels[gt_labels[0]]
+            embs, logits, gt_labels, trained_labels = lang_model.batch_inference(temp_manifest, device=device)
+            pred_label = trained_labels[logits.argmax(axis=-1)[0]]
+            true_label = gt_labels[0]
             assert pred_label == true_label
