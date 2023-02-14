@@ -444,8 +444,8 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
 
     Returns:
-        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
-        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
+        all_reference (List[uniq_name,Annotation]): reference annotations for score calculation
+        all_hypothesis (List[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     """
     all_hypothesis = []
@@ -1276,7 +1276,7 @@ def get_scale_mapping_argmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[
     )
     session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
     for scale_idx in range(len(session_scale_mapping_list)):
-        mapping_argmat = session_scale_mapping_list[scale_idx]
+        mapping_argmat = session_scale_mapping_List[scale_idx]
         scale_mapping_argmat[scale_idx] = mapping_argmat
     return scale_mapping_argmat
 
@@ -1303,7 +1303,7 @@ def get_overlap_stamps(cont_stamps: List[str], ovl_spk_idx: List[str]):
         for idx, cont_a_line in enumerate(cont_stamps):
             start, end, speaker = cont_a_line.split()
             if idx in ovl_spk_idx[spk_idx]:
-                ovl_spk_cont_list[spk_idx].append(f"{start} {end} speaker_{spk_idx}")
+                ovl_spk_cont_List[spk_idx].append(f"{start} {end} speaker_{spk_idx}")
     total_ovl_cont_list = []
     for ovl_cont_list in ovl_spk_cont_list:
         if len(ovl_cont_list) > 0:
@@ -1395,7 +1395,7 @@ def generate_speaker_timestamps(
             idx_arr = np.argsort(sm_for_seg)[::-1]
             for ovl_spk_idx in idx_arr[: params['max_overlap_spks']].tolist():
                 if ovl_spk_idx != int(main_spk_idx):
-                    overlap_speaker_list[ovl_spk_idx].append(seg_idx)
+                    overlap_speaker_List[ovl_spk_idx].append(seg_idx)
         main_speaker_lines.append(f"{cluster_label[0]} {cluster_label[1]} speaker_{main_spk_idx}")
     cont_stamps = get_contiguous_stamps(main_speaker_lines)
     maj_labels = merge_stamps(cont_stamps)
@@ -1435,7 +1435,7 @@ def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: L
     session_dict = {x: [] for x in uniq_id_list}
     for idx, line in enumerate(test_data_collection):
         uniq_id = get_uniqname_from_filepath(line.audio_file)
-        session_dict[uniq_id].append([line.target_spks, preds_list[idx]])
+        session_dict[uniq_id].append([line.target_spks, preds_List[idx]])
     return session_dict
 
 
@@ -1637,9 +1637,9 @@ class OnlineSegmentor:
         self, 
         audio_buffer: torch.Tensor,
         vad_timestamps: torch.Tensor,
-        segment_raw_audio: list[torch.Tensor],
-        segment_range_ts: list[list[float]],
-        segment_indexes: list[int],
+        segment_raw_audio: List[torch.Tensor],
+        segment_range_ts: List[List[float]],
+        segment_indexes: List[int],
         window: float,
         shift: float,
     ):

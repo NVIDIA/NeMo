@@ -37,21 +37,20 @@ def unravel_index(index: int, shape: torch.Tensor):
 @torch.jit.script
 class LinearSumAssignmentSolver(object):
     """
-    Solver for the linear sum assignment problem. Created for torch.jit.script compatibility in NeMo.
-    The linear sum assignment (LSA) problem is also referred to as bipartite matching problem. An LSA
-    problem is described by a matrix `cost_mat`, where each cost_mat[i,j] is the cost of matching 
-    vertex i of the first partite set (e.g. a "worker") and vertex j of the second set (e.g. a "job"). 
-    Thus, the goal of LSA-solver is to find a complete assignment of column element to row element with 
-    the minimal cost. Note that the solution may not be unique and there could be multiple solutions that
-    yield the same minimal cost.
+    A Solver class for the linear sum assignment (LSA) problem. Created for torch.jit.script compatibility 
+    in NeMo. The LSA problem is also referred to as bipartite matching problem. An LSA problem is described 
+    by a matrix `cost_mat`, where each cost_mat[i,j] is the cost of matching vertex i of the first partite 
+    set (e.g. a "worker") and vertex j of the second set (e.g. a "job"). Thus, the goal of LSA-solver is 
+    to find a complete assignment of column element to row element with the minimal cost. Note that the solution 
+    may not be unique and there could be multiple solutions that yield the same minimal cost.
 
-    Linear sum assignment problem is needed for the following tasks:
-        1. Permutation Invariant Loss for diarization model training
-        2. Label stitching for online speaker diarzation 
-        3. Concatenate permutation Word Error Rate (cp-WER) calculation 
+    LSA problem solver is needed for the following tasks in NeMo:
+        - Permutation Invariant Loss (PIL) for diarization model training
+        - Label permutation matching for online speaker diarzation 
+        - Concatenated minimum-permutation Word Error Rate (cp-WER) calculation 
 
     This implementation is based on the LAP solver from scipy: 
-        https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py.
+        https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
 
     References
         1. http://csclab.murraystate.edu/bob.pilgrim/445/munkres.html
@@ -59,21 +58,28 @@ class LinearSumAssignmentSolver(object):
         3. https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
 
     Attributes:
-        cost_mat : 2D matrix containing cost matrix. Number of columns must be larger than number of rows.
-        row_uncovered : 1D matrix containing boolean values indicating whether a row is covered.
-        col_uncovered : 1D matrix containing boolean values indicating whether a column is covered.
-        zero_row : 1D matrix containing the row index of the last zero found.
-        zero_col : 1D matrix containing the column index of the last zero found.
-        path : 2D matrix containing the path taken through the matrix.
-        marked : 2D matrix containing the marked zeros.
+        cost_mat (Tensor): 2D matrix containing cost matrix. Number of columns must be larger than number of rows.
+        row_uncovered (Tensor): 1D matrix containing boolean values indicating whether a row is covered.
+        col_uncovered (Tensor): 1D matrix containing boolean values indicating whether a column is covered.
+        zero_row (Tensor): 1D matrix containing the row index of the last zero found.
+        zero_col (Tensor): 1D matrix containing the column index of the last zero found.
+        path (Tensor): 2D matrix containing the path taken through the matrix.
+        marked (Tensor): 2D matrix containing the marked zeros.
     """
     def __init__(self, cost_matrix):
+        # The main cost matrix 
         self.cost_mat = cost_matrix
         row_len, col_len = self.cost_mat.shape
+
+        # Initialize the solver state
         self.zero_row = torch.tensor(0, dtype=torch.long).to(cost_matrix.device)
         self.zero_col = torch.tensor(0, dtype=torch.long).to(cost_matrix.device)
+
+        # Initialize the covered matrices
         self.row_uncovered = torch.ones(row_len, dtype=torch.bool).to(cost_matrix.device)
         self.col_uncovered = torch.ones(col_len, dtype=torch.bool).to(cost_matrix.device)
+
+        # Initialize the path matrix and the mark matrix
         self.path = torch.zeros((row_len+col_len, 2), dtype=torch.long).to(cost_matrix.device)
         self.marked = torch.zeros((row_len, col_len), dtype=torch.long).to(cost_matrix.device)
 
@@ -88,8 +94,14 @@ class LinearSumAssignmentSolver(object):
         """
         Step 1
 
-        - For each row of the matrix, find the smallest element and subtract it from every element in its row.
-        - Go to Step 2.
+        Goal: Subtract the smallest element of each row from its elements.
+            - All elements of the matrix are now non-negative.
+            - Therefore, an assignment of total cost 0 is the minimum cost assignment.
+            - This operation leads to at least one zero in each row.
+
+        Procedure:
+            - For each row of the matrix, find the smallest element and subtract it from every element in its row.
+            - Go to Step 2.
         """
         self.cost_mat -= torch.min(self.cost_mat, dim=1)[0].unsqueeze(1)
         return 2
@@ -98,10 +110,13 @@ class LinearSumAssignmentSolver(object):
         """
         Step 2
 
-        - Find a zero in the resulting cost matrix. 
-        - If there are no marked zeros in its row or column, mark the zero. 
-        - Repeat for each element in the matrix.
-        - Go to step 3.
+        Goal: Make sure assignment with cost sum 0 is feasible.
+
+        Procedure:
+            - Find a zero in the resulting cost matrix. 
+            - If there are no marked zeros in its row or column, mark the zero. 
+            - Repeat for each element in the matrix.
+            - Go to step 3.
         """
         ind_out = torch.where(self.cost_mat == 0)
         ind, val = list(ind_out[0]), list(ind_out[1])
@@ -117,11 +132,14 @@ class LinearSumAssignmentSolver(object):
     def _step3(self) -> int:
         """
         Step 3
+        
+        Goal: All zeros in the matrix must be covered by marking with the least numbers of rows and columns.
 
-        - Cover each column containing a marked zero. 
-            - If n columns are covered, the marked zeros describe a complete set of unique assignments.
-              In this case, Go to Step 0 (Done state)
-            - Otherwise, Go to Step 4.
+        Procedure:
+            - Cover each column containing a marked zero. 
+                - If n columns are covered, the marked zeros describe a complete set of unique assignments.
+                In this case, Go to Step 0 (Done state)
+                - Otherwise, Go to Step 4.
         """
         marked = (self.marked == 1)
         self.col_uncovered[torch.any(marked, dim=0)] = False
@@ -134,12 +152,15 @@ class LinearSumAssignmentSolver(object):
         """
         Step 4
 
-        - Find a noncovered zero and prime it. 
-            - If there is no marked zero in the row containing this primed zero, Go to Step 5.
-            - Otherwise, cover this row and uncover the column containing the marked zero. 
-        - Continue in this manner until there are no uncovered zeros left. 
-        - Save the smallest uncovered value.
-        - Go to Step 6.
+        Goal: Cover all columns containing a marked zero.
+
+        Procedure:
+            - Find a noncovered zero and prime it. 
+                - If there is no marked zero in the row containing this primed zero, Go to Step 5.
+                - Otherwise, cover this row and uncover the column containing the marked zero. 
+            - Continue in this manner until there are no uncovered zeros left. 
+            - Save the smallest uncovered value.
+            - Go to Step 6.
         """
         # We convert to int as numpy operations are faster on int
         cost_mat = (self.cost_mat == 0).int()
@@ -172,15 +193,17 @@ class LinearSumAssignmentSolver(object):
         """
         Step 5
 
-        Construct a series of alternating primed and marked zeros as follows.
-        - Let Z0 represent the uncovered primed zero found in Step 4.
-        - Let Z1 denote the marked zero in the column of Z0 (if any).
-        - Let Z2 denote the primed zero in the row of Z1 (there will always be one).
-        - Continue until the series terminates at a primed zero that has no marked zero in its column. 
-        - Unmark each marked zero of the series.
-        - Mark each primed zero of the series.
-        - Erase all primes and uncover every line in the matrix. 
-        - Return to Step 3
+        Goal: Construct a series of alternating primed and marked zeros as follows.
+        
+        Procedure:
+            - Let Z0 represent the uncovered primed zero found in Step 4.
+            - Let Z1 denote the marked zero in the column of Z0 (if any).
+            - Let Z2 denote the primed zero in the row of Z1 (there will always be one).
+            - Continue until the series terminates at a primed zero that has no marked zero in its column. 
+            - Unmark each marked zero of the series.
+            - Mark each primed zero of the series.
+            - Erase all primes and uncover every line in the matrix. 
+            - Return to Step 3
         """
         count = torch.tensor(0)
         path = self.path
@@ -188,7 +211,7 @@ class LinearSumAssignmentSolver(object):
         path[count, 1] = self.zero_col.long()
 
         while True:
-            # Find the first marked element in the col defined by the path.
+            # Find the first marked element in the col defined by the path (= `val`)
             row = torch.argmax((self.marked[:, path[count, 1]] == 1).int())
 
             if self.marked[row, path[count, 1]] != 1:
