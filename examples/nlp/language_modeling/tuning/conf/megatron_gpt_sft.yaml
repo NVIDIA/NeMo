@@ -62,6 +62,7 @@ model:
   gradient_as_bucket_view: False
 
   data:
+    skip_inference_generate: True
     train_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: ${model.global_batch_size}
@@ -136,7 +137,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 3e-5
+    lr: 1e-5
     weight_decay: 0.01 
     betas: 
     - 0.9

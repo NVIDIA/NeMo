@@ -76,6 +76,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             if not hasattr(data_cfg.metric, "name"):
                 raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name == "loss":
+                return None, "loss"
             if data_cfg.metric.name not in MetricStringToTorchMetric:
                 raise KeyError(
                     f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
@@ -268,7 +270,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
         loss = super().validation_step(batch, batch_idx)
-
+        if self.cfg.data.get('skip_inference_generate', False):
+            return {
+                'loss': loss,
+                'preds': None,
+                'labels': None,
+                'inputs': None,
+            }
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
