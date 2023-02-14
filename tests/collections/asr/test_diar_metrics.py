@@ -138,12 +138,10 @@ class TestLinearSumAssignment:
         linear sum assignment.
         """
         torch.manual_seed(seed)
-        
         # Test integer cost matrix
         cost_matrix = torch.randint(max_int_cost, (cost_matrix_size, cost_matrix_size))
         _row_ind, _col_ind = _linear_sum_assignment(cost_matrix.numpy())
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-
         assert torch.sum(cost_matrix[_row_ind,_col_ind]) == torch.sum(cost_matrix[row_ind,col_ind])
         
         # Test float cost matrix
