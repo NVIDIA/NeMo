@@ -76,7 +76,7 @@ class TestRNNTCUDAKernels:
             stream = cuda.default_stream()
 
         x_c = torch.tensor(x, device=device, dtype=dtype)
-        labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
+        labels_c = torch.tensor(labels, device=device, dtype=torch.int64)
 
         # Allocate workspace memory
         denom = torch.zeros(B * T * U, device=device, dtype=x_c.dtype)
