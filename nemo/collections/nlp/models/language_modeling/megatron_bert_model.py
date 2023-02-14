@@ -357,21 +357,22 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
-            self.log('reduced_train_loss', loss_mean[0], prog_bar=True)
+            self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
             if len(loss_mean) > 2:
-                self.log('reduced_lm_train_loss', loss_mean[1], prog_bar=True)
-                self.log('reduced_sop_train_loss', loss_mean[2], prog_bar=True)
+                self.log('reduced_lm_train_loss', loss_mean[1], prog_bar=True, batch_size=1)
+                self.log('reduced_sop_train_loss', loss_mean[2], prog_bar=True, batch_size=1)
             lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('lr', lr, batch_size=1)
+            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
                 'consumed_samples',
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
                 prog_bar=True,
+                batch_size=1
             )
 
         return loss_mean[0]
@@ -438,7 +439,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True)
+        self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
