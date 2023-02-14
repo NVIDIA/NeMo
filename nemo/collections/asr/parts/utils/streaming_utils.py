@@ -368,6 +368,8 @@ class StreamingFeatureBufferer:
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
+
+
         self.asr_model = asr_model
         self.sr = asr_model.cfg.sample_rate
         self.model_normalize_type = asr_model.cfg.preprocessor.normalize
@@ -391,6 +393,8 @@ class StreamingFeatureBufferer:
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
         cfg.preprocessor.normalize = "None"
+
+        OmegaConf.set_struct(cfg.preprocessor, True)
         self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(asr_model.device)
 
@@ -826,14 +830,10 @@ class FrameBatchVAD:
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        self.frame_bufferer = FeatureFrameBufferer(
-            asr_model=vad_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
-        )
         self.chunk_len_in_sec = frame_len
         self.total_buffer = total_buffer
         self.vad_config = vad_config
         self.vad_config_parameters = self.prepare_parameters()
-        # self.vad_config_parameters = OmegaConf.to_container(vad_config['parameters'], resolve=True)
 
         self.window_length_in_sec = self.vad_config_parameters.get('window_length_in_sec', 0.63)
         self.shift_length_in_sec = self.vad_config_parameters.get('shift_length_in_sec', 0.01)
@@ -847,13 +847,15 @@ class FrameBatchVAD:
 
         self.prev_len_features = int(self.window_length_in_feature / 2 - 1)
 
-
         self.pred_buffer_len = int(self.total_buffer * 100)
         self.prev_pred_len = int((self.total_buffer - self.chunk_len_in_sec) * 100)
 
+        self.n_feat = self.vad_model.cfg.preprocessor.features
+
+        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         self.reset()
 
-
+            
     def prepare_parameters(self):
         per_args = OmegaConf.to_container(self.vad_config['parameters'], resolve=True)
         if 'filter_speech_first' in per_args:
@@ -871,57 +873,35 @@ class FrameBatchVAD:
         """
         self.all_logprobs = torch.zeros([self.pred_buffer_len])
 
+
+    @torch.no_grad()
+    def infer_to_ts_with_feature(self, feat_signal, feat_signal_len, tokens_per_chunk: int, delay: int, streaming_mode=False):
+        self.infer_logits(feat_signal)
+        return self.convert_to_timestamp(self.all_logprobs)
+
+
     @torch.no_grad()
     def infer_logits(self, feat_signal):
         self._get_batch_preds(feat_signal)
 
     @torch.no_grad()
-    def _gen_segments(self, feat_signal):
-        end = self.window_length_in_feature - self.prev_len_features -1 
-        end_tensor = torch.full((1, 80, end), -16)
-
-        padded_feature = torch.cat([feat_signal, end_tensor], axis=2)
-        slices  = padded_feature.unfold(2, self.window_length_in_feature, self.shift_length_in_feature)
-        slices = slices.transpose(1,2)
-        return slices
-
-    @torch.no_grad()
-    def infer_buffer_logits(self, feat_signal, feat_signal_len):
-        # Take last 64 frames of a buffer
-
-        feat_signal = feat_signal[:, :, -int(self.frame_len * 100):]
-        feat_signal_len = torch.Tensor([int(feat_signal.shape[-1])])
-
-        feat_signal, feat_signal_len = feat_signal.to(self.vad_model.device), feat_signal_len.to(self.vad_model.device)
-        logits = self.vad_model(
-              processed_signal=feat_signal, processed_signal_length=feat_signal_len
-        )
-
-        logprob = torch.softmax(logits, dim=-1)
-        logprob = logprob[:, 1].cpu()
-        self.all_logprobs = torch.cat([self.all_logprobs[-4:], logprob])
-        del logits
-        del logprob
-
-    @torch.no_grad()
     def _get_batch_preds(self, feat_signal):
+        """
+        Generate predictions of batch, in streaming vad, feat_signal is of shape number of batch is 1. 
+        """
+
         device = self.vad_model.device
         vad_sliced = self._gen_segments(feat_signal)
-
         for batch in vad_sliced:
-         
             feat_signal = batch
-            feat_signal_len = torch.full([feat_signal.shape[0]], feat_signal.shape[-1])
-           
+
+            feat_signal_len =  torch.Tensor([int(feat_signal.shape[-1])])
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
-            logits = self.vad_model(
-                processed_signal=feat_signal, processed_signal_length=feat_signal_len
-            )
+            logits = self.vad_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
             logprob = torch.softmax(logits, dim=-1)
             logprob = logprob[:, 1].cpu()
-            # print(logprob) 
-            # TODO To debug so weird.
+          
             prev_all_logprobs = self.all_logprobs.clone()
             self.all_logprobs[:self.prev_pred_len] = prev_all_logprobs[-self.prev_pred_len:]
             self.all_logprobs[self.prev_pred_len:] = logprob
@@ -930,13 +910,30 @@ class FrameBatchVAD:
             del prev_all_logprobs
 
 
-    def infer_to_ts_with_feature(self, feat_signal, feat_signal_len, tokens_per_chunk: int, delay: int, streaming_mode=False):
+    @torch.no_grad()
+    def _gen_segments(self, feat_signal):
+        """
+        Generate segemnts on feature level with window_length_in_sec (i.e. 0.15) and shift_length_in_sec (i.e. 0.01)
 
-        self.infer_logits(feat_signal)
+        for example, feat_signal of shape [1, 80, 107] will become slices of shape [1, 100, 80, 16] for batch inference.
+        """
 
-        return self.convert_to_timestamp(self.all_logprobs)
+        end = self.window_length_in_feature - self.prev_len_features -1 
+        end_tensor = torch.full((1, self.n_feat, end), self.ZERO_LEVEL_SPEC_DB_VAL ).to(feat_signal.device)
 
+        padded_feature = torch.cat([feat_signal, end_tensor], axis=2)
+
+        slices  = padded_feature.unfold(2, self.window_length_in_feature, self.shift_length_in_feature)
+        slices = slices.transpose(1,2).to(feat_signal.device)
+
+        return slices
+
+
+    @torch.no_grad() 
     def convert_to_timestamp(self, preds):
+        """
+        convert from vad predictions to timestamps using postprocessing parameters.
+        """
         
         speech_segments = binarization(preds, self.vad_config_parameters)
         speech_segments = filtering(speech_segments, self.vad_config_parameters)

@@ -1512,7 +1512,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         # Real-life streaming audio
         self._streamingFeatBufferer = StreamingFeatureBufferer(self.asr_model, 
                                                                chunk_size=self.frame_len, 
-                                                               buffer_size=self.frame_len + 2*self.frame_overlap)
+                                                               buffer_size=self.frame_len + 2 * self.frame_overlap)
         self.reset()
 
         write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
@@ -1607,6 +1607,9 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         """
         if self._cfg_diarizer.vad.model_path is not None:
             self.vad_model = nemo_asr.models.EncDecClassificationModel.restore_from(self._cfg_diarizer.vad.model_path)
+
+            self.vad_model_cfg = self.vad_model._cfg
+
             self.vad_model = self.vad_model.to(self.device)
             self.vad_model.eval()
 
@@ -1890,19 +1893,16 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
             batch_size=self.asr_batch_size,
         )
 
-        self.set_buffered_infer_params(self.vad_model)
-        self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
-
-
     @timeit
-    def run_VAD_decoder_step(self, buffer):
+    def run_VAD_decoder_step(self, frame):
         """
         Run ASR decoder step. This function returns VAD timstamps for the current buffer.
 
         Streaming VAD infer Example:
           
         """
-        buffer = self._streamingFeatBufferer.get_raw_feature_buffer()
+        buffer = self._streamingFeatBufferer.get_raw_feature_buffer() 
+
         ts = get_vad_feat_logit_single(
             buffer,
             self.frame_vad,
@@ -2116,10 +2116,11 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         # Save the input frame into audio buffer.
         self._streamingFeatBufferer.update_feature_buffer(chunk=torch.tensor(frame))
         self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
-
+        raw = self._streamingFeatBufferer.get_raw_feature_buffer()
+        
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_timestamps, vad_offset = self.run_VAD_decoder_step(buffer=self.audio_buffer)
-
+        vad_mask, vad_timestamps, vad_offset = self.run_VAD_decoder_step(frame)
+        
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
         words, word_timestamps, offset = self.run_ASR_decoder_step(frame_mask=vad_mask)
 
