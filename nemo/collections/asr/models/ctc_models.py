@@ -537,7 +537,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         # generating decoding results for intermediate layers if necessary
-        if self.training and self.intermediate_loss_weights:
+        if self.intermediate_loss_weights:
             # we assume that encoder has to have property called "captured_layer_outputs"
             # which is a list with the same length as loss weights
             if len(self.encoder.captured_layer_outputs) != len(self.intermediate_loss_weights):
@@ -559,37 +559,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             greedy_predictions,
         )
 
-    def add_auxiliary_losses(
-        self,
-        loss: torch.Tensor,
-        transcript: torch.Tensor,
-        transcript_len: torch.Tensor,
-        reset_registry: bool = False,
-        log_prefix: str = "",
-    ) -> torch.Tensor:
-        """Adding intermediate CTC losses if required."""
-        original_loss = super().add_auxiliary_losses(loss, reset_registry)
-        loss = original_loss * self.main_loss_weight
-
-        log_dict = {}
-        for idx, (intermediate_result, loss_weight) in enumerate(
-            zip(self.intermediate_decoding_results, self.intermediate_loss_weights)
-        ):
-            loss_value = self.loss(
-                log_probs=intermediate_result[0],
-                targets=transcript,
-                input_lengths=intermediate_result[1],
-                target_lengths=transcript_len,
-            )
-            log_dict[f"{log_prefix}inter_ctc_loss{idx}"] = loss_value.detach()
-            loss += loss_value * loss_weight
-
-        if len(log_dict) > 0:
-            log_dict[f"{log_prefix}final_ctc_loss"] = original_loss
-            self.log_dict(log_dict)
-
-        return loss
-
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # Reset access registry
@@ -604,27 +573,60 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            log_every_n_steps = self._trainer.log_every_n_steps
+        else:
+            log_every_n_steps = 1
+
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
         # Add auxiliary losses, if registered
-        loss_value = self.add_auxiliary_losses(loss_value, transcript, transcript_len)
+        loss_value = self.add_auxiliary_losses(loss_value)
+
+        # potentially adding intermediate CTC losses/wers
+        original_loss = loss_value
+        loss_value = original_loss * self.main_loss_weight
+
+        tensorboard_logs = {}
+        for idx, (intermediate_result, loss_weight) in enumerate(
+            zip(self.intermediate_decoding_results, self.intermediate_loss_weights)
+        ):
+            inter_loss_value = self.loss(
+                log_probs=intermediate_result[0],
+                targets=transcript,
+                target_lengths=transcript_len,
+                input_lengths=intermediate_result[1],
+            )
+            tensorboard_logs[f"inter_ctc_loss{idx}"] = loss_value.detach()
+            loss_value += inter_loss_value * loss_weight
+            if (batch_nb + 1) % log_every_n_steps == 0:
+                self._wer.update(
+                    predictions=intermediate_result[0],
+                    targets=transcript,
+                    target_lengths=transcript_len,
+                    predictions_lengths=intermediate_result[1],
+                )
+                wer, _, _ = self._wer.compute()
+                self._wer.reset()
+                tensorboard_logs.update({f'training_batch_inter_wer{idx}': wer})
+
+        # only need to add final_ctc_loss if it's different from total loss
+        if len(tensorboard_logs) > 0:
+            tensorboard_logs["final_ctc_loss"] = original_loss
 
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
-        }
-
-        if hasattr(self, '_trainer') and self._trainer is not None:
-            log_every_n_steps = self._trainer.log_every_n_steps
-        else:
-            log_every_n_steps = 1
+        tensorboard_logs.update(
+            {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
+        )
 
         if (batch_nb + 1) % log_every_n_steps == 0:
             self._wer.update(
@@ -636,16 +638,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             wer, _, _ = self._wer.compute()
             self._wer.reset()
             tensorboard_logs.update({'training_batch_wer': wer})
-            for idx, intermediate_result in enumerate(self.intermediate_decoding_results):
-                self._wer.update(
-                    predictions=intermediate_result[0],
-                    targets=transcript,
-                    target_lengths=transcript_len,
-                    predictions_lengths=intermediate_result[1],
-                )
-                wer, _, _ = self._wer.compute()
-                self._wer.reset()
-                tensorboard_logs.update({f'training_batch_inter_wer{idx}': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -677,20 +669,23 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        loss_value = self.add_auxiliary_losses(loss_value, transcript, transcript_len, prefix="val_")
-        self._wer.update(
-            predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
-        )
-        wer, wer_num, wer_denom = self._wer.compute()
-        self._wer.reset()
-        metrics = {
-            'val_loss': loss_value,
-            'val_wer_num': wer_num,
-            'val_wer_denom': wer_denom,
-            'val_wer': wer,
-        }
 
-        for idx, intermediate_result in enumerate(self.intermediate_decoding_results):
+        # potentially adding intermediate CTC losses/wers
+        original_loss = loss_value
+        loss_value = original_loss * self.main_loss_weight
+
+        metrics = {}
+        for idx, (intermediate_result, loss_weight) in enumerate(
+            zip(self.intermediate_decoding_results, self.intermediate_loss_weights)
+        ):
+            inter_loss_value = self.loss(
+                log_probs=intermediate_result[0],
+                targets=transcript,
+                target_lengths=transcript_len,
+                input_lengths=intermediate_result[1],
+            )
+            metrics[f"val_inter_ctc_loss{idx}"] = loss_value.detach()
+            loss_value += inter_loss_value * loss_weight
             self._wer.update(
                 predictions=intermediate_result[0],
                 targets=transcript,
@@ -706,6 +701,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     f'val_inter_wer{idx}': wer,
                 }
             )
+        # only need to add final_ctc_loss if it's different from total loss
+        if len(metrics) > 0:
+            metrics["val_final_ctc_loss"] = original_loss
+
+        self._wer.update(
+            predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+        )
+        wer, wer_num, wer_denom = self._wer.compute()
+        self._wer.reset()
+        metrics.update(
+            {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer,}
+        )
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
