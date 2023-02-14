@@ -105,6 +105,24 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             Defaults to 0.1.
         dropout_att (float): the dropout rate used for the attention layer
             Defaults to 0.0.
+        stochastic_depth_drop_prob (float): if non-zero, will randomly drop
+            layers during training. The higher this value, the more often layers
+            are dropped. Defaults to 0.0.
+        stochastic_depth_mode (str): can be either "linear" or "uniform". If
+            set to "uniform", all layers have the same probability of drop. If
+            set to "linear", the drop probability grows linearly from 0 for the
+            first layer to the desired value for the final layer. Defaults to
+            "linear".
+        stochastic_depth_start_layer (int): starting layer for stochastic depth.
+            All layers before this will never be dropped. Note that drop
+            probability will be adjusted accordingly if mode is "linear" when
+            start layer is > 0. Defaults to 0.
+        capture_output_at_layers (list[int], optional): specify a list of
+            integers to capture the output of certain layers during the
+            training. Can be used for debugging or to enable intermediate CTC
+            losses. The captured outputs will be accessble through
+            ``self.captured_layer_outputs`` list after every call to
+            :meth:`forward`. Defaults to None (nothing is captured).
     """
 
     def input_example(self, max_batch=1, max_dim=256):
