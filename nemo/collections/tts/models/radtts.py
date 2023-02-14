@@ -485,6 +485,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         else:
             lens = lens.to(dtype=torch.int64)
 
+        speaker_id_text[0] = 11  # speaker_id_text,
+        speaker_id_attributes[0] = 11  # speaker_id_attributes,
+
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,
             text,
@@ -494,8 +497,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             sigma_txt=0.7,
             sigma_f0=1.0,
             sigma_energy=1.0,
-            f0_mean=0.0,
-            f0_std=0.0,
+            f0_mean=143.0,
+            f0_std=30.0,
             in_lens=lens,
             pitch_shift=pitch,
             pace=pace,
