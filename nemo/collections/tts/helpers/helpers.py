@@ -728,7 +728,6 @@ def batch_from_ragged(
     paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     lens = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
-    speakers = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
     last_index = index - 1
     while index < batch_lengths.shape[0]:
         seq_start = batch_lengths[last_index]
