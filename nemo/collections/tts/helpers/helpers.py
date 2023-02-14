@@ -164,7 +164,7 @@ def sort_tensor(
 
 
 def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
-    unsort_ids = indices.gather(0, indices.argsort(0))
+    unsort_ids = indices.gather(0, indices.argsort(0, descending=True))
     return torch.index_select(ordered, dim, unsort_ids)
 
 
@@ -716,8 +716,7 @@ def batch_from_ragged(
     batch_lengths: torch.Tensor,
     padding_idx: int = -1,
     volume: Optional[torch.Tensor] = None,
-    speaker: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
 
     batch_lengths = batch_lengths.to(dtype=torch.int64)
     max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
@@ -741,12 +740,10 @@ def batch_from_ragged(
         paces[last_index, :cur_seq_len] = pace[seq_start:seq_end]
         if volume is not None:
             volumes[last_index, :cur_seq_len] = volume[seq_start:seq_end]
-        if speaker is not None:
-            speakers[last_index, :cur_seq_len] = speaker[seq_start:seq_end]
         last_index = index
         index += 1
 
-    return texts, pitches, paces, volumes, speakers, lens
+    return texts, pitches, paces, volumes, lens
 
 
 def sample_tts_input(
@@ -767,7 +764,8 @@ def sample_tts_input(
         left_over_size = sz[0]
         batch_lengths[0] = 0
         for i in range(1, max_batch):
-            length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=device, dtype=torch.int32)
+            equal_len = (left_over_size - (max_batch - i)) // (max_batch - i)
+            length = torch.randint(equal_len // 2, equal_len, (1,), device=device, dtype=torch.int32)
             batch_lengths[i] = length + batch_lengths[i - 1]
             left_over_size -= length.detach().cpu().numpy()[0]
         batch_lengths[-1] = left_over_size + batch_lengths[-2]
@@ -779,7 +777,7 @@ def sample_tts_input(
             index += 1
         assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
     else:
-        batch_lengths = torch.randint(max_dim // 4, max_dim, (max_batch,), device=device, dtype=torch.int32)
+        batch_lengths = torch.randint(max_dim // 2, max_dim, (max_batch,), device=device, dtype=torch.int32)
         batch_lengths[0] = max_dim
     inputs['batch_lengths'] = batch_lengths
 
