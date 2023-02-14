@@ -75,12 +75,12 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.with_distributed_adam = self.cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
-        if self._cfg.get('use_cpu_initialization', False) is False:
+        if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
         # buffer used during train_step for logging average loss over gradient accumulation steps
@@ -90,12 +90,12 @@ class MegatronBaseModel(NLPModel):
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
             local_rank=trainer.local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
-            virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
-            pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
-            micro_batch_size=cfg.get('micro_batch_size'),
-            global_batch_size=cfg.get('global_batch_size'),
+            tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=self.cfg.get('pipeline_model_parallel_size', 1),
+            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            pipeline_model_parallel_split_rank=self.cfg.get('pipeline_model_parallel_split_rank', 0),
+            micro_batch_size=self.cfg.get('micro_batch_size'),
+            global_batch_size=self.cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -105,8 +105,8 @@ class MegatronBaseModel(NLPModel):
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
-        if hasattr(self._cfg, "tokenizer") or (
-            hasattr(self._cfg, "encoder_tokenizer") and hasattr(self._cfg, "decoder_tokenizer")
+        if hasattr(self.cfg, "tokenizer") or (
+            hasattr(self.cfg, "encoder_tokenizer") and hasattr(self.cfg, "decoder_tokenizer")
         ):
             # build tokenizer (defaults to nemo supported tokenizers)
             self._build_tokenizer()
@@ -580,3 +580,13 @@ class MegatronBaseModel(NLPModel):
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
+
+    @property
+    def tensor_model_parallel_size(self):
+        """Returns Tensor parallelism size of the current model instance."""
+        return self.cfg.get('tensor_model_parallel_size', 1)
+
+    @property
+    def pipeline_model_parallel_size(self):
+        """Returns Pipeline parallelism size of the current model instance."""
+        return self.cfg.get('pipeline_model_parallel_size', 1)

@@ -92,7 +92,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self._validate_trainer()
 
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
 
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
@@ -136,16 +136,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-        self.transformer_engine = cfg.get('transformer_engine', False)
+        self.transformer_engine = self.cfg.get('transformer_engine', False)
 
         # configuration used for inference
         self._inference_config = None
 
         # Convert the global-batch-based profile index to micro-batch index
         if hasattr(self, '_nsys_profile_enabled'):
-            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+            mp_size = self.cfg.get('tensor_model_parallel_size', 1) * self.cfg.get('pipeline_model_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // mp_size
-            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
+            grad_accum_steps = self.cfg.get('global_batch_size') // (self.cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
