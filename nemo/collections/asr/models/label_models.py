@@ -99,10 +99,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.cal_labels_occurrence_train = False
         self.labels_occurrence = None
 
-        if 'num_classes' in cfg.decoder:
-            num_classes = cfg.decoder.num_classes
-        else:
-            num_classes = cfg.decoder.params.num_classes  # to pass test
+        num_classes = cfg.decoder.num_classes
 
         if 'loss' in cfg:
             if 'weight' in cfg.loss:

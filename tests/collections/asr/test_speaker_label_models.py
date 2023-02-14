@@ -50,8 +50,11 @@ class EncDecSpeechLabelModelTest(TestCase):
         }
 
         decoder = {
-            'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
-            'params': {'feat_in': 512, 'num_classes': 2, 'pool_mode': 'xvector', 'emb_sizes': [1024]},
+            '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
+            'feat_in': 512,
+            'num_classes': 2,
+            'pool_mode': 'xvector',
+            'emb_sizes': [1024],
         }
 
         modelConfig = DictConfig(
@@ -85,8 +88,11 @@ class EncDecSpeechLabelModelTest(TestCase):
         }
 
         decoder = {
-            'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
-            'params': {'feat_in': 3, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
+            '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
+            'feat_in': 3,
+            'num_classes': 2,
+            'pool_mode': 'attention',
+            'emb_sizes': 192,
         }
 
         modelConfig = DictConfig(
@@ -106,30 +112,31 @@ class EncDecSpeechLabelModelTest(TestCase):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
             'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-            'params': {
-                'feat_in': 64,
-                'activation': 'relu',
-                'conv_mask': True,
-                'jasper': [
-                    {
-                        'filters': 256,
-                        'repeat': 1,
-                        'kernel': [1],
-                        'stride': [1],
-                        'dilation': [1],
-                        'dropout': 0.0,
-                        'residual': False,
-                        'separable': True,
-                        'se': True,
-                        'se_context_size': -1,
-                    }
-                ],
-            },
+            'feat_in': 64,
+            'activation': 'relu',
+            'conv_mask': True,
+            'jasper': [
+                {
+                    'filters': 256,
+                    'repeat': 1,
+                    'kernel': [1],
+                    'stride': [1],
+                    'dilation': [1],
+                    'dropout': 0.0,
+                    'residual': False,
+                    'separable': True,
+                    'se': True,
+                    'se_context_size': -1,
+                }
+            ],
         }
 
         decoder = {
-            'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
-            'params': {'feat_in': 256, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': [1024]},
+            '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
+            'feat_in': 256,
+            'num_classes': 2,
+            'pool_mode': 'attention',
+            'emb_sizes': [1024],
         }
 
         modelConfig = DictConfig(
