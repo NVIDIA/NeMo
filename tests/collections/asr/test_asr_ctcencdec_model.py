@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import copy
 
 import pytest
@@ -89,6 +90,99 @@ def asr_model():
 
     model_instance = EncDecCTCModel(cfg=modelConfig)
     return model_instance
+
+
+class TestInterCTCLoss:
+    @pytest.mark.parametrize(
+        "capture_output_at_layers,intermediate_loss_weights",
+        [
+            ([2, 4], [0.1, 0.3]),
+            ([4], [0.3]),
+            ([], []),
+            # errors
+            ([2, 4], [0.1]),
+            ([2], [0.1, 0.3]),
+            ([], [0.3]),
+        ],
+    )
+    def test_forward(self, capture_output_at_layers, intermediate_loss_weights):
+        preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
+        encoder = {
+            '_target_': 'nemo.collections.asr.modules.ConformerEncoder',
+            'feat_in': 64,
+            'n_layers': 8,
+            'd_model': 4,
+            'capture_output_at_layers': capture_output_at_layers,
+        }
+
+        decoder = {
+            '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
+            'feat_in': None,
+            'num_classes': 28,
+            'vocabulary': [
+                ' ',
+                'a',
+                'b',
+                'c',
+                'd',
+                'e',
+                'f',
+                'g',
+                'h',
+                'i',
+                'j',
+                'k',
+                'l',
+                'm',
+                'n',
+                'o',
+                'p',
+                'q',
+                'r',
+                's',
+                't',
+                'u',
+                'v',
+                'w',
+                'x',
+                'y',
+                'z',
+                "'",
+            ],
+        }
+
+        modelConfig = DictConfig(
+            {
+                'preprocessor': DictConfig(preprocessor),
+                'encoder': DictConfig(encoder),
+                'decoder': DictConfig(decoder),
+                'intermediate_loss_weights': intermediate_loss_weights,
+            }
+        )
+
+        asr_model = EncDecCTCModel(cfg=modelConfig)
+        asr_model.train()
+
+        input_signal = torch.randn(size=(1, 512))
+        input_length = torch.randint(low=161, high=500, size=[1])
+        target = torch.randint(size=(1, input_length[0]), low=0, high=28)
+        target_length = torch.tensor([input_length[0]])
+
+        if len(capture_output_at_layers) != len(intermediate_loss_weights):
+            # has to throw an error here
+            with pytest.raises(RuntimeError, match="Some intermediate layers were not captured!"):
+                logprobs, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
+        else:
+            logprobs, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
+            assert len(asr_model.intermediate_decoding_results) == len(capture_output_at_layers)
+            for output in asr_model.intermediate_decoding_results:
+                # checking that values are not the same, but shape is the same
+                assert not torch.allclose(output[0], logprobs)
+                assert output[0].shape == logprobs.shape
+
+            # TODO (igitman): we also need to add tests for the loss itself, but
+            #   have to call .training_step for that. Is there an easy and fast
+            #   way to set the PTL trainer to run it on random data?
 
 
 class TestEncDecCTCModel:
