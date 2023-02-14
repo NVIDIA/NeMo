@@ -27,27 +27,25 @@ from nemo.collections.asr.models import EncDecSpeakerLabelModel
 class EncDecSpeechLabelModelTest(TestCase):
     @pytest.mark.unit
     def test_constructor(self):
-        preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+        preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',}
         encoder = {
-            'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-            'params': {
-                'feat_in': 64,
-                'activation': 'relu',
-                'conv_mask': True,
-                'jasper': [
-                    {
-                        'filters': 512,
-                        'repeat': 1,
-                        'kernel': [1],
-                        'stride': [1],
-                        'dilation': [1],
-                        'dropout': 0.0,
-                        'residual': False,
-                        'separable': False,
-                    }
-                ],
-            },
-        }
+            '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
+            'feat_in': 64,
+            'activation': 'relu',
+            'conv_mask': True,
+            'jasper': [
+                {
+                    'filters': 512,
+                    'repeat': 1,
+                    'kernel': [1],
+                    'stride': [1],
+                    'dilation': [1],
+                    'dropout': 0.0,
+                    'residual': False,
+                    'separable': False,
+                }
+            ],
+            }
 
         decoder = {
             '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
@@ -75,17 +73,15 @@ class EncDecSpeechLabelModelTest(TestCase):
 
     @pytest.mark.unit
     def test_ecapa_enc_dec(self):
-        preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+        preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',}
         encoder = {
-            'cls': 'nemo.collections.asr.modules.ECAPAEncoder',
-            'params': {
-                'feat_in': 80,
-                'filters': [4, 4, 4, 4, 3],
-                'kernel_sizes': [5, 3, 3, 3, 1],
-                'dilations': [1, 1, 1, 1, 1],
-                'scale': 2,
-            },
-        }
+            '_target_': 'nemo.collections.asr.modules.ECAPAEncoder',
+            'feat_in': 80,
+            'filters': [4, 4, 4, 4, 3],
+            'kernel_sizes': [5, 3, 3, 3, 1],
+            'dilations': [1, 1, 1, 1, 1],
+            'scale': 2,
+            }
 
         decoder = {
             '_target_': 'nemo.collections.asr.modules.SpeakerDecoder',
@@ -109,9 +105,11 @@ class EncDecSpeechLabelModelTest(TestCase):
 
     @pytest.mark.unit
     def test_titanet_enc_dec(self):
-        preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+        preprocessor = {
+            '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+        }
         encoder = {
-            'cls': 'nemo.collections.asr.modules.ConvASREncoder',
+            '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
             'feat_in': 64,
             'activation': 'relu',
             'conv_mask': True,
