@@ -21,7 +21,7 @@ import torch
 from nemo.utils import logging
 import gradio as gr
 import numpy as np
-
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 seed_everything(42)
 
 """
@@ -70,7 +70,8 @@ def main(cfg):
     write_txt(f"{diar._out_dir}/print_script.sh", "")
     
     if cfg.diarizer.asr.parameters.streaming_simulation:
-        # samplerate, sdata = wavfile.read(diar.single_audio_file_path)
+        # samplerate, sdata = wavfile.read(diar.single_audio_file_path) !! evil may investigate later if have time
+
         sdata = get_samples(diar.single_audio_file_path)
         if  diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset'] and diar.AUDIO_RTTM_MAP[diar.uniq_id]['duration']:
             

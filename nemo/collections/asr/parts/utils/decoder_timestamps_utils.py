@@ -252,15 +252,15 @@ def get_vad_feat_logit_single(
     feat_buffer, frame_vad, frame_len, tokens_per_chunk, delay, model_stride_in_secs
 ):
     """
-    Create a preprocessor to convert audio samples into raw features,
-    Normalization will be done per buffer in frame_bufferer.
+    Get VAD timestamp from raw features.
     """
     features = feat_buffer.unsqueeze(0)
+
     feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
     chunk_len_in_feat = int(frame_len * 100)
-
+    # we need last chunk_len_in_feat from this buffer to update VAD result. 
+    # Adding additional frame_vad.prev_len_features for sliding during segment generating 
     extract_last_features_from_buffer = frame_vad.prev_len_features + chunk_len_in_feat
-
     chunk_features_with_half_window = features[:, :, -extract_last_features_from_buffer:]
 
     ts = frame_vad.infer_to_ts_with_feature(chunk_features_with_half_window, feat_len, tokens_per_chunk, delay)
@@ -291,6 +291,7 @@ class FrameBatchASRLogits(FrameBatchASR):
     def read_audio_file_and_return(self, audio_filepath: str, delay: float, model_stride_in_secs: float):
         samples = get_samples(audio_filepath)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        print("here to AudioFeatureIterator")
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
 
