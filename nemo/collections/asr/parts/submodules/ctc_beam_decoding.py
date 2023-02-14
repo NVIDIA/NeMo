@@ -446,9 +446,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                     chars = list(candidate[0])
                     pred_token_ids = [self.vocab[c] for c in chars]
 
-                # Approximate the token text sequences from the text to id mapping
-                pred_token_ids = pred_token_ids
-
                 hypothesis.y_sequence = pred_token_ids
                 hypothesis.text = candidate[0]  # text
                 hypothesis.score = candidate[4]  # score
