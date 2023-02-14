@@ -241,7 +241,7 @@ model:
   #   postnet_n_convolutions: 5
 
   loss: l1
-  gap_loss_scale: 10
+  gap_loss_scale: 1
   min_mask_duration: 0.5
   max_mask_duration: 1.0
 

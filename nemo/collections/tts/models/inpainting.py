@@ -909,8 +909,7 @@ class InpainterModel(ModelPT, Exportable):
                 warmup_steps=self.discriminator_warmup_steps,
                 rampup_steps=self.discriminator_rampup_steps
             )
-            # 10 is the amount from the SpeechPainter paper
-            feature_matching_loss_scaled = feature_matching_loss * (10 * adversarial_amount)
+            feature_matching_loss_scaled = feature_matching_loss * adversarial_amount
             loss_inpainter = supervised_losses + feature_matching_loss_scaled
             loss = loss_inpainter
 
