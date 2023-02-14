@@ -121,21 +121,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
 
         if 'loss' in cfg:
-            # To support older version checkpoints
-            if '_target_' not in cfg.loss:
-                logging.info(
-                    "Setting angular: true/false in decoder is deprecated and will be removed in 1.13 version, use specific loss with _target_"
-                )
-                OmegaConf.set_struct(cfg, True)
-                with open_dict(cfg):
-                    if 'angular' in cfg.decoder and cfg.decoder.angular:
-                        cfg.loss._target_ = "nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss"
-                    else:
-                        # in case if specified angular=False but loss contained 'scale' or 'margin'
-                        cfg.loss.pop('scale', None)
-                        cfg.loss.pop('margin', None)
-                        cfg.loss._target_ = "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
-
             cfg_eval_loss = copy.deepcopy(cfg.loss)
 
             if 'angular' in cfg.loss._target_:
