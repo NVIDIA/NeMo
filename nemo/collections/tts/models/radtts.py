@@ -474,21 +474,23 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         return (new_inputs,)
 
     def forward_for_export(
-        self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
+        self, text, lens, speaker, pitch, pace, volume,
     ):
         if self.export_config["enable_ragged_batches"]:
-            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
-                text, pitch, pace, batch_lengths=lens, padding_idx=self.tokenizer_pad, volume=volume
+            text, pitch, pace, volume_tensor, speaker, lens = batch_from_ragged(
+                text, pitch, pace, batch_lengths=lens, padding_idx=self.tokenizer_pad, volume=volume, speaker=speaker
             )
             if volume is not None:
                 volume = volume_tensor
         else:
             lens = lens.to(dtype=torch.int64)
+
+        print("Speaker_id = ", speaker_id)
         (mel, n_frames, dur, _, _) = self.model.infer(
             speaker_id,
             text,
-            speaker_id_text=speaker_id_text,
-            speaker_id_attributes=speaker_id_attributes,
+            speaker_id_text=speaker_id,
+            speaker_id_attributes=speaker_id,
             sigma=0.7,
             sigma_txt=0.7,
             sigma_f0=1.0,

@@ -716,7 +716,8 @@ def batch_from_ragged(
     batch_lengths: torch.Tensor,
     padding_idx: int = -1,
     volume: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    speaker: Optional[torch.Tensor] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
 
     batch_lengths = batch_lengths.to(dtype=torch.int64)
     max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
@@ -728,8 +729,8 @@ def batch_from_ragged(
     paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
     lens = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
+    speakers = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
     last_index = index - 1
-
     while index < batch_lengths.shape[0]:
         seq_start = batch_lengths[last_index]
         seq_end = batch_lengths[index]
@@ -740,11 +741,12 @@ def batch_from_ragged(
         paces[last_index, :cur_seq_len] = pace[seq_start:seq_end]
         if volume is not None:
             volumes[last_index, :cur_seq_len] = volume[seq_start:seq_end]
-
+        if speaker is not None:
+            speakers[last_index, :cur_seq_len] = speaker[seq_start:seq_end]
         last_index = index
         index += 1
 
-    return texts, pitches, paces, volumes, lens
+    return texts, pitches, paces, volumes, speakers, lens
 
 
 def sample_tts_input(
