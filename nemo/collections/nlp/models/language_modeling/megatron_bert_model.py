@@ -192,12 +192,12 @@ class MegatronBertModel(MegatronBaseModel):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = next(dataloader_iter)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
-                    batch['text'],
-                    batch['types'],
-                    batch['is_random'],
-                    batch['loss_mask'],
-                    batch['labels'],
-                    batch['padding_mask'],
+                    batch['text'].cuda(non_blocking=True),
+                    batch['types'].cuda(non_blocking=True),
+                    batch['is_random'].cuda(non_blocking=True),
+                    batch['loss_mask'].cuda(non_blocking=True),
+                    batch['labels'].cuda(non_blocking=True),
+                    batch['padding_mask'].cuda(non_blocking=True),
                 )
 
             else:
