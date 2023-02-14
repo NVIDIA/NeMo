@@ -635,13 +635,15 @@ class InpainterModel(ModelPT, Exportable):
 
         return full_replacement, partial_replacement
 
-    def regnerate_audio(self, spectrogram, replacement_phrase):
+    def regenerate_audio(self, spectrogram, replacement_phrase):
         """TODO"""
+        spectrogram, spectrogram, None, None
+
         # TODO more input sanitization
         start_of_middle_span = replacement_phrase.find('[')
         end_of_middle_span = replacement_phrase.find(']')
 
-        assert start_of_middle_span > 0
+        assert start_of_middle_span >= 0
         assert end_of_middle_span > start_of_middle_span
 
         left_phrase = replacement_phrase[:start_of_middle_span]
@@ -653,9 +655,11 @@ class InpainterModel(ModelPT, Exportable):
             text_normalized = self.normalize_text(text)
             return torch.tensor(self.vocab(text_normalized))
 
-        left_tokens = tokenize(left_phrase)
-        middle_tokens = tokenize(middle_phrase)
-        right_tokens = tokenize(right_phrase)
+        # tokenizer puts 0 tokens on left and right of each phrase
+        # we need to trim this
+        left_tokens = tokenize(left_phrase)[:-1]
+        middle_tokens = tokenize(middle_phrase)[1:-1]
+        right_tokens = tokenize(right_phrase)[1:]
 
         tokens = torch.concatenate((left_tokens, middle_tokens, right_tokens))
 
@@ -681,7 +685,7 @@ class InpainterModel(ModelPT, Exportable):
         else:
             blank_start = 0
 
-        blank_end = token_end_indices[len(left_tokens) + len(right_tokens) - 1]
+        blank_end = token_end_indices[len(left_tokens) + len(middle_tokens) - 1]
 
         blanked_spectrogram = torch.clone(spectrogram)
         blanked_spectrogram[blank_start:blank_end, :] = 0.
@@ -710,6 +714,16 @@ class InpainterModel(ModelPT, Exportable):
             partial_replacement.cpu().detach().numpy(),
             take_log=False
         )
+
+        # import matplotlib.pyplot as plt
+        # f, axarr = plt.subplots(5)
+        # f.suptitle(replacement_phrase)
+        # axarr[0].imshow(spectrogram.cpu().numpy().T)
+        # axarr[1].imshow(blanked_spectrogram.cpu().numpy().T)
+        # axarr[2].imshow(attn_hard[0].cpu().detach().numpy().T)
+        # axarr[3].imshow(full_replacement.cpu().detach().numpy().T)
+        # axarr[4].imshow(partial_replacement.cpu().detach().numpy().T)
+        # plt.show()
 
         return full_replacement, partial_replacement, mcd_full, mcd_partial
 
