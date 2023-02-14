@@ -371,7 +371,7 @@ class MegatronBertModel(MegatronBaseModel):
                 'consumed_samples',
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
                 prog_bar=True,
-                batch_size=1
+                batch_size=1,
             )
 
         return loss_mean[0]
