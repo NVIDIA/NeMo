@@ -72,7 +72,7 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.01, patience=10, verbose=True, mode="min")
+    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=10, verbose=True, mode="min")
     trainer.callbacks.extend([early_stop_callback])
     exp_manager(trainer, cfg.exp_manager)
 
