@@ -3336,6 +3336,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
         model.activation=swiglu \
+        model.bias_activation_fusion=False \
         model.hidden_dropout=0.0 \
         model.attention_dropout=0.0 \
         model.transformer_block_type=normformer \
@@ -3371,6 +3372,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
         model.activation=swiglu \
+        model.bias_activation_fusion=False \
         model.hidden_dropout=0.0 \
         model.attention_dropout=0.0 \
         model.transformer_block_type=normformer \
