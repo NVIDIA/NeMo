@@ -90,8 +90,8 @@ class ConcatDataset(IterableDataset):
                 self.length += len(dataset)
 
         if sampling_technique == 'weighted':
-            denom = sampling_weights[0] * world_size
-            self.length = (len(datasets[0]) // denom) * (sampling_weights[0] + 1) * upsampling_rate
+            num_main_samples = len(datasets[0]) // (world_size * sampling_weights[0])
+            self.length = num_main_samples * sum(sampling_weights) * upsampling_rate
 
     def get_iterable(self, dataset):
         if isinstance(dataset, IterableDataset):

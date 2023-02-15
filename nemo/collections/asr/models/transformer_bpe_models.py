@@ -407,10 +407,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
-        if type(dataset) is ChainDataset:
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
+        if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -499,6 +499,27 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             # create audio-only data loader
             self._update_dataset_config(dataset_name='train', config=audio_config)
             self._train_dl = self._setup_dataloader_from_config(config=audio_config)
+
+            # Need to set this because if using an IterableDataset, the length of the
+            # dataloader is the total number of samples rather than the number of batches,
+            # and this messes up the tqdm progress bar. So we set the number of steps manually
+            # (to the correct number) to fix this.
+            if 'is_tarred' in audio_config and audio_config['is_tarred']:
+                # We also need to check if limit_train_batches is already set.
+                # If it's an int, we assume that the user has set it to something sane,
+                # i.e. <= # training batches, and don't change it. Otherwise, adjust
+                # batches accordingly if it's a float (including 1.0).
+                if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                    self._trainer.limit_train_batches = int(
+                        self._trainer.limit_train_batches
+                        * ceil((len(self._train_dl.dataset) / self.world_size) / audio_config['batch_size'])
+                    )
+                elif self._trainer is None:
+                    logging.warning(
+                        "Model Trainer was not set before constructing the dataset, incorrect number of "
+                        "training batches will be used. Please set the trainer and rebuild the dataset."
+                    )
+            
         else:
             raise ValueError("Either text or audio data is required for training.")
 
