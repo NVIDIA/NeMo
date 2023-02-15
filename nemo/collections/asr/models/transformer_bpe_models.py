@@ -371,41 +371,22 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return hypotheses
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
-        else:
-            augmentor = None
-        shuffle = config["shuffle"]
+        
+        dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
+            config=config,
+            local_rank=self.local_rank,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
+            tokenizer=self.tokenizer,
+            preprocessor_cfg=self.cfg.get("preprocessor", None),
+        )
 
-        # Instantiate tarred dataset loader or normal dataset loader
+        if dataset is None:
+            return None
+
+        shuffle = config['shuffle']
         if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
-            ):
-                logging.warning(
-                    "Could not load dataset as `manifest_filepath` was None or "
-                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
-                )
-                return None
-
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_dataset(
-                config=config,
-                tokenizer=self.tokenizer,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                augmentor=augmentor,
-            )
             shuffle = False
-        else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
-                return None
-
-            dataset = audio_to_text_dataset.get_bpe_dataset(
-                config=config, tokenizer=self.tokenizer, augmentor=augmentor
-            )
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
