@@ -26,7 +26,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: null
     name: null
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -53,7 +53,7 @@ model:
   validation_drop_last: False
 
   restore_path: null # Path to an existing adapter .nemo model you wish to add new tasks to or run inference with
-  language_model_path: ??? # Path to the GPT language model .nemo file, always required
+  language_model_path: /dataset/gpt/megatron_gpt_125m/megatron_gpt.nemo # Path to the GPT language model .nemo file, always required
   existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ["rte"] # List of new tasknames to be prompt-tuned
 
@@ -115,8 +115,8 @@ model:
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
 
   data:
-    train_ds: ??? # expects a list of paths to training data files
-    validation_ds: ???  # expects a paths to validation data files
+    train_ds: [/workspaces/research/downloaded/boolqa/boolqa_train.jsonl] # expects a list of paths to training data files
+    validation_ds: [/workspaces/research/downloaded/boolqa/boolqa_val.jsonl]  # expects a paths to validation data files
     add_eos: True
     shuffle: True
     num_workers: 8

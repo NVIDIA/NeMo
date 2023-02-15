@@ -34,6 +34,9 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
+from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
+    MegatronRetrievalTokenLevelEncoderDecoderModule,
+)
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -189,6 +192,13 @@ class NLPDDPStrategy(DDPStrategy):
                     new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
+
+        # if model_attr is None and model_key is None:
+        #     new_state_dict = {}
+        #     for key in checkpoint['state_dict'].keys():
+        #         new_key = key.replace(f'model.', f'frozen_model.model.', 1)
+        #         new_state_dict[new_key] = checkpoint['state_dict'][key]
+        #     checkpoint['state_dict'] = new_state_dict
 
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 

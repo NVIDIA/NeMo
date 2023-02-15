@@ -2,10 +2,10 @@ defaults:
   - .@model: megatron_model_base_config
 
 name: test_retro
-restore_from_path: "/dataset/retro/megatron_retro_c4_pile.nemo"
+restore_from_path: "/dataset/draco_retro/megatron_retro_finetune_converted_9B/megatron_retro_finetune_converted_9B"
 
 trainer:
-  devices: 2
+  devices: 4
   num_nodes: 1
   accelerator: gpu
   precision: 16
@@ -20,6 +20,7 @@ trainer:
   limit_test_batches: null
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
+  resume_from_checkpoint: null
 
 exp_manager:
   explicit_log_dir: null
@@ -44,7 +45,7 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
   # model architecture
@@ -62,7 +63,7 @@ model:
   dec_num_layers: 6    # total number of decoder layers
   enc_cross_attention: [3]    # layer numbers for cross attention in encoder
   dec_cross_attention: [3, 5]    # layer numbers for chunked cross attention in decoder
-  add_position_embedding: False   # whether use the absolute position encoding
+  add_position_embedding: True   # whether use the absolute position encoding
 
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
@@ -72,7 +73,7 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  restore_from_path: "/dataset/retro/megatron_retro_c4_pile.nemo"
+  restore_from_path: "/dataset/draco_retro/megatron_retro_finetune_converted_9B/megatron_retro_finetune_converted_9B"
 
 
   tokenizer:
@@ -132,7 +133,7 @@ model:
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 50
+    adapter_dim: 40
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal

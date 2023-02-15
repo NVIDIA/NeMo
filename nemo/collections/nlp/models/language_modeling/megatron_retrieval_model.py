@@ -59,6 +59,11 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+import os
+from omegaconf.omegaconf import OmegaConf, open_dict
+
+
 try:
     from apex.transformer import parallel_state
     from apex.transformer.enums import ModelType
@@ -80,72 +85,120 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
-        # TODO does not support PP yet
-        self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
+        if cfg.get('restore_from_path') is not None:
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.get('restore_from_path')):
+                save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
 
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+            frozen_model_cfg = MegatronRetrievalModel.restore_from(
+                cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+            )
 
-        if self.megatron_amp_o2:
+            with open_dict(frozen_model_cfg):
+                # work around for the fused softmax bug
+                frozen_model_cfg.masked_softmax_fusion = False
+                frozen_model_cfg.precision = trainer.precision
 
-            if not self.with_distributed_adam:
-                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                self.model.cuda(torch.cuda.current_device())
+            with open_dict(frozen_model_cfg):
+                frozen_model_cfg.megatron_amp_O2 = False
+                frozen_model_cfg.optim.name = "fused_adam"
+                frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+                # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+                frozen_model_cfg.precision = trainer.precision
+                frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+                frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+                    "activations_checkpoint_granularity", None
+                )
+                frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+                    "activations_checkpoint_num_layers", None
+                )
+                frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-            # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=self.cfg.precision)
 
-        # self.setup_optimizer_param_groups()
-        if self.cfg.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.cfg.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.cfg.precision) == 16:
-            self.autocast_dtype = torch.half
+            if self._trainer.precision == 'bf16':
+                self.autocast_dtype = torch.bfloat16
+            elif int(self._trainer.precision) == 32:
+                self.autocast_dtype = torch.float
+            elif int(self._trainer.precision) == 16:
+                self.autocast_dtype = torch.half
+            else:
+                raise ValueError('precision must be in [32, 16, "bf16"]')
+
+            self.frozen_model = MegatronRetrievalModel.restore_from(
+                cfg.get('restore_from_path'),
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                override_config_path=frozen_model_cfg,
+            ).to(dtype=self.autocast_dtype)
+
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
-        self.model.model_type = ModelType.encoder_and_decoder
+                
+            # TODO does not support PP yet
+            self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
 
-        if hasattr(self.cfg, "shape_file"):
-            set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+            self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
-            # here manually initialize all the named parameters with the muTranfer normal initializer
-            for name, tensor in self.named_parameters():
-                if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
-                    # initialize all the output dense matrix weight
-                    # match the megatron lm model
-                    std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
-                    normal_(tensor, 0, std)
-                elif name.endswith('layernorm.weight'):
-                    # initialize all the layer norm weight
-                    if tensor.std() != 0 and tensor.mean() != 1:
-                        raise ValueError(f'need to check {name} init')
-                    normal_(tensor, 1, 0)
-                elif name.endswith('.weight'):
-                    # initialize all the other dense matrix weight
-                    normal_(tensor, 0, self.cfg.init_method_std)
-                else:
-                    if tensor.std() != 0 and tensor.mean() != 0:
-                        raise ValueError(f'need to check {name} init')
+            if self.megatron_amp_o2:
 
-            # here manually overwrite the norm factor
-            # note, has to turn off the model.apply_query_key_layer_scaling
-            assert not self.cfg.apply_query_key_layer_scaling
-            for name, layer in self.named_modules():
-                if (
-                    name.endswith('.self_attention')
-                    or name.endswith('.inter_attention')
-                    or name.endswith('.cross_attention')
-                    or name.endswith('.core_attention')
-                ):
-                    if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
-                        layer.norm_factor = (
-                            layer.hidden_size_per_attention_head / 8.0
-                        )  # divide 8 to make it consist with ADLR setting
-                else:
-                    if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
-                        logging.error(
-                            f'module {name} has norm factor but its name is not ending with attention, need to double check'
-                        )
+                if not self.with_distributed_adam:
+                    # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                    self.model.cuda(torch.cuda.current_device())
+
+                # Model wrapper to convert both model and inputs to half precision
+                self.model = Float16Module(module=self.model, precision=self.cfg.precision)
+
+            # self.setup_optimizer_param_groups()
+            if self.cfg.precision == 'bf16':
+                self.autocast_dtype = torch.bfloat16
+            elif int(self.cfg.precision) == 32:
+                self.autocast_dtype = torch.float
+            elif int(self.cfg.precision) == 16:
+                self.autocast_dtype = torch.half
+            else:
+                raise ValueError('precision must be in [32, 16, "bf16"]')
+            self.model.model_type = ModelType.encoder_and_decoder
+
+            if hasattr(self.cfg, "shape_file"):
+                set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+
+                # here manually initialize all the named parameters with the muTranfer normal initializer
+                for name, tensor in self.named_parameters():
+                    if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
+                        # initialize all the output dense matrix weight
+                        # match the megatron lm model
+                        std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
+                        normal_(tensor, 0, std)
+                    elif name.endswith('layernorm.weight'):
+                        # initialize all the layer norm weight
+                        if tensor.std() != 0 and tensor.mean() != 1:
+                            raise ValueError(f'need to check {name} init')
+                        normal_(tensor, 1, 0)
+                    elif name.endswith('.weight'):
+                        # initialize all the other dense matrix weight
+                        normal_(tensor, 0, self.cfg.init_method_std)
+                    else:
+                        if tensor.std() != 0 and tensor.mean() != 0:
+                            raise ValueError(f'need to check {name} init')
+
+                # here manually overwrite the norm factor
+                # note, has to turn off the model.apply_query_key_layer_scaling
+                assert not self.cfg.apply_query_key_layer_scaling
+                for name, layer in self.named_modules():
+                    if (
+                        name.endswith('.self_attention')
+                        or name.endswith('.inter_attention')
+                        or name.endswith('.cross_attention')
+                        or name.endswith('.core_attention')
+                    ):
+                        if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
+                            layer.norm_factor = (
+                                layer.hidden_size_per_attention_head / 8.0
+                            )  # divide 8 to make it consist with ADLR setting
+                    else:
+                        if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
+                            logging.error(
+                                f'module {name} has norm factor but its name is not ending with attention, need to double check'
+                            )
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
