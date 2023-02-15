@@ -476,17 +476,6 @@ class MegatronBertModel(MegatronBaseModel):
             #     [lm_loss])
             # return loss, {'lm loss': averaged_losses[0]}
 
-    def process_batch(self, batch):
-        """Build the batch."""
-        # Unpack.
-        tokens = batch['text'].long()
-        types = batch['types'].long()
-        sentence_order = batch['is_random'].long()
-        loss_mask = batch['loss_mask'].float()
-        lm_labels = batch['labels'].long()
-        padding_mask = batch['padding_mask'].long()
-        return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
-
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
