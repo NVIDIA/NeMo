@@ -15,6 +15,7 @@
 import json
 
 import torch
+import copy
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -33,7 +34,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -255,28 +256,31 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
     def validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
+    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
-        loss = super().validation_step(batch, batch_idx)
-        if self.cfg.data.get('skip_inference_generate', False):
-            return {
-                'loss': loss,
-                'preds': None,
-                'labels': None,
-                'inputs': None,
-            }
+        iter_copy = copy.deepcopy(dataloader_iter)
+        loss = super().validation_step(dataloader_iter, batch_idx)
+        # Get the global batch from the copy of the iterator.
+        for i in range(
+        return {
+            'loss': loss,
+            'preds': None,
+            'labels': None,
+            'inputs': None,
+        }
+        '''
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
@@ -337,6 +341,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'labels': labels_text,
             'inputs': input_text,
         }
+        '''
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
