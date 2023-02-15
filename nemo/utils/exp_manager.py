@@ -72,10 +72,10 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class EarlyStoppingParams:
-    monitor: str = "val_loss"
-    mode: str = "min"
-    min_delta: float = 0.001
-    patience: int = 10
+    monitor: str = "val_loss"  # The metric that early stopping should consider.
+    mode: str = "min"  # inform early stopping whether to look for increase or decrease in monitor.
+    min_delta: float = 0.001  # smallest change to consider as improvement.
+    patience: int = 10  # how many (continuous) validation cycles to wait with no improvement and stopping training.
     verbose: bool = True
 
 
@@ -284,7 +284,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
                 Defaults to True.
-            - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default if False.
+            - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False. See EarlyStoppingParams dataclass above.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
