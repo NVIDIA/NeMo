@@ -607,14 +607,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        import ipdb; ipdb.set_trace()
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
