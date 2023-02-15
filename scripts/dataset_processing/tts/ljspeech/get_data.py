@@ -27,7 +27,7 @@ from tqdm import tqdm
 def get_args():
     parser = argparse.ArgumentParser(description='Download LJSpeech and create manifests with predefined split')
     parser.add_argument("--data-root", required=True, type=Path)
-    parser.add_argument('--whitelist-path', type=str, default=None)
+    parser.add_argument('--whitelist-path', type=str, default="lj_speech.tsv")
 
     args = parser.parse_args()
     return args

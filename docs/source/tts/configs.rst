@@ -96,7 +96,6 @@ Text normalization (TN) converts text from written form into its verbalized form
       _target_: nemo_text_processing.text_normalization.normalize.Normalizer
       lang: en
       input_case: cased
-      whitelist: "scripts/tts_dataset_files/en/whitelist_lj_speech.tsv"
 
     text_normalizer_call_kwargs:
       verbose: false

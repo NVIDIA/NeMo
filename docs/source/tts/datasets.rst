@@ -45,9 +45,7 @@ LJSpeech
 .. code-block:: shell-session
 
     $ python scripts/dataset_processing/tts/ljspeech/get_data.py \
-        --data-root <your_local_dataset_root> \
-        --whitelist-path <your_local_whitelist_filepath> \
-        or default scripts/tts_dataset_files/en/whitelist_lj_speech.tsv
+        --data-root <your_local_dataset_root>
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path ljspeech/ds_conf \

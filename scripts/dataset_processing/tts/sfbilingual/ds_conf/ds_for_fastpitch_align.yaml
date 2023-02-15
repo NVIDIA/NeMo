@@ -3,7 +3,6 @@ name: "ds_for_fastpitch_align"
 manifest_filepath: "train_manifest.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch" ]
-whitelist_path: null # default whitelist will be used from https://raw.githubusercontent.com/NVIDIA/NeMo-text-processing/main/nemo_text_processing/text_normalization/zh/data/whitelist/default.tsv
 phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict_nv_22.10.txt"
 
 dataset:
@@ -33,7 +32,6 @@ dataset:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: zh
     input_case: cased
-    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
     verbose: false

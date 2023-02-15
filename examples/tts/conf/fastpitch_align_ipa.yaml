@@ -30,7 +30,6 @@ window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.10.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
-whitelist_path: "scripts/tts_dataset_files/en/whitelist_lj_speech.tsv"
 
 model:
   learn_alignment: true
@@ -60,7 +59,6 @@ model:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
     input_case: cased
-    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
     verbose: false
