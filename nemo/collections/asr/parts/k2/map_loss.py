@@ -27,7 +27,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig
@@ -36,6 +36,12 @@ from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin
 from nemo.collections.asr.parts.k2.ml_loss import MLLoss
 from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped, get_tot_objf_and_finite_mask, load_graph
+from nemo.collections.asr.parts.k2.utils import (
+    create_sparse_wrapped,
+    get_tot_objf_and_finite_mask,
+    invert_permutation,
+    load_graph,
+)
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 from nemo.utils import logging
 
@@ -205,11 +211,11 @@ class MAPLoss(MLLoss):
     def _intersect_calc_scores(
         self,
         emissions_graphs: 'k2.DenseFsaVec',
-        supervision_graphs: Tuple['k2.Fsa', 'k2.Fsa'],
+        supervision_graphs: Any,
         supervisions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
-        This version assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
+        This version implicitly assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
 
         It can also calculate accuracy between the numerator and the denominator lattices to use it as additional loss.
 

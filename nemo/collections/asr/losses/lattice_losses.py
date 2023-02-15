@@ -96,6 +96,7 @@ class LatticeLoss(Loss):
         super().__init__()
         self._blank = num_classes
         self.split_batch_size = split_batch_size
+        inner_reduction = None
         if reduction == "mean_batch":
             inner_reduction = "none"
             self._apply_batch_mean = True

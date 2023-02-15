@@ -32,6 +32,7 @@ from typing import Any, Optional, Tuple
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler, RnntTopologyCompiler
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask, invert_permutation
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
@@ -95,7 +96,7 @@ class MLLoss(torch.nn.Module):
         return emissions_graphs, supervision_graphs, supervisions
 
     def _intersect_calc_scores(
-        emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
+        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """TBD
         """
@@ -145,8 +146,6 @@ class CtcLoss(MLLoss, CtcK2Mixin):
             topo_type=topo_type,
             topo_with_self_loops=topo_with_self_loops,
         )
-        from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler
-
         self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, self.topo_with_self_loops)
 
 
@@ -181,8 +180,6 @@ class RnntLoss(MLLoss, RnntK2Mixin):
             raise NotImplementedError(f"Only topo_type=`minimal` is supported at the moment.")
         self.predictor_window_size = predictor_window_size
         self.predictor_step_size = predictor_step_size
-        from nemo.collections.asr.parts.k2.graph_compilers import RnntTopologyCompiler
-
         self.graph_compiler = RnntTopologyCompiler(
             self.num_classes, self.topo_type, self.topo_with_self_loops, max_adapter_length=self.predictor_window_size
         )

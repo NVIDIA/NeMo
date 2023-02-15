@@ -64,7 +64,7 @@ def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
     batch_size = input_lengths.shape[0]
     seq_range = torch.arange(0, seq_len, device=input_lengths.device)
     seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, seq_len)
-    seq_length_expand = seq_range_expand.new_tensor(input_lengths).unsqueeze(-1)
+    seq_length_expand = input_lengths.clone().detach().to(seq_range_expand.device).unsqueeze(-1)
     mask = seq_range_expand < seq_length_expand
     return mask
 
