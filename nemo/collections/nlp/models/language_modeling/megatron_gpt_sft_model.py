@@ -268,19 +268,21 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
+    def _collate_inference_batch(self, dataloader_iter):
+        batch = []
+        for _ in range(get_num_microbatches()):
+            batch.append(next(dataloader_iter))
+        global_batch = {}
+        for key in batch[0]:
+            global_batch[key] = torch.cat([b[key] for b in batch], dim=0)
+        return global_batch
+
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
         iter_copy = copy.deepcopy(dataloader_iter)
         loss = super().validation_step(dataloader_iter, batch_idx)
         # Get the global batch from the copy of the iterator.
-        for i in range(
-        return {
-            'loss': loss,
-            'preds': None,
-            'labels': None,
-            'inputs': None,
-        }
-        '''
+        batch = self._collate_inference_batch(iter_copy)
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
@@ -341,7 +343,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'labels': labels_text,
             'inputs': input_text,
         }
-        '''
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
