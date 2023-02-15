@@ -155,14 +155,17 @@ def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[to
     return mask
 
 
-@torch.jit.script
-def sort_tensor(context: torch.Tensor, lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-    unsort_ids = torch.zeros_like(ids_sorted)
-    for i in range(ids_sorted.shape[0]):
-        unsort_ids[ids_sorted[i]] = i
-    context = context[ids_sorted]
-    return context, lens_sorted, unsort_ids
+def sort_tensor(
+    context: torch.Tensor, lens: torch.Tensor, dim: Optional[int] = 0, descending: Optional[bool] = True
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    lens_sorted, ids_sorted = torch.sort(lens, descending=descending)
+    context = torch.index_select(context, dim, ids_sorted)
+    return context, lens_sorted, ids_sorted
+
+
+def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
+    unsort_ids = indices.gather(0, indices.argsort(0, descending=True))
+    return torch.index_select(ordered, dim, unsort_ids)
 
 
 @jit(nopython=True)
@@ -520,13 +523,7 @@ def remove(conv_list):
 
 
 def regulate_len(
-    durations,
-    enc_out,
-    pace=1.0,
-    mel_max_len=None,
-    replicate_to_nearest_multiple=False,
-    group_size=2,
-    in_lens: torch.tensor = None,
+    durations, enc_out, pace=1.0, mel_max_len=None, group_size=1, dur_lens: torch.tensor = None,
 ):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -537,22 +534,20 @@ def regulate_len(
         enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
         pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
             max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
-        replicate_to_nearest_multiple (bool): replicate the last element specified by durations[i, in_lens[i] - 1] until the
+        group_size (int): replicate the last element specified by durations[i, in_lens[i] - 1] until the
             full length of the sequence is the next nearest multiple of group_size
-        group_size (int): factor used by replicate_to_nearest_multiple
-        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor
+        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor (only needed if group_size >1)
     """
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
-
-    if replicate_to_nearest_multiple:
-        to_pad = group_size * (torch.div(dec_lens, group_size, rounding_mode='floor') + 1) - dec_lens
-        to_pad = to_pad.unsqueeze(-1).repeat(1, reps.shape[1])
-        to_pad_expanded = torch.zeros_like(reps).scatter_(1, in_lens.unsqueeze(-1).long() - 1, to_pad)
-        reps = reps + to_pad_expanded
+    if group_size > 1:
+        to_pad = group_size * (torch.div(dec_lens + 1, group_size, rounding_mode='floor')) - dec_lens
+        reps.index_put_(
+            indices=[torch.arange(dur_lens.shape[0], dtype=torch.long), dur_lens - 1], values=to_pad, accumulate=True
+        )
         dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
@@ -711,3 +706,86 @@ def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
         raise ValueError("Can only mask tensors of shape B x D x L and B x D1 x D2 x L")
 
     return tensor * mask
+
+
+@torch.jit.script
+def batch_from_ragged(
+    text: torch.Tensor,
+    pitch: torch.Tensor,
+    pace: torch.Tensor,
+    batch_lengths: torch.Tensor,
+    padding_idx: int = -1,
+    volume: Optional[torch.Tensor] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+
+    batch_lengths = batch_lengths.to(dtype=torch.int64)
+    max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
+
+    index = 1
+    num_batches = batch_lengths.shape[0] - 1
+    texts = torch.zeros(num_batches, max_len, dtype=torch.int64, device=text.device) + padding_idx
+    pitches = torch.ones(num_batches, max_len, dtype=torch.float32, device=text.device)
+    paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    lens = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
+    last_index = index - 1
+    while index < batch_lengths.shape[0]:
+        seq_start = batch_lengths[last_index]
+        seq_end = batch_lengths[index]
+        cur_seq_len = seq_end - seq_start
+        lens[last_index] = cur_seq_len
+        texts[last_index, :cur_seq_len] = text[seq_start:seq_end]
+        pitches[last_index, :cur_seq_len] = pitch[seq_start:seq_end]
+        paces[last_index, :cur_seq_len] = pace[seq_start:seq_end]
+        if volume is not None:
+            volumes[last_index, :cur_seq_len] = volume[seq_start:seq_end]
+        last_index = index
+        index += 1
+
+    return texts, pitches, paces, volumes, lens
+
+
+def sample_tts_input(
+    export_config, device, max_batch=1, max_dim=127,
+):
+    """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+    sz = (max_batch * max_dim,) if export_config["enable_ragged_batches"] else (max_batch, max_dim)
+    inp = torch.randint(*export_config["emb_range"], sz, device=device, dtype=torch.int64)
+    pitch = torch.randn(sz, device=device, dtype=torch.float32) * 0.5
+    pace = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+    inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+    if export_config["enable_ragged_batches"]:
+        batch_lengths = torch.zeros((max_batch + 1), device=device, dtype=torch.int32)
+        left_over_size = sz[0]
+        batch_lengths[0] = 0
+        for i in range(1, max_batch):
+            equal_len = (left_over_size - (max_batch - i)) // (max_batch - i)
+            length = torch.randint(equal_len // 2, equal_len, (1,), device=device, dtype=torch.int32)
+            batch_lengths[i] = length + batch_lengths[i - 1]
+            left_over_size -= length.detach().cpu().numpy()[0]
+        batch_lengths[-1] = left_over_size + batch_lengths[-2]
+
+        sum = 0
+        index = 1
+        while index < len(batch_lengths):
+            sum += batch_lengths[index] - batch_lengths[index - 1]
+            index += 1
+        assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
+    else:
+        batch_lengths = torch.randint(max_dim // 2, max_dim, (max_batch,), device=device, dtype=torch.int32)
+        batch_lengths[0] = max_dim
+    inputs['batch_lengths'] = batch_lengths
+
+    if export_config["enable_volume"]:
+        volume = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        inputs['volume'] = volume
+
+    if "num_speakers" in export_config:
+        inputs['speaker'] = torch.randint(
+            0, export_config["num_speakers"], (max_batch,), device=device, dtype=torch.int64
+        )
+    return inputs
