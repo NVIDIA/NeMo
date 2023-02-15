@@ -26,13 +26,7 @@ from nemo.collections.asr.parts.k2.utils import (
     make_non_pad_mask_3d,
     prep_padded_densefsavec,
 )
-
-# use k2 import guard
-# fmt: off
-from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
-k2_import_guard()
-import k2 # isort:skip
-# fmt: on
+from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
 
 class CtcK2Mixin(ABC):

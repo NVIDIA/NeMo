@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.core.utils import k2_utils
+from nemo.core.utils.k2_guard import skip_k2_cuda_test_if_unsupported
 
 DEVICES = ['cpu']
 
@@ -73,10 +73,8 @@ def init_k2_rnnt(**kwargs):
 
 
 def skip_test_if_unsupported(device):
-    if device == 'cpu':
-        k2_utils.skip_k2_test_if_unsupported()
-    elif device == 'cuda':
-        k2_utils.skip_k2_cuda_test_if_unsupported()
+    if device == 'cuda':
+        skip_k2_cuda_test_if_unsupported()
 
 
 class TestRNNTLossK2:

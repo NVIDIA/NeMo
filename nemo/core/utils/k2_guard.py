@@ -20,6 +20,7 @@ If there is an error, the module will raise an exception with a helpful message.
 """
 
 import textwrap
+from typing import Tuple
 
 from packaging.version import Version
 from pytorch_lightning.utilities.imports import package_available
@@ -55,3 +56,21 @@ if __k2_version < __K2_MINIMUM_VERSION:
             """
         )
     )
+
+
+def _k2_cuda_is_enabled() -> Tuple[bool, str]:
+    import torch
+
+    if torch.cuda.is_available() and k2.with_cuda:
+        return True, "k2 supports CUDA."
+    elif torch.cuda.is_available():
+        return False, "k2 does not support CUDA. Consider using a k2 build with CUDA support."
+    else:
+        return False, "k2 needs CUDA to be available in torch."
+
+def skip_k2_cuda_test_if_unsupported():
+    supported, msg = _k2_cuda_is_enabled()
+    if not supported:
+        import pytest
+
+        pytest.skip(f"k2 test is skipped. Reason : {msg}")

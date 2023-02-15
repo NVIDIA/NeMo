@@ -17,7 +17,7 @@ import pytest
 import torch
 from torch.nn import CTCLoss as CTCLoss_Pytorch
 
-from nemo.core.utils import k2_utils
+from nemo.core.utils.k2_guard import skip_k2_cuda_test_if_unsupported
 
 DEVICES = ['cpu']
 
@@ -71,10 +71,8 @@ def init_k2_ctc(**kwargs):
 
 
 def skip_test_if_unsupported(device):
-    if device == 'cpu':
-        k2_utils.skip_k2_test_if_unsupported()
-    elif device == 'cuda':
-        k2_utils.skip_k2_cuda_test_if_unsupported()
+    if device == 'cuda':
+        skip_k2_cuda_test_if_unsupported()
 
 
 class TestCTCLossK2:
