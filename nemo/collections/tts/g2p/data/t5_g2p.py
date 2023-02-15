@@ -40,7 +40,7 @@ class T5G2PDataset(Dataset):
         with_labels: bool = True,
     ):
         """
-        Dataset to train T5-based G2P_paper generative model.
+        Dataset to train T5-based G2P generative model.
 
         Args:
             manifest_filepath: path to a .json manifest that contains "phoneme_field" and "grapheme_field"

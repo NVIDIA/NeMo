@@ -102,7 +102,7 @@ class EnglishG2p(BaseG2p):
         phoneme_probability: Optional[float] = None,
         mapping_file: Optional[str] = None,
     ):
-        """English G2P_paper module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
+        """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
         Ignored words are left unchanged or passed through apply_to_oov_word for handling.
         Args:
@@ -310,7 +310,7 @@ class IPAG2P(BaseG2p):
         mapping_file: Optional[str] = None,
     ) -> None:
         """
-        Generic IPA G2P_paper module. This module converts words from graphemes to International Phonetic Alphabet
+        Generic IPA G2P module. This module converts words from graphemes to International Phonetic Alphabet
         representations. Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable
         by `word_tokenize_func` (see code for details). Ignored words are left unchanged or passed through
         `apply_to_oov_word` for handling.
@@ -683,7 +683,7 @@ class ChineseG2p(BaseG2p):
         mapping_file: Optional[str] = None,
         word_segmenter: Optional[str] = None,
     ):
-        """Chinese G2P_paper module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would
+        """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would
            be further converted into phoneme sequences using pinyin_dict_nv_22.10.txt dict file. For Chinese and English bilingual sentences, the English words
            would be converted into letters.
         Args:

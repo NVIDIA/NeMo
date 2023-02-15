@@ -37,7 +37,7 @@ class CTCG2PBPEDataset(Dataset):
         with_labels: bool = True,
     ):
         """
-        Creates a dataset to train a CTC-based G2P_paper models.
+        Creates a dataset to train a CTC-based G2P models.
 
         Args:
             manifest_filepath: path to a .json manifest that contains "phoneme_field" and "grapheme_field"

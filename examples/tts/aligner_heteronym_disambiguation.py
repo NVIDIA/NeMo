@@ -26,7 +26,7 @@ from nemo.collections.tts.torch.helpers import general_padding
 
 
 """
-G2P_paper disambiguation using an Aligner model's input embedding distances.
+G2P disambiguation using an Aligner model's input embedding distances.
 
 Does not handle OOV and leaves them as graphemes.
 
@@ -46,7 +46,7 @@ python aligner_heteronym_disambiguation.py \
 def get_args():
     """Retrieve arguments for disambiguation.
     """
-    parser = argparse.ArgumentParser("G2P_paper disambiguation using Aligner input embedding distances.")
+    parser = argparse.ArgumentParser("G2P disambiguation using Aligner input embedding distances.")
     # TODO(jocelynh): Make this required=False with default download from NGC once ckpt uploaded
     parser.add_argument('--model', required=True, type=str, help="Path to Aligner model checkpoint (.nemo file).")
     parser.add_argument(
@@ -108,7 +108,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, h
 
     Note: This could be sped up if multiple words' candidates were batched, but this is conceptually easier.
     """
-    # Grab original G2P_paper result
+    # Grab original G2P result
     aligner_g2p = aligner.tokenizer.g2p
     base_g2p = aligner_g2p(text)
 
@@ -122,7 +122,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, h
     has_heteronym = False
 
     for word in words:
-        # Retrieve the length of the word in the default G2P_paper conversion
+        # Retrieve the length of the word in the default G2P conversion
         g2p_default_len = len(aligner_g2p(word))
 
         # Check if word needs to be disambiguated
@@ -134,7 +134,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, h
             candidate_prons_and_lengths = []
 
             for pron in aligner_g2p.phoneme_dict[word]:
-                # Replace graphemes in the base G2P_paper result with the current variant
+                # Replace graphemes in the base G2P result with the current variant
                 candidate = base_g2p[:word_start_idx] + pron + base_g2p[word_start_idx + g2p_default_len :]
                 candidate_tokens = aligner.tokenizer.encode_from_g2p(candidate)
 
@@ -247,7 +247,7 @@ def disambiguate_dataset(
             count = 0
 
             for line in f_in:
-                # Retrieve entry and base G2P_paper conversion for full text
+                # Retrieve entry and base G2P conversion for full text
                 entry = json.loads(line)
                 # Set punct_post_process=True in order to preserve words with apostrophes
                 text = aligner.normalizer.normalize(entry['text'], punct_post_process=True)

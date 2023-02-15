@@ -40,7 +40,7 @@ This script supports training of G2PModels
     
     Example of the config file: NeMo/examples/text_processing/g2p/conf/t5_g2p.yaml
         
-# Training Conformer-G2P_paper Model and evaluation at the end of training:
+# Training Conformer-G2P Model and evaluation at the end of training:
     python examples/text_processing/g2p/g2p_train_and_evaluate.py \
         # (Optional: --config-path=<Path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<Path to manifest file>" \

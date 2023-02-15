@@ -125,8 +125,8 @@ def correct_wikihomograph_data(sentence: str, start: int = None, end: int = None
     if sentence in corrections:
         start, end = corrections[sentence]
 
-    sentence = sentence.replace("2014Coordinate", "2014 Coordinate")  # for normalized data for G2P_paper OOV models
-    sentence = sentence.replace("AAA", "triple A")  # for normalized data for G2P_paper OOV models
+    sentence = sentence.replace("2014Coordinate", "2014 Coordinate")  # for normalized data for G2P OOV models
+    sentence = sentence.replace("AAA", "triple A")  # for normalized data for G2P OOV models
 
     return sentence, start, end
 
