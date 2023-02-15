@@ -37,12 +37,13 @@ exp_manager:
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+  create_early_stopping_callback: True
   early_stopping_callback_params:
-      monitor: "val_loss"
-      mode: "min"
-      min_delta: 0.001
-      patience: 10
-      verbose: True
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
   
 
 model:

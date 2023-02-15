@@ -15,7 +15,6 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -72,9 +71,6 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-    if cfg.exp_manager.get("early_stopping_callback_params", None):
-        early_stop_callback = EarlyStopping(**cfg.exp_manager.early_stopping_callback_params)
-        trainer.callbacks.extend([early_stop_callback])
     exp_manager(trainer, cfg.exp_manager)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
