@@ -60,10 +60,11 @@ def main(cfg):
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
 
     # save labels to file
-    with open(os.path.join(log_dir, 'labels.txt'), 'w') as f:
-        if speaker_model.labels is not None:
-            for label in speaker_model.labels:
-                f.write(f'{label}\n')
+    if log_dir is not None:
+        with open(os.path.join(log_dir, 'labels.txt'), 'w') as f:
+            if speaker_model.labels is not None:
+                for label in speaker_model.labels:
+                    f.write(f'{label}\n')
 
     trainer.fit(speaker_model)
 
