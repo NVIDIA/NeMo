@@ -495,7 +495,7 @@ class ContriverRetrievalResource(Resource):
                     for context, title in relevant_context_and_title:
                         ids = self.tokenizer.text_to_ids(context)
                         if len(ids) < self.pad_len:
-                            ids = ids + [self.tokenizer.eos_id] * len(ids) * (self.pad_len  - len(ids))
+                            ids = ids + [self.tokenizer.eos_id] * (self.pad_len  - len(ids))
                         elif len(ids) > self.pad_len:
                             ids = ids[:self.pad_len]
                         token_ids.append(ids)
