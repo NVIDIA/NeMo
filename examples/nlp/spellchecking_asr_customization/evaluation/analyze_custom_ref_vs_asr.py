@@ -111,6 +111,17 @@ test_data = read_manifest(args.manifest)
 pred_text = [data['pred_text'] for data in test_data]
 ref_text = [data['text'] for data in test_data]
 audio_filepath = [data['audio_filepath'] for data in test_data]
+doc_ids = []
+for data in test_data:
+    if "doc_id" in data:
+        doc_ids.append(data["doc_id"])
+    else:  # fix for Spoken Wikipedia format
+        path = data["audio_filepath"]
+        # example of path: ...clips/197_0000.wav   #doc_id=197
+        path_parts = path.split("/")
+        path_parts2 = path_parts[-1].split("_")
+        doc_id = path_parts2[-2]
+        doc_ids.append(doc_id)
 
 out_target_lost = open(args.output_name + ".target_lost", "w", encoding="utf-8")
 out_target_lost_before_top10 = open(args.output_name + ".target_lost_before_top10", "w", encoding="utf-8")
@@ -135,11 +146,7 @@ with open(args.output_name, "w", encoding="utf-8") as out:
     diff_vocab_before_after_spellcheck = Counter()
 
     for i in range(len(test_data)):
-        path = audio_filepath[i]
-        # example of path: ...clips/197_0000.wav   #doc_id=197
-        path_parts = path.split("/")
-        path_parts2 = path_parts[-1].split("_")
-        doc_id = path_parts2[-2]
+        doc_id = doc_ids[i]
         vocab, phrase2id, id2phrase = custom_vocabs[doc_id]
         ref_sent = " " + ref_text[i] + " "
         after_sent = " " + pred_text[i] + " "
