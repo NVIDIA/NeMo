@@ -15,8 +15,9 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
