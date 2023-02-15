@@ -70,7 +70,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         # frozen_model_cfg = MegatronGPTModel.restore_from(
         #     cfg.get('restore_from_path'), trainer=trainer, return_config=True
         # )
-
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        
 
 
         save_restore_connector = NLPSaveRestoreConnector()
@@ -78,51 +79,46 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
             save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
 
         frozen_model_cfg = MegatronRetrievalModel.restore_from(
-            cfg.get('restore_from_path'), trainer=self._trainer, return_config=True, save_restore_connector=save_restore_connector,
+            cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
         )
 
-        with open_dict(frozen_model_cfg):
-            # work around for the fused softmax bug
-            frozen_model_cfg.masked_softmax_fusion = False
-            frozen_model_cfg.precision = self._trainer.precision
+        # with open_dict(frozen_model_cfg):
+        #     # work around for the fused softmax bug
+        #     frozen_model_cfg.masked_softmax_fusion = False
+        #     frozen_model_cfg.precision = trainer.precision
 
-        # frozen_model_cfg = MegatronGPTModel.restore_from(
+
+        # Need to overwrite some params in frozen model's config before restoring
+        # with open_dict(frozen_model_cfg):
+        #     frozen_model_cfg.megatron_amp_O2 = False
+        #     frozen_model_cfg.optim.name = "fused_adam"
+        #     frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+        #     # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+        #     frozen_model_cfg.precision = trainer.precision
+        #     frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+        #     frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+        #         "activations_checkpoint_granularity", None
+        #     )
+        #     frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+        #         "activations_checkpoint_num_layers", None
+        #     )
+        #     frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+
+        # if self._trainer.precision == 'bf16':
+        #     self.autocast_dtype = torch.bfloat16
+        # elif int(self._trainer.precision) == 32:
+        #     self.autocast_dtype = torch.float
+        # elif int(self._trainer.precision) == 16:
+        #     self.autocast_dtype = torch.half
+        # else:
+        #     raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        # self.frozen_model = MegatronRetrievalModel.restore_from(
         #     cfg.get('restore_from_path'),
         #     trainer=trainer,
-        #     return_config=True,
-        #     # save_restore_connector=save_restore_connector,
-        # )
-        # Need to overwrite some params in frozen model's config before restoring
-        with open_dict(frozen_model_cfg):
-            frozen_model_cfg.megatron_amp_O2 = False
-            frozen_model_cfg.optim.name = "fused_adam"
-            frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-            # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
-            frozen_model_cfg.precision = trainer.precision
-            frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-            frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
-                "activations_checkpoint_granularity", None
-            )
-            frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
-                "activations_checkpoint_num_layers", None
-            )
-            frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
-
-        if self.trainer.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
-
-        self.frozen_model = MegatronRetrievalModel.restore_from(
-            cfg.get('restore_from_path'),
-            trainer=self._trainer,
-            save_restore_connector=save_restore_connector,
-            override_config_path=frozen_model_cfg,
-        ).to(dtype=self.autocast_dtype)
+        #     save_restore_connector=save_restore_connector,
+        #     override_config_path=frozen_model_cfg,
+        # ).to(dtype=self.autocast_dtype)
 
         # if cfg.get('restore_from_path', None):
         #     self.frozen_model = MegatronGPTModel.restore_from(
@@ -176,42 +172,68 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         logging.info("Done")
 
+    def forward(
+        self,
+        input_ids,
+        input_attn_mask,
+        retrieved_ids,
+        retrieved_attn_mask,
+        token_type_ids=None,
+        labels=None,
+        input_emb=None,
+        position_ids=None,
+    ):
+        output_tensor = self.frozen_model(
+            input_ids=input_ids,
+            input_attn_mask=input_attn_mask,
+            retrieved_ids=retrieved_ids,
+            retrieved_attn_mask=retrieved_attn_mask,
+            token_type_ids=token_type_ids,
+            labels=labels,
+            input_emb=input_emb,
+            position_ids=position_ids,
+        )
+        return output_tensor
     # def load_model_state_dict(self, checkpoint) -> None:
     #     self.load_state_dict(state_dict())
 
 
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """
-        Creates a state_dict using only the adapter parameters.
-        This ensures that this wrapper class will only checkpoint the adapter
-        weights and not the rest of the base GPT Model.
-        """
-        state_dict_ = {}
-        for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([name, adapter_key])
-                        state_dict_[state_adapter_key] = adapter_module.state_dict()
+    # def state_dict(self, destination=None, prefix=None, keep_vars=False):
+    #     """
+    #     Creates a state_dict using only the adapter parameters.
+    #     This ensures that this wrapper class will only checkpoint the adapter
+    #     weights and not the rest of the base GPT Model.
+    #     """
+    #     state_dict_ = {}
+    #     for name, module in self.frozen_model.named_modules():
+    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+    #             for adapter_key in self.adapter_name_keys:
+    #                 adapter_module = module.get_adapter_module(adapter_key)
+    #                 if adapter_module:
+    #                     state_adapter_key = ':'.join([name, adapter_key])
+    #                     state_dict_[state_adapter_key] = adapter_module.state_dict()
 
-                module.set_enabled_adapters(enabled=True)
-        return state_dict_
+    #             module.set_enabled_adapters(enabled=True)
+    #     return state_dict_
 
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Loads a state_dict expecting the state_dict to contain key,values 
-        only for the adapter parameters.
-        """
-        for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([name, adapter_key])
-                        stact_dict_output = state_dict[state_adapter_key]
-                        adapter_module.load_state_dict(stact_dict_output, strict)
-                module.set_enabled_adapters(enabled=True)
+    # def load_state_dict(self, state_dict, strict: bool = True):
+    #     """
+    #     Loads a state_dict expecting the state_dict to contain key,values 
+    #     only for the adapter parameters.
+    #     """
+    #     state_dict = self.frozen_model.state_dict()
+    #     for name, module in self.frozen_model.named_modules():
+    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+    #             for adapter_key in self.adapter_name_keys:
+    #                 adapter_module = module.get_adapter_module(adapter_key)
+    #                 if adapter_module:
+    #                     state_adapter_key = ':'.join([name, adapter_key])
+    #                     stact_dict_output = state_dict[state_adapter_key]
+    #                     adapter_module.load_state_dict(stact_dict_output, strict)
+    #             module.set_enabled_adapters(enabled=True)
+
+    #     # self.frozen_model.load_state_dict(state_dict)
+    #     print("Loaded state dict")
 
     def setup_optimizer_param_groups(self):
         """
@@ -233,6 +255,32 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         self._optimizer_param_groups = [{'params': opt_params}]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
+
+    # def training_step(self, batch, batch_idx):
+    #     # we zero grads here because we also call backward in the apex fwd/bwd functions
+    #     self._optimizer.zero_grad()
+    #     loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+    #     self.allreduce_gradients()
+
+    #     ## logging
+    #     # we can only log on one rank if it is rank zero so we broadcast from last rank
+    #     # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+    #     torch.distributed.broadcast(loss_mean, get_last_rank())
+
+    #     if self.cfg.precision == 16:
+    #         loss_scale = self.trainer.precision_plugin.scaler._scale
+    #         if loss_scale is not None:
+    #             self.log('loss_scale', loss_scale)
+
+    #     self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+    #     lr = self._optimizer.param_groups[0]['lr']
+    #     self.log('lr', lr, rank_zero_only=True)
+    #     self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+
+    #     # Need to make sure the frozen model param learning rate stays 0.0
+    #     # so forceing lr to be 0.0 for gpt layers before param update
+    #     return loss_mean
+
 
     @classmethod
     def list_available_models(cls):

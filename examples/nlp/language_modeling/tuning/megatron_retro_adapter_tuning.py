@@ -44,7 +44,7 @@ def main(cfg) -> None:
 
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        gradient_as_bucket_view=False,
         find_unused_parameters=False,
     )
 
@@ -83,6 +83,7 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronFusedRetrievalAdapterModel(cfg.model, trainer)
+    # model = MegatronRetrievalModel(cfg.model, trainer)
 
     trainer.fit(model)
 
