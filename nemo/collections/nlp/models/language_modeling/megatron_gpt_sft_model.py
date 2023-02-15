@@ -256,19 +256,17 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    '''
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-
-    def validation_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
+    def validation_epoch_end(self, outputs):
+        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
+
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
-    '''
 
     def _collate_inference_batch(self, dataloader_iter):
         batch = []
@@ -350,8 +348,30 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         '''
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
+        if not outputs:
+            return
+
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
         # Parent class will handle logging of the loss.
-        return super().validation_epoch_end(outputs)
+        averaged_loss = []
+
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            loss = super().validation_epoch_end(output)
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            self.log(loss_log_key, loss, batch_size=1)
+            averaged_loss.append(loss)
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss, batch_size=1)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss, batch_size=1)
+
+        return averaged_loss
         '''
         if not outputs:
             return
