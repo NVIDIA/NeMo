@@ -68,6 +68,7 @@ def _k2_cuda_is_enabled() -> Tuple[bool, str]:
     else:
         return False, "k2 needs CUDA to be available in torch."
 
+
 def skip_k2_cuda_test_if_unsupported():
     supported, msg = _k2_cuda_is_enabled()
     if not supported:
