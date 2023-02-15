@@ -35,11 +35,7 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin
 from nemo.collections.asr.parts.k2.ml_loss import MLLoss
-from nemo.collections.asr.parts.k2.utils import (
-    create_sparse_wrapped,
-    get_tot_objf_and_finite_mask,
-    load_graph,
-)
+from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped, get_tot_objf_and_finite_mask, load_graph
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 from nemo.utils import logging
 
