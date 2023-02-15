@@ -42,14 +42,14 @@ from nemo.collections.asr.parts.submodules.subsampling import (
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ['ConformerEncoder']
 
 
-class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
+class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     """
     The encoder for ASR model of Conformer.
     Based on this paper:
@@ -403,7 +403,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.capture_output_at_layers = capture_output_at_layers
         if self.capture_output_at_layers is None:
             self.capture_output_at_layers = []  # means it's disabled
-        self.captured_layer_outputs = []
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
@@ -510,7 +509,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             if self.att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
 
-        self.captured_layer_outputs = []
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
             original_signal = audio_signal
             audio_signal = layer(
@@ -543,8 +541,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
 
-            if lth in self.capture_output_at_layers:
-                self.captured_layer_outputs.append([audio_signal.clone(), length.clone()])
+            if lth in self.capture_output_at_layers and self.is_access_enabled():
+                self.register_accessible_tensor(name=f'layer_output_{lth}', tensor=torch.transpose(audio_signal, 1, 2))
+                self.register_accessible_tensor(name=f'layer_length_{lth}', tensor=length)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
@@ -554,9 +553,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
-
-        for captured_output in self.captured_layer_outputs:
-            captured_output[0] = torch.transpose(captured_output[0], 1, 2)
 
         if cache_last_channel is not None:
             return audio_signal, length, cache_last_channel_next, cache_last_time_next
