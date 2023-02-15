@@ -75,3 +75,11 @@ class YouTokenToMeTokenizer(TokenizerSpec):
     @property
     def unk_id(self):
         return self.tokenizer.subword_to_id("<UNK>")
+
+    @property
+    def bos_token(self):
+        return "<BOS>"
+
+    @property
+    def eos_token(self):
+        return "<EOS>"
