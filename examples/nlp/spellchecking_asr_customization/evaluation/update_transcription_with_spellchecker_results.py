@@ -15,8 +15,8 @@ parser.add_argument(
 parser.add_argument(
     "--spellchecker_results_folder", required=True, type=str, help="Input folder with spellchecker output"
 )
-parser.add_argument("--input_manifest", required=True, type=str, help="Manifest with trancription before correction")
-parser.add_argument("--output_manifest", required=True, type=str, help="Manifest with trancription after correction")
+parser.add_argument("--input_manifest", required=True, type=str, help="Manifest with transcription before correction")
+parser.add_argument("--output_manifest", required=True, type=str, help="Manifest with transcription after correction")
 parser.add_argument(
     "--min_cov", required=True, type=float, help="Minimum coverage value"
 )
@@ -25,6 +25,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "--min_dp_score_per_symbol", required=True, type=float, help="Minimum dynamic programming sum score averaged by hypothesis length"
+)
+parser.add_argument(
+    "--min_dst_len", default=1, type=int, help="Minimum dst length"
 )
 parser.add_argument("--ngram_mappings", type=str, required=True, help="File with ngram mappings")
 
@@ -280,6 +283,12 @@ for name in os.listdir(args.spellchecker_results_folder):
                 banned_count += 1
                 continue
 
+            if dst.count(" ") + 1 < args.min_dst_len:
+                continue
+
+            #  replace hyphens with space: this fix is only for evaluation purposes (because references are without hyphens) 
+            dst = dst.replace("-", "_")
+
             for full_sent in short2full_sent[short_sent]:  # mostly there will be one-to-one correspondence
                 if full_sent not in full_sent2corrections:
                     full_sent2corrections[full_sent] = {}
@@ -319,16 +328,21 @@ test_data = read_manifest(args.input_manifest)
 # extract just the text corpus from the manifest
 pred_text = [data['pred_text'] for data in test_data]
 audio_filepath = [data['audio_filepath'] for data in test_data]
-durations = [data['duration'] for data in test_data]
+doc_ids = []
 
-print("duration=", sum(durations))
+for data in test_data:
+    if "doc_id" in data:
+        doc_ids.append(data["doc_id"])
+    else:  # fix for Spoken Wikipedia format
+        path = data["audio_filepath"]
+        # example of path: ...clips/197_0000.wav   #doc_id=197
+        path_parts = path.split("/")
+        path_parts2 = path_parts[-1].split("_")
+        doc_id = path_parts2[-2]
+        doc_ids.append(doc_id)
 
 for i in range(len(test_data)):
-    sent, path = pred_text[i], audio_filepath[i]
-    # example of path: ...clips/197_0000.wav   #doc_id=197
-    path_parts = path.split("/")
-    path_parts2 = path_parts[-1].split("_")
-    doc_id = path_parts2[-2]
+    sent, doc_id = pred_text[i], doc_ids[i]
     k = doc_id + "\t" + sent
     if k in final_corrections:
         test_data[i]["before_spell_pred"] = test_data[i]["pred_text"]

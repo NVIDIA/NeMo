@@ -1,12 +1,23 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import random
-import sys
+import os
 from argparse import ArgumentParser
 from collections import defaultdict
 from os.path import exists
 from typing import List
-
-import numpy as np
-import braceexpand
 
 ## !!!this is temporary hack for my windows machine since is misses some installs 
 #sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
@@ -18,15 +29,13 @@ from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_
 parser = ArgumentParser(
     description="Prepare input examples for inference"
 )
-parser.add_argument("--input_path", required=True, type=str, help="Path to input file with asr hypotheses, brace expanded")
-parser.add_argument("--input_vocab_path", type=str, required=True, help="Path to custom vocabulary, brace expanded")
+parser.add_argument("--hypotheses_folder", required=True, type=str, help="Path to input folder with asr hypotheses")
+parser.add_argument("--vocabs_folder", type=str, required=True, help="Path to input folder with user vocabs")
+parser.add_argument("--output_folder", type=str, required=True, help="Output folder")
 parser.add_argument("--ngram_mapping", type=str, required=True, help="Path to ngram mapping vocabulary")
 parser.add_argument(
     "--sub_misspells_file", required=True, type=str, help="File with misspells from which only keys will be used to sample dummy candidates"
 )
-
-parser.add_argument("--output_path", type=str, required=True, help="Output file in format required by the inference, brace expanded")
-parser.add_argument("--output_info_path", type=str, required=True, help="Additional output file with information about candidates, brace expanded")
 parser.add_argument("--debug", action='store_true', help="Whether to create files with debug information")
 
 
@@ -39,10 +48,12 @@ def read_custom_vocab(filename: str) -> List[str]:
             phrases.add(" ".join(list(line.strip().casefold().replace(" ", "_"))))
     return list(phrases)
 
-
+print("load ngram mappings...")
 ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, max_dst_freq=125000)
 # CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
+print("done.")
 
+print("load big sample of phrases...")
 big_sample_of_phrases = set()
 with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
     for line in f:
@@ -54,66 +65,44 @@ with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
         big_sample_of_phrases.add(phrase)
 
 big_sample_of_phrases = list(big_sample_of_phrases)
+print("done.")
 
-input_paths = args.input_path
-input_custom_vocab_paths = args.input_vocab_path
-output_paths = args.output_path
-output_info_paths = args.output_info_path
+print("load vocabs...")
+custom_vocabs = {}  # key=doc_id, value=tuple(phrases, ngram2phrases)
+for name in os.listdir(args.vocabs_folder):
+    print("\tloading", name)
+    parts = name.split(".")
+    if len(parts) == 3 and parts[1] == "custom":
+        doc_id = parts[0]
+        custom_phrases = read_custom_vocab(os.path.join(args.vocabs_folder, name))
+        if len(custom_phrases) == 0:
+            continue
+        phrases, ngram2phrases = get_index(custom_phrases, ngram_mapping_vocab, ban_ngram)
+        custom_vocabs[doc_id] = (phrases, ngram2phrases)
+print("done.")
 
-# Replace '(', '[', '<' and '_OP_' with '{'
-brace_keys_open = ['(', '[', '<', '_OP_']
-for bkey in brace_keys_open:
-    input_paths = input_paths.replace(bkey, "{")
-    input_custom_vocab_paths = input_custom_vocab_paths.replace(bkey, "{")
-    output_paths = output_paths.replace(bkey, "{")
-    output_info_paths = output_info_paths.replace(bkey, "{")
 
-# Replace ')', ']', '>' and '_CL_' with '}'
-brace_keys_close = [')', ']', '>', '_CL_']
-for bkey in brace_keys_close:
-    input_paths = input_paths.replace(bkey, "}")
-    input_custom_vocab_paths = input_custom_vocab_paths.replace(bkey, "}")
-    output_paths = output_paths.replace(bkey, "}")
-    output_info_paths = output_info_paths.replace(bkey, "}")
-
-input_paths = list(braceexpand.braceexpand(input_paths))
-input_custom_vocab_paths = list(braceexpand.braceexpand(input_custom_vocab_paths))
-output_paths = list(braceexpand.braceexpand(output_paths))
-output_info_paths = list(braceexpand.braceexpand(output_info_paths))
-if len(input_paths) != len(output_paths) or len(input_paths) != len(output_info_paths) or len(input_paths) != len(input_custom_vocab_paths):
-    raise(IndexError, "number of input_path, output_path and output_info_path should match!")
-
-for input_name, input_custom_vocab_name, output_name, output_info_name in zip(
-    input_paths,
-    input_custom_vocab_paths,
-    output_paths,
-    output_info_paths
-):
-    if not exists(input_name) or not exists(input_custom_vocab_name):
+for name in os.listdir(args.hypotheses_folder):
+    parts = name.split(".")
+    doc_id = parts[0]
+    if doc_id not in custom_vocabs:
         continue
-    custom_phrases = read_custom_vocab(input_custom_vocab_name)
-    phrases, ngram2phrases = get_index(custom_phrases, ngram_mapping_vocab, ban_ngram)
-
-    print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases))
+    phrases, ngram2phrases = custom_vocabs[doc_id]
 
     if args.debug:
-        with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
+        with open(os.path.join(args.output_folder, doc_id + ".index.txt"), "w", encoding="utf-8") as out_debug:
             for ngram in ngram2phrases:
                 for phrase_id, b, size, lp in ngram2phrases[ngram]:
                     phr = phrases[phrase_id]
                     out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
 
-    path_parts = output_name.split("/")
-    path_parts2 = path_parts[-1].split(".")
-    doc_id = path_parts2[0]
-
     if args.debug:
-        out_debug = open(output_name + ".candidates", "w", encoding="utf-8")
-        out_debug2 = open(output_name + ".candidates_select", "w", encoding="utf-8")
+        out_debug = open(os.path.join(args.output_folder, doc_id + ".candidates"), "w", encoding="utf-8")
+        out_debug2 = open(os.path.join(args.output_folder, doc_id + ".candidates_select"), "w", encoding="utf-8")
 
-    out = open(output_name, "w", encoding="utf-8")
-    out_info = open(output_info_name, "w", encoding="utf-8")
-    with open(input_name, "r", encoding="utf-8") as f:
+    out = open(os.path.join(args.output_folder, doc_id + ".txt"), "w", encoding="utf-8")
+    out_info = open(os.path.join(args.output_folder, doc_id + ".info.txt"), "w", encoding="utf-8")
+    with open(os.path.join(args.hypotheses_folder, name), "r", encoding="utf-8") as f:
         for line in f:
             short_sent, _ = line.strip().split("\t")
             sent = "_".join(short_sent.split())
