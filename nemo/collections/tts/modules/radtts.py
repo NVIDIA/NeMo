@@ -66,7 +66,7 @@ def adjust_f0(f0, f0_mean, f0_std, vmask_bool, musical_scaling=True):
             f0_std = f0_std if f0_std > 0 else f0_sigma
             f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
             f0 = f0.masked_fill(~vmask_bool, 0.0)
-        return f0
+    return f0
 
 
 class FlowStep(nn.Module):
@@ -670,7 +670,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if f0 is None:
             f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=False)
 
         if energy_avg is None:
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]

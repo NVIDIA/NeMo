@@ -87,7 +87,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.cfg = cfg
         self.log_train_images = False
         self.export_config = {
-            "emb_range": (32, 64),
+            "emb_range": (0, self.model.embedding.num_embeddings),
             "enable_volume": True,
             "enable_ragged_batches": False,
             "num_speakers": self.model_config.n_speakers,
@@ -455,11 +455,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def input_example(self, max_batch=1, max_dim=400):
         par = next(self.model.parameters())
         inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
-        speaker = inputs["speaker"]
+        speaker = inputs.pop("speaker")
         inp = inputs['text']
         pad_id = self.tokenizer.pad
         inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
-
         new_inputs = {
             'text': inp,
             'lens': inputs['batch_lengths'],
