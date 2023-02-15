@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 import copy
 
 import pytest
+import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
@@ -93,6 +93,7 @@ def asr_model():
 
 
 class TestInterCTCLoss:
+    @pytest.mark.unit
     @pytest.mark.parametrize(
         "capture_output_at_layers,intermediate_loss_weights",
         [
@@ -157,8 +158,21 @@ class TestInterCTCLoss:
                 'encoder': DictConfig(encoder),
                 'decoder': DictConfig(decoder),
                 'intermediate_loss_weights': intermediate_loss_weights,
+                'optim': {'name': 'adamw'},
             }
         )
+
+        class DummyDataset(torch.utils.data.Dataset):
+            """Simply returns a single set of values."""
+
+            def __init__(self, values):
+                self.values = values
+
+            def __len__(self):
+                return 1
+
+            def __getitem__(self, idx):
+                return self.values
 
         asr_model = EncDecCTCModel(cfg=modelConfig)
         asr_model.train()
@@ -180,9 +194,22 @@ class TestInterCTCLoss:
                 assert not torch.allclose(output[0], logprobs)
                 assert output[0].shape == logprobs.shape
 
-            # TODO (igitman): we also need to add tests for the loss itself, but
-            #   have to call .training_step for that. Is there an easy and fast
-            #   way to set the PTL trainer to run it on random data?
+            trainer = pl.Trainer(max_epochs=1)
+            trainer.fit(
+                asr_model,
+                train_dataloaders=torch.utils.data.DataLoader(
+                    DummyDataset([input_signal, input_length, target, target_length]), collate_fn=lambda x: x[0],
+                ),
+                val_dataloaders=torch.utils.data.DataLoader(
+                    DummyDataset([input_signal, input_length, target, target_length]), collate_fn=lambda x: x[0],
+                ),
+            )
+            required_metrics = ['final_ctc_loss'] if len(intermediate_loss_weights) > 0 else []
+            required_metrics += [f'inter_ctc_loss{idx}' for idx in range(len(intermediate_loss_weights))]
+            required_metrics += [f'val_{metric}' for metric in required_metrics]
+            required_metrics += ['val_wer'] + [f'val_inter_wer{idx}' for idx in range(len(intermediate_loss_weights))]
+            for metric in required_metrics:
+                assert metric in trainer.logged_metrics
 
 
 class TestEncDecCTCModel:
