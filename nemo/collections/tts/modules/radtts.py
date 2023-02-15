@@ -670,7 +670,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if f0 is None:
             f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=False)
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=True)
 
         if energy_avg is None:
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
