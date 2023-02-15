@@ -1,10 +1,11 @@
-import os
 import argparse
+import os
 from collections import Counter
 
 import pandas as pd
 
-def load_file_into_df(filename): 
+
+def load_file_into_df(filename):
     message = None
     if not os.path.isfile(filename):
         raise ValueError(f"File {filename} does not exist")
@@ -14,14 +15,17 @@ def load_file_into_df(filename):
         df = pd.read_json(filename, dtype=str).fillna("")
     elif filename.lower().endswith(".xlsx"):
         df = pd.read_excel(filename, dtype=str).fillna("")
-        message="Note only the first sheet in your Excel file will be read."
+        message = "Note only the first sheet in your Excel file will be read."
     elif filename.lower().endswith(".csv"):
         df = pd.read_csv(filename, sep=",", dtype=str).fillna("")
     elif filename.lower().endswith(".tsv"):
         df = pd.read_csv(filename, sep="\t", dtype=str).fillna("")
     else:
-        raise ValueError(f"Filename {filename} does not have the acceptable extension of .jsonl, .json, .xlsx, .csv or .tsv")
+        raise ValueError(
+            f"Filename {filename} does not have the acceptable extension of .jsonl, .json, .xlsx, .csv or .tsv"
+        )
     return df, message
+
 
 def recommend_hyperparameters(df):
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
@@ -31,18 +35,22 @@ def recommend_hyperparameters(df):
             bs = potential_bs
     return f"TODO: A batch_size={bs} is recommended for training"
 
+
 def warn_completion_is_not_empty(df):
     message = None
     field = "completion"
     empty_rows = (df[field] == "") | (df[field].isnull())
     empty_indexes = df.reset_index().index[empty_rows].tolist()
     if len(empty_indexes) == len(df):
-        message = "TODO: Note all completion fields are empty. This is possibly expected for inference but not for training"
+        message = (
+            "TODO: Note all completion fields are empty. This is possibly expected for inference but not for training"
+        )
     elif len(empty_indexes) != 0:
         message = f"""TODO: completion contains {len(empty_indexes)} empty values at rows ({empty_indexes})
                 Please check the original file that the fields for prompt template are 
                 not empty and rerun dataset validation"""
     return message
+
 
 def warn_imbalanced_completion(df):
     completions = df["completion"].tolist()
@@ -62,16 +70,17 @@ def get_common_suffix(series):
     while True:
         candidate_common_suffixes = series.str[-(len(common_suffix) + 1) :]
         if candidate_common_suffixes.nunique() != 1:
-            #candidate_common_suffixes contains more than one value 
-            #therefore, it is no longer a common suffix
+            # candidate_common_suffixes contains more than one value
+            # therefore, it is no longer a common suffix
             break
         elif common_suffix == candidate_common_suffixes.values[0]:
-            #candidate is the same as previous common_suffix
-            #therefore values in series are too short to move back by one char
+            # candidate is the same as previous common_suffix
+            # therefore values in series are too short to move back by one char
             break
         else:
             common_suffix = candidate_common_suffixes.values[0]
     return common_suffix
+
 
 def warn_missing_suffix(df):
     message = ''
@@ -80,18 +89,24 @@ def warn_missing_suffix(df):
             message += f"TODO: {field} does not have common suffix, please add one (e.g. \\n) at the end of {field}_template\n"
     return message if message else None
 
+
 def validate_template(template):
     template_with_only_brackets = [i for i in template if i in ["{", "}"]]
-    error_msg = "Your template (" + template + ") is not in the correct format.\
+    error_msg = (
+        "Your template ("
+        + template
+        + ") is not in the correct format.\
                 Template must be in the format contains zero or more fields, \
                 each field specified by {field}\
                 For instance, it can be 'Context: {context} Question: {question}:"
+    )
     if len(template_with_only_brackets) % 2 != 0:
         raise ValueError(error_msg)
     for i in range(0, len(template_with_only_brackets), 2):
-        if not(template_with_only_brackets[i] == "{" and template_with_only_brackets[i+1] == "}"):
+        if not (template_with_only_brackets[i] == "{" and template_with_only_brackets[i + 1] == "}"):
             raise ValueError(error_msg)
     return None
+
 
 def parse_template(template):
     field_names = []
@@ -110,6 +125,7 @@ def parse_template(template):
         i += 1
     return field_names
 
+
 def warn_duplicated_rows(df):
     message = None
     duplicated_rows = df.duplicated()
@@ -121,6 +137,7 @@ def warn_duplicated_rows(df):
         message += "If it is not, please add the argument --drop_duplicate"
     return message
 
+
 def drop_duplicated_rows(df):
     duplicated_rows = df.duplicated()
     duplicated_indices = df.reset_index().index[duplicated_rows].tolist()
@@ -131,10 +148,12 @@ def drop_duplicated_rows(df):
         message += f"Removed {len(duplicated_indices)} duplicate rows"
     return df, message
 
+
 def template_mapper(row, field_names, template):
     for field_name in field_names:
-        template = template.replace("{"+field_name+"}", row[field_name])
+        template = template.replace("{" + field_name + "}", row[field_name])
     return template
+
 
 def drop_unrequired_fields(df, required_fields=["prompt", "completion"]):
     for column in df.columns:
@@ -142,15 +161,19 @@ def drop_unrequired_fields(df, required_fields=["prompt", "completion"]):
             df = df.drop(column, axis=1)
     return df
 
+
 def convert_into_template(df, template, prompt_or_completion="prompt"):
     validate_template(template)
     template = template.replace("\\n", "\n")
     field_names = parse_template(template)
     for field_name in field_names:
         if field_name not in df.columns:
-            raise ValueError(f"Field {field_name} requested in {prompt_or_completion}_template ({template}) but not found in file columns, which contains {list(df.columns)}")
-    df[prompt_or_completion] = df.apply(lambda row: template_mapper(row, field_names, template), axis = 1)
+            raise ValueError(
+                f"Field {field_name} requested in {prompt_or_completion}_template ({template}) but not found in file columns, which contains {list(df.columns)}"
+            )
+    df[prompt_or_completion] = df.apply(lambda row: template_mapper(row, field_names, template), axis=1)
     return df
+
 
 def convert_into_prompt_completion_only(df, prompt_template="{prompt}", completion_template="{completion}"):
     df = convert_into_template(df, prompt_template, prompt_or_completion="prompt")
@@ -160,9 +183,7 @@ def convert_into_prompt_completion_only(df, prompt_template="{prompt}", completi
 
 
 def warn_and_drop_long_samples(df, max_total_char_length):
-    long_examples = df.apply(
-        lambda x: len(x.prompt) + len(x.completion) > max_total_char_length, axis=1
-    )
+    long_examples = df.apply(lambda x: len(x.prompt) + len(x.completion) > max_total_char_length, axis=1)
     indices_of_long_examples = df.reset_index().index[long_examples].tolist()
     message = None
     if len(indices_of_long_examples) > 0:
@@ -175,10 +196,12 @@ def warn_and_drop_long_samples(df, max_total_char_length):
         df = df.drop('index', axis=1)
     return df, message
 
+
 def warn_low_n_samples(df, min_samples=64):
     if len(df) < min_samples:
         return f"""TODO: We would recommend having more samples (>{min_samples}) if possible but current_file only contains {len(df)} samples. """
     return None
+
 
 def show_first_example_in_df(df):
     message = ''
@@ -187,6 +210,7 @@ def show_first_example_in_df(df):
         column_value = df[column][0].replace('\n', '\\n')
         message += f"-->Column {column}:\n{column_value}\n"
     return message
+
 
 def get_prepared_filename(filename, split_train_validation=False):
     message = ""
@@ -211,23 +235,26 @@ def get_prepared_filename(filename, split_train_validation=False):
 
 
 def split_into_train_validation(df, val_proportion=0.1):
-    n_val = int(val_proportion*len(df))
+    n_val = int(val_proportion * len(df))
     df_val = df.sample(n=n_val, random_state=42)
     df_train = df.drop(df_val.index)
     return df_train, df_val
+
 
 def write_df_to_jsonl(df, filename):
     df.to_json(filename, lines=True, orient="records", force_ascii=False)
     return f"File {filename} written"
 
+
 def print_select_messages(title, select_messages):
-    print("*"*40)
+    print("*" * 40)
     print(title)
-    print("*"*40)
+    print("*" * 40)
     for idx, message in enumerate(select_messages):
         print(f"{idx+1}.")
         print(message)
-    
+
+
 def print_all_messages(messages):
     messages = [message for message in messages if message]
     info_messages = [message for message in messages if not message.startswith("TODO")]
@@ -235,7 +262,8 @@ def print_all_messages(messages):
 
     print_select_messages("ACTIONABLE MESSAGES", to_do_messages)
     print_select_messages("INFORMATIONAL MESSAGES", info_messages)
-    
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepares data for NeMoLLM Csutomization Service")
     parser.add_argument("--filename", "-f")
@@ -244,9 +272,15 @@ if __name__ == "__main__":
     parser.add_argument("--long_seq_model", "-8k", action="store_true")
     parser.add_argument("--drop_duplicates", "-dd", action="store_true")
     parser.add_argument("--split_train_validation", "-stv", action="store_true")
-    parser.add_argument("--val_proportion", "-vp", default=0.1, type=float, help="Give a number between 0 to 1, \
+    parser.add_argument(
+        "--val_proportion",
+        "-vp",
+        default=0.1,
+        type=float,
+        help="Give a number between 0 to 1, \
                         representing proportion of samples to go into the validation set\
-                        only use when --split_train_validation is set")
+                        only use when --split_train_validation is set",
+    )
     args = parser.parse_args()
     messages = []
     messages.append(str(args))
@@ -259,11 +293,13 @@ if __name__ == "__main__":
     messages.append("-------Before converting into prompt and completion template------ \n")
     messages[-1] += show_first_example_in_df(df)
 
-    df = convert_into_prompt_completion_only(df, prompt_template=args.prompt_template, completion_template=args.completion_template)
-    
+    df = convert_into_prompt_completion_only(
+        df, prompt_template=args.prompt_template, completion_template=args.completion_template
+    )
+
     messages.append("-------After converting into prompt and completion template------ \n")
     messages[-1] += show_first_example_in_df(df)
-    
+
     if args.drop_duplicates:
         df, message = drop_duplicated_rows(df)
         messages.append(message)
@@ -280,17 +316,16 @@ if __name__ == "__main__":
     messages.append(message)
 
     messages.append(recommend_hyperparameters(df))
-    
-    prepared_filename, message = get_prepared_filename(args.filename, split_train_validation=args.split_train_validation)
+
+    prepared_filename, message = get_prepared_filename(
+        args.filename, split_train_validation=args.split_train_validation
+    )
     messages.append(message)
     if args.split_train_validation:
-        df_train, df_val= split_into_train_validation(df, val_proportion=args.val_proportion)
+        df_train, df_val = split_into_train_validation(df, val_proportion=args.val_proportion)
         messages.append(write_df_to_jsonl(df_train, prepared_filename[0]))
         messages.append(write_df_to_jsonl(df_val, prepared_filename[1]))
     else:
         messages.append(write_df_to_jsonl(df, prepared_filename))
 
     print_all_messages(messages)
-
-
-
