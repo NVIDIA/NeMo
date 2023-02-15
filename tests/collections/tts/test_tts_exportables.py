@@ -91,7 +91,6 @@ class TestExportable:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_RadTTSModel_export_to_onnx(self, radtts_model):
         model = radtts_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
