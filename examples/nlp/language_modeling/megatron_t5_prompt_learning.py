@@ -65,8 +65,9 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.001, patience=10, verbose=True, mode="min")
-    trainer.callbacks.extend([early_stop_callback])
+    if cfg.exp_manager.get("early_stopping_callback_params", None):
+        early_stop_callback = EarlyStopping(**cfg.exp_manager.early_stopping_callback_params)
+        trainer.callbacks.extend([early_stop_callback])
     exp_manager(trainer, cfg.exp_manager)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
