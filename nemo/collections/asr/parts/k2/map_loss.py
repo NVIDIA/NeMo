@@ -35,7 +35,6 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin
 from nemo.collections.asr.parts.k2.ml_loss import MLLoss
-from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped, get_tot_objf_and_finite_mask, load_graph
 from nemo.collections.asr.parts.k2.utils import (
     create_sparse_wrapped,
     get_tot_objf_and_finite_mask,
@@ -209,10 +208,7 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores(
-        self,
-        emissions_graphs: 'k2.DenseFsaVec',
-        supervision_graphs: Any,
-        supervisions: torch.Tensor,
+        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
         This version implicitly assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
