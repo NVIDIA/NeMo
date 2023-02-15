@@ -531,13 +531,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # Intermediate pipeline stage doesn't need any inputs
                     batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
 
-            output_tensor = model(
-                batch['tokens'],
-                batch['position_ids'],
-                batch['attention_mask'],
-                batch['labels'],
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            )
+            # output_tensor = model(
+            #     batch['tokens'],
+            #     batch['position_ids'],
+            #     batch['attention_mask'],
+            #     batch['labels'],
+            #     checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            # )
+            output_tensor = model(batch['tokens'], batch['position_ids'], batch['attention_mask'], batch['labels'],)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
