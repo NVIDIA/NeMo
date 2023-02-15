@@ -256,6 +256,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
+    '''
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
@@ -267,6 +268,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
+    '''
 
     def _collate_inference_batch(self, dataloader_iter):
         batch = []
@@ -279,9 +281,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
-        iter_copy = copy.deepcopy(dataloader_iter)
+        # iter_copy = copy.deepcopy(dataloader_iter)
         loss = super().validation_step(dataloader_iter, batch_idx)
+        return loss
         # Get the global batch from the copy of the iterator.
+        '''
         batch = self._collate_inference_batch(iter_copy)
         length_params: LengthParam = {
             "min_length": 0,
@@ -343,9 +347,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'labels': labels_text,
             'inputs': input_text,
         }
+        '''
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
+        return super().validation_epoch_end(outputs)
+        '''
         if not outputs:
             return
 
@@ -446,6 +453,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.log(f"test_{self.test_metric_name}", averaged_metric)
 
         return averaged_loss, averaged_metric
+        '''
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
