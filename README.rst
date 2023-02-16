@@ -53,7 +53,7 @@ We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/use
 can all be run on `Google Colab <https://colab.research.google.com>`_.
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
-we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/update_readme_into/examples>`_ that support multi-GPU/multi-node training.
+we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
 
 Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
@@ -63,7 +63,7 @@ Key Features
 * Speech processing
     * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
-        * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, ...
+        * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, FastConformer-CTC, FastConformer-Transducer...
         * Supports CTC and Transducer/RNNT losses/decoders
             * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_
         * Beam Search decoding
@@ -98,7 +98,7 @@ Key Features
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN, UnivNet
-    * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
+    * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E, VITS
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
 * `Tools <https://github.com/NVIDIA/NeMo/tree/stable/tools>`_
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
@@ -243,21 +243,17 @@ Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
-NeMo Text Processing, specifically (Inverse) Text Normalization, requires `Pynini <https://pypi.org/project/pynini/>`_ to be installed.
-
-.. code-block:: bash
-
-    bash NeMo/nemo_text_processing/install_pynini.sh
+NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separate repository `https://github.com/NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_.
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.14.0`` comes with container ``nemo:22.11``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.15.0`` comes with container ``nemo:22.12``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:22.11
+    docker pull nvcr.io/nvidia/nemo:22.12
 
 To build a nemo container with Dockerfile from a branch, please run 
 

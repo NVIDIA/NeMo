@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import json
 import math
 import os
@@ -602,14 +603,14 @@ def read_rttm_lines(rttm_file_path):
             List containing the strings from the RTTM file.
     """
     if rttm_file_path and os.path.exists(rttm_file_path):
-        f = open(rttm_file_path, 'r')
+        with open(rttm_file_path, 'r') as f:
+            lines = f.readlines()
     else:
         raise FileNotFoundError(
             "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
                 rttm_file_path
             )
         )
-    lines = f.readlines()
     return lines
 
 
