@@ -77,7 +77,7 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
         for line_i, line in enumerate(f):
             if line_i >= start and line_i <= end:
                 manifest_lines_batch.append(json.loads(line))
-            
+
             if line_i == end:
                 break
     return manifest_lines_batch
