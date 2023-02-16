@@ -569,11 +569,9 @@ weights 0.1 and 0.3, specify:
 
    model:
       # ...
-      encoder:
-        # ...
-        capture_output_at_layers: [3, 8]
-
-      intermediate_loss_weights: [0.1, 0.3]
+      interctc:
+        loss_weights: [0.1, 0.3]
+        apply_at_layers: [3, 8]
 
 Note that the final-layer CTC loss weight is automatically computed to normalize
 all weight to 1 (0.6 in the example about).
