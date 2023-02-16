@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'gitlab-master.nvidia.com/tmoon/containers/bignlp:20230210.dist-adam-overlap-forward'
+          image 'http://nvcr.io/nvidian/bignlp-train:23.02-bdb9a7bc'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
