@@ -77,12 +77,12 @@ class EarlyStoppingParams:
     min_delta: float = 0.001  # smallest change to consider as improvement.
     patience: int = 10  # how many (continuous) validation cycles to wait with no improvement and stopping training.
     verbose: bool = True
-    strict: bool = True,
-    check_finite: bool = True,
-    stopping_threshold: Optional[float] = None,
-    divergence_threshold: Optional[float] = None,
-    check_on_train_epoch_end: Optional[bool] = None,
-    log_rank_zero_only: bool = False,
+    strict: bool = True
+    check_finite: bool = True
+    stopping_threshold: Optional[float] = None
+    divergence_threshold: Optional[float] = None
+    check_on_train_epoch_end: Optional[bool] = None
+    log_rank_zero_only: bool = False
 
 
 @dataclass
