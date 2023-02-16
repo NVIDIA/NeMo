@@ -44,20 +44,9 @@ class InterCTCModelMixin:
                 [x[f"{prefix}final_ctc_loss"] for x in outputs]
             ).mean()
 
-    def add_interctc_losses(
-        self,
-        loss_value: torch.tensor,
-        transcript: torch.tensor,
-        transcript_len: torch.tensor,
-        compute_wer: bool,
-        log_wer_num_denom: bool = False,
-        log_prefix: str = "",
-    ) -> Tuple[torch.Tensor, Dict]:
-        """Adding interCTC losses if required."""
-        if not self.interctc_enabled or not AccessMixin.is_access_enabled():
-            return loss_value, {}
-        self.log()
-        metrics = {f"{log_prefix}final_ctc_loss": loss_value}
+    def get_captured_tensors(self):
+        if not self.interctc_enabled:
+            return []
         # if intermediate_loss_weights was set, the encoder has to register
         # layer_output_X and layer_length_X tensors. We need to apply decoder
         # to each of them and compute CTC loss.
@@ -78,9 +67,25 @@ class InterCTCModelMixin:
                     "Make sure encoder.forward is called exactly one time before interCTC loss is computed."
                 )
             captured_tensors.append((self.decoder(encoder_output=layer_outputs[0]), layer_lengths[0]))
+        return captured_tensors
 
-        for layer_idx, intermediate_result, loss_weight in enumerate(
-            zip(self.encoder.capture_output_at_layers, captured_tensors, self.intermediate_loss_weights)
+    def add_interctc_losses(
+        self,
+        loss_value: torch.tensor,
+        transcript: torch.tensor,
+        transcript_len: torch.tensor,
+        compute_wer: bool,
+        log_wer_num_denom: bool = False,
+        log_prefix: str = "",
+    ) -> Tuple[torch.Tensor, Dict]:
+        """Adding interCTC losses if required."""
+        if not self.interctc_enabled or not AccessMixin.is_access_enabled():
+            return loss_value, {}
+        metrics = {f"{log_prefix}final_ctc_loss": loss_value}
+        captured_tensors = self.get_captured_tensors()
+
+        for layer_idx, intermediate_result, loss_weight in zip(
+            self.encoder.capture_output_at_layers, captured_tensors, self.intermediate_loss_weights
         ):
             inter_loss_value = self.loss(
                 log_probs=intermediate_result[0],

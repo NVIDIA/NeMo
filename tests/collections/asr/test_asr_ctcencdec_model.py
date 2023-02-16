@@ -22,6 +22,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.metrics.wer import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, configs
+from nemo.core.classes.mixins import AccessMixin
 from nemo.utils.config_utils import assert_dataclass_signature_match, update_model_config
 
 
@@ -174,9 +175,6 @@ class TestInterCTCLoss:
             def __getitem__(self, idx):
                 return self.values
 
-        asr_model = EncDecCTCModel(cfg=modelConfig)
-        asr_model.train()
-
         input_signal = torch.randn(size=(1, 512))
         input_length = torch.randint(low=161, high=500, size=[1])
         target = torch.randint(size=(1, input_length[0]), low=0, high=28)
@@ -184,12 +182,21 @@ class TestInterCTCLoss:
 
         if len(capture_output_at_layers) != len(intermediate_loss_weights):
             # has to throw an error here
-            with pytest.raises(RuntimeError, match="Some intermediate layers were not captured!"):
+            with pytest.raises(
+                ValueError, match="Length of encoder.capture_output_at_layers has to match intermediate_loss_weights"
+            ):
+                asr_model = EncDecCTCModel(cfg=modelConfig)
+                asr_model.train()
                 logprobs, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
         else:
+            asr_model = EncDecCTCModel(cfg=modelConfig)
+            asr_model.train()
+            AccessMixin.set_access_enabled(access_enabled=True)
             logprobs, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
-            # assert len(asr_model.intermediate_decoding_results) == len(capture_output_at_layers)
-            for output in asr_model.intermediate_decoding_results:
+            captured_tensors = asr_model.get_captured_tensors()
+            AccessMixin.reset_registry(asr_model)
+            assert len(captured_tensors) == len(capture_output_at_layers)
+            for output in captured_tensors:
                 # checking that values are not the same, but shape is the same
                 assert not torch.allclose(output[0], logprobs)
                 assert output[0].shape == logprobs.shape
@@ -205,9 +212,24 @@ class TestInterCTCLoss:
                 ),
             )
             required_metrics = ['final_ctc_loss'] if len(intermediate_loss_weights) > 0 else []
-            required_metrics += [f'inter_ctc_loss{idx}' for idx in range(len(intermediate_loss_weights))]
-            required_metrics += [f'val_{metric}' for metric in required_metrics]
-            required_metrics += ['val_wer'] + [f'val_inter_wer{idx}' for idx in range(len(intermediate_loss_weights))]
+            required_metrics += [f'inter_ctc_loss_l{idx}' for idx in capture_output_at_layers]
+            prefix = "val_"
+            required_metrics += [f'{prefix}{metric}' for metric in required_metrics]
+            required_metrics += [f'{prefix}wer'] + [f'{prefix}inter_wer_l{idx}' for idx in capture_output_at_layers]
+            for metric in required_metrics:
+                assert metric in trainer.logged_metrics
+
+            trainer.test(
+                asr_model,
+                dataloaders=torch.utils.data.DataLoader(
+                    DummyDataset([input_signal, input_length, target, target_length]), collate_fn=lambda x: x[0],
+                ),
+            )
+            required_metrics = [f'inter_ctc_loss_l{idx}' for idx in capture_output_at_layers]
+            prefix = "test_"
+            # note that "=" is on purpose here, not "+=", since we only log test metrics
+            required_metrics = [f'{prefix}{metric}' for metric in required_metrics]
+            required_metrics += [f'{prefix}wer'] + [f'{prefix}inter_wer_l{idx}' for idx in capture_output_at_layers]
             for metric in required_metrics:
                 assert metric in trainer.logged_metrics
 

@@ -120,6 +120,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         if self.interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
             raise ValueError('To use intermediate CTC loss, encoder has to define "capture_output_at_layers" property')
 
+        if len(self.encoder.capture_output_at_layers) != len(self.intermediate_loss_weights):
+            raise ValueError('Length of encoder.capture_output_at_layers has to match intermediate_loss_weights')
+
     @torch.no_grad()
     def transcribe(
         self,
@@ -551,7 +554,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        if len(self.intermediate_loss_weights) > 0:
+        if self.interctc_enabled:
             AccessMixin.set_access_enabled(access_enabled=True)
 
         signal, signal_len, transcript, transcript_len = batch
@@ -623,7 +626,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         return list(zip(sample_id, transcribed_texts))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        if len(self.intermediate_loss_weights) > 0:
+        if self.interctc_enabled:
             AccessMixin.set_access_enabled(access_enabled=True)
 
         signal, signal_len, transcript, transcript_len = batch
@@ -638,7 +641,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         loss_value, metrics = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True
+            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
         )
 
         self._wer.update(
@@ -651,6 +654,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         )
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
 
         return metrics
 
