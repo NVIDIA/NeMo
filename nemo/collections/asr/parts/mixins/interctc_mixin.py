@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 
@@ -34,6 +34,7 @@ class InterCTCMixin:
     """
 
     def setup_interctc(self):
+        """Sets up all interctc-specific parameters and checks config consistency."""
         self.intermediate_loss_weights = self.cfg.get('intermediate_loss_weights', [])
         self.main_loss_weight = 1.0 - sum(self.intermediate_loss_weights)
         if self.main_loss_weight <= 0.0:
@@ -44,15 +45,26 @@ class InterCTCMixin:
                 "E.g., if intermediate_loss_weights = [0.1, 0.3], regular "
                 "loss will have weight of 0.6"
             )
-        self.interctc_enabled = len(self.intermediate_loss_weights) > 0
-        if self.interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
+        self._interctc_enabled = len(self.intermediate_loss_weights) > 0
+        if self._interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
             raise ValueError('To use intermediate CTC loss, encoder has to define "capture_output_at_layers" property')
 
         if len(self.encoder.capture_output_at_layers) != len(self.intermediate_loss_weights):
             raise ValueError('Length of encoder.capture_output_at_layers has to match intermediate_loss_weights')
 
+    def is_interctc_enabled(self) -> bool:
+        """Returns whether interCTC loss is enabled."""
+        return self._interctc_enabled
+
     def finalize_interctc_metrics(self, metrics, outputs, prefix):
-        if self.interctc_enabled:
+        """Finalizes InterCTC WER and loss metrics for logging purposes.
+
+        Should be called inside ``multi_validation_epoch_end`` (with prefix="val_") or
+        ``multi_test_epoch_end`` (with prefix="test_).
+
+        Note that ``metrics`` argument is going to be updated in-place.
+        """
+        if self.is_interctc_enabled():
             for layer_idx in self.encoder.capture_output_at_layers:
                 loss = torch.stack([x[f"{prefix}inter_ctc_loss_l{layer_idx}"] for x in outputs]).mean()
                 wer_num = torch.stack([x[f"{prefix}inter_wer_num_l{layer_idx}"] for x in outputs]).sum()
@@ -67,8 +79,12 @@ class InterCTCMixin:
                 [x[f"{prefix}final_ctc_loss"] for x in outputs]
             ).mean()
 
-    def get_captured_tensors(self):
-        if not self.interctc_enabled:
+    def get_captured_interctc_tensors(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
+        """Returns a list of captured tensors from encoder.
+
+        Will additionally apply ``self.decoder`` to the outputs.
+        """
+        if not self.is_interctc_enabled():
             return []
         # if intermediate_loss_weights was set, the encoder has to register
         # layer_output_X and layer_length_X tensors. We need to apply decoder
@@ -101,11 +117,14 @@ class InterCTCMixin:
         log_wer_num_denom: bool = False,
         log_prefix: str = "",
     ) -> Tuple[torch.Tensor, Dict]:
-        """Adding interCTC losses if required."""
-        if not self.interctc_enabled or not AccessMixin.is_access_enabled():
+        """Adding interCTC losses if required.
+
+        Will also register loss/wer metrics in the returned dictionary.
+        """
+        if not self.is_interctc_enabled() or not AccessMixin.is_access_enabled():
             return loss_value, {}
         metrics = {f"{log_prefix}final_ctc_loss": loss_value}
-        captured_tensors = self.get_captured_tensors()
+        captured_tensors = self.get_captured_interctc_tensors()
 
         for layer_idx, intermediate_result, loss_weight in zip(
             self.encoder.capture_output_at_layers, captured_tensors, self.intermediate_loss_weights

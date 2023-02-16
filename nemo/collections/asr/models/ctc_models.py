@@ -16,7 +16,7 @@ import json
 import os
 import tempfile
 from math import ceil
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -103,11 +103,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
-        # Adapter modules setup (from ASRAdapterModelMixin)
-        self.setup_adapters()
-
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc()
+
+        # Adapter modules setup (from ASRAdapterModelMixin)
+        self.setup_adapters()
 
     @torch.no_grad()
     def transcribe(
@@ -540,7 +540,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        if self.interctc_enabled:
+        if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
         signal, signal_len, transcript, transcript_len = batch
@@ -562,6 +562,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Add auxiliary losses, if registered
         loss_value = self.add_auxiliary_losses(loss_value)
+        # only computing WER when requested in the logs (same as done for final-layer WER below)
         loss_value, tensorboard_logs = self.add_interctc_losses(
             loss_value, transcript, transcript_len, compute_wer=((batch_nb + 1) % log_every_n_steps == 0)
         )
@@ -608,7 +609,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         return list(zip(sample_id, transcribed_texts))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.interctc_enabled:
+        if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
         signal, signal_len, transcript, transcript_len = batch

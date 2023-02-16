@@ -137,6 +137,16 @@ model:
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
+    # used in combination with model.intermediate_loss_weights
+    # specify [9] to enable InterCTC from the middle layer
+    capture_output_at_layers: []
+
+  # used in combination with model.encoder.capture_output_at_layers
+  # e.g., specify [0.3] to assign that weight to the captured layer
+  # note that regular CTC loss weight will change to 0.7 automatically
+  # see https://arxiv.org/abs/2102.03216 for more details on InterCTC loss
+  intermediate_loss_weights: []
+
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null

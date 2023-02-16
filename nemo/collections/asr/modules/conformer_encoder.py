@@ -542,6 +542,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
 
             if lth in self.capture_output_at_layers and self.is_access_enabled():
+                # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
                 self.register_accessible_tensor(name=f'layer_output_{lth}', tensor=torch.transpose(audio_signal, 1, 2))
                 self.register_accessible_tensor(name=f'layer_length_{lth}', tensor=length)
 

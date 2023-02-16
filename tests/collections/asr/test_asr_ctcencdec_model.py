@@ -193,7 +193,7 @@ class TestInterCTCLoss:
             asr_model.train()
             AccessMixin.set_access_enabled(access_enabled=True)
             logprobs, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
-            captured_tensors = asr_model.get_captured_tensors()
+            captured_tensors = asr_model.get_captured_interctc_tensors()
             AccessMixin.reset_registry(asr_model)
             assert len(captured_tensors) == len(capture_output_at_layers)
             for output in captured_tensors:
