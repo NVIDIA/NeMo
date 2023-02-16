@@ -68,17 +68,18 @@ def is_entry_in_all_lines(manifest_filepath, entry):
 
 
 def get_manifest_lines_batch(manifest_filepath, start, end):
+    """
+    return sample lines from manifest file, when lines are in
+    range of [start, end] (inclusive)
+    """
     manifest_lines_batch = []
     with open(manifest_filepath, "r") as f:
         for line_i, line in enumerate(f):
-            if line_i == start and line_i == end:
+            if line_i >= start and line_i <= end:
                 manifest_lines_batch.append(json.loads(line))
-                break
-
+            
             if line_i == end:
                 break
-            if line_i >= start:
-                manifest_lines_batch.append(json.loads(line))
     return manifest_lines_batch
 
 
