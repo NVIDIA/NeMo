@@ -17,8 +17,6 @@ import pytest
 import torch
 from torch.nn import CTCLoss as CTCLoss_Pytorch
 
-from nemo.core.utils.k2_guard import skip_k2_cuda_test_if_unsupported
-
 DEVICES = ['cpu']
 
 if torch.cuda.is_available():
@@ -70,16 +68,22 @@ def init_k2_ctc(**kwargs):
     )[0]
 
 
-def skip_test_if_unsupported(device):
-    if device == 'cuda':
-        skip_k2_cuda_test_if_unsupported()
+def skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled):
+    if device == 'cpu':
+        supported, msg = k2_is_appropriate
+    elif device == 'cuda':
+        supported, msg = k2_cuda_is_enabled
+    else:
+        raise ValueError(f"Unknown device: {device}")
+    if not supported:
+        pytest.skip(f"k2 test is skipped. Reason : {msg}")
 
 
 class TestCTCLossK2:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
@@ -117,8 +121,8 @@ class TestCTCLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_blank_last(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small_blank_last(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
@@ -184,8 +188,8 @@ class TestCTCLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_random(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3)
@@ -202,8 +206,8 @@ class TestCTCLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_big_tensor(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_big_tensor(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         # minibatch x T x alphabet_size
         acts = [
@@ -281,8 +285,8 @@ class TestCTCLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_large_random(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_large_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(4, 80, 5)

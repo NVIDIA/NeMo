@@ -79,12 +79,15 @@ class MLLoss(torch.nn.Module):
         input_lengths: torch.Tensor,
         target_lengths: torch.Tensor,
     ) -> Tuple['k2.DenseFsaVec', Any, torch.Tensor]:
-        """TBD
+        """Converts input tensors to FST graphs:
+            log_probs to supervision_graphs (DenseFsaVec)
+            targets to supervision_graphs
+        Can be overridden.
         """
         log_probs, supervisions, targets, target_lengths = self._prepare_log_probs_and_targets(
             log_probs, input_lengths, targets, target_lengths
         )
-        log_probs = self._normalize_gradients(log_probs, supervisions[:, -1].to(dtype=torch.long))
+        log_probs = self._maybe_normalize_gradients(log_probs, supervisions[:, -1].to(dtype=torch.long))
         emissions_graphs = self._prepare_emissions_graphs(log_probs, supervisions)
         del log_probs
 
@@ -98,7 +101,8 @@ class MLLoss(torch.nn.Module):
     def _intersect_calc_scores(
         self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """TBD
+        """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
+        Can be overridden.
         """
         lats = k2.intersect_dense(supervision_graphs, emissions_graphs, torch.finfo(torch.float32).max / 10)
         del emissions_graphs
@@ -107,7 +111,7 @@ class MLLoss(torch.nn.Module):
         del lats
         tot_scores = num_tot_scores[invert_permutation(supervisions[:, 0].to(dtype=torch.long))]
         tot_scores, valid_mask = get_tot_objf_and_finite_mask(tot_scores, self.reduction)
-        return -tot_scores[valid_mask], valid_mask
+        return -tot_scores[valid_mask] if self.reduction == "none" else -tot_scores, valid_mask
 
     def forward(
         self,
@@ -126,7 +130,14 @@ class MLLoss(torch.nn.Module):
 
 
 class CtcLoss(MLLoss, CtcK2Mixin):
-    """TBD
+    """Regular CTC loss with custom topologies.
+    Available topologies:
+        -   `default`, with or without self-loops
+        -   `compact`, with or without self-loops
+        -   `shared_blank`, with or without self-loops
+        -   `minimal`, without self-loops
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
@@ -146,11 +157,18 @@ class CtcLoss(MLLoss, CtcK2Mixin):
             topo_type=topo_type,
             topo_with_self_loops=topo_with_self_loops,
         )
-        self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, self.topo_with_self_loops)
+        self.graph_compiler = CtcTopologyCompiler(
+            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops
+        )
 
 
 class RnntLoss(MLLoss, RnntK2Mixin):
-    """TBD
+    """RNNT loss with the `minimal` topology.
+    If predictor_window_size is not provided, this loss works as regular RNNT.
+    With predictor_window_size provided, it applies uniform pruning when compiling Emission FSAs
+    to reduce memory and compute consumption.
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
@@ -181,7 +199,11 @@ class RnntLoss(MLLoss, RnntK2Mixin):
         self.predictor_window_size = predictor_window_size
         self.predictor_step_size = predictor_step_size
         self.graph_compiler = RnntTopologyCompiler(
-            self.num_classes, self.topo_type, self.topo_with_self_loops, max_adapter_length=self.predictor_window_size
+            self.num_classes,
+            self.blank,
+            self.topo_type,
+            self.topo_with_self_loops,
+            max_adapter_length=self.predictor_window_size,
         )
 
     def forward(

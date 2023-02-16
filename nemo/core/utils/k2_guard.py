@@ -23,7 +23,7 @@ import textwrap
 from typing import Tuple
 
 from packaging.version import Version
-from pytorch_lightning.utilities.imports import package_available
+# from pytorch_lightning.utilities.imports import package_available
 
 __K2_MINIMUM_MAJOR_VERSION = 1
 __K2_MINIMUM_MINOR_VERSION = 14
@@ -40,12 +40,15 @@ K2_INSTALLATION_MESSAGE = (
     "as different versions of k2 may not interact with the NeMo code as expected."
 )
 
-if not package_available("k2"):
-    raise ModuleNotFoundError(K2_INSTALLATION_MESSAGE)
+# if not package_available("k2"):
+    # raise ModuleNotFoundError("Module k2 is not available.\n" + K2_INSTALLATION_MESSAGE)
 
 import k2  # noqa: E402
 
-__k2_version = Version(k2.__dev_version__)
+try:
+    __k2_version = Version(k2.__dev_version__)
+except AttributeError:
+    raise ImportError("Module k2 is corrupted.\n" + K2_INSTALLATION_MESSAGE)
 
 if __k2_version < __K2_MINIMUM_VERSION:
     raise ImportError(
@@ -56,22 +59,3 @@ if __k2_version < __K2_MINIMUM_VERSION:
             """
         )
     )
-
-
-def _k2_cuda_is_enabled() -> Tuple[bool, str]:
-    import torch
-
-    if torch.cuda.is_available() and k2.with_cuda:
-        return True, "k2 supports CUDA."
-    elif torch.cuda.is_available():
-        return False, "k2 does not support CUDA. Consider using a k2 build with CUDA support."
-    else:
-        return False, "k2 needs CUDA to be available in torch."
-
-
-def skip_k2_cuda_test_if_unsupported():
-    supported, msg = _k2_cuda_is_enabled()
-    if not supported:
-        import pytest
-
-        pytest.skip(f"k2 test is skipped. Reason : {msg}")

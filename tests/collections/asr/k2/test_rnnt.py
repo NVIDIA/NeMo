@@ -17,7 +17,6 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.core.utils.k2_guard import skip_k2_cuda_test_if_unsupported
 
 DEVICES = ['cpu']
 
@@ -37,9 +36,9 @@ def wrap_and_call(fn, acts, labels, device):
 
     lengths = [acts.shape[1]] * acts.shape[0]
     label_lengths = [len(l) for l in labels]
-    labels = torch.IntTensor(labels)
-    lengths = torch.IntTensor(lengths)
-    label_lengths = torch.IntTensor(label_lengths)
+    labels = torch.LongTensor(labels)
+    lengths = torch.LongTensor(lengths)
+    label_lengths = torch.LongTensor(label_lengths)
     if 'cuda' in device:
         labels = labels.cuda()
         lengths = lengths.cuda()
@@ -72,16 +71,22 @@ def init_k2_rnnt(**kwargs):
     )[0]
 
 
-def skip_test_if_unsupported(device):
-    if device == 'cuda':
-        skip_k2_cuda_test_if_unsupported()
+def skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled):
+    if device == 'cpu':
+        supported, msg = k2_is_appropriate
+    elif device == 'cuda':
+        supported, msg = k2_cuda_is_enabled
+    else:
+        raise ValueError(f"Unknown device: {device}")
+    if not supported:
+        pytest.skip(f"k2 test is skipped. Reason : {msg}")
 
 
 class TestRNNTLossK2:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
@@ -119,8 +124,8 @@ class TestRNNTLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_blank_last(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small_blank_last(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
@@ -181,8 +186,8 @@ class TestRNNTLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_random(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_small_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)
@@ -199,8 +204,8 @@ class TestRNNTLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_big_tensor(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_big_tensor(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         # minibatch x T x U x alphabet_size
         acts = [
@@ -310,8 +315,8 @@ class TestRNNTLossK2:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_large_random(self, device):
-        skip_test_if_unsupported(device)
+    def test_case_large_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
+        skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(4, 8, 11, 5)
