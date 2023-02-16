@@ -23,6 +23,7 @@ import textwrap
 from typing import Tuple
 
 from packaging.version import Version
+
 # from pytorch_lightning.utilities.imports import package_available
 
 __K2_MINIMUM_MAJOR_VERSION = 1
@@ -41,7 +42,7 @@ K2_INSTALLATION_MESSAGE = (
 )
 
 # if not package_available("k2"):
-    # raise ModuleNotFoundError("Module k2 is not available.\n" + K2_INSTALLATION_MESSAGE)
+# raise ModuleNotFoundError("Module k2 is not available.\n" + K2_INSTALLATION_MESSAGE)
 
 import k2  # noqa: E402
 
