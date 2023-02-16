@@ -309,7 +309,7 @@ class SilencePerturbation(Perturbation):
 
     def perturb(self, data):
         start_silence_len = random.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
-        end_silence_len = random.seed(0).uniform(self._min_end_silence_secs, self._max_end_silence_secs)
+        end_silence_len = random.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
         start = np.full((int(start_silence_len * data.sample_rate),), self._value)
         end = np.full((int(end_silence_len * data.sample_rate),), self._value)
 
@@ -349,13 +349,7 @@ class ImpulsePerturbation(Perturbation):
     """
 
     def __init__(
-        self,
-        manifest_path=None,
-        rng=None,
-        audio_tar_filepaths=None,
-        shuffle_n=128,
-        shift_impulse=False,
-        rng: int = None,
+        self, manifest_path=None, audio_tar_filepaths=None, shuffle_n=128, shift_impulse=False, rng=None,
     ):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
