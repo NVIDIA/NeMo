@@ -28,7 +28,7 @@ from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset,
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCModelMixin
+from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -38,7 +38,7 @@ from nemo.utils import logging
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCModelMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -106,22 +106,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
 
-        self.intermediate_loss_weights = self.cfg.get('intermediate_loss_weights', [])
-        self.main_loss_weight = 1.0 - sum(self.intermediate_loss_weights)
-        if self.main_loss_weight <= 0.0:
-            raise ValueError(
-                "Make sure that sum of intermediate loss weights is < 1.0. "
-                "Note that we don't do any normalization and assign "
-                "remaining weight to the regular model loss. "
-                "E.g., if intermediate_loss_weights = [0.1, 0.3], regular "
-                "loss will have weight of 0.6"
-            )
-        self.interctc_enabled = len(self.intermediate_loss_weights) > 0
-        if self.interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
-            raise ValueError('To use intermediate CTC loss, encoder has to define "capture_output_at_layers" property')
-
-        if len(self.encoder.capture_output_at_layers) != len(self.intermediate_loss_weights):
-            raise ValueError('Length of encoder.capture_output_at_layers has to match intermediate_loss_weights')
+        # setting up interCTC loss (from InterCTCMixin)
+        self.setup_interctc()
 
     @torch.no_grad()
     def transcribe(
@@ -580,10 +566,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
             loss_value, transcript, transcript_len, compute_wer=((batch_nb + 1) % log_every_n_steps == 0)
         )
 
-        # potentially adding intermediate CTC losses/wers
-        original_loss = loss_value
-        loss_value = original_loss * self.main_loss_weight
-
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
@@ -649,9 +631,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMo
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
-        metrics.update(
-            {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer,}
-        )
+        metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 

@@ -18,15 +18,38 @@ import torch
 from nemo.core.classes.mixins import AccessMixin
 
 
-class InterCTCModelMixin:
+class InterCTCMixin:
     """Adds utilities for computing interCTC loss from https://arxiv.org/abs/2102.03216.
 
     To use, make sure encoder defines ``capture_output_at_layers (list[int])``
     property and registers layer_output_X and layer_length_X for all layers that
-    we want to get loss from. Then call ``self.add_interctc_losses`` after
-    computing regular loss. Finally, call ``self.finalize_interctc_metrics``
-    in the multi
+    we want to get loss from. Then call
+
+        * ``setup_interctc`` in the init method
+        * ``self.add_interctc_losses`` after computing regular loss.
+        * ``self.finalize_interctc_metrics(metrics, outputs, prefix="val_")``
+          in the `multi_validation_epoch_end` method.
+        * ``self.finalize_interctc_metrics(metrics, outputs, prefix="test_")``
+          in the `multi_test_epoch_end` method.
     """
+
+    def setup_interctc(self):
+        self.intermediate_loss_weights = self.cfg.get('intermediate_loss_weights', [])
+        self.main_loss_weight = 1.0 - sum(self.intermediate_loss_weights)
+        if self.main_loss_weight <= 0.0:
+            raise ValueError(
+                "Make sure that sum of intermediate loss weights is < 1.0. "
+                "Note that we don't do any normalization and assign "
+                "remaining weight to the regular model loss. "
+                "E.g., if intermediate_loss_weights = [0.1, 0.3], regular "
+                "loss will have weight of 0.6"
+            )
+        self.interctc_enabled = len(self.intermediate_loss_weights) > 0
+        if self.interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
+            raise ValueError('To use intermediate CTC loss, encoder has to define "capture_output_at_layers" property')
+
+        if len(self.encoder.capture_output_at_layers) != len(self.intermediate_loss_weights):
+            raise ValueError('Length of encoder.capture_output_at_layers has to match intermediate_loss_weights')
 
     def finalize_interctc_metrics(self, metrics, outputs, prefix):
         if self.interctc_enabled:
