@@ -1,3 +1,55 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+
+NeMo LLM Customization service requires data to be in the form of .jsonl file with each line having only two fields (namely prompt and completion).
+
+However, you might not have your data readily in this format (or even filetype).
+
+This script will help you to convert from what you have to what you will need quickly and easily.
+
+You will need your datafile (in the form of a .jsonl, .json, .csv, .tsv or .xlsx). 
+Each row should contain one sample. 
+Make sure that the directory your file is in is readable and writeable.
+Otherwise, please change it using chmod. Don't worry, we will not overwrite your existing file.
+
+With close to a dozen consideration factors that makes training optimal, there might just be something you overlook (we all do!). 
+To check if dataset has been prepared correctly
+
+!python dataset_validation.py --filename <filename> 
+
+To format dataset from an alternative jsonl/json/csv/tsv/xlsx column structure (example here for Question Answering task)
+
+For instances, if you are working on a Question Answering Task, you would typically have the columns `context`, `question` and `answer`
+
+!python dataset_validation.py --filename <filename> --prompt_template "Context: {context} Question: {question} Answer:" --completion_template "{answer}"
+
+Other flags that can be set
+
+1.   `--long_seq_model` :Use this flag to allow the preparation tool to allow a higher max sequence length (from 10000 chars to 40000 chars)
+2.   `--drop_duplicates` : Use this flag to drop rows that are exactly the same for both prompt and completion
+3.   `--split_train_validation` : Use this flag to split one file into separate train and validation files.
+4.   `--val_proportion 0.1`: Use a float (default 0.1) between 0 and 1 to control how much of the dataset to allocate to the validation set and the remaining for the train dataset.
+
+What to expect
+
+After running this code, you see a list of suggestions to use under ACTIONABLE MESSAGES as well as some insights into your dataset under INFORMATIONAL MESSAGES.
+
+We suggest you prioritize changes suggested under ACTIONABLE MESSAGES but also have a look at the INFORMATIONAL MESSAGES to ensure that changes are done in an expected manner.
+
+"""
 import argparse
 import os
 from collections import Counter
@@ -28,6 +80,9 @@ def load_file_into_df(filename):
 
 
 def recommend_hyperparameters(df):
+    """
+    Makes recommendations on the batch_size to use for training, based on the dataset size
+    """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
     bs = 2
     for potential_bs in potential_batch_sizes:
