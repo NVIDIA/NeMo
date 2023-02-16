@@ -284,7 +284,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
                 Defaults to True.
-            - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False. See EarlyStoppingParams dataclass above.
+            - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False.
+             See EarlyStoppingParams dataclass above.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
