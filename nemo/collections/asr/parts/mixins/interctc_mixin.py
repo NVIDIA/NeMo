@@ -21,9 +21,17 @@ from nemo.core.classes.mixins import AccessMixin
 class InterCTCMixin:
     """Adds utilities for computing interCTC loss from https://arxiv.org/abs/2102.03216.
 
-    To use, make sure encoder defines ``capture_output_at_layers (list[int])``
-    property and registers layer_output_X and layer_length_X for all layers that
-    we want to get loss from. Then call
+    To use, make sure encoder accesses `interctc['capture_layers']`
+    property in the AccessMixin and registers interctc/layer_output_X and
+    interctc/layer_length_X for all layers that we want to get loss from.
+    Additionally, specify the following config parameters to set up loss:
+
+        interctc:
+            # can use different values
+            loss_weights: [0.3]
+            apply_at_layers: [8]
+
+    Then call
 
         * ``setup_interctc`` in the init method
         * ``self.add_interctc_losses`` after computing regular loss.
@@ -33,30 +41,43 @@ class InterCTCMixin:
           in the `multi_test_epoch_end` method.
     """
 
-    def setup_interctc(self):
-        """Sets up all interctc-specific parameters and checks config consistency."""
-        self.intermediate_loss_weights = self.cfg.get('intermediate_loss_weights', [])
-        self.main_loss_weight = 1.0 - sum(self.intermediate_loss_weights)
-        if self.main_loss_weight <= 0.0:
+    def _process_config_values(self, loss_weights: List[float], apply_at_layers: List[int]):
+        self._intermediate_loss_weights = loss_weights
+        self._apply_at_layers = apply_at_layers
+        self._main_loss_weight = 1.0 - sum(self._intermediate_loss_weights)
+        if self._main_loss_weight <= 0.0:
             raise ValueError(
                 "Make sure that sum of intermediate loss weights is < 1.0. "
                 "Note that we don't do any normalization and assign "
                 "remaining weight to the regular model loss. "
-                "E.g., if intermediate_loss_weights = [0.1, 0.3], regular "
+                "E.g., if interctc.loss_weights = [0.1, 0.3], regular "
                 "loss will have weight of 0.6"
             )
-        self._interctc_enabled = len(self.intermediate_loss_weights) > 0
-        if self._interctc_enabled and not hasattr(self.encoder, 'capture_output_at_layers'):
-            raise ValueError('To use intermediate CTC loss, encoder has to define "capture_output_at_layers" property')
+        self._interctc_enabled = len(self._intermediate_loss_weights) > 0
 
-        if len(self.encoder.capture_output_at_layers) != len(self.intermediate_loss_weights):
-            raise ValueError('Length of encoder.capture_output_at_layers has to match intermediate_loss_weights')
+        if len(self._apply_at_layers) != len(self._intermediate_loss_weights):
+            raise ValueError('Length of interctc.apply_at_layers has to match interctc.loss_weights')
+
+        # setting up config for AccessMixin that will be checked in encoders to
+        # log the layers we need
+        AccessMixin.update_access_cfg({'interctc': {'capture_layers': self._apply_at_layers}})
+
+    def setup_interctc(self):
+        """Sets up all interctc-specific parameters and checks config consistency."""
+        interctc_config = self.cfg.get("interctc")
+        if interctc_config is not None:
+            # if interctc is in the config, we want to check that it indeed defines
+            # the required keys and nothing else - that's automatically done by
+            # matching with keyword arguments in self._process_config_values
+            self._process_config_values(**interctc_config)
+        else:
+            self._interctc_enabled = False
 
     def is_interctc_enabled(self) -> bool:
         """Returns whether interCTC loss is enabled."""
         return self._interctc_enabled
 
-    def finalize_interctc_metrics(self, metrics, outputs, prefix):
+    def finalize_interctc_metrics(self, metrics: Dict, outputs: List[Dict], prefix: str):
         """Finalizes InterCTC WER and loss metrics for logging purposes.
 
         Should be called inside ``multi_validation_epoch_end`` (with prefix="val_") or
@@ -65,7 +86,7 @@ class InterCTCMixin:
         Note that ``metrics`` argument is going to be updated in-place.
         """
         if self.is_interctc_enabled():
-            for layer_idx in self.encoder.capture_output_at_layers:
+            for layer_idx in self._apply_at_layers:
                 loss = torch.stack([x[f"{prefix}inter_ctc_loss_l{layer_idx}"] for x in outputs]).mean()
                 wer_num = torch.stack([x[f"{prefix}inter_wer_num_l{layer_idx}"] for x in outputs]).sum()
                 wer_denom = torch.stack([x[f"{prefix}inter_wer_denom_l{layer_idx}"] for x in outputs]).sum()
@@ -80,21 +101,29 @@ class InterCTCMixin:
             ).mean()
 
     def get_captured_interctc_tensors(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
-        """Returns a list of captured tensors from encoder.
+        """Returns a list of captured tensors from encoder: tuples of (output, length).
 
         Will additionally apply ``self.decoder`` to the outputs.
         """
         if not self.is_interctc_enabled():
             return []
+
+        # note that we have a loop here, because tensors can be defined from
+        # submodules of encoder (e.g., that's the case in Jasper)
+        total_registry = {}
+        for module_registry in AccessMixin.get_module_registry(self.encoder).values():
+            for key, value in module_registry.items():
+                if key.startswith("interctc/") and key in total_registry:
+                    raise RuntimeError(f"layer {key} has been logged multiple times!")
+            total_registry.update(module_registry)
         # if intermediate_loss_weights was set, the encoder has to register
-        # layer_output_X and layer_length_X tensors. We need to apply decoder
-        # to each of them and compute CTC loss.
-        module_registry = AccessMixin.get_module_registry(self.encoder)['']  # key for encoder
+        # interctc/layer_output_X and interctc/layer_length_X tensors.
+        # We need to apply decoder to each of them and compute CTC loss.
         captured_tensors = []
-        for layer_idx in self.encoder.capture_output_at_layers:
+        for layer_idx in self._apply_at_layers:
             try:
-                layer_outputs = module_registry[f"layer_output_{layer_idx}"]
-                layer_lengths = module_registry[f"layer_length_{layer_idx}"]
+                layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
+                layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
             except KeyError:
                 raise RuntimeError(
                     f"Intermediate layer {layer_idx} was not captured! "
@@ -110,9 +139,9 @@ class InterCTCMixin:
 
     def add_interctc_losses(
         self,
-        loss_value: torch.tensor,
-        transcript: torch.tensor,
-        transcript_len: torch.tensor,
+        loss_value: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_len: torch.Tensor,
         compute_wer: bool,
         log_wer_num_denom: bool = False,
         log_prefix: str = "",
@@ -120,6 +149,24 @@ class InterCTCMixin:
         """Adding interCTC losses if required.
 
         Will also register loss/wer metrics in the returned dictionary.
+
+        Args:
+            loss_value (torch.Tensor): regular loss tensor (will add interCTC loss to it).
+            transcript (torch.Tensor): current utterance transcript.
+            transcript_len (torch.Tensor): current utterance transcript length.
+            compute_wer (bool): whether to compute WER for the current utterance.
+                Should typically be True for validation/test and only True for
+                training if current batch WER should be logged.
+            log_wer_num_denom (bool): if True, will additionally log WER num/denom
+                in the returned metrics dictionary. Should always be True for
+                validation/test to allow correct metrics aggregation. Should
+                always be False for training. Defaults to False.
+            log_prefix (str): prefix added to all log values. Should be "" for
+                training and "val_" for validation.
+
+        Returns:
+            tuple[torch.Tensor, Dict]: tuple of new loss tensor and dictionary
+                with logged metrics.
         """
         if not self.is_interctc_enabled() or not AccessMixin.is_access_enabled():
             return loss_value, {}
@@ -127,7 +174,7 @@ class InterCTCMixin:
         captured_tensors = self.get_captured_interctc_tensors()
 
         for layer_idx, intermediate_result, loss_weight in zip(
-            self.encoder.capture_output_at_layers, captured_tensors, self.intermediate_loss_weights
+            self._apply_at_layers, captured_tensors, self._intermediate_loss_weights
         ):
             inter_loss_value = self.loss(
                 log_probs=intermediate_result[0],

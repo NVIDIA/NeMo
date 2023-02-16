@@ -513,36 +513,6 @@ respectively. Some components of the configs of `Conformer-CTC <./models.html#Co
 These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
-Conformer-CTC also supports `InterCTC loss <https://arxiv.org/abs/2102.03216>`_. To use it, you need to specify
-2 parameters as in example below
-
-.. code-block:: yaml
-
-   model:
-      # ...
-      encoder:
-        # ...
-        capture_output_at_layers: [9]
-
-      intermediate_loss_weights: [0.3]
-
-which can be used to reproduce the default setup from the paper (assuming the total number of layers is 18).
-You can also specify multiple CTC losses from different layers, e.g., to get 2 losses from layers 4 and 9 with
-weights 0.1 and 0.3, specify:
-
-.. code-block:: yaml
-
-   model:
-      # ...
-      encoder:
-        # ...
-        capture_output_at_layers: [4, 9]
-
-      intermediate_loss_weights: [0.1, 0.3]
-
-Note that the final-layer CTC loss weight is automatically computed to normalize
-all weight to 1 (0.6 in the example about).
-
 
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`.
@@ -575,6 +545,38 @@ The config files for LSTM-Transducer and LSTM-CTC models can be found at ``<NeMo
 Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
 The encoder section includes the details about the RNN-based encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.RNNEncoder <rnn-encoder-api>`.
+
+
+CTC Configurations
+------------------
+
+All CTC-based models also support `InterCTC loss <https://arxiv.org/abs/2102.03216>`_. To use it, you need to specify
+2 parameters as in example below
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      interctc:
+        loss_weights: [0.3]
+        apply_at_layers: [8]
+
+which can be used to reproduce the default setup from the paper (assuming the total number of layers is 18).
+You can also specify multiple CTC losses from different layers, e.g., to get 2 losses from layers 3 and 8 with
+weights 0.1 and 0.3, specify:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      encoder:
+        # ...
+        capture_output_at_layers: [3, 8]
+
+      intermediate_loss_weights: [0.1, 0.3]
+
+Note that the final-layer CTC loss weight is automatically computed to normalize
+all weight to 1 (0.6 in the example about).
 
 
 Transducer Configurations

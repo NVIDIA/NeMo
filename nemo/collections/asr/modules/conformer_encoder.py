@@ -117,12 +117,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             All layers before this will never be dropped. Note that drop
             probability will be adjusted accordingly if mode is "linear" when
             start layer is > 0. Defaults to 0.
-        capture_output_at_layers (list[int], optional): specify a list of
-            integers to capture the output of certain layers during the
-            training. Can be used for debugging or to enable intermediate CTC
-            losses. The captured outputs will be accessble through
-            ``self.captured_layer_outputs`` list after every call to
-            :meth:`forward`. Defaults to None (nothing is captured).
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -213,7 +207,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         stochastic_depth_drop_prob: float = 0.0,
         stochastic_depth_mode: str = "linear",
         stochastic_depth_start_layer: int = 0,
-        capture_output_at_layers: Optional[List[int]] = None,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -399,9 +392,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             raise ValueError('stochastic_depth_mode has to be one of ["linear", "uniform"].')
         self.layer_drop_probs = layer_drop_probs
-        self.capture_output_at_layers = capture_output_at_layers
-        if self.capture_output_at_layers is None:
-            self.capture_output_at_layers = []  # means it's disabled
+        # will be set in self.forward() if defined in AccessMixin config
+        self.interctc_capture_at_layers = None
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
@@ -541,10 +533,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
 
-            if lth in self.capture_output_at_layers and self.is_access_enabled():
-                # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
-                self.register_accessible_tensor(name=f'layer_output_{lth}', tensor=torch.transpose(audio_signal, 1, 2))
-                self.register_accessible_tensor(name=f'layer_length_{lth}', tensor=length)
+            # saving tensors if required for interctc loss
+            if self.is_access_enabled():
+                if self.interctc_capture_at_layers is None:
+                    self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
+                if lth in self.interctc_capture_at_layers:
+                    lth_audio_signal = audio_signal
+                    if self.out_proj is not None:
+                        lth_audio_signal = self.out_proj(audio_signal)
+                    # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
+                    self.register_accessible_tensor(
+                        name=f'interctc/layer_output_{lth}', tensor=torch.transpose(lth_audio_signal, 1, 2)
+                    )
+                    self.register_accessible_tensor(name=f'interctc/layer_length_{lth}', tensor=length)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
