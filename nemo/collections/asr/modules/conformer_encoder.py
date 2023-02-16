@@ -384,7 +384,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.setup_streaming_params()
         self.export_cache_support = False
 
-        layer_drop_probs = [0.0] * len(self.layers)
         if not (0 <= stochastic_depth_drop_prob < 1.0):
             raise ValueError("stochastic_depth_drop_prob has to be in [0, 1).")
         if not (0 <= stochastic_depth_start_layer <= len(self.layers)):
@@ -521,7 +520,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 cache_last_channel_next=cache_last_channel_next,
                 cache_last_time_next=cache_last_time_next,
             )
-            if self.training:
+            # applying stochastic depth logic from https://arxiv.org/abs/2102.03216
+            if self.training and drop_prob > 0.0:
                 should_drop = torch.rand(1) < drop_prob
                 # adjusting to match expectation
                 if should_drop:
@@ -529,7 +529,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     # version of dropping layers without deadlock or random seed meddling
                     # so multiplying the signal by 0 to ensure all weights get gradients
                     audio_signal = audio_signal * 0.0 + original_signal
-                elif drop_prob > 0.0:
+                else:
                     # not doing this operation if drop prob is 0 as it's identity in that case
                     audio_signal = (audio_signal - original_signal) / (1.0 - drop_prob) + original_signal
 

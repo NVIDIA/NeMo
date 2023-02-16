@@ -19,7 +19,7 @@ from nemo.core.classes.mixins import AccessMixin
 
 
 class InterCTCModelMixin:
-    """Adds utilities for computing interCTC loss.
+    """Adds utilities for computing interCTC loss from https://arxiv.org/abs/2102.03216.
 
     To use, make sure encoder defines ``capture_output_at_layers (list[int])``
     property and registers layer_output_X and layer_length_X for all layers that

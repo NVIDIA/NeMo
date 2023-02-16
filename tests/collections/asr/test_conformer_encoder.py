@@ -59,7 +59,7 @@ class TestStochasticDepth:
         # checking for errors
         for drop_prob in [-1.0, 1.0]:
             with pytest.raises(ValueError, match="stochastic_depth_drop_prob has to be in"):
-                model = ConformerEncoder(
+                ConformerEncoder(
                     feat_in=10,
                     n_layers=n_layers,
                     d_model=4,
@@ -69,13 +69,11 @@ class TestStochasticDepth:
                 )
 
         with pytest.raises(ValueError, match="stochastic_depth_mode has to be one of"):
-            model = ConformerEncoder(
-                feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_mode="weird"
-            )
+            ConformerEncoder(feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_mode="weird")
 
         for start_layer in [-1, 5]:
             with pytest.raises(ValueError, match="stochastic_depth_start_layer has to be in"):
-                model = ConformerEncoder(
+                ConformerEncoder(
                     feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_start_layer=start_layer,
                 )
 
