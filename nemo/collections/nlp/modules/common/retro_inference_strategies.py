@@ -155,7 +155,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         for i in range(0, context_length, 64):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
-                chunks = self.service.get_knn(tokens, self.neighbors)
+                chunks = self.service.get_knn(tokens, self.neighbors)['knn']
                 if self.store_retrieved:
                     self._store_retrieved(tokens, chunks)
                 self.retrieved.append(chunks)
@@ -168,13 +168,13 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         if context_length % 64 == 0:
             # added a new retrieval context
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context, self.neighbors)
+            chunks = self.service.get_knn(token_context, self.neighbors)['knn']
             if self.store_retrieved:
                 self._store_retrieved(token_context, chunks)
             self.retrieved.append(chunks)
         elif self.frequent_query and len(self.retrieved) > 0:
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context, self.neighbors)
+            chunks = self.service.get_knn(token_context, self.neighbors)['knn']
             if self.store_retrieved:
                 self._store_retrieved(token_context, chunks)
             self.retrieved[-1] = chunks
@@ -207,7 +207,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         if retrieved.numel() == 0:
             # add empty retrieved
             retrieved = (
-                torch.tensor(self.service.get_knn(['a'], 0), device=torch.cuda.current_device())
+                torch.tensor(self.service.get_knn(['a'], 0)['knn'], device=torch.cuda.current_device())
                 .unsqueeze(0)
                 .repeat(1, len(self.retrieved), 1, 1)
             )
@@ -260,9 +260,9 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         # all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
         # all_lookups[:, :, : len(prepend_ids)] = prepend_ids
         # all_lookups = all_lookups[:, :, : -len(prepend_ids)]
-        reuse_neighbors = all_lookups[:, 1:]
+        reuse_neighbors = all_lookups['knn'][:, 1:]
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
-        neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
+        neighbor_tokens = [neighbors[0] for neighbors in all_lookups['first_neighbor']]
 
         # combine question and context
         context_tokens = [

@@ -98,7 +98,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
             num_neighbors = data['neighbors']
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 neighbors = self.get_knn(sentences, num_neighbors)
-            return jsonify(neighbors.tolist())
+            return jsonify(neighbors)
         elif 'reset' in data:
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.reset()

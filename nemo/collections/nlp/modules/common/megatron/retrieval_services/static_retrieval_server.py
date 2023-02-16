@@ -55,13 +55,19 @@ class FaissRetrievalResource(Resource):
         num_neighbors = data['neighbors']
         with lock:  # Need to get lock to keep multiple threads from hitting code
             neighbors = self.get_knn(sentences, num_neighbors)
-        return jsonify(neighbors.tolist())
+        return jsonify(neighbors)
         # check keys
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         if neighbors == 0:
             # use padding
-            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
+            item = np.repeat(self.no_retrieval, len(query), 0).astype(np.int64).tolist()
+            json_output = {
+                "knn": item,
+                "first_neighbor": item,
+                "similarity": [[9999]]
+            }
+            return json_output
         single_sentence = False
         if isinstance(query, str):
             single_sentence = True
@@ -78,20 +84,35 @@ class FaissRetrievalResource(Resource):
         if self.index.ntotal == 0:
             # A workaround to fix searching an empty Faiss index
             knn = [[-1] * neighbors for i in range(len(emb))]
+            I = np.array([[9999.0] * neighbors] * len(emb))
         else:
-            _, knn = self.index.search(emb, neighbors)
+            I, knn = self.index.search(emb, neighbors)
         results = []
+        first_neighbor = []
         for sentence_neighbors in knn:
             chunks = []
-            for neighbor_chunk_id in sentence_neighbors:
+            for i, neighbor_chunk_id in enumerate(sentence_neighbors):
                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
+                if i == 0:
+                    first_neighbor.append([chunk_id.tolist()])
                 chunks.append(chunk_id)
             chunks = np.stack(chunks, axis=0).astype(np.int64)
             results.append(chunks)
         if single_sentence:
             # unpack the single sentence input
+            json_result = {
+                "knn": results[0].tolist(),
+                "similarity": I[0].tolist(),
+                "first_neighbor": first_neighbor,
+            }
             return results[0]
-        return np.stack(results, axis=0).astype(np.int64)
+        else:
+            json_result = {
+                "knn": np.stack(results, axis=0).astype(np.int64).tolist(),
+                "similarity": I.tolist(),
+                "first_neighbor": first_neighbor,
+            }
+        return json_result
 
 
 class RetrievalServer(object):

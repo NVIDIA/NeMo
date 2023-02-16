@@ -89,7 +89,7 @@ class FaissRetrievalService(RetrievalService):
         data = {'sentences': query}
         data['neighbors'] = neighbors
         result = request_data(data, self.service_ip, self.service_port)
-        result = np.array(result)
+        result['knn'] = np.array(result['knn'])
         return result
 
 

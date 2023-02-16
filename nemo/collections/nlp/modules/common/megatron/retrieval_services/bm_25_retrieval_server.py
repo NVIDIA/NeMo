@@ -3,6 +3,7 @@ from flask_restful import Api, Resource
 from flask import Flask, jsonify, request
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.contriever_server import format
 import threading
 
 import json
@@ -275,6 +276,9 @@ class BM25RetrievalResource(Resource):
                 all_neighbors = []
                 for sentence in sentences:
                     question = sentence
+                    # the first neighbor is not trunked
+                    first_neighbor = []
+                    count = 0
                     relevant_context_and_title = get_relevant_context(
                         question,
                         self.bert_group,
@@ -283,14 +287,20 @@ class BM25RetrievalResource(Resource):
                         two_retriever=True)
                     token_ids = []
                     for context, title in relevant_context_and_title:
-                        ids = self.tokenizer.text_to_ids(context)
+                        item = format(context, title)
+                        ids = self.tokenizer.text_to_ids(item)
+                        if count == 0:
+                            first_neighbor.append(ids)
+                        count += 1
                         if len(ids) < self.pad_len:
                             ids = ids + [self.tokenizer.eos_id] * len(ids) * (self.pad_len  - len(ids))
                         elif len(ids) > self.pad_len:
                             ids = ids[:self.pad_len]
                         token_ids.append(ids)
                     all_neighbors.append(token_ids)
-            return jsonify(all_neighbors)
+            result = {'knn': all_neighbors,
+                      'first_neighbor': first_neighbor}
+            return jsonify(result)
         return "wrong API"
 
 

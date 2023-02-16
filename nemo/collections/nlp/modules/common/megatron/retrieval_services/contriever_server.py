@@ -2,28 +2,17 @@ from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
 from flask_restful import Api, Resource
 from flask import Flask, jsonify, request
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock
 import threading
 import json
-import numpy as np
-import os
-import random
 import torch
-from tqdm import tqdm
-import sys
-import requests
-import time
-import codecs, ftfy, glob
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
-#                                              "../../")))
+import ftfy
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.metrics import F1Metric
 from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
 from transformers import DPRQuestionEncoderTokenizer, DPRQuestionEncoder
 from transformers import BertTokenizer, BertModel
-from transformers import AutoTokenizer, AutoModel
-from nltk import ngrams
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.contriever import contriever_retriever, print_gpu_utilization
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.contriever import print_gpu_utilization
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
 
 
@@ -33,18 +22,20 @@ def clean_text_with_dpr(text, dpr_tokenizer):
     text = get_text_from_id(embed_ids, dpr_tokenizer)
     return text
 
+
 def get_text_from_id(embed_ids, tokenizer):
     decode_text = tokenizer.decode(embed_ids)
     return decode_text
 
+
 def format(ctx, title):
     return "title: {}, source: {}".format(title, ctx)
 
-def evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tokenizer, log=False):
 
+def evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tokenizer, log=False):
     ngram = 2
-    threshold=0.4
-    
+    threshold = 0.4
+
     hit = 0
     total = 0
     assert len(relevant_contexts) == len(sub_paragraphs)
@@ -52,13 +43,12 @@ def evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tok
 
     for relevant_context, answer, sub_paragraph in zip(relevant_contexts, answers, sub_paragraphs):
 
-        gold_context = clean_text_with_dpr(sub_paragraph, dpr_tokenizer)             
+        gold_context = clean_text_with_dpr(sub_paragraph, dpr_tokenizer)
         candidates = []
         # print(len(relevant_context))
 
         found = False
         for i, ctx in enumerate(relevant_context[:topk]):
-            # retrieve_n_grams = list(ngrams(ctx.split(), n))
             f1 = compute_f1_score([format(*ctx)], [gold_context], n=ngram, return_recall=False)
             # candidates.append((i,f1))
             if f1 >= threshold:
@@ -70,15 +60,6 @@ def evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tok
                     print(ctx)
                     print(answer)
                 break
-            
-        
-        # candidates = [(cand, compute_f1_score([format(*cand)], [answer], n=ngram, return_recall=True)) for cand in candidates]
-        # for cand, recall in sorted(candidates, key=lambda item: item[-1], reverse=True)[:1]:
-        #     print('*' * 20)
-        #     print(recall)
-        #     print(gold_context)
-        #     print(cand)
-        #     print(answer)
 
         if found:
             hit += 1
@@ -142,11 +123,11 @@ def openai_retriever(all_contexts, queries):
         r = requests.post(openai_api_embeddings_url, data=json.dumps(openai_api_embeddings_data), headers=openai_api_headers)
         r = r.json()
         return [x["embedding"] for x in  r["data"]]
-    
+
     all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
     all_contexts_formatted_emb = openai_retriever_helper(all_contexts_formatted)
     queries_emb = openai_retriever_helper(queries)
-    
+
     all_query_scores = util.cos_sim(queries_emb, all_contexts_formatted_emb).cpu().tolist()
     all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
         for query_scores in all_query_scores ]
@@ -160,7 +141,7 @@ def tasb_retriever(all_contexts, queries, retriever_args):
     all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
     all_contexts_formatted_emb = model.encode(all_contexts_formatted)
     queries_emb = model.encode(queries)
-    
+
     if retrieval_method=="DOT_PRODUCT":
         all_query_scores = util.dot_score(queries_emb, all_contexts_formatted_emb).cpu().tolist()
         all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
@@ -208,7 +189,7 @@ def allminilm_retriever(all_contexts, queries):
     all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
     all_contexts_formatted_emb = model.encode(all_contexts_formatted)
     queries_emb = model.encode(queries)
-    
+
     all_query_scores = util.cos_sim(queries_emb, all_contexts_formatted_emb).cpu().tolist()
     all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
         for query_scores in all_query_scores ]
@@ -250,7 +231,7 @@ def sbert_retriever(all_contexts, queries):
             to_encode = []
     if len(to_encode) > 0:
         all_contexts_embeddings.append(model.encode(to_encode, convert_to_tensor=True))
-    
+
     all_contexts_embeddings = torch.cat(all_contexts_embeddings, dim=0)
     scores = torch.matmul(query_embeddings, all_contexts_embeddings.T)
     ranked_docs = []
@@ -266,7 +247,7 @@ def dpr_sbert_retriever(all_contexts, queries):
     # ctx_model_name = 'facebook-dpr-ctx_encoder-single-nq-base'
     question_model_name = 'facebook-dpr-question_encoder-multiset-base'
     ctx_model_name = 'facebook-dpr-ctx_encoder-multiset-base'
-    
+
     question_model = SentenceTransformer(question_model_name)
     ctx_model = SentenceTransformer(ctx_model_name)
 
@@ -283,7 +264,7 @@ def dpr_sbert_retriever(all_contexts, queries):
             to_encode = []
     if len(to_encode) > 0:
         all_contexts_embeddings.append(ctx_model.encode(to_encode, convert_to_tensor=True))
-    
+
     all_contexts_embeddings = torch.cat(all_contexts_embeddings, dim=0)
     scores = torch.matmul(query_embeddings, all_contexts_embeddings.T)
     ranked_docs = []
@@ -299,7 +280,7 @@ def chunk_car_manual(manual, chunk_by_words=True, chunk_size=300, tokenizer=None
         if chunk_by_words:
             num_words = chunk_size
             words = text.split()
-            
+
             num_chunks = int((len(words) - 0.6) / num_words) + 1
             for i in range(num_chunks):
                 chunk_words = words[i * num_words : (i + 1) * num_words]
@@ -336,7 +317,7 @@ def load_car_manual_setup(car_manual, qa_dataset):
     manual = []
     for i, row in enumerate(rows):
         text = ftfy.fix_text(row['text'].strip())
-        title = row['title'].strip()   
+        title = row['title'].strip()
         manual.append((text, title))
     all_contexts = chunk_car_manual(manual)
 
@@ -364,7 +345,7 @@ def get_dpr_group(mode="single", return_question_model=False):
     return context_model, context_tokenizer
 
 def get_bert_group():
-    
+
     bert_tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     bert_model = BertModel.from_pretrained("bert-base-uncased").cuda()
 
@@ -397,10 +378,10 @@ def save_topk(retriever, car_manual, qa_dataset, topk, output_file):
     save_as_json(queries, relevant_contexts, answers, topk, output_file)
 
 def format_output(item):
-    
+
     source, title = item
     return {"title": title, "text": source}
-    
+
 def save_as_json(queries, relevant_contexts, answers, topk, output_file):
 
     outputs = []
@@ -451,20 +432,21 @@ def tasb_retriever_msmarcominilm_reranker(all_contexts, queries, retriever_args)
 def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, models):
     all_contexts_formatted_emb = all_context_emb
     queries_emb = models[0].encode(questions)
-    
+
     all_query_scores = util.dot_score(queries_emb, all_contexts_formatted_emb).cpu().tolist()
     all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
         for query_scores in all_query_scores ]
     all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
         for query_docsandscores_sorted in all_query_docsandscores_sorted ]
-        
+
     all_query_scores = [ list(models[1].predict([ (query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]])) for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)]
 
     all_query_docsandscores_sorted = [ sorted(list(zip(query_contexts_ranked[:neighbors], query_scores)), key=lambda x: x[1], reverse=True) \
             for query_contexts_ranked, query_scores in zip(all_query_docs_sorted, all_query_scores) ]
     all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
             for query_docsandscores_sorted in all_query_docsandscores_sorted ]
-    return all_query_docs_sorted
+    similarity = [[item[1].item() for item in batch_doc_scores ] for batch_doc_scores in all_query_docsandscores_sorted]
+    return all_query_docs_sorted, similarity
 
 
 class ContriverRetrievalResource(Resource):
@@ -489,19 +471,30 @@ class ContriverRetrievalResource(Resource):
             num_neighbors = data['neighbors']
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 all_neighbors = []
-                results = get_relevant_context(sentences, self.all_context, self.all_context_emb, num_neighbors, self.models)
+                results, similarity = get_relevant_context(sentences, self.all_context, self.all_context_emb, num_neighbors, self.models)
+                all_first_neighbors = []
                 for relevant_context_and_title in results:
                     token_ids = []
+                    # the first neighbor is not trunked
+                    first_neighbor = []
+                    count = 0
                     for context, title in relevant_context_and_title:
                         item = format(context, title)
                         ids = self.tokenizer.text_to_ids(item)
+                        if count == 0:
+                            first_neighbor.append(ids)
+                        count += 1
                         if len(ids) < self.pad_len:
                             ids = ids + [self.tokenizer.eos_id] * (self.pad_len  - len(ids))
                         elif len(ids) > self.pad_len:
                             ids = ids[:self.pad_len]
                         token_ids.append(ids)
                     all_neighbors.append(token_ids)
-            return jsonify(all_neighbors)
+                    all_first_neighbors.append(first_neighbor)
+            result = {'knn': all_neighbors,
+                      "similarity": similarity,
+                      'first_neighbor': all_first_neighbors}
+            return jsonify(result)
         return "wrong API"
 
 
@@ -521,7 +514,7 @@ class ContriverRetrievalServer(object):
         manual = []
         for i, row in enumerate(rows):
             text = ftfy.fix_text(row['text'].strip())
-            title = row['title'].strip()   
+            title = row['title'].strip()
             manual.append((text, title))
         all_contexts = chunk_car_manual(manual)
         all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
@@ -529,7 +522,7 @@ class ContriverRetrievalServer(object):
         self.rank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
         self.all_contexts_formatted_emb = self.distil_model.encode(all_contexts_formatted)
         self.all_contexts = all_contexts
- 
+
         all_retrievers = {"bm25": {"retriever_fcn": bm25_retriever}, 'msmarcominilm': {"retriever_fcn": msmarcominilm_retriever}}
         all_retrievers.update({"tasb": {"retriever_fcn": tasb_retriever_msmarcominilm_reranker, "retriever_args": {"retrieval_method": "DOT_PRODUCT"}}})
         retriever_name = "tasb"

@@ -56,7 +56,7 @@ class ComboRetrievalResource(Resource):
             num_neighbors = data['neighbors']
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 neighbors = self.get_knn(sentences, num_neighbors)
-            return jsonify(neighbors.tolist())
+            return jsonify(neighbors)
         elif 'reset' in data:
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.reset()
@@ -103,7 +103,8 @@ class ComboRetrievalResource(Resource):
         if neighbors == 0:
             return self.retrieval_services[0].get_knn(query, 0)
         total_neighbors = 0
-        results = []
+        knn_results = []
+        output = {}
         for i, service in enumerate(self.retrieval_services):
             k = int(neighbors * weights[i])
             if i == len(self.retrieval_services) - 1:
@@ -113,8 +114,16 @@ class ComboRetrievalResource(Resource):
                 # empty, skip it
                 continue
             result = service.get_knn(query, k)
-            results.append(result)
-        return np.concatenate(results, axis=1)
+            for key in result.keys():
+                if key == 'knn':
+                    knn_results.append(result['knn'])
+                else:
+                    container = output.get(key, [[] for i in range(len(query))])
+                    for batch in range(len(query)):
+                        container[batch].extend(result[key][batch])
+                    output[key] = container
+        output['knn'] = np.concatenate(knn_results, axis=1).tolist()
+        return output
 
     def add_docs_to_index(self, query: List[str], add_eos: bool = True):
         """
