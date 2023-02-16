@@ -255,10 +255,11 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         tokenizer = self.model.tokenizer
         all_lookups = self.service.get_knn(questions, 1 + self.neighbors)
         # hack to add "source: " tag
-        prepend_ids = np.array(tokenizer.text_to_ids('source: '))
-        all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
-        all_lookups[:, :, : len(prepend_ids)] = prepend_ids
-        all_lookups = all_lookups[:, :, : -len(prepend_ids)]
+        # title and source is added in the retriever .no need the following hack
+        # prepend_ids = np.array(tokenizer.text_to_ids('source: '))
+        # all_lookups = np.pad(all_lookups, ((0, 0), (0, 0), (len(prepend_ids), 0)))
+        # all_lookups[:, :, : len(prepend_ids)] = prepend_ids
+        # all_lookups = all_lookups[:, :, : -len(prepend_ids)]
         reuse_neighbors = all_lookups[:, 1:]
         self.store.set('reuse_neighbors', pickle.dumps(reuse_neighbors))
         neighbor_tokens = [neighbors[0].tolist() for neighbors in all_lookups]
