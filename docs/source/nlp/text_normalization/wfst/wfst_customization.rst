@@ -5,7 +5,7 @@ Grammar customization
 
 .. warning::
 
-    TN/ITN is transitioning from `NVIDIA/NeMo <https://github.com/NVIDIA/NeMo>`_ repository to a standalone `NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_ repository. All updates and discussions/issues should go to the new repository.
+    TN/ITN transitioned from `NVIDIA/NeMo <https://github.com/NVIDIA/NeMo>`_ repository to a standalone `NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_ repository. All updates and discussions/issues should go to the new repository.
 
 
 All grammar development is done with `Pynini library <https://www.opengrm.org/twiki/bin/view/GRM/Pynini>`_.

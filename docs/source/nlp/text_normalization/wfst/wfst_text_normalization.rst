@@ -5,7 +5,7 @@ Text (Inverse) Normalization
 
 .. warning::
 
-    *TN/ITN is transitioning from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
+    *TN/ITN transitioned from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
 
 
 The `nemo_text_processing` Python package is based on WFST grammars :cite:`textprocessing-norm-mohri2005weighted` and supports:

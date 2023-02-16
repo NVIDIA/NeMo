@@ -5,7 +5,7 @@ Deploy to Production with C++ backend
 
 .. warning::
 
-    *TN/ITN is transitioning from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
+    *TN/ITN transitioned from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
 
 
 NeMo-text-processing provides tools to deploy :doc:`TN and ITN <wfst_text_normalization>` for production :cite:`textprocessing-deployment-zhang2021nemo`.

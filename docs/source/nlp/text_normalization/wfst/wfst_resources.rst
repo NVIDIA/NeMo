@@ -5,7 +5,7 @@ Resources and Documentation
 
 .. warning::
 
-    *TN/ITN is transitioning from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
+    *TN/ITN transitioned from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
 
 
 - List of `TN/ITN issues <https://github.com/NVIDIA/NeMo/issues?q=is%3Aissue+label%3ATN%2FITN+>`_, use `TN/ITN` label
