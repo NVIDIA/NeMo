@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ from customization_dataset_preparation import (
 
 
 def test_recommend_hyperparameters():
-    # need to mock some dfs
     df_100 = pd.DataFrame({'prompt': ['prompt'] * 100, 'completion': ['completion'] * 100})
     assert recommend_hyperparameters(df_100) == "TODO: A batch_size=2 is recommended"
 
