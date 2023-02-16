@@ -28,13 +28,13 @@ Otherwise, please change it using chmod. Don't worry, we will not overwrite your
 With close to a dozen consideration factors that makes training optimal, there might just be something you overlook (we all do!). 
 To check if dataset has been prepared correctly
 
-!python dataset_validation.py --filename <filename> 
+!python customization_dataset_preparation.py --filename <filename> 
 
 To format dataset from an alternative jsonl/json/csv/tsv/xlsx column structure (example here for Question Answering task)
 
 For instances, if you are working on a Question Answering Task, you would typically have the columns `context`, `question` and `answer`
 
-!python dataset_validation.py --filename <filename> --prompt_template "Context: {context} Question: {question} Answer:" --completion_template "{answer}"
+!python customization_dataset_preparation.py --filename <filename> --prompt_template "Context: {context} Question: {question} Answer:" --completion_template "{answer}"
 
 Other flags that can be set
 
