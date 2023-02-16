@@ -225,6 +225,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             log_softmax=self._cfg.head.log_softmax,
             dropout=self._cfg.head.dropout,
             use_transformer_init=self._cfg.head.use_transformer_init,
+            sampled_softmax=self.cfg.head.get('sampled_softmax', False),
+            num_samples=self.cfg.head.get('num_samples', 0),
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
