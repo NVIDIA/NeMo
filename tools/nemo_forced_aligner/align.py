@@ -51,6 +51,8 @@ Arguments:
         If the ASR model is a QuartzNet model, its downsample factor is 2.
         If the ASR model is a Conformer CTC model, its downsample factor is 4.
         If the ASR model is a Citirnet model, its downsample factor is 8.
+    simulate_cache_aware_streaming: only valid for cache aware streaming conformer model, set true to do somulate
+        streaming and help reduce OOM issue for long audio.
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
@@ -91,6 +93,7 @@ class AlignmentConfig:
     pretrained_name: Optional[str] = None
     model_path: Optional[str] = None
     model_downsample_factor: Optional[int] = None
+    simulate_cache_aware_streaming: Optional[bool] = False
     manifest_filepath: Optional[str] = None
     output_dir: Optional[str] = None
 
@@ -218,6 +221,7 @@ def main(cfg: AlignmentConfig):
             pred_text_batch,
         ) = get_batch_tensors_and_boundary_info(
             manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
+            cfg.simulate_cache_aware_streaming
         )
 
         if cfg.align_using_pred_text:
