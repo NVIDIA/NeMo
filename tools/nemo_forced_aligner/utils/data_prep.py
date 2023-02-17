@@ -72,14 +72,11 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
     manifest_lines_batch = []
     with open(manifest_filepath, "r") as f:
         for line_i, line in enumerate(f):
-            if line_i == start and line_i == end:
+            if line_i >= start and line_i <= end:
                 manifest_lines_batch.append(json.loads(line))
-                break
 
             if line_i == end:
                 break
-            if line_i >= start:
-                manifest_lines_batch.append(json.loads(line))
     return manifest_lines_batch
 
 
@@ -291,6 +288,7 @@ def get_batch_tensors_and_boundary_info(
     model,
     separator,
     align_using_pred_text,
+    simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
 ):
@@ -309,13 +307,20 @@ def get_batch_tensors_and_boundary_info(
     # and (optionally) the predicted ASR text from the hypotheses
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
+
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
 
     if not use_buffered_chunked_streaming:
-        with torch.no_grad():
-            hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+        if not simulate_cache_aware_streaming:
+            with torch.no_grad():
+                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+        else:
+            with torch.no_grad():
+                hypotheses = model.transcribe_simulate_cache_aware_streaming(audio_filepaths_batch,
+                                                                            return_hypotheses=True,
+                                                                            batch_size=B)
         for hypothesis in hypotheses:
             log_probs_list_batch.append(hypothesis.y_sequence)
             T_list_batch.append(hypothesis.y_sequence.shape[0])
