@@ -49,7 +49,7 @@ def main_perf_onnx_full_ctx(batch_size=128, profile=True):
     )
 
     opts = onnxruntime.SessionOptions()
-    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
     if profile:
         opts.enable_profiling = True
     sess = onnxruntime.InferenceSession(
@@ -58,11 +58,11 @@ def main_perf_onnx_full_ctx(batch_size=128, profile=True):
             (
                 'CUDAExecutionProvider',
                 {
-                    "gpu_mem_limit": 40 * 1024 * 1024 * 1024,
+                    "gpu_mem_limit": 24 * 1024 * 1024 * 1024,
                     "do_copy_in_default_stream": False,
                     "cudnn_conv_algo_search": "EXHAUSTIVE",
                 },
-            )
+            ),
         ],
         sess_options=opts,
     )
@@ -184,11 +184,11 @@ def main_perf_onnx(batch_size=128, profile=True):
     )
 
     opts = onnxruntime.SessionOptions()
-    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
     if profile:
         opts.enable_profiling = True
     sess = onnxruntime.InferenceSession(
-        "streaming-conformer.onnx",
+        "/git/models/streaming-conformer-14.onnx",
         providers=[
             (
                 'CUDAExecutionProvider',
@@ -257,10 +257,11 @@ def main_perf_onnx(batch_size=128, profile=True):
         print("Saving onnx profile to ", prof_file)
 
 
+nemo_file = '/git/models/streaming-conformer.nemo'
+
+
 def main_perf(batch_size=128):
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(
-        '/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo'
-    )
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(nemo_file)
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
@@ -304,9 +305,7 @@ def main_perf(batch_size=128):
 
 
 def main_perf_full_context(batch_size=128):
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(
-        '/models/Conformer-CTC-BPE_large_Riva_ASR_set_3.0_ep107.nemo'
-    )
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(nemo_file)
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
@@ -335,16 +334,16 @@ def main_perf_full_context(batch_size=128):
 
 
 if __name__ == "__main__":
-    # bs = int(sys.argv[1])
+    bs = int(sys.argv[1])
 
     # with profile(activities=[ProfilerActivity.CPU], record_shapes=True) as prof:
     #    with record_function("model_inference"):
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, profile_memory=True, with_stack=True) as prof:
     #    with record_function("model_inference"):
-    # main_perf_onnx(bs)
-    for bs in (128,):
-        # main_perf(bs, profile=False)
-        main_perf_pt(bs)
+    main_perf_onnx(bs, False)
+    # for bs in (128,):
+    # main_perf(bs)
+    #    main_perf_pt(bs)
 
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))

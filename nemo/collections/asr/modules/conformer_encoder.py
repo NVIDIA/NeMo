@@ -535,7 +535,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 device=cache_last_channel.device,
                 dtype=cache_last_channel.dtype,
             )
-            max_audio_length += cache_len
+            max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
             # offset = -cache_last_channel_len + cache_len
             offset = (

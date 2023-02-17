@@ -28,6 +28,8 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 
+nemo_file = '/git/models/streaming-conformer.nemo'
+
 
 def get_dummy_input(asr_model, batch_size):
     cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
@@ -39,9 +41,7 @@ def get_dummy_input(asr_model, batch_size):
 
 
 def export_script(batch_size=128):
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(
-        '/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo'
-    )
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(nemo_file)
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
@@ -73,9 +73,7 @@ class WrapNemoExport(torch.nn.Module):
 
 
 def export_trt(batch_size=128):
-    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(
-        '/models/sel_ngcinit_nemoasrset3.0_d512_adamwlr2.0_wd0_augx_speunigram1024_streaming_104_12_wm10k_ctc_striding4x_400e_clip1_newcode.nemo'
-    )
+    asr_model = nemo_asr.models.ctc_bpe_models.EncDecCTCModelBPE.restore_from(nemo_file)
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
@@ -104,6 +102,8 @@ def export_trt(batch_size=128):
         # serialized_engine = torch_tensorrt.convert_method_to_trt_engine(
         #    traced_model,
         #    "forward",
+        torch_tensorrt.logging.set_reportable_log_level(torch_tensorrt.logging.Level.Debug)
+
         traced_model = torch_tensorrt.compile(
             traced_model,
             inputs=[
@@ -134,6 +134,7 @@ def export_trt(batch_size=128):
             ],
             enabled_precisions={torch.float32},
             truncate_long_and_double=True,
+            require_full_compilation=True,
         )
 
     # with open("streaming-conformer.plan", "wb") as outf:
@@ -156,7 +157,7 @@ def load_and_run(batch_size=128, model_fn=None, inputs=None):
 
 
 if __name__ == "__main__":
-    # model, inputs = export_script()
+    model, inputs = export_script()
     # torch.jit.save(model, "streaming-conformer.pt")
     # load_and_run(128, "streaming-conformer.pt", inputs)
     export_trt(128)

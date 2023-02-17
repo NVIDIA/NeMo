@@ -58,6 +58,20 @@ def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, keep_size:
     return cache_next
 
 
+@torch.jit.script
+def update_cache_next(
+    query: torch.Tensor, cache: torch.Tensor, cache_next: torch.Tensor, cache_drop_size: int, cache_id: int
+):
+    q_keep_size = query.shape[1] - cache_drop_size
+    if q_keep_size < 1:
+        q_keep_size = 1
+    cache_next[cache_id, :, :-q_keep_size, :] = cache[
+        cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
+    ]
+    cache_next[cache_id, :, -q_keep_size:, :] = query[:, :q_keep_size, :]
+    return cache_next
+
+
 class MultiHeadAttention(nn.Module):
     """Multi-Head Attention layer of Transformer.
     Args:
@@ -156,26 +170,9 @@ class MultiHeadAttention(nn.Module):
 
     def update_cache(self, key, value, query, cache, cache_next):
         if cache is not None:
-            q_length = query.size(1)
-            q_input = query
             key = value = torch.cat((cache[self._cache_id], key), dim=1)
-
-        if cache_next is not None:
-            q_keep_size = torch.tensor(q_length - self.cache_drop_size, dtype=torch.int64, device=cache.device).clamp(
-                min=1
-            )
-            # if q_keep_size >= cache_next.size(-2):
-            #    raise Exception("keep > cache_next.size(-2)")
-            # keep_in_cache_next(cache=cache, cache_next=cache_next, keep_size=q_keep_size, cache_id=self._cache_id)
-            cache_next[self._cache_id, :, :-q_keep_size, :] = cache[
-                self._cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
-            ]
-            cache_next[self._cache_id, :, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
-            # cache_next[self._cache_id, :, :, :] = torch.cat(
-            #    (cache[self._cache_id, :, -(cache_next.size(2) - q_keep_size):, :],
-            #     q_input[:, :q_keep_size, :]), dim=1,
-            # )
-
+            if cache_next is not None:
+                cache_next = update_cache_next(query, cache, cache_next, self.cache_drop_size, self._cache_id)
         return key, value, query
 
 
