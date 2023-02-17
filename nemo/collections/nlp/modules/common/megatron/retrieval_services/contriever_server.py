@@ -1,19 +1,24 @@
-from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
-from flask_restful import Api, Resource
-from flask import Flask, jsonify, request
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock
-import threading
 import json
-import torch
-import ftfy
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.metrics import F1Metric
-from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
-from transformers import DPRQuestionEncoderTokenizer, DPRQuestionEncoder
-from transformers import BertTokenizer, BertModel
+import threading
 
+import ftfy
+import torch
+from flask import Flask, jsonify, request
+from flask_restful import Api, Resource
+from sentence_transformers import CrossEncoder, SentenceTransformer, util
+from transformers import (
+    BertModel,
+    BertTokenizer,
+    DPRContextEncoder,
+    DPRContextEncoderTokenizer,
+    DPRQuestionEncoder,
+    DPRQuestionEncoderTokenizer,
+)
+
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.contriever import print_gpu_utilization
-from sentence_transformers import SentenceTransformer, CrossEncoder, util
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.metrics import F1Metric
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock
 
 
 def clean_text_with_dpr(text, dpr_tokenizer):
@@ -68,6 +73,7 @@ def evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tok
     # print(topk, hit, total)
     return hit * 1.0 / total
 
+
 def compute_f1_score(predicted_answers, groundtruth_answer, n=1, return_recall=False):
     """Evaluating F1 Score"""
     # print(len(predicted_answers), len(groundtruth_answer))
@@ -86,8 +92,7 @@ def compute_f1_score(predicted_answers, groundtruth_answer, n=1, return_recall=F
             answer = ""
         answer_list.append(answer)
 
-    assert len(guess_list) == len(answer_list), \
-        "lengths of guess and answer are different!"
+    assert len(guess_list) == len(answer_list), "lengths of guess and answer are different!"
 
     precision, recall, f1 = F1Metric.compute_all_pairs(guess_list, answer_list, n)
     # print_rank_0('Method: %s; Precision: %.4f; recall: %.4f; f1: %.4f' % (\
@@ -97,9 +102,12 @@ def compute_f1_score(predicted_answers, groundtruth_answer, n=1, return_recall=F
         return recall
     return f1
 
+
 def run_retriever(retriever, all_contexts, queries):
     retriever_fcn = retriever["retriever_fcn"]
-    retriever_args = retriever["retriever_args"] if "retriever_args" in retriever and retriever["retriever_args"] else None
+    retriever_args = (
+        retriever["retriever_args"] if "retriever_args" in retriever and retriever["retriever_args"] else None
+    )
 
     if retriever_args:
         relevant_contexts = retriever_fcn(all_contexts, queries, retriever_args)
@@ -107,33 +115,50 @@ def run_retriever(retriever, all_contexts, queries):
         relevant_contexts = retriever_fcn(all_contexts, queries)
     return relevant_contexts
 
+
 def normalization_txt(text):
     return text.lower()
+
 
 def openai_retriever(all_contexts, queries):
     """
         With openai, dot product and cosine similarity are the same, as embeddings are normalized
     """
+
     def openai_retriever_helper(inputs):
-        import requests, json
+        import json
+
+        import requests
+
         openai_api_embeddings_url = "https://api.openai.com/v1/embeddings"
         openai_api_key = "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"
-        openai_api_headers = {'content-type': 'application/json', "accept": "application/json", "authorization": "Bearer " + openai_api_key}
-        openai_api_embeddings_data = { "model": "text-embedding-ada-002", "input": inputs }
-        r = requests.post(openai_api_embeddings_url, data=json.dumps(openai_api_embeddings_data), headers=openai_api_headers)
+        openai_api_headers = {
+            'content-type': 'application/json',
+            "accept": "application/json",
+            "authorization": "Bearer " + openai_api_key,
+        }
+        openai_api_embeddings_data = {"model": "text-embedding-ada-002", "input": inputs}
+        r = requests.post(
+            openai_api_embeddings_url, data=json.dumps(openai_api_embeddings_data), headers=openai_api_headers
+        )
         r = r.json()
-        return [x["embedding"] for x in  r["data"]]
+        return [x["embedding"] for x in r["data"]]
 
     all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
     all_contexts_formatted_emb = openai_retriever_helper(all_contexts_formatted)
     queries_emb = openai_retriever_helper(queries)
 
     all_query_scores = util.cos_sim(queries_emb, all_contexts_formatted_emb).cpu().tolist()
-    all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-        for query_scores in all_query_scores ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-        for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+        for query_scores in all_query_scores
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
     return all_query_docs_sorted
+
 
 def tasb_retriever(all_contexts, queries, retriever_args):
     retrieval_method = retriever_args["retrieval_method"]
@@ -142,44 +167,72 @@ def tasb_retriever(all_contexts, queries, retriever_args):
     all_contexts_formatted_emb = model.encode(all_contexts_formatted)
     queries_emb = model.encode(queries)
 
-    if retrieval_method=="DOT_PRODUCT":
+    if retrieval_method == "DOT_PRODUCT":
         all_query_scores = util.dot_score(queries_emb, all_contexts_formatted_emb).cpu().tolist()
-        all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-            for query_scores in all_query_scores ]
-        all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-            for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+        all_query_docsandscores_sorted = [
+            sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+            for query_scores in all_query_scores
+        ]
+        all_query_docs_sorted = [
+            [docandscore[0] for docandscore in query_docsandscores_sorted]
+            for query_docsandscores_sorted in all_query_docsandscores_sorted
+        ]
         return all_query_docs_sorted
-    elif retrieval_method=="COSINE_SIMILARITY":
+    elif retrieval_method == "COSINE_SIMILARITY":
         all_query_scores = util.cos_sim(queries_emb, all_contexts_formatted_emb).cpu().tolist()
-        all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-            for query_scores in all_query_scores ]
-        all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-            for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+        all_query_docsandscores_sorted = [
+            sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+            for query_scores in all_query_scores
+        ]
+        all_query_docs_sorted = [
+            [docandscore[0] for docandscore in query_docsandscores_sorted]
+            for query_docsandscores_sorted in all_query_docsandscores_sorted
+        ]
         return all_query_docs_sorted
     return None
 
+
 def msmarcominilm_retriever(all_contexts, queries):
     model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
-    all_query_scores = [ list(model.predict([ (query, normalization_txt(format(*context))) for context in  all_contexts])) for query in queries ]
-    all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-            for query_scores in all_query_scores ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-            for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+    all_query_scores = [
+        list(model.predict([(query, normalization_txt(format(*context))) for context in all_contexts]))
+        for query in queries
+    ]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+        for query_scores in all_query_scores
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
     return all_query_docs_sorted
+
 
 def msmarcominilm_reranker(all_query_contexts_ranked, queries, top_k=10):
     model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
-    all_query_scores = [ list(model.predict([ (query, normalization_txt(format(*context))) for context in query_contexts_ranked[:top_k]])) for query_contexts_ranked, query in zip(all_query_contexts_ranked, queries)]
-    all_query_docsandscores_sorted = [ sorted(list(zip(query_contexts_ranked[:top_k], query_scores)), key=lambda x: x[1], reverse=True) \
-            for query_contexts_ranked, query_scores in zip(all_query_contexts_ranked, all_query_scores) ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-            for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+    all_query_scores = [
+        list(
+            model.predict([(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:top_k]])
+        )
+        for query_contexts_ranked, query in zip(all_query_contexts_ranked, queries)
+    ]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(query_contexts_ranked[:top_k], query_scores)), key=lambda x: x[1], reverse=True)
+        for query_contexts_ranked, query_scores in zip(all_query_contexts_ranked, all_query_scores)
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
     return all_query_docs_sorted
+
 
 def tasb_retriever_msmarcominilm_reranker(all_contexts, queries, retriever_args):
     all_query_docs_ranked = tasb_retriever(all_contexts, queries, retriever_args)
     all_query_docs_reranked = msmarcominilm_reranker(all_query_docs_ranked, queries)
     return all_query_docs_reranked
+
 
 def allminilm_retriever(all_contexts, queries):
     """
@@ -191,16 +244,22 @@ def allminilm_retriever(all_contexts, queries):
     queries_emb = model.encode(queries)
 
     all_query_scores = util.cos_sim(queries_emb, all_contexts_formatted_emb).cpu().tolist()
-    all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-        for query_scores in all_query_scores ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-        for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+        for query_scores in all_query_scores
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
     return all_query_docs_sorted
+
 
 def bm25_retriever(all_contexts, queries):
 
     from rank_bm25 import BM25Okapi
-    tokenized_corpus = [normalization_txt(t+c).split() for t,c in all_contexts]
+
+    tokenized_corpus = [normalization_txt(t + c).split() for t, c in all_contexts]
     bm25 = BM25Okapi(tokenized_corpus)
 
     ranked_docs = []
@@ -210,6 +269,7 @@ def bm25_retriever(all_contexts, queries):
         doc_rank = (-doc_scores).argsort()
         ranked_docs.append([all_contexts[i] for i in doc_rank])
     return ranked_docs
+
 
 def sbert_retriever(all_contexts, queries):
     # For every query get a sorted list of all_contexts based on similarity
@@ -239,6 +299,7 @@ def sbert_retriever(all_contexts, queries):
         doc_rank = (-scores[i]).argsort()
         ranked_docs.append([all_contexts[j] for j in doc_rank])
     return ranked_docs
+
 
 def dpr_sbert_retriever(all_contexts, queries):
     # For every query get a sorted list of all_contexts based on similarity
@@ -273,6 +334,7 @@ def dpr_sbert_retriever(all_contexts, queries):
         ranked_docs.append([all_contexts[j] for j in doc_rank])
     return ranked_docs
 
+
 def chunk_car_manual(manual, chunk_by_words=True, chunk_size=300, tokenizer=None, chunk_by_dpr_tokenizer=False):
 
     all_chunks = []
@@ -293,11 +355,13 @@ def chunk_car_manual(manual, chunk_by_words=True, chunk_size=300, tokenizer=None
 
     return all_chunks
 
+
 def load_car_manual(car_manual):
 
     with open(car_manual, 'r') as f:
         rows = json.load(f)
     return rows
+
 
 def load_qa_dataset(qa_dataset):
 
@@ -310,6 +374,7 @@ def load_qa_dataset(qa_dataset):
         sub_paragraphs.append(row["sub-paragraphs"])
         answers.append(row["answers"][0])
     return queries, sub_paragraphs, answers
+
 
 def load_car_manual_setup(car_manual, qa_dataset):
 
@@ -325,24 +390,24 @@ def load_car_manual_setup(car_manual, qa_dataset):
 
     return all_contexts, sub_paragraphs, queries, answers
 
+
 def get_dpr_group(mode="single", return_question_model=False):
     if mode == "single":
-        dpr_path= "facebook/dpr-ctx_encoder-single-nq-base"
+        dpr_path = "facebook/dpr-ctx_encoder-single-nq-base"
     elif mode == "multi":
-        dpr_path= "facebook/dpr-ctx_encoder-multiset-base"
+        dpr_path = "facebook/dpr-ctx_encoder-multiset-base"
     else:
         raise ValueError("wrong mode for dpr")
     print(dpr_path)
     print('Building embeddings using DPR context encoder')
-    context_tokenizer = DPRContextEncoderTokenizer.from_pretrained(
-        dpr_path)
-    context_model = DPRContextEncoder.from_pretrained(
-        dpr_path).cuda()
+    context_tokenizer = DPRContextEncoderTokenizer.from_pretrained(dpr_path)
+    context_model = DPRContextEncoder.from_pretrained(dpr_path).cuda()
     if return_question_model:
         question_tokenizer = DPRQuestionEncoderTokenizer.from_pretrained(dpr_path)
         question_model = DPRQuestionEncoder.from_pretrained(dpr_path).cuda()
         return context_model, context_tokenizer, question_model, question_tokenizer
     return context_model, context_tokenizer
+
 
 def get_bert_group():
 
@@ -351,9 +416,10 @@ def get_bert_group():
 
     return bert_model, bert_tokenizer
 
+
 def main(retriever, car_manual, qa_dataset, log=False):
 
-    topks = [1, 5, 10 ,20, 50, 100, 1000]
+    topks = [1, 5, 10, 20, 50, 100, 1000]
     # topks = [1, 5]
     _, dpr_tokenizer = get_dpr_group()
     all_contexts, sub_paragraphs, queries, answers = load_car_manual_setup(car_manual, qa_dataset)
@@ -361,7 +427,7 @@ def main(retriever, car_manual, qa_dataset, log=False):
     print("total num of all_contexts", len(all_contexts))
     relevant_contexts = run_retriever(retriever, all_contexts, queries)
     for topk in topks:
-        topk_acc = evaluate_retriever(relevant_contexts, sub_paragraphs, answers,topk, dpr_tokenizer, log=log)
+        topk_acc = evaluate_retriever(relevant_contexts, sub_paragraphs, answers, topk, dpr_tokenizer, log=log)
         # print(topk, topk_acc)
         print(topk_acc)
 
@@ -377,10 +443,12 @@ def save_topk(retriever, car_manual, qa_dataset, topk, output_file):
 
     save_as_json(queries, relevant_contexts, answers, topk, output_file)
 
+
 def format_output(item):
 
     source, title = item
     return {"title": title, "text": source}
+
 
 def save_as_json(queries, relevant_contexts, answers, topk, output_file):
 
@@ -393,10 +461,14 @@ def save_as_json(queries, relevant_contexts, answers, topk, output_file):
         for item in outputs:
             f.write(json.dumps(item) + "\n")
 
+
 def analyze(sub_paragraphs, answers):
 
     assert len(sub_paragraphs) == len(answers)
-    res = [compute_f1_score([sub_paragraph], [answer], n=2, return_recall=True) for sub_paragraph, answer in zip(sub_paragraphs, answers)]
+    res = [
+        compute_f1_score([sub_paragraph], [answer], n=2, return_recall=True)
+        for sub_paragraph, answer in zip(sub_paragraphs, answers)
+    ]
 
     print(min([i for i in res if i > 0.1]))
     print(res)
@@ -423,6 +495,7 @@ def save_all(retriever_name):
         output_file = "../data/benz/{}_retriever_top{}_{}.json".format(retriever_name, topk, split)
         save_topk(retriever, car_manual, qa_dataset, topk, output_file)
 
+
 def tasb_retriever_msmarcominilm_reranker(all_contexts, queries, retriever_args):
     all_query_docs_ranked = tasb_retriever(all_contexts, queries, retriever_args)
     all_query_docs_reranked = msmarcominilm_reranker(all_query_docs_ranked, queries)
@@ -434,18 +507,31 @@ def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, mo
     queries_emb = models[0].encode(questions)
 
     all_query_scores = util.dot_score(queries_emb, all_contexts_formatted_emb).cpu().tolist()
-    all_query_docsandscores_sorted = [ sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True) \
-        for query_scores in all_query_scores ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-        for query_docsandscores_sorted in all_query_docsandscores_sorted ]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(all_contexts, query_scores)), key=lambda x: x[1], reverse=True)
+        for query_scores in all_query_scores
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
 
-    all_query_scores = [ list(models[1].predict([ (query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]])) for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)]
+    all_query_scores = [
+        list(
+            models[1].predict([(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]])
+        )
+        for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)
+    ]
 
-    all_query_docsandscores_sorted = [ sorted(list(zip(query_contexts_ranked[:neighbors], query_scores)), key=lambda x: x[1], reverse=True) \
-            for query_contexts_ranked, query_scores in zip(all_query_docs_sorted, all_query_scores) ]
-    all_query_docs_sorted = [ [ docandscore[0] for docandscore in query_docsandscores_sorted ] \
-            for query_docsandscores_sorted in all_query_docsandscores_sorted ]
-    similarity = [[item[1].item() for item in batch_doc_scores ] for batch_doc_scores in all_query_docsandscores_sorted]
+    all_query_docsandscores_sorted = [
+        sorted(list(zip(query_contexts_ranked[:neighbors], query_scores)), key=lambda x: x[1], reverse=True)
+        for query_contexts_ranked, query_scores in zip(all_query_docs_sorted, all_query_scores)
+    ]
+    all_query_docs_sorted = [
+        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        for query_docsandscores_sorted in all_query_docsandscores_sorted
+    ]
+    similarity = [[item[1].item() for item in batch_doc_scores] for batch_doc_scores in all_query_docsandscores_sorted]
     return all_query_docs_sorted, similarity
 
 
@@ -455,7 +541,7 @@ class ContriverRetrievalResource(Resource):
     The PUT method is to get KNN tokens, add new chunks, reset index.
     """
 
-    def __init__( self, retriever, all_context, all_context_emb, tokenizer, pad_len, models):
+    def __init__(self, retriever, all_context, all_context_emb, tokenizer, pad_len, models):
         self.retriever = retriever
         self.all_context = all_context
         self.all_context_emb = all_context_emb
@@ -471,7 +557,9 @@ class ContriverRetrievalResource(Resource):
             num_neighbors = data['neighbors']
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 all_neighbors = []
-                results, similarity = get_relevant_context(sentences, self.all_context, self.all_context_emb, num_neighbors, self.models)
+                results, similarity = get_relevant_context(
+                    sentences, self.all_context, self.all_context_emb, num_neighbors, self.models
+                )
                 all_first_neighbors = []
                 for relevant_context_and_title in results:
                     token_ids = []
@@ -485,15 +573,13 @@ class ContriverRetrievalResource(Resource):
                             first_neighbor.append(ids)
                         count += 1
                         if len(ids) < self.pad_len:
-                            ids = ids + [self.tokenizer.eos_id] * (self.pad_len  - len(ids))
+                            ids = ids + [self.tokenizer.eos_id] * (self.pad_len - len(ids))
                         elif len(ids) > self.pad_len:
-                            ids = ids[:self.pad_len]
+                            ids = ids[: self.pad_len]
                         token_ids.append(ids)
                     all_neighbors.append(token_ids)
                     all_first_neighbors.append(first_neighbor)
-            result = {'knn': all_neighbors,
-                      "similarity": similarity,
-                      'first_neighbor': all_first_neighbors}
+            result = {'knn': all_neighbors, "similarity": similarity, 'first_neighbor': all_first_neighbors}
             return jsonify(result)
         return "wrong API"
 
@@ -504,10 +590,7 @@ class ContriverRetrievalServer(object):
     """
 
     def __init__(
-        self,
-        filepath,
-        tokenizer: TokenizerSpec,
-        max_answer_length,
+        self, filepath, tokenizer: TokenizerSpec, max_answer_length,
     ):
         self.app = Flask(__name__, static_url_path='')
         rows = load_car_manual(filepath)
@@ -523,8 +606,18 @@ class ContriverRetrievalServer(object):
         self.all_contexts_formatted_emb = self.distil_model.encode(all_contexts_formatted)
         self.all_contexts = all_contexts
 
-        all_retrievers = {"bm25": {"retriever_fcn": bm25_retriever}, 'msmarcominilm': {"retriever_fcn": msmarcominilm_retriever}}
-        all_retrievers.update({"tasb": {"retriever_fcn": tasb_retriever_msmarcominilm_reranker, "retriever_args": {"retrieval_method": "DOT_PRODUCT"}}})
+        all_retrievers = {
+            "bm25": {"retriever_fcn": bm25_retriever},
+            'msmarcominilm': {"retriever_fcn": msmarcominilm_retriever},
+        }
+        all_retrievers.update(
+            {
+                "tasb": {
+                    "retriever_fcn": tasb_retriever_msmarcominilm_reranker,
+                    "retriever_args": {"retrieval_method": "DOT_PRODUCT"},
+                }
+            }
+        )
         retriever_name = "tasb"
         self.retriever = all_retrievers[retriever_name]
 
@@ -532,7 +625,14 @@ class ContriverRetrievalServer(object):
         api.add_resource(
             ContriverRetrievalResource,
             '/knn',
-            resource_class_args=[self.retriever, self.all_contexts, self.all_contexts_formatted_emb, tokenizer, max_answer_length, (self.distil_model, self.rank_model)],
+            resource_class_args=[
+                self.retriever,
+                self.all_contexts,
+                self.all_contexts_formatted_emb,
+                tokenizer,
+                max_answer_length,
+                (self.distil_model, self.rank_model),
+            ],
         )
 
     def run(self, url, port=None):

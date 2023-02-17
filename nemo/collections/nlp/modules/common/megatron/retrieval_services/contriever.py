@@ -1,6 +1,7 @@
 import torch
-from transformers import AutoTokenizer, AutoModel
 from pynvml import *
+from transformers import AutoModel, AutoTokenizer
+
 
 def print_gpu_utilization():
     nvmlInit()
@@ -8,11 +9,13 @@ def print_gpu_utilization():
     info = nvmlDeviceGetMemoryInfo(handle)
     print(f"GPU memory occupied: {info.used//1024**2} MB.")
 
+
 # Mean pooling
 def mean_pooling(token_embeddings, mask):
-    token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
+    token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.0)
     sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)[..., None]
     return sentence_embeddings
+
 
 def compute_embedding(tokenizer, model, sentences):
     # Apply tokenizer
@@ -22,6 +25,7 @@ def compute_embedding(tokenizer, model, sentences):
     with torch.no_grad():
         outputs = model(**inputs)
     return mean_pooling(outputs[0], inputs['attention_mask'])
+
 
 def contriever_group():
     # Get contriever model and tokenizer
@@ -36,6 +40,7 @@ def contriever_group():
     contriever_model.eval()
     print_gpu_utilization()
     return contriever_model, contriever_tokenizer
+
 
 def contriever_retriever(all_contexts, queries):
     # For every query get a sorted list of all_contexts based on similarity
@@ -54,7 +59,7 @@ def contriever_retriever(all_contexts, queries):
             to_encode = []
     if len(to_encode) > 0:
         all_contexts_embeddings.append(compute_embedding(contriever_tokenizer, contriever_model, to_encode))
-    
+
     all_contexts_embeddings = torch.cat(all_contexts_embeddings, dim=0)
     scores = torch.matmul(query_embeddings, all_contexts_embeddings.T)
     ranked_docs = []

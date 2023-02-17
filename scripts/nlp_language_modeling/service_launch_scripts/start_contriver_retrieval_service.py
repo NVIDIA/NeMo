@@ -39,11 +39,7 @@ def get_tokenizer(args):
 def main(cfg) -> None:
     tokenizer = get_tokenizer(cfg.tokenizer)
 
-    server = ContriverRetrievalServer(
-        cfg.service.filepath,
-        tokenizer,
-        cfg.service.max_answer_length,
-    )
+    server = ContriverRetrievalServer(cfg.service.filepath, tokenizer, cfg.service.max_answer_length,)
     server.run("0.0.0.0", cfg.service.port)
 
 

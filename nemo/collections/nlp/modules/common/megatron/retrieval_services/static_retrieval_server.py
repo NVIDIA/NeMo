@@ -62,11 +62,7 @@ class FaissRetrievalResource(Resource):
         if neighbors == 0:
             # use padding
             item = np.repeat(self.no_retrieval, len(query), 0).astype(np.int64).tolist()
-            json_output = {
-                "knn": item,
-                "first_neighbor": item,
-                "similarity": [[9999]]
-            }
+            json_output = {"knn": item, "first_neighbor": item, "similarity": [[9999]]}
             return json_output
         single_sentence = False
         if isinstance(query, str):
