@@ -2,7 +2,7 @@ defaults:
   - .@model: megatron_model_base_config
 
 name: test_retro
-restore_from_path: "/dataset/draco_retro/megatron_retro_finetune_converted_9B/megatron_retro_finetune_converted_9B"
+restore_from_path: "/dataset/retro/retro_1100m_final"
 
 trainer:
   devices: 4
@@ -44,7 +44,7 @@ exp_manager:
 
 model:
   # model parallelism 
-  micro_batch_size: 4
+  micro_batch_size: 1
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
@@ -73,7 +73,7 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  restore_from_path: "/dataset/draco_retro/megatron_retro_finetune_converted_9B/megatron_retro_finetune_converted_9B"
+  restore_from_path: "/dataset/retro/retro_1100m_final"
 
 
   tokenizer:
@@ -102,12 +102,12 @@ model:
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
     data_prefix: 
-      - /workspaces/research/downloaded/rte/rte_text_document
+      - /workspaces/research/downloaded/converted/piqa/piqa_text_document
     knn_index: 
-      - /workspaces/research/downloaded/rte/rte_knn.save
+      - /workspaces/research/downloaded/converted/piqa/knn_final_piqa.index
       # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
       # - /dataset/pile/pile_index_final.index
-    retrieval_prefix: /dataset/retro_mc4_text_document/retro_mc4_text_document   # a singe path to retrieval data
+    retrieval_prefix: /workspaces/research/downloaded/converted/piqa/piqa_text_document # /dataset/retro_mc4_text_document/retro_mc4_text_document
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 900,50,50
@@ -133,25 +133,9 @@ model:
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 40
+    adapter_dim: 8
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-
-
-# inference:
-#   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
-#   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
-#   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
-#   temperature: 1.0 # sampling temperature
-#   add_BOS: True # add the bos token at the begining of the prompt
-#   tokens_to_generate: 30 # The minimum length of the sequence to be generated.
-#   all_probs: False  # whether return the log prob for all the tokens in vocab
-#   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
-#   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
-#   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
-
-
-

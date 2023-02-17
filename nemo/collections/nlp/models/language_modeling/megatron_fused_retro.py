@@ -10,6 +10,8 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import masked_select
 from torch.nn.utils.rnn import pad_sequence
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.utilities import model_summary
@@ -127,7 +129,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         #         save_restore_connector=save_restore_connector,
         #         override_config_path=frozen_model_cfg,
         #     ).to(dtype=self.autocast_dtype)
-
 
         for _, layer in self.frozen_model.named_modules():
             if hasattr(layer, 'activations_checkpoint_method'):
@@ -255,6 +256,31 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         self._optimizer_param_groups = [{'params': opt_params}]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
+
+    # def training_step(self, batch, batch_idx):
+    #     # we zero grads here because we also call backward in the apex fwd/bwd functions
+    #     self._optimizer.zero_grad()
+    #     loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+    #     self.allreduce_gradients()
+
+    #     ## logging
+    #     # we can only log on one rank if it is rank zero so we broadcast from last rank
+    #     # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+    #     torch.distributed.broadcast(loss_mean, get_last_rank())
+
+    #     if self.cfg.precision == 16:
+    #         loss_scale = self.trainer.precision_plugin.scaler._scale
+    #         if loss_scale is not None:
+    #             self.log('loss_scale', loss_scale)
+
+    #     self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+    #     lr = self._optimizer.param_groups[0]['lr']
+    #     self.log('lr', lr, rank_zero_only=True)
+    #     self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+
+    #     # Need to make sure the frozen model param learning rate stays 0.0
+    #     # so forceing lr to be 0.0 for gpt layers before param update
+    #     return loss_mean
 
     # def training_step(self, batch, batch_idx):
     #     # we zero grads here because we also call backward in the apex fwd/bwd functions

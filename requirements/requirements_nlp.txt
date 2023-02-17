@@ -1,6 +1,6 @@
 boto3
 einops
-faiss-cpu
+faiss-gpu
 fasttext
 flask_restful
 ftfy

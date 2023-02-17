@@ -333,6 +333,7 @@ if __name__ == "__main__":
         path = input_file.parent
         fname = input_file.name
         all_files = [str(i) for i in pathlib.Path(path).glob(fname + '*')]
+        print(all_files)
         merge_knn_files(all_files, args.output_file)
         f = KNNIndex(args.output_file)
         logging.info(f'Write to {args.output_file},  Size of Index : {f.len}')

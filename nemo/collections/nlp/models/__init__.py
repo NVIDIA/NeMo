@@ -39,3 +39,4 @@ from nemo.collections.nlp.models.token_classification import (
     TokenClassificationModel,
 )
 from nemo.collections.nlp.models.zero_shot_intent_recognition import ZeroShotIntentModel
+from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalAdapterModel
