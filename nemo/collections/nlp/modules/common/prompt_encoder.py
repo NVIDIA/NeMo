@@ -18,7 +18,6 @@ from typing import Dict, Optional
 import torch
 from torch import nn
 
-from nemo.collections.nlp.modules.common import PromptTable
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
