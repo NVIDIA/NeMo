@@ -88,7 +88,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.log_train_images = False
         self.export_config = {
             "emb_range": (0, self.model.embedding.num_embeddings),
-            "enable_volume": True,
+            "enable_volume": False,
             "enable_ragged_batches": False,
             "num_speakers": self.model_config.n_speakers,
         }
@@ -452,12 +452,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         # Define input_types and output_types as required by export()
         self._input_types = {
             "text": NeuralType(tensor_shape, TokenIndex()),
-            "batch_lengths": NeuralType(('B')),
+            "lens": NeuralType(('B')),
             "speaker_id": NeuralType(('B'), Index()),
             "speaker_id_text": NeuralType(('B'), Index()),
             "speaker_id_attributes": NeuralType(('B'), Index()),
-            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
-            "pace": NeuralType(tensor_shape),
         }
         self._output_types = {
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
@@ -477,28 +475,16 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
         new_inputs = {
             'text': inp,
-            'batch_lengths': inputs['batch_lengths'],
+            'lens': inputs['batch_lengths'],
             'speaker_id': speaker,
             'speaker_id_text': speaker,
             'speaker_id_attributes': speaker,
-            'pitch': inputs['pitch'],
-            'pace': inputs['pace'],
-            'volume': inputs['volume'],
         }
 
         return (new_inputs,)
 
-    def forward_for_export(
-        self, text, batch_lengths, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
-    ):
-        if self.export_config["enable_ragged_batches"]:
-            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
-                text, pitch, pace, batch_lengths=batch_lengths, padding_idx=self.tokenizer_pad, volume=volume,
-            )
-            if volume is not None:
-                volume = volume_tensor
-        else:
-            lens = batch_lengths.to(dtype=torch.int64)
+    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
+        lens = lens.to(dtype=torch.int64)
 
         speaker_id_text[0] = 11  # speaker_id_text,
         speaker_id_attributes[0] = 11  # speaker_id_attributes,
@@ -515,22 +501,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             f0_mean=143.0,
             f0_std=30.0,
             in_lens=lens,
-            pitch_shift=pitch,
-            pace=pace,
+            pitch_shift=None,
+            pace=None,
         ).values()
         ret_values = (mel.float(), n_frames, dur.float())
-
-        if volume is not None:
-            # Need to reshape as in infer patch
-            durs_predicted = dur.float()
-            truncated_length = torch.max(lens)
-            volume_extended, _ = regulate_len(
-                durs_predicted,
-                volume[:, :truncated_length].unsqueeze(-1),
-                pace[:, :truncated_length],
-                group_size=self.model.n_group_size,
-                dur_lens=lens,
-            )
-            volume_extended = volume_extended.squeeze(2).float()
-            ret_values = ret_values + (volume_extended,)
         return ret_values
