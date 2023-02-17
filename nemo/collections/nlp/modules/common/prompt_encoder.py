@@ -18,12 +18,9 @@ from typing import Dict, Optional
 import torch
 from torch import nn
 
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_normal,
-)
 from nemo.collections.nlp.modules.common import PromptTable
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
@@ -58,9 +55,7 @@ class TPMLP(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "taskname_embeddings": NeuralType(
-                ("B", "T", "C"), ChannelType(), optional=False
-            ),
+            "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
         }
 
     @property
@@ -68,11 +63,7 @@ class TPMLP(NeuralModule, Exportable):
         return {"output_embeds": NeuralType(("B", "T", "C"), ChannelType())}
 
     def __init__(
-        self,
-        total_virtual_tokens: int,
-        hidden_size: int,
-        output_size: int,
-        init_std: float,
+        self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
     ):
         """
         Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
@@ -91,8 +82,7 @@ class TPMLP(NeuralModule, Exportable):
         sequence_parallel = False
         gradient_accumulation_fusion = False
         no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1
-            or sequence_parallel
+            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
         )
         self.first = tensor_parallel.ColumnParallelLinear(
             self.output_size,
@@ -136,9 +126,7 @@ class PromptEncoder(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "taskname_embeddings": NeuralType(
-                ("B", "T", "C"), ChannelType(), optional=False
-            ),
+            "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
         }
 
     @property
@@ -175,9 +163,7 @@ class PromptEncoder(NeuralModule, Exportable):
         self.init_std = init_std
 
         # Set fixed indicies for forward pass
-        self.register_buffer(
-            "indices", torch.LongTensor(list(range(self.total_virtual_tokens)))
-        )
+        self.register_buffer("indices", torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
@@ -207,32 +193,21 @@ class PromptEncoder(NeuralModule, Exportable):
 
             layers = [nn.Linear(self.input_size, self.hidden_size), nn.ReLU()]
             for _ in range(num_layers - 2):
-                layers.extend(
-                    [nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU()]
-                )
+                layers.extend([nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU()])
 
             layers.append(nn.Linear(self.hidden_size, self.output_size))
             self.mlp_head = nn.Sequential(*layers)
 
         elif self.encoder_type == PromptEncoderType.TPMLP:
-            self.tpmlp = TPMLP(
-                self.total_virtual_tokens,
-                self.hidden_size,
-                self.output_size,
-                self.init_std,
-            )
+            self.tpmlp = TPMLP(self.total_virtual_tokens, self.hidden_size, self.output_size, self.init_std,)
         else:
-            raise ValueError(
-                "Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM."
-            )
+            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         batch_size, task_seq_length, _ = taskname_embeddings.shape
-        input_embeds = input_embeds.expand(
-            batch_size, self.total_virtual_tokens, self.token_dim
-        ).clone()
+        input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim).clone()
         length = min(task_seq_length, self.total_virtual_tokens)
 
         # Replace general input with task specific embeddings to specify the correct task
@@ -245,8 +220,6 @@ class PromptEncoder(NeuralModule, Exportable):
         elif self.encoder_type == PromptEncoderType.TPMLP:
             output_embeds = self.tpmlp(input_embeds)
         else:
-            raise ValueError(
-                "Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM."
-            )
+            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
         return output_embeds
