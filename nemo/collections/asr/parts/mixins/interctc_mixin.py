@@ -21,10 +21,10 @@ from nemo.core.classes.mixins import AccessMixin
 class InterCTCMixin:
     """Adds utilities for computing interCTC loss from https://arxiv.org/abs/2102.03216.
 
-    To use, make sure encoder accesses `interctc['capture_layers']`
-    property in the AccessMixin and registers interctc/layer_output_X and
-    interctc/layer_length_X for all layers that we want to get loss from.
-    Additionally, specify the following config parameters to set up loss:
+    To use, make sure encoder accesses ``interctc['capture_layers']``
+    property in the AccessMixin and registers ``interctc/layer_output_X`` and
+    ``interctc/layer_length_X`` for all layers that we want to get loss from.
+    Additionally, specify the following config parameters to set up loss::
 
         interctc:
             # can use different values
@@ -33,7 +33,7 @@ class InterCTCMixin:
 
     Then call
 
-        * ``setup_interctc`` in the init method
+        * ``self.setup_interctc`` in the init method
         * ``self.add_interctc_losses`` after computing regular loss.
         * ``self.finalize_interctc_metrics(metrics, outputs, prefix="val_")``
           in the `multi_validation_epoch_end` method.
@@ -100,8 +100,8 @@ class InterCTCMixin:
     def finalize_interctc_metrics(self, metrics: Dict, outputs: List[Dict], prefix: str):
         """Finalizes InterCTC WER and loss metrics for logging purposes.
 
-        Should be called inside ``multi_validation_epoch_end`` (with prefix="val_") or
-        ``multi_test_epoch_end`` (with prefix="test_).
+        Should be called inside ``multi_validation_epoch_end`` (with ``prefix="val_"``) or
+        ``multi_test_epoch_end`` (with ``prefix="test_"``).
 
         Note that ``metrics`` argument is going to be updated in-place.
         """
@@ -181,12 +181,11 @@ class InterCTCMixin:
                 in the returned metrics dictionary. Should always be True for
                 validation/test to allow correct metrics aggregation. Should
                 always be False for training. Defaults to False.
-            log_prefix (str): prefix added to all log values. Should be "" for
-                training and "val_" for validation.
+            log_prefix (str): prefix added to all log values. Should be ``""`` for
+                training and ``"val_"`` for validation.
 
         Returns:
-            tuple[torch.Tensor, Dict]: tuple of new loss tensor and dictionary
-                with logged metrics.
+            tuple[torch.Tensor, Dict]: tuple of new loss tensor and dictionary with logged metrics.
         """
         if not self.is_interctc_enabled() or not AccessMixin.is_access_enabled():
             return loss_value, {}
