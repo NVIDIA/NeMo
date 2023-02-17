@@ -79,7 +79,7 @@ model:
   position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope']
   rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   attention_type: 'multihead' # Attention type. Options ['multihead']
-  untie_embedding_and_output_layer: False # Untie embedding and output layer weights.
+  share_embeddings_and_output_weights: True # Share embedding and output layer weights.
 
   tokenizer:
     library: 'megatron'
