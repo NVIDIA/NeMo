@@ -440,7 +440,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         previous_pred_out: torch.Tensor = None,
         drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
-        return_log_probs: bool = False
+        return_log_probs: bool = False,
     ):
         """
         It simulates a forward step with caching for streaming purposes.
@@ -551,11 +551,12 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 all_hyp_or_transcribed_texts = best_hyp
 
         result = [
-                greedy_predictions,
-                all_hyp_or_transcribed_texts,
-                cache_last_channel_next,
-                cache_last_time_next,
-                best_hyp,]
+            greedy_predictions,
+            all_hyp_or_transcribed_texts,
+            cache_last_channel_next,
+            cache_last_time_next,
+            best_hyp,
+        ]
         if return_log_probs:
             result.append(log_probs)
             result.append(encoded_len)
@@ -569,7 +570,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
-        online_normalization: bool = False
+        online_normalization: bool = False,
     ):
         """
         Args:
@@ -598,8 +599,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         if not isinstance(self.encoder, StreamingEncoder):
             raise NotImplementedError(f"Encoder of this model does not support streaming!")
 
-        data_loader = self._setup_streaming_transcribe_dataloader(
-            paths2audio_files, batch_size, online_normalization)
+        data_loader = self._setup_streaming_transcribe_dataloader(paths2audio_files, batch_size, online_normalization)
 
         total_log_probs = []
         total_texts = []
@@ -607,8 +607,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         for streaming_buffer in data_loader:
             streaming_buffer_iter = iter(streaming_buffer)
             batch_size = len(streaming_buffer.streams_length)
-            cache_last_channel, cache_last_time = \
-                    self.encoder.get_initial_cache_state(batch_size=batch_size)
+            cache_last_channel, cache_last_time = self.encoder.get_initial_cache_state(batch_size=batch_size)
             previous_hypotheses = None
             pred_out_stream = None
             encoded_len = None
@@ -628,16 +627,27 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         previous_pred_out=pred_out_stream,
                         drop_extra_pre_encoded=drop_extra_pre_encoded,
                         return_transcription=True,
-                        return_log_probs=logprobs or return_hypotheses
+                        return_log_probs=logprobs or return_hypotheses,
                     )
                     if logprobs or return_hypotheses:
-                        pred_out_stream, transcribed_texts, cache_last_channel, \
-                        cache_last_time, previous_hypotheses, cur_chunk_log_probs, \
-                        encoded_len = result
+                        (
+                            pred_out_stream,
+                            transcribed_texts,
+                            cache_last_channel,
+                            cache_last_time,
+                            previous_hypotheses,
+                            cur_chunk_log_probs,
+                            encoded_len,
+                        ) = result
                         batch_log_probs.append(cur_chunk_log_probs)
                     else:
-                        pred_out_stream, transcribed_texts, cache_last_channel, \
-                        cache_last_time, previous_hypotheses = result
+                        (
+                            pred_out_stream,
+                            transcribed_texts,
+                            cache_last_channel,
+                            cache_last_time,
+                            previous_hypotheses,
+                        ) = result
 
             if logprobs or return_hypotheses:
                 # concatenate chunk log probs on T dim
@@ -661,10 +671,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             hyps.append(Hypothesis(y_sequence=log_probs, text=text, score=0.0, dec_state=None))
         return hyps
 
-    def _setup_streaming_transcribe_dataloader(self,
-        paths2audio_files: List[str],
-        batch_size: int,
-        online_normalization = False):
+    def _setup_streaming_transcribe_dataloader(
+        self, paths2audio_files: List[str], batch_size: int, online_normalization=False
+    ):
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -677,8 +686,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             a new batch streaming buffer
         """
         from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
-        streaming_buffer = CacheAwareStreamingAudioBuffer(model=self,
-                                online_normalization=online_normalization)
+
+        streaming_buffer = CacheAwareStreamingAudioBuffer(model=self, online_normalization=online_normalization)
         for sample_idx, sample in enumerate(paths2audio_files):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample, stream_id=-1

@@ -307,7 +307,6 @@ def get_batch_tensors_and_boundary_info(
     # and (optionally) the predicted ASR text from the hypotheses
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
-
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
@@ -319,8 +318,8 @@ def get_batch_tensors_and_boundary_info(
         else:
             with torch.no_grad():
                 hypotheses = model.transcribe_simulate_cache_aware_streaming(audio_filepaths_batch,
-                                                                            return_hypotheses=True,
-                                                                            batch_size=B)
+                                                                             return_hypotheses=True,
+                                                                             batch_size=B)
         for hypothesis in hypotheses:
             log_probs_list_batch.append(hypothesis.y_sequence)
             T_list_batch.append(hypothesis.y_sequence.shape[0])
