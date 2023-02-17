@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.submodules.subsampling import (
     SubsamplingReductionModule,
 )
 from nemo.collections.asr.parts.utils import adapter_utils
+from nemo.collections.asr.parts.utils.regularization_utils import compute_stochastic_depth_drop_probs
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
@@ -377,21 +378,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.setup_streaming_params()
         self.export_cache_support = False
 
-        if not (0 <= stochastic_depth_drop_prob < 1.0):
-            raise ValueError("stochastic_depth_drop_prob has to be in [0, 1).")
-        if not (0 <= stochastic_depth_start_layer <= len(self.layers)):
-            raise ValueError("stochastic_depth_start_layer has to be in [0, num layers].")
-        L = len(self.layers) - stochastic_depth_start_layer
-        layer_drop_probs = [0.0] * stochastic_depth_start_layer
-        if stochastic_depth_mode == "linear":
-            # we are dividing by L - 1 to ensure we start from 0 probability
-            # (never drop the first layer) and end with desired drop probability.
-            layer_drop_probs += [l / (L - 1) * stochastic_depth_drop_prob for l in range(L)]
-        elif stochastic_depth_mode == "uniform":
-            layer_drop_probs += [stochastic_depth_drop_prob] * L
-        else:
-            raise ValueError('stochastic_depth_mode has to be one of ["linear", "uniform"].')
-        self.layer_drop_probs = layer_drop_probs
+        self.layer_drop_probs = compute_stochastic_depth_drop_probs(
+            len(self.layers), stochastic_depth_drop_prob, stochastic_depth_mode, stochastic_depth_start_layer
+        )
         # will be set in self.forward() if defined in AccessMixin config
         self.interctc_capture_at_layers = None
 
