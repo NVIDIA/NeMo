@@ -1050,6 +1050,7 @@ pipeline {
                     python g2p_heteronym_classification_inference.py \
                         manifest=/home/TestData/g2p/manifest.json \
                         pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
+                        wordid_to_phonemes_file="../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv" \
                         output_manifest=preds.json'
               }
             }
