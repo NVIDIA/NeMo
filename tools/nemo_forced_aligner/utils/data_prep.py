@@ -280,7 +280,9 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, align_using_pred_text, simulate_cache_aware_streaming=False):
+def get_batch_tensors_and_boundary_info(
+    manifest_lines_batch, model, separator, align_using_pred_text, simulate_cache_aware_streaming=False
+):
     """
     Returns:
         log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
@@ -301,9 +303,9 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
             hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
     else:
         with torch.no_grad():
-            hypotheses = model.transcribe_simulate_cache_aware_streaming(audio_filepaths_batch,
-                                                                         return_hypotheses=True,
-                                                                         batch_size=B)
+            hypotheses = model.transcribe_simulate_cache_aware_streaming(
+                audio_filepaths_batch, return_hypotheses=True, batch_size=B
+            )
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []

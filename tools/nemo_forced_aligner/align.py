@@ -220,8 +220,11 @@ def main(cfg: AlignmentConfig):
             segment_info_batch,
             pred_text_batch,
         ) = get_batch_tensors_and_boundary_info(
-            manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
-            cfg.simulate_cache_aware_streaming
+            manifest_lines_batch,
+            model,
+            cfg.additional_ctm_grouping_separator,
+            cfg.align_using_pred_text,
+            cfg.simulate_cache_aware_streaming,
         )
 
         if cfg.align_using_pred_text:
