@@ -73,9 +73,29 @@ class InterCTCMixin:
         else:
             self._interctc_enabled = False
 
+    def _verify_setup_was_called(self):
+        """Can be used to verify if setup_interctc was called."""
+        if not hasattr(self, '_interctc_enabled'):
+            raise RuntimeError('self.setup_interctc() has to be called before InterCTC loss can be used!')
+
     def is_interctc_enabled(self) -> bool:
         """Returns whether interCTC loss is enabled."""
+        self._verify_setup_was_called()
         return self._interctc_enabled
+
+    def set_interctc_enabled(self, enabled: bool):
+        """Can be used to enable/disable InterCTC manually."""
+        self._verify_setup_was_called()
+        if enabled:  # checking if proper config parameters were specified
+            if len(self._intermediate_loss_weights) == 0:
+                raise RuntimeError(
+                    'InterCTC cannot be enabled since interctc.loss_weights was not specified in the config.'
+                )
+            if len(self._apply_at_layers) != len(self._intermediate_loss_weights):
+                raise RuntimeError(
+                    'InterCTC cannot be enabled, since length of "loss_weights" does not match "apply_at_layers".'
+                )
+        self._interctc_enabled = enabled
 
     def finalize_interctc_metrics(self, metrics: Dict, outputs: List[Dict], prefix: str):
         """Finalizes InterCTC WER and loss metrics for logging purposes.

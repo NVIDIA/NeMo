@@ -547,8 +547,8 @@ The encoder section includes the details about the RNN-based encoder architectur
 config files and also :ref:`nemo.collections.asr.modules.RNNEncoder <rnn-encoder-api>`.
 
 
-CTC Configurations
-------------------
+InterCTC Config
+---------------
 
 All CTC-based models also support `InterCTC loss <https://arxiv.org/abs/2102.03216>`_. To use it, you need to specify
 2 parameters as in example below
@@ -574,7 +574,29 @@ weights 0.1 and 0.3, specify:
         apply_at_layers: [3, 8]
 
 Note that the final-layer CTC loss weight is automatically computed to normalize
-all weight to 1 (0.6 in the example about).
+all weight to 1 (0.6 in the example above).
+
+
+Stochastic Depth Config
+-----------------------
+
+`Stochastic Depth <https://arxiv.org/abs/2102.03216>`_ is a useful technique for regularizing ASR model training.
+Currently it's only supported for :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`. To
+use it, specify the following parameters in the encoder config file to reproduce the default setup from the paper:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      encoder:
+        # ...
+        stochastic_depth_drop_prob: 0.3
+        stochastic_depth_mode: linear  # linear or uniform
+        stochastic_depth_start_layer: 0
+
+See :ref:`documentation of ConformerEncoder <conformer-encoder-api>` for more details. Note that stochastic depth
+is supported for both CTC and Transducer model variations (or any other kind of model/loss that's using
+conformer as encoder).
 
 
 Transducer Configurations
