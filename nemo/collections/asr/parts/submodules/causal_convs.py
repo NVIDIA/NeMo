@@ -86,13 +86,10 @@ def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, cache_keep
 def update_cache_next(
     input_x: torch.Tensor, cache: torch.Tensor, cache_next: torch.Tensor, cache_drop_size: int, cache_id: int
 ):
-    input_x_size = input_x.size(-1) - cache_drop_size
-    if input_x_size < 1:
-        input_x_size = 1
+    input_x_size = max(input_x.size(-1) - cache_drop_size, 1)
     input_x_kept = input_x[:, :, :input_x_size]
     cache_keep_size = cache_next.size(-1)
-    if cache_keep_size > input_x_size:
-        cache_keep_size = input_x_size
+    cache_keep_size = min(input_x_size, cache_keep_size)
     cache_next[cache_id, :, :, :-cache_keep_size] = cache[cache_id, :, :, cache_keep_size:]
     cache_next[cache_id, :, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
     return cache_next

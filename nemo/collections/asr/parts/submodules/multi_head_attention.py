@@ -62,9 +62,7 @@ def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, keep_size:
 def update_cache_next(
     query: torch.Tensor, cache: torch.Tensor, cache_next: torch.Tensor, cache_drop_size: int, cache_id: int
 ):
-    q_keep_size = query.shape[1] - cache_drop_size
-    if q_keep_size < 1:
-        q_keep_size = 1
+    q_keep_size = max(query.shape[1] - cache_drop_size, 1)
     cache_next[cache_id, :, :-q_keep_size, :] = cache[
         cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
     ]

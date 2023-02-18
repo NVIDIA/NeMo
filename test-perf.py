@@ -101,7 +101,7 @@ def main_perf_onnx_full_ctx(batch_size=128, profile=True):
 
 
 def main_perf_pt(batch_size=128):
-    with open("streaming-conformer.pt", "rb") as f:
+    with open("streaming-conformer-fp16.ts", "rb") as f:
         buffer = io.BytesIO(f.read())
     asr_model = torch.jit.load(buffer, map_location=torch.device("cuda"))
 
@@ -119,15 +119,21 @@ def main_perf_pt(batch_size=128):
 
     total_time = []
     total_audio_len = []
+
+    for _ in range(4):
+        start = time.time()
+        (log_probs, encoded_len, cache_last_channel, cache_last_time, cache_last_channel_len,) = asr_model(
+            input=audio_signal,
+            length=length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+            cache_last_channel_len=cache_last_channel_len,
+        )
+        stop = time.time()
+
     for _ in range(64):
         start = time.time()
-        (
-            log_probs,
-            encoded_len,
-            cache_last_channel_next,
-            cache_last_time_next,
-            cache_last_channel_next_len,
-        ) = asr_model(
+        (log_probs, encoded_len, cache_last_channel, cache_last_time, cache_last_channel_len,) = asr_model(
             input=audio_signal,
             length=length,
             cache_last_channel=cache_last_channel,
@@ -219,18 +225,13 @@ def main_perf_onnx(batch_size=128, profile=True):
     io_binding.bind_output("logprobs", "cuda", 0, np.float32, [batch_size, 13, 1025], logprobs.data_ptr())
     io_binding.bind_output("encoded_lengths", "cuda", 0, np.int32, [batch_size,], encoded_len.data_ptr())
     io_binding.bind_output(
-        "cache_last_channel_next",
-        "cuda",
-        0,
-        np.float32,
-        [batch_size, 18, 104, 512],
-        cache_last_channel_next.data_ptr(),
+        "cache_last_channel_next", "cuda", 0, np.float32, [batch_size, 18, 104, 512], cache_last_channel.data_ptr(),
     )
     io_binding.bind_output(
-        "cache_last_time_next", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time_next.data_ptr()
+        "cache_last_time_next", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time.data_ptr()
     )
     io_binding.bind_output(
-        "cache_last_channel_next_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_next_len.data_ptr()
+        "cache_last_channel_next_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_len.data_ptr()
     )
 
     io_binding.synchronize_inputs()
@@ -239,7 +240,7 @@ def main_perf_onnx(batch_size=128, profile=True):
     for _ in range(64):
         start = time.time()
         sess.run_with_iobinding(io_binding)
-        io_binding.synchronize_outputs()
+        # io_binding.synchronize_outputs()
         stop = time.time()
         total_time.append(stop - start)
         total_audio_len.append((57 / 100) * batch_size)
@@ -281,9 +282,9 @@ def main_perf(batch_size=128):
             (
                 log_probs,
                 encoded_len,
-                cache_last_channel_next,
-                cache_last_time_next,
-                cache_last_channel_next_len,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
             ) = asr_model.forward_for_export(
                 input=audio_signal,
                 length=length,
@@ -340,10 +341,10 @@ if __name__ == "__main__":
     #    with record_function("model_inference"):
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, profile_memory=True, with_stack=True) as prof:
     #    with record_function("model_inference"):
-    main_perf_onnx(bs, False)
+    # main_perf_onnx(bs, False)
     # for bs in (128,):
     # main_perf(bs)
-    #    main_perf_pt(bs)
+    main_perf_pt(bs)
 
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))

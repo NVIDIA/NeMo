@@ -490,25 +490,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
-        if cache_last_channel is not None:
-            cache_last_channel = cache_last_channel.transpose(0, 1)
-        if cache_last_time is not None:
-            cache_last_time = cache_last_time.transpose(0, 1)
         # TODO this will be needed in some cases, though never in production because the cache size if fixed
         # self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        max_audio_length: int = audio_signal.size(-1)
-
         if length is None:
             length = audio_signal.new_full(
-                (audio_signal.size(0),), max_audio_length, dtype=torch.int32, device=audio_signal.device
+                (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int32, device=audio_signal.device
             )
 
-        if cache_last_time is not None:
-            cache_last_time_next = torch.zeros(
-                cache_last_time.size(), dtype=cache_last_time.dtype, device=cache_last_time.device
-            )
-        else:
-            cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, nn.Linear):
@@ -524,10 +512,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         max_audio_length = audio_signal.size(1)
 
-        if self.reduction_position is not None and cache_last_channel is not None:
-            raise ValueError("Caching with reduction feature is not supported yet!")
+        if cache_last_time is not None:
+            cache_last_time = cache_last_time.transpose(0, 1)
+            cache_last_time_next = torch.zeros(
+                cache_last_time.size(), dtype=cache_last_time.dtype, device=cache_last_time.device
+            )
+        else:
+            cache_last_time_next = None
 
         if cache_last_channel is not None:
+            if self.reduction_position is not None:
+                raise ValueError("Caching with reduction feature is not supported yet!")
+            cache_last_channel = cache_last_channel.transpose(0, 1)
             last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
             cache_last_channel_next = torch.zeros(
@@ -589,6 +585,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             # uncomment to profile just one conformer layer
             # break
 
+        if cache_last_channel is not None:
+            cache_last_channel_len = torch.clamp(
+                (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
+            )
+
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
@@ -599,9 +600,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if cache_last_channel is not None:
-            cache_last_channel_len = torch.clamp(
-                (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
-            )
             return (
                 audio_signal,
                 length,
@@ -620,26 +618,23 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         pad_mask_off = torch.arange(0, max_audio_length, device=device).expand(
             padding_length.size(0), -1
         ) >= offset.unsqueeze(-1)
-        # TODO torch_tensorrt doen't support this bool operation, need to use int32 as int8 precision is not configured
-        pad_mask = pad_mask_off.to(torch.int32) * pad_mask_len.to(torch.int32)
+        pad_mask = pad_mask_off.logical_and(pad_mask_len)
 
         if self.att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-            pad_mask_for_att_mask = pad_mask_for_att_mask * pad_mask_for_att_mask.transpose(1, 2)
+            pad_mask_for_att_mask = pad_mask_for_att_mask.logical_and(pad_mask_for_att_mask.transpose(1, 2))
             # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
             # raise Exception("att_mask dev " + str(self.att_mask.device))
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
-            att_mask = pad_mask_for_att_mask * att_mask.to(pad_mask_for_att_mask.device).to(
-                pad_mask_for_att_mask.dtype
-            )
+            att_mask = pad_mask_for_att_mask.logical_and(att_mask)
 
-            att_mask = ~(att_mask.to(torch.bool))
+            att_mask = ~att_mask
         else:
             att_mask = None
 
-        pad_mask = ~(pad_mask.to(torch.bool))
+        pad_mask = ~pad_mask
 
         return pad_mask, att_mask
 
