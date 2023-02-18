@@ -251,7 +251,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
         if self.encoder_type == PromptEncoderType.EMBEDDING:
             init.xavier_normal_(self.embedding.weight)  # Equivalent to random init in old implementation
-        if self.encoder_type == PromptEncoderType.LSTM:
+        elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
                 input_size=self.input_size,
