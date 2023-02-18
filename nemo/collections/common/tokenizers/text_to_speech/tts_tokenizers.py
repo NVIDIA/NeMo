@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_ipa_punctuation_list,
     validate_locale,
 )
-from nemo.collections.tts.g2p.data.data_utils import (
+from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,

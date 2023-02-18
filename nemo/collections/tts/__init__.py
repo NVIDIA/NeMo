@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.tts.g2p
-import nemo.collections.tts.helpers
-import nemo.collections.tts.models
+from nemo.collections.tts import g2p, helpers, models
+from nemo.package_info import __version__
+
+# Set collection version equal to NeMo version.
+__version = __version__
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Text to Speech collection"
