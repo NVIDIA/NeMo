@@ -17,11 +17,11 @@ from typing import Dict, Optional
 
 import torch
 from torch import nn
-
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
+import torch.nn.init as init
 from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
@@ -43,7 +43,95 @@ class PromptEncoderType(enum.Enum):
     TPMLP = "tpmlp"  # mlp model that support tensor parallel, better work together with a large language model
     MLP = "mlp"
     LSTM = "lstm"
+    PROMPT_TABLE = "prompt_table"
 
+class PromptEmbedding(NeuralModule, Exportable):
+    """Prompt embeddings
+
+    Arugments:
+        init_from_prompt_text: Whether to intialize prompt embeddings
+                               from from certain lm embeddings
+                               corresponding to a prompt string
+        hidden_size: hidden size should match lm embedding size
+        total_virtual_tokens: length of prompt initalized from torch init method
+        word_embedding_weights: token embedding vectors for text init option
+        init_method: pytorch init method
+        prompt_embedding_dropout_prob: dropout probablity
+    """
+
+    def __init__(
+        self,
+        hidden_size,
+        total_virtual_tokens,
+    ):
+        super().__init__()
+
+        self.hidden_size = hidden_size
+        self.total_virtual_tokens = total_virtual_tokens
+
+        # Randomly init token and position embeddings
+        self.prompt_embeddings = torch.nn.Embedding(self.total_virtual_tokens, self.hidden_size)
+        self.prompt_embeddings.weight.data.fill_(0.0)
+        self.prompt_embeddings.weight.requires_grad = False
+
+        # Set fixed indicies for forward pass
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
+    
+    def clear_prompt_embedding_weights(self,):
+        """
+        Method sets the prompt embedding weights to 0.0
+        """
+        self.prompt_embeddings.weight.fill_(0.0)
+
+    def set_prompt_embedding_weights(self, weight: torch.Tensor):
+        """
+        Method sets the prompt embedding weights with a new weight w
+        """
+        self.prompt_embeddings.weight.data = weight.type_as(self.prompt_embeddings.weight.data)
+
+    def forward(self,):
+        """ 
+        Does forward pass
+        """
+        return self.prompt_embeddings(self.indices)
+    
+
+class InferenceTable(NeuralModule, Exportable):
+    """ 
+    A wrapper class that holds the output representations of the PromptEncoder Model. 
+    At inference time we do not need to forward pass through the full PromptEncoder and can just use this class.
+    """
+    def __init__(self, taskname, hidden_size, total_virtual_tokens, is_inference_ready=False):
+        super().__init__()
+        self.taskname = taskname
+        self.hidden_size = hidden_size
+        self.total_virtual_tokens = total_virtual_tokens
+        self.prompt_table = torch.nn.ModuleDict()
+        self.prompt_table[self.taskname] = PromptEmbedding(self.hidden_size, self.total_virtual_tokens)
+        self.prompt_table[self.taskname].prompt_embeddings.weight.requires_grad = False
+        self.prompt_table[self.taskname].clear_prompt_embedding_weights()
+        self.is_inference_ready = is_inference_ready
+    
+    def set_prompt_table(self, prompt_representation: torch.Tensor):
+        """
+        Method sets the prompt embedding inside self.prompt_table[taskname] with new weights
+        """
+        self.prompt_table[self.taskname].set_prompt_embedding_weights(prompt_representation)
+        self.is_inference_ready = True
+    
+    def get_prompt_table(self,):
+        """ 
+        Returns the prompt representation cached in the prompt table
+        """
+        return self.prompt_table[self.taskname].forward()
+
+    def clear_prompt_table(self,):
+        """
+        Method "clears" the prompt embedding inside self.prompt_table[taskname] by setting it to zero.
+        """
+        self.prompt_table[self.taskname].clear_prompt_embedding_weights()
+        self.is_inference_ready = False
+    
 
 class TPMLP(NeuralModule, Exportable):
     """
@@ -130,6 +218,7 @@ class PromptEncoder(NeuralModule, Exportable):
         lstm_dropout: float,
         num_layers: int,
         init_std: float,
+        taskname: str = "taskname"
     ):
         """
         Initializes the PromptEncoder module.
@@ -150,13 +239,17 @@ class PromptEncoder(NeuralModule, Exportable):
         self.encoder_type = encoder_type
         self.activation = "gelu"
         self.init_std = init_std
+        self.taskname = taskname
 
         # Set fixed indicies for forward pass
         self.register_buffer("indices", torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
+        self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens) 
 
+        if self.encoder_type == PromptEncoderType.PROMPT_TABLE:
+           init.xavier_normal_(self.embedding.weight)  # Equivalent to random init in old implementation
         if self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
@@ -192,23 +285,42 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
-    @typecheck()
-    def forward(self, taskname_embeddings) -> torch.Tensor:
-        input_embeds = self.embedding(self.indices).unsqueeze(0)
-        batch_size, task_seq_length, _ = taskname_embeddings.shape
-        input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim).clone()
-        length = min(task_seq_length, self.total_virtual_tokens)
-
-        # Replace general input with task specific embeddings to specify the correct task
-        input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
-
-        if self.encoder_type == PromptEncoderType.LSTM:
+    def set_inference_table(self,):
+        """
+        This method caches the output representation from the Encoder and saves it inside `self.inference_table`.
+        """
+        prompt_representation = self._forward().detach().clone()
+        self.inference_table.set_prompt_table(prompt_representation)
+    
+    def clear_inference_table(self,):
+        self.inference_table.clear_prompt_table()
+    
+    def get_inference_table(self,):
+        return self.inference_table.get_prompt_table()
+        
+    def _forward(self,):
+        input_embeds = self.embedding(self.indices)
+        if self.encoder_type == PromptEncoderType.PROMPT_TABLE:
+            output_embeds = input_embeds
+        elif self.encoder_type == PromptEncoderType.LSTM:
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         elif self.encoder_type == PromptEncoderType.MLP:
             output_embeds = self.mlp_head(input_embeds)
         elif self.encoder_type == PromptEncoderType.TPMLP:
             output_embeds = self.tpmlp(input_embeds)
         else:
-            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
+            raise ValueError("Prompt encoder type not recognized. Pl.")
+        return output_embeds
 
+    def forward(self, batch_size: int) -> torch.Tensor:
+        if self.training:
+            if self.inference_table.is_inference_ready:
+                self.clear_inference_table()
+            output_embeds = self._forward()
+        else:
+            if not self.inference_table.is_inference_ready:
+                self.set_inference_table()
+            output_embeds = self.get_inference_table()
+                
+        output_embeds = output_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim)
         return output_embeds
