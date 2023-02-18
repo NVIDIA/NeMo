@@ -628,7 +628,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if self.use_transf_encoder:
             enc_states = self.transf_encoder(encoder_states=enc_states, encoder_mask=enc_mask)
 
-        ctc_log_probs, transcript = self.ctc_decoder(encoder_output=enc_states.permute(0, 2, 1), transcript=transcript)
+        ctc_log_probs = self.ctc_decoder(encoder_output=enc_states.permute(0, 2, 1), transcript=transcript)
+        if isinstance(ctc_log_probs, (list, tuple)):
+            ctc_log_probs, transcript = ctc_log_probs
+
         greedy_predictions = ctc_log_probs.argmax(dim=-1, keepdim=False)
 
         transf_log_probs = None
@@ -638,11 +641,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 input_ids=input_ids, decoder_mask=dec_mask, encoder_embeddings=enc_states, encoder_mask=enc_mask
             )
 
-            outputs = self.log_softmax(hidden_states=dec_states, targets=input_ids, labels=labels)
-            if isinstance(outputs, tuple):
-                transf_log_probs, input_ids, labels = outputs
-            else:
-                transf_log_probs = outputs
+            transf_log_probs = self.log_softmax(hidden_states=dec_states, targets=input_ids, labels=labels)
+            if isinstance(transf_log_probs, (list, tuple)):
+                transf_log_probs, input_ids, labels = transf_log_probs
 
         return (
             ctc_log_probs,
