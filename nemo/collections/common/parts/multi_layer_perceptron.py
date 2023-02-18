@@ -97,31 +97,28 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
 
         self.num_samples = num_samples
 
-    def forward(self, hidden_states, targets=None):
+    def forward(self, hidden_states, targets=None, labels=None):
         # If targets are not provided, treat as simple MLP
-        if targets is None:
+        if targets is None or labels is None:
             return super().forward(hidden_states)
 
         # Forward through first N-1 layers
         output_states = hidden_states[:]
-        for layer_id in range(self.mlp.layers - 1):
-            output_states = getattr(self.mlp, f'layer{layer_id}')(output_states)
+        for layer_id in range(self.layers - 1):
+            output_states = getattr(self, f'layer{layer_id}')(output_states)
 
         # Begin compute of sampled softmax of vocab projection
         with torch.no_grad():
-            # gather true labels
-            targets_vocab_ids = torch.unique(targets, sorted=True)
-
-            # # augment with blank token id
-            # targets_vocab_ids = torch.cat([self.blank_id, targets_vocab_ids])
+            # gather true labels of both targets and labels
+            target_label_vocab_ids = torch.unique(torch.cat([targets, labels], dim=1), sorted=True)
 
             # Remap the targets label ids to new positions of label ids (in the targets_vocab_ids)
             # This is necessary cause the RNNT loss doesnt care about the value, only the position of the ids
             # of the targets tokens. We can skip this step for noise samples cause those are only used for softmax
             # estimation, not for computing actual label.
             # From `https://stackoverflow.com/a/68969697` - bucketize algo.
-            t_ids = torch.arange(targets_vocab_ids.size(0), device='cpu')
-            mapping = {k: v for k, v in zip(targets_vocab_ids.to('cpu'), t_ids)}
+            t_ids = torch.arange(target_label_vocab_ids.size(0), device='cpu')
+            mapping = {k: v for k, v in zip(target_label_vocab_ids.to('cpu'), t_ids)}
 
             # From `https://stackoverflow.com/questions/13572448`.
             palette, key = zip(*mapping.items())
@@ -145,17 +142,20 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
             targets = key[index].reshape(targets.shape)
             targets = targets.to(t_device)
 
+            # Same as above, but for labels
+            index = torch.bucketize(labels.ravel(), palette)
+            labels = key[index].reshape(labels.shape)
+            labels = labels.to(t_device)
+
         # Get the last layer
         last_layer = self.last_linear_layer
 
         # Extract out partial weight tensor and bias tensor of just the V_Pos vocabulary from the full joint.
-        true_weights = last_layer.weight[targets_vocab_ids, :]
-        true_bias = last_layer.bias[targets_vocab_ids]
+        true_weights = last_layer.weight[target_label_vocab_ids, :]
+        true_bias = last_layer.bias[target_label_vocab_ids]
 
         # Compute the target scores (only of vocab V_Pos)
         target_scores = torch.matmul(output_states, true_weights.transpose(0, 1)) + true_bias
-
-        print("target_scores", target_scores.shape)
 
         # Construct acceptance criteria in vocab space, reject all tokens in Intersection(V_Pos, V_Neg)
         with torch.no_grad():
@@ -177,9 +177,7 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
             # Note: It is important to ignore the hardcoded RNNT Blank token injected at id 0 of the transcript
             # vocab ids, otherwise the blank may occur twice, once for RNNT blank and once as negative sample,
             # doubling the gradient of the RNNT blank token.
-            reject_samples = torch.where(targets[:, None] == sample_ids[None, :])
-
-            print("Reject samples", reject_samples.shape)
+            reject_samples = torch.where(target_label_vocab_ids[:, None] == sample_ids[None, :])
 
             # Let accept samples be a set of ids which is a subset of sample_ids
             # such that intersection(V_Pos, accept_samples) is a null set.
@@ -197,8 +195,8 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
             accept_samples = accept_samples[sample_mask]
 
         # Extract out partial weight tensor and bias tensor of just the V_Neg vocabulary from the full joint.
-        sample_weights = self.last_layer.weight[accept_samples, :]
-        sample_bias = self.last_layer.bias[accept_samples]
+        sample_weights = last_layer.weight[accept_samples, :]
+        sample_bias = last_layer.bias[accept_samples]
 
         # Compute the noise joint scores (only of vocab V_Neg) to be used for softmax
         # The quality of this sample determines the quality of the softmax gradient.
@@ -206,15 +204,13 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
         # One can increase `n_samples` for better estimation of rejection samples and its gradient.
         noise_scores = torch.matmul(output_states, sample_weights.transpose(0, 1)) + sample_bias
 
-        print("Noise scores shape", noise_scores.shape)
-
         # Finally, construct the sampled joint as the V_Sampled = Union(V_Pos, V_Neg)
         # Here, we simply concatenate the two tensors to construct the joint with V_Sampled vocab
         # because before we have properly asserted that Intersection(V_Pos, V_Neg) is a null set.
         output_states = torch.cat([target_scores, noise_scores], dim=-1)
 
         # Apply log_softmax if needed
-        if self.mlp.log_softmax:
+        if self.log_softmax:
             output_states = torch.log_softmax(output_states, dim=-1)
 
-        return output_states, targets
+        return output_states, targets, labels

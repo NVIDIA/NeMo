@@ -122,7 +122,8 @@ class SampledTokenClassifier(TokenClassifier):
         """
         return {
             "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
-            "targets": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "targets": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            "labels": NeuralType(('B', 'T'), LabelsType(), optional=True),
         }
 
     @property
@@ -134,12 +135,14 @@ class SampledTokenClassifier(TokenClassifier):
             if not self.log_softmax:
                 return {
                     "logits": NeuralType(('B', 'T', 'C'), LogitsType()),
-                    "targets": NeuralType(('B', 'T'), LabelsType()),
+                    "targets": NeuralType(('B', 'T'), ChannelType(), optional=True),
+                    "labels": NeuralType(('B', 'T'), LabelsType(), optional=True),
                 }
             else:
                 return {
                     "log_probs": NeuralType(('B', 'T', 'C'), LogprobsType()),
-                    "targets": NeuralType(('B', 'T'), LabelsType()),
+                    "targets": NeuralType(('B', 'T'), ChannelType(), optional=True),
+                    "labels": NeuralType(('B', 'T'), LabelsType(), optional=True),
                 }
         else:
             return super().output_types
@@ -199,7 +202,7 @@ class SampledTokenClassifier(TokenClassifier):
         self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
-    def forward(self, hidden_states, targets=None):
+    def forward(self, hidden_states, targets=None, labels=None):
         """
         Performs the forward step of the module.
         Args:
@@ -233,8 +236,8 @@ class SampledTokenClassifier(TokenClassifier):
             )
 
         # If in training mode, and sampled softmax is enabled, use sampled softmax.
-        logits, targets = self.mlp(hidden_states, targets)
-        return logits, targets
+        logits, targets, labels = self.mlp(hidden_states, targets, labels)
+        return logits, targets, labels
 
 
 class BertPretrainingTokenClassifier(Classifier):

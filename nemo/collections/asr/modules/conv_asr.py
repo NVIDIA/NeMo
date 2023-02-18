@@ -45,6 +45,7 @@ from nemo.core.neural_types import (
     LengthsType,
     LogitsType,
     LogprobsType,
+    ChannelType,
     NeuralType,
     SpectrogramType,
 )
@@ -483,6 +484,175 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self._feat_in)
         return cfg
+
+    @property
+    def vocabulary(self):
+        return self.__vocabulary
+
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes
+
+
+class SampledConvASRDecoder(ConvASRDecoder):
+    """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
+
+     Based on these papers:
+        https://arxiv.org/pdf/1904.03288.pdf
+        https://arxiv.org/pdf/1910.10261.pdf
+        https://arxiv.org/pdf/2005.04290.pdf
+    """
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                            "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+                            "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),})
+
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None,
+                 sampled_softmax: bool = False, n_samples: Optional[int] = None):
+        super().__init__(feat_in=feat_in, num_classes=num_classes, init_mode=init_mode, vocabulary=vocabulary)
+        self.sampled_softmax = sampled_softmax
+        self.n_samples = n_samples
+
+        self.register_buffer('blank_id', torch.tensor([self.num_classes_with_blank - 1]), persistent=False)
+
+    @typecheck()
+    def forward(self, encoder_output, transcript=None):
+
+        # If in inference mode, revert to basic token classifier behaviour.
+        # Sampled softmax is only used for training.
+        if not self.sampled_softmax:
+            return super().forward(encoder_output), transcript
+
+        # If in eval mode, and sampled softmax is enabled, skip sampled softmax.
+        if self.sampled_softmax and (
+                self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled() is True
+        ):
+            return super().forward(encoder_output=encoder_output), transcript
+
+        # Check if targets are provided for sampled softmax
+        if transcript is None:
+            logging.warning(
+                "Sampled CTC currently only works with `targets` is provided to the module"
+            )
+            raise ValueError(
+                "Sampled CTC only works when the `targets`` are provided during training."
+                "Please ensure that you correctly pass the `targets`."
+            )
+
+        # If in training mode, and sampled softmax is enabled, use sampled softmax.
+
+        # Adapter module forward step
+        if self.is_adapter_available():
+            encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
+            encoder_output = self.forward_enabled_adapters(encoder_output)
+            encoder_output = encoder_output.transpose(1, 2)  # [B, C, T]
+
+        with torch.no_grad():
+            # gather true labels
+            transcript_vocab_ids = torch.unique(transcript)
+
+            # augment with blank token id
+            transcript_vocab_ids = torch.cat([self.blank_id, transcript_vocab_ids])
+
+            # Remap the transcript label ids to new positions of label ids (in the transcript_vocab_ids)
+            # This is necessary cause the CTC loss doesnt care about the value, only the position of the ids
+            # of the transcript tokens. We can skip this step for noise samples cause those are only used for softmax
+            # estimation, not for computing actual label.
+            # From `https://stackoverflow.com/a/68969697` - bucketize algo.
+            t_ids = torch.arange(transcript_vocab_ids.size(0), device='cpu')
+            mapping = {k: v for k, v in zip(transcript_vocab_ids.to('cpu'), t_ids)}
+
+            # From `https://stackoverflow.com/questions/13572448`.
+            palette, key = zip(*mapping.items())
+
+            t_device = transcript.device
+            key = torch.tensor(key, device=t_device)
+            palette = torch.tensor(palette, device=t_device)
+
+            # This step maps old token id to new token id in broadcasted manner.
+            # For example, if original transcript tokens were [2, 1, 4, 5, 4, 1]
+            # But after computing the unique token set of above we get
+            # transcript_vocab_ids = [1, 2, 4, 5]  # note: pytorch returns sorted unique values thankfully
+            # Then we get the index map of the new vocab ids as:
+            # {0: 1, 1: 2, 2: 4, 3: 5}
+            # Now we need to map the original transcript tokens to new vocab id space
+            # So we construct the inverted map as follow :
+            # {1: 0, 2: 1, 4: 2, 5: 3}
+            # Then remap the original transcript tokens to new token ids
+            # new_transcript = [1, 0, 2, 3, 2, 0]
+            index = torch.bucketize(transcript.ravel(), palette)
+            transcript = key[index].reshape(transcript.shape)
+            transcript = transcript.to(t_device)
+
+        # Extract out partial weight tensor and bias tensor of just the V_Pos vocabulary from the full joint.
+        true_weights = self.decoder_layers[0].weight[transcript_vocab_ids, :]
+        true_bias = self.decoder_layers[0].bias[transcript_vocab_ids]
+
+        # Compute the transcript joint scores (only of vocab V_Pos)
+        transcript_scores = torch.matmul(encoder_output.transpose(1, 2), true_weights.permute(2, 1, 0)) + true_bias
+
+        # Construct acceptance criteria in vocab space, reject all tokens in Intersection(V_Pos, V_Neg)
+        with torch.no_grad():
+            # Instead of uniform sample, first we create arange V (ignoring blank), then randomly shuffle
+            # this range of ids, then subset `n_samples` amount of vocab tokens out of the permuted tensor.
+            # This is good because it guarentees that no token will ever be repeated in V_Neg;
+            # which dramatically complicates loss calculation.
+            # Further more, with this strategy, given a `n_samples` > V + 1; we are guarenteed to get the
+            # V_Samples = V (i.e., full vocabulary will be used in such a case).
+            # Useful to debug cases where you expect sampled vocab to get exact same training curve as
+            # full vocab.
+            sample_ids = torch.randperm(n=self.num_classes_with_blank - 1, device=transcript_scores.device)[
+                         :self.n_samples]
+
+            # We need to compute the intersection(V_Pos, V_Neg), then eliminate the intersection arguments
+            # from inside V_Neg.
+
+            # First, compute the pairwise commonality to find index inside `sample_ids` which match the token id
+            # inside transcript_vocab_ids.
+            # Note: It is important to ignore the hardcoded CTC Blank token injected at id 0 of the transcript
+            # vocab ids, otherwise the blank may occur twice, once for CTC blank and once as negative sample,
+            # doubling the gradient of the CTC blank token.
+            reject_samples = torch.where(transcript_vocab_ids[1:, None] == sample_ids[None, :])
+
+            # Let accept samples be a set of ids which is a subset of sample_ids
+            # such that intersection(V_Pos, accept_samples) is a null set.
+            accept_samples = sample_ids.clone()
+
+            # In order to construct such an accept_samples tensor, first we construct a bool map
+            # and fill all the indices where there is a match inside of sample_ids.
+            # reject_samples is a tuple (transcript_vocab_position, sample_position) which gives a
+            # many to many map between N values of transript and M values of sample_ids.
+            # We dont care about transcript side matches, only the ids inside of sample_ids that matched.
+            sample_mask = torch.ones_like(accept_samples, dtype=torch.bool)
+            sample_mask[reject_samples[1]] = False
+
+            # Finally, compute the subset of tokens by selecting only those sample_ids which had no matches
+            accept_samples = accept_samples[sample_mask]
+
+        # Extract out partial weight tensor and bias tensor of just the V_Neg vocabulary from the full joint.
+        sample_weights = self.decoder_layers[0].weight[accept_samples, :]
+        sample_bias = self.decoder_layers[0].bias[accept_samples]
+
+        # Compute the noise joint scores (only of vocab V_Neg) to be used for softmax
+        # The quality of this sample determines the quality of the softmax gradient.
+        # We use naive algo broadcasted over batch, but it is more efficient than sample level computation.
+        # One can increase `n_samples` for better estimation of rejection samples and its gradient.
+        noise_scores = torch.matmul(encoder_output.transpose(1, 2), sample_weights.permute(2, 1, 0)) + sample_bias
+
+        # Finally, construct the sampled joint as the V_Sampled = Union(V_Pos, V_Neg)
+        # Here, we simply concatenate the two tensors to construct the joint with V_Sampled vocab
+        # because before we have properly asserted that Intersection(V_Pos, V_Neg) is a null set.
+        res = torch.cat([transcript_scores, noise_scores], dim=-1)
+
+        res = res.log_softmax(dim=-1)
+
+        return res, transcript
 
     @property
     def vocabulary(self):

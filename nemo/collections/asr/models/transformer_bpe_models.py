@@ -87,7 +87,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
-        
+
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
@@ -111,13 +111,15 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             encoder_tokenizer_library=self.encoder_tokenizer_library,
             encoder_tokenizer_model=encoder_tokenizer_model,
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
-            if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None else 0.0,
+            if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
+            else 0.0,
             encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
             decoder_tokenizer_library=self.decoder_tokenizer_library,
             encoder_tokenizer_vocab_file=encoder_vocab_file,
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
-            if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None else 0.0,
+            if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
+            else 0.0,
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             encoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
             decoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
@@ -142,7 +144,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 )
             )
             cfg.ctc_decoder["num_classes"] = len(vocabulary)
-            
+
         self.use_text_data = cfg.get("use_text_data", False)
         self.use_audio_data = cfg.get("use_audio_data", False)
         self.use_transf_encoder = cfg.get("use_transf_encoder", False)
@@ -152,10 +154,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.encoder = EncDecTransfModelBPE.from_config_dict(self._cfg.encoder)
 
         if 'tts_model' in self._cfg:
-            self.tts_model = FastPitchModel.restore_from(
-                self._cfg.tts_model.model_path,
-                map_location="cpu"
-            ).eval()
+            self.tts_model = FastPitchModel.restore_from(self._cfg.tts_model.model_path, map_location="cpu").eval()
             with open(self._cfg.tts_model.speakers_path, "r") as f:
                 self.speakers = sorted(map(int, f.read().split()))
         else:
@@ -177,13 +176,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             zero_infinity=True,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
         )
-        
 
         if self._cfg.encoder['d_model'] != self._cfg.transf_decoder['hidden_size']:
-            self.adapter = torch.nn.Linear(
-                self._cfg.encoder['d_model'],
-                self._cfg.transf_decoder['hidden_size']
-            )
+            self.adapter = torch.nn.Linear(self._cfg.encoder['d_model'], self._cfg.transf_decoder['hidden_size'])
         else:
             self.adapter = lambda x: x
 
@@ -230,7 +225,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             dropout=self._cfg.head.dropout,
             use_transformer_init=self._cfg.head.use_transformer_init,
             sampled_softmax=self.cfg.head.get('sampled_softmax', False),
-            num_samples=self.cfg.head.get('num_samples', 0),
+            num_samples=self.cfg.head.get('n_samples', 0),
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
@@ -262,24 +257,24 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
-#         # Setup decoding objects
-#         decoding_cfg = self.cfg.get('decoding', None)
+    #         # Setup decoding objects
+    #         decoding_cfg = self.cfg.get('decoding', None)
 
-#         # In case decoding config not found, use default config
-#         if decoding_cfg is None:
-#             decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
-#             with open_dict(self.cfg):
-#                 self.cfg.decoding = decoding_cfg
+    #         # In case decoding config not found, use default config
+    #         if decoding_cfg is None:
+    #             decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
+    #             with open_dict(self.cfg):
+    #                 self.cfg.decoding = decoding_cfg
 
-#         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
-        
-#         # Setup metric objects
-#         self._wer = WERBPE(
-#             decoding=self.decoding,
-#             use_cer=self._cfg.get('use_cer', False),
-#             dist_sync_on_step=True,
-#             log_prediction=self._cfg.get("log_prediction", False),
-#         )
+    #         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
+
+    #         # Setup metric objects
+    #         self._wer = WERBPE(
+    #             decoding=self.decoding,
+    #             use_cer=self._cfg.get('use_cer', False),
+    #             dist_sync_on_step=True,
+    #             log_prediction=self._cfg.get("log_prediction", False),
+    #         )
 
     @torch.no_grad()
     def transcribe(
@@ -343,18 +338,18 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     ctc_lp, _, encoded_len, predictions, enc_states, enc_mask, _ = self.forward(
-                        input_signal=test_batch[0].to(device),
-                        input_signal_length=test_batch[1].to(device)
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
 
-                    beam_hypotheses = self.beam_search(
-                        encoder_hidden_states=enc_states,
-                        encoder_input_mask=enc_mask,
-                        return_beam_scores=False
-                    ).detach().cpu().numpy()
-                    beam_hypotheses = [
-                        self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses
-                    ]
+                    beam_hypotheses = (
+                        self.beam_search(
+                            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
+                        )
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    beam_hypotheses = [self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses]
 
                     if return_hypotheses:
                         # dump log probs per file
@@ -421,15 +416,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 text_batches.append(b)
 
         speech = _speech_collate_fn(speech_batches, self.tokenizer.pad_id)
-        text = bitext_collate_fn(
-            text_batches,
-            self.encoder_tokenizer.pad_id,
-            self.decoder_tokenizer.pad_id,
-        )
+        text = bitext_collate_fn(text_batches, self.encoder_tokenizer.pad_id, self.decoder_tokenizer.pad_id,)
         return speech, text
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        
+
         text_config = train_data_config['text']
         audio_config = train_data_config['audio']
 
@@ -470,7 +461,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 # create audio-text data loader
                 self._train_dl = DataLoader(
                     dataset=concat_ds,
-                    batch_size=audio_config['batch_size']+text_config['batch_size'],
+                    batch_size=audio_config['batch_size'] + text_config['batch_size'],
                     collate_fn=self._text_and_speech_collate_fn,
                     num_workers=train_data_config.get('num_workers', 0),
                     pin_memory=train_data_config.get('pin_memory', False),
@@ -478,10 +469,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 )
             else:
                 # create text-only data loader
-                self._train_dl = MTEncDecModel._setup_dataloader_from_config(
-                    cfg=text_config,
-                    dataset=text_ds,
-                )
+                self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=text_config, dataset=text_ds,)
         elif self.use_audio_data:
             # create audio-only data loader
             self._update_dataset_config(dataset_name='train', config=audio_config)
@@ -565,6 +553,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "transcript": NeuralType(('B', 'T'), LabelsType(), optional=True),
             "transcript_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_ids": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "labels": NeuralType(('B', 'T'), LabelsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
@@ -578,6 +568,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             "encoder_states": NeuralType(('B', 'T', 'D'), ChannelType()),
             "encoder_mask": NeuralType(('B', 'T'), MaskType()),
             "transcript": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "input_ids": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "labels": NeuralType(('B', 'T'), LabelsType(), optional=True),
         }
 
     @typecheck()
@@ -589,6 +581,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         processed_signal_length=None,
         transcript=None,
         transcript_length=None,
+        input_ids=None,
+        labels=None,
     ):
         """
         Forward pass of the model.
@@ -625,8 +619,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
-        #ctc_log_probs = self.ctc_decoder(encoder_output=encoded)
-        #greedy_predictions = ctc_log_probs.argmax(dim=-1, keepdim=False)
+        # ctc_log_probs = self.ctc_decoder(encoder_output=encoded)
+        # greedy_predictions = ctc_log_probs.argmax(dim=-1, keepdim=False)
 
         enc_states = encoded.permute(0, 2, 1)
         enc_states = self.adapter(enc_states)
@@ -634,26 +628,34 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if self.use_transf_encoder:
             enc_states = self.transf_encoder(encoder_states=enc_states, encoder_mask=enc_mask)
 
-        ctc_log_probs = self.ctc_decoder(encoder_output=enc_states.permute(0, 2, 1))
+        ctc_log_probs, transcript = self.ctc_decoder(encoder_output=enc_states.permute(0, 2, 1), transcript=transcript)
         greedy_predictions = ctc_log_probs.argmax(dim=-1, keepdim=False)
 
         transf_log_probs = None
-        if transcript is not None:
-            dec_mask = lens_to_mask(transcript_length, transcript.shape[1]).to(transcript.dtype)
+        if input_ids is not None:
+            dec_mask = lens_to_mask(transcript_length, input_ids.shape[1]).to(input_ids.dtype)
             dec_states = self.transf_decoder(
-                input_ids=transcript, decoder_mask=dec_mask,
-                encoder_embeddings=enc_states, encoder_mask=enc_mask
+                input_ids=input_ids, decoder_mask=dec_mask, encoder_embeddings=enc_states, encoder_mask=enc_mask
             )
 
-            outputs = self.log_softmax(hidden_states=dec_states, target=transcript)
-
-            if self.training:
-                transf_log_probs, transcript = outputs
+            outputs = self.log_softmax(hidden_states=dec_states, targets=input_ids, labels=labels)
+            if isinstance(outputs, tuple):
+                transf_log_probs, input_ids, labels = outputs
             else:
                 transf_log_probs = outputs
 
-        return ctc_log_probs, transf_log_probs, encoded_len, greedy_predictions, enc_states, enc_mask, transcript
-    
+        return (
+            ctc_log_probs,
+            transf_log_probs,
+            encoded_len,
+            greedy_predictions,
+            enc_states,
+            enc_mask,
+            transcript,
+            input_ids,
+            labels,
+        )
+
     def compute_text_loss(self, batch):
 
         if batch is None:
@@ -666,29 +668,52 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 seq_length = batch[i].shape[-1]
                 batch[i] = batch[i].view(-1, seq_length)
         src_ids, src_mask, transcript, tgt_mask, labels = batch
+        input_ids = transcript.clone()
         batch_size = src_ids.shape[0]
 
         with torch.no_grad():
             speaker_id = random.choice(self.speakers)
             speaker = torch.tensor([speaker_id]).to(src_ids.device)
-            signal, signal_len, *_ = self.tts_model(
-                text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
+            signal, signal_len, *_ = self.tts_model(text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
             transcript_len = tgt_mask.sum(dim=-1)
             signal = normalize_batch(signal, signal_len, self._cfg.preprocessor["normalize"])[0]
 
-        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
+        (
+            ctc_log_probs,
+            transf_log_probs,
+            encoded_len,
+            predictions,
+            enc_states,
+            enc_mask,
+            transcript,
+            input_ids,
+        ) = self.forward(
             processed_signal=signal,
             processed_signal_length=signal_len,
             transcript=transcript,
             transcript_length=transcript_len,
+            input_ids=input_ids,
         )
 
+        original_ctc_blank_id = self.ctc_loss.blank
+        if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
+            ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
+
+            # Override ctc loss blank id to 0th position
+            self.ctc_loss.blank = 0
+            self.ctc_loss._blank = 0
+        else:
+            ctc_sampled_softmax = False
+
         ctc_loss = self.ctc_loss(
-            log_probs=ctc_log_probs,
-            targets=transcript,
-            input_lengths=encoded_len,
-            target_lengths=transcript_len
+            log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
+
+        if ctc_sampled_softmax:
+            # Restore ctc loss blank id
+            self.ctc_loss.blank = original_ctc_blank_id
+            self.ctc_loss._blank = original_ctc_blank_id
+
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
         loss_value = self.ctc_coef * ctc_loss + (1 - self.ctc_coef) * transf_loss
 
@@ -700,22 +725,47 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             return 0, 0
 
         signal, signal_len, transcript, transcript_len = batch
-        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
+        input_ids, labels = transcript[:, :-1].clone(), transcript[:, 1:].clone()
         batch_size = signal.shape[0]
 
-        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
+        (
+            ctc_log_probs,
+            transf_log_probs,
+            encoded_len,
+            predictions,
+            enc_states,
+            enc_mask,
+            transcript,
+            input_ids,
+            labels,
+        ) = self.forward(
             input_signal=signal,
             input_signal_length=signal_len,
-            transcript=input_ids,
+            transcript=transcript,
             transcript_length=transcript_len,
+            input_ids=input_ids,
+            labels=labels,
         )
 
+        original_ctc_blank_id = self.ctc_loss.blank
+        if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
+            ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
+
+            # Override ctc loss blank id to 0th position
+            self.ctc_loss.blank = 0
+            self.ctc_loss._blank = 0
+        else:
+            ctc_sampled_softmax = False
+
         ctc_loss = self.ctc_loss(
-            log_probs=ctc_log_probs,
-            targets=transcript,
-            input_lengths=encoded_len,
-            target_lengths=transcript_len
+            log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
+
+        if ctc_sampled_softmax:
+            # Restore ctc loss blank id
+            self.ctc_loss.blank = original_ctc_blank_id
+            self.ctc_loss._blank = original_ctc_blank_id
+
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
         loss_value = self.ctc_coef * ctc_loss + (1 - self.ctc_coef) * transf_loss
 
@@ -723,7 +773,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        
+
         if self.use_text_data:
             if self.use_audio_data:
                 audio_batch, text_batch = batch
@@ -756,36 +806,30 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         else:
             log_every_n_steps = 1
 
-#         if (batch_nb + 1) % log_every_n_steps == 0:
-#             self._wer.update(
-#                 predictions=predictions,
-#                 targets=transcript,
-#                 target_lengths=transcript_len,
-#                 predictions_lengths=encoded_len,
-#             )
-#             wer, _, _ = self._wer.compute()
-#             self._wer.reset()
-#             tensorboard_logs.update({'training_batch_wer': wer})
-
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
+        training_mode = self.training
+        self.eval()
+
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
+            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, _, _, _ = self.forward(
                 processed_signal=signal,
                 processed_signal_length=signal_len,
                 transcript=input_ids,
                 transcript_length=transcript_len,
+                input_ids=input_ids,
             )
         else:
-            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
+            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, _, _, _ = self.forward(
                 input_signal=signal,
                 input_signal_length=signal_len,
                 transcript=input_ids,
                 transcript_length=transcript_len,
+                input_ids=input_ids,
             )
 
         beam_hypotheses = self.beam_search(
@@ -793,17 +837,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         )
         loss_value = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
-        ground_truths = [
-            self.decoder_tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()
-        ]
-        translations = [
-            self.decoder_tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()
-        ]
+        ground_truths = [self.decoder_tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()]
+        translations = [self.decoder_tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()]
 
-        self.val_loss(
-            loss=loss_value,
-            num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1]
-        )
+        self.val_loss(loss=loss_value, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
+
+        self.train(training_mode)
 
         return {f'{eval_mode}_loss': loss_value, 'translations': translations, 'ground_truths': ground_truths}
 
@@ -825,7 +864,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             eval_loss = getattr(self, 'val_loss').compute()
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
-            
+
             # Gather translations and ground truths from all workers
             tr_and_gt = [None for _ in range(self.world_size)]
             # we also need to drop pairs where ground truth is an empty string
@@ -851,7 +890,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self.log(f"{eval_mode}_loss", eval_loss, sync_dist=True)
             self.log(f"{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
             self.val_loss.reset()
-            
+
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_validation_epoch_end(outputs, dataloader_idx, eval_mode="test")
 

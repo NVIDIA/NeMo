@@ -31,6 +31,7 @@ from nemo.collections.asr.modules.conv_asr import (
     ConvASREncoder,
     ConvASREncoderAdapter,
     ECAPAEncoder,
+    SampledConvASRDecoder,
     ParallelConvASREncoder,
     SpeakerDecoder,
 )
