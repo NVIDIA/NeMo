@@ -16,12 +16,13 @@ import enum
 from typing import Dict, Optional
 
 import torch
+import torch.nn.init as init
 from torch import nn
+
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
-import torch.nn.init as init
 from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
@@ -45,6 +46,7 @@ class PromptEncoderType(enum.Enum):
     LSTM = "lstm"
     EMBEDDING = "embedding"
 
+
 class PromptEmbedding(NeuralModule, Exportable):
     """Prompt embeddings
 
@@ -60,9 +62,7 @@ class PromptEmbedding(NeuralModule, Exportable):
     """
 
     def __init__(
-        self,
-        hidden_size,
-        total_virtual_tokens,
+        self, hidden_size, total_virtual_tokens,
     ):
         super().__init__()
 
@@ -76,7 +76,7 @@ class PromptEmbedding(NeuralModule, Exportable):
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
-    
+
     def clear_prompt_embedding_weights(self,):
         """
         Method sets the prompt embedding weights to 0.0
@@ -94,13 +94,14 @@ class PromptEmbedding(NeuralModule, Exportable):
         Does forward pass
         """
         return self.prompt_embeddings(self.indices)
-    
+
 
 class InferenceTable(NeuralModule, Exportable):
     """ 
     A wrapper class that holds the output representations of the PromptEncoder Model. 
     At inference time we do not need to forward pass through the full PromptEncoder and can just use this class.
     """
+
     def __init__(self, taskname, hidden_size, total_virtual_tokens, is_inference_ready=False):
         super().__init__()
         self.taskname = taskname
@@ -111,14 +112,14 @@ class InferenceTable(NeuralModule, Exportable):
         self.prompt_table[self.taskname].prompt_embeddings.weight.requires_grad = False
         self.prompt_table[self.taskname].clear_prompt_embedding_weights()
         self.is_inference_ready = is_inference_ready
-    
+
     def set_prompt_table(self, prompt_representation: torch.Tensor):
         """
         Method sets the prompt embedding inside self.prompt_table[taskname] with new weights
         """
         self.prompt_table[self.taskname].set_prompt_embedding_weights(prompt_representation)
         self.is_inference_ready = True
-    
+
     def get_prompt_table(self,):
         """ 
         Returns the prompt representation cached in the prompt table
@@ -131,7 +132,7 @@ class InferenceTable(NeuralModule, Exportable):
         """
         self.prompt_table[self.taskname].clear_prompt_embedding_weights()
         self.is_inference_ready = False
-    
+
 
 class TPMLP(NeuralModule, Exportable):
     """
@@ -218,7 +219,7 @@ class PromptEncoder(NeuralModule, Exportable):
         lstm_dropout: float,
         num_layers: int,
         init_std: float,
-        taskname: str = "taskname"
+        taskname: str = "taskname",
     ):
         """
         Initializes the PromptEncoder module.
@@ -246,7 +247,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
-        self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens) 
+        self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens)
 
         if self.encoder_type == PromptEncoderType.EMBEDDING:
            init.xavier_normal_(self.embedding.weight)  # Equivalent to random init in old implementation
@@ -291,13 +292,13 @@ class PromptEncoder(NeuralModule, Exportable):
         """
         prompt_representation = self._forward().detach().clone()
         self.inference_table.set_prompt_table(prompt_representation)
-    
+
     def clear_inference_table(self,):
         self.inference_table.clear_prompt_table()
-    
+
     def get_inference_table(self,):
         return self.inference_table.get_prompt_table()
-        
+
     def _forward(self,):
         input_embeds = self.embedding(self.indices)
         if self.encoder_type == PromptEncoderType.EMBEDDING:
@@ -321,6 +322,6 @@ class PromptEncoder(NeuralModule, Exportable):
             if not self.inference_table.is_inference_ready:
                 self.set_inference_table()
             output_embeds = self.get_inference_table()
-                
+
         output_embeds = output_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim)
         return output_embeds

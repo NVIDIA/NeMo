@@ -632,11 +632,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             self.save_to(save_path=self.cfg.nemo_path)
 
-
     def setup(self, stage=None):
-        if (
-            stage == 'predict'
-        ) and self.frozen_model.model.pre_process:
+        if (stage == 'predict') and self.frozen_model.model.pre_process:
             self.freeze_existing_word_embeddings()
             return
 
