@@ -51,16 +51,6 @@ class TPMLP(NeuralModule, Exportable):
     token embeddings for p-tuning. It only have two layers.
     """
 
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
-        }
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"output_embeds": NeuralType(("B", "T", "C"), ChannelType())}
-
     def __init__(
         self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
     ):
@@ -107,7 +97,6 @@ class TPMLP(NeuralModule, Exportable):
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
-    @typecheck()
     def forward(self, input_embeds) -> torch.Tensor:
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
@@ -156,6 +145,7 @@ class PromptEncoder(NeuralModule, Exportable):
         self.input_size = token_dim
         self.output_size = token_dim
         self.hidden_size = hidden_size
+        self.lstm_hidden_size = self.hidden_size // 2
         self.total_virtual_tokens = total_virtual_tokens
         self.encoder_type = encoder_type
         self.activation = "gelu"
@@ -171,7 +161,7 @@ class PromptEncoder(NeuralModule, Exportable):
             # LSTM
             self.lstm_head = torch.nn.LSTM(
                 input_size=self.input_size,
-                hidden_size=self.hidden_size,
+                hidden_size=self.lstm_hidden_size,
                 num_layers=num_layers,
                 dropout=lstm_dropout,
                 bidirectional=True,
@@ -179,9 +169,9 @@ class PromptEncoder(NeuralModule, Exportable):
             )
 
             self.mlp_head = nn.Sequential(
-                nn.Linear(self.hidden_size * 2, self.hidden_size * 2),
+                nn.Linear(self.lstm_hidden_size * 2, self.lstm_hidden_size * 2),
                 nn.ReLU(),
-                nn.Linear(self.hidden_size * 2, self.output_size),
+                nn.Linear(self.lstm_hidden_size * 2, self.output_size),
             )
 
         elif self.encoder_type == PromptEncoderType.MLP:
