@@ -127,7 +127,6 @@ class MegatronBertModel(MegatronBaseModel):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
-
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
@@ -390,8 +389,8 @@ class MegatronBertModel(MegatronBaseModel):
             self.log(
                 'consumed_samples',
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-                prog_bar=True, 
-                batch_size=1
+                prog_bar=True,
+                batch_size=1,
             )
 
         return loss_mean[0]
