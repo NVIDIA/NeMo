@@ -204,6 +204,8 @@ model:
     log_softmax: true
     dropout: 0.0
     use_transformer_init: true
+    sampled_softmax: False
+    num_samples: 0
     
   beam_search:
     beam_size: 4
@@ -230,7 +232,7 @@ model:
       min_lr: 1e-6
 
 trainer:
-  gpus: -1 # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 100
   max_steps: -1 # computed at runtime if not set

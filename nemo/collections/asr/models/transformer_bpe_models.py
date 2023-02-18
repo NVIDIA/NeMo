@@ -59,7 +59,7 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common import SampledTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.transformer import (
     TransformerEncoder,
@@ -151,12 +151,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.preprocessor = EncDecTransfModelBPE.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecTransfModelBPE.from_config_dict(self._cfg.encoder)
 
-        self.tts_model = FastPitchModel.restore_from(
-            self._cfg.tts_model.model_path,
-            map_location="cpu"
-        ).eval()
-        with open(self._cfg.tts_model.speakers_path, "r") as f:
-            self.speakers = sorted(map(int, f.read().split()))
+        if 'tts_model' in self._cfg:
+            self.tts_model = FastPitchModel.restore_from(
+                self._cfg.tts_model.model_path,
+                map_location="cpu"
+            ).eval()
+            with open(self._cfg.tts_model.speakers_path, "r") as f:
+                self.speakers = sorted(map(int, f.read().split()))
+        else:
+            self.tts_model = None
+            self.speakers = None
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.ctc_decoder or (
@@ -218,7 +222,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             pre_ln_final_layer_norm=transf_decoder_cfg_dict.get("pre_ln_final_layer_norm", False),
         )
 
-        self.log_softmax = TokenClassifier(
+        self.log_softmax = SampledTokenClassifier(
             hidden_size=self.transf_decoder.hidden_size,
             num_classes=vocab_size,
             activation=self._cfg.head.activation,
@@ -338,7 +342,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-                    ctc_lp, _, encoded_len, predictions, enc_states, enc_mask = self.forward(
+                    ctc_lp, _, encoded_len, predictions, enc_states, enc_mask, _ = self.forward(
                         input_signal=test_batch[0].to(device),
                         input_signal_length=test_batch[1].to(device)
                     )
@@ -573,6 +577,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
             "encoder_states": NeuralType(('B', 'T', 'D'), ChannelType()),
             "encoder_mask": NeuralType(('B', 'T'), MaskType()),
+            "transcript": NeuralType(('B', 'T'), LabelsType(), optional=True),
         }
 
     @typecheck()
@@ -639,9 +644,15 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 input_ids=transcript, decoder_mask=dec_mask,
                 encoder_embeddings=enc_states, encoder_mask=enc_mask
             )
-            transf_log_probs = self.log_softmax(hidden_states=dec_states)
 
-        return ctc_log_probs, transf_log_probs, encoded_len, greedy_predictions, enc_states, enc_mask
+            outputs = self.log_softmax(hidden_states=dec_states, target=transcript)
+
+            if self.training:
+                transf_log_probs, transcript = outputs
+            else:
+                transf_log_probs = outputs
+
+        return ctc_log_probs, transf_log_probs, encoded_len, greedy_predictions, enc_states, enc_mask, transcript
     
     def compute_text_loss(self, batch):
 
@@ -665,7 +676,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             transcript_len = tgt_mask.sum(dim=-1)
             signal = normalize_batch(signal, signal_len, self._cfg.preprocessor["normalize"])[0]
 
-        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask = self.forward(
+        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
             processed_signal=signal,
             processed_signal_length=signal_len,
             transcript=transcript,
@@ -692,7 +703,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
         batch_size = signal.shape[0]
 
-        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask = self.forward(
+        ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
             input_signal=signal,
             input_signal_length=signal_len,
             transcript=input_ids,
@@ -722,7 +733,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             audio_batch, text_batch = batch, None
 
         audio_loss, audio_bs = self.compute_audio_loss(audio_batch)
-        text_loss, text_bs = self.compute_text_loss(text_batch)
+
+        if text_batch is not None:
+            text_loss, text_bs = self.compute_text_loss(text_batch)
+        else:
+            text_loss, text_bs = 0, 0
+
         audio_coef = audio_bs / (audio_bs + text_bs)
         text_coef = text_bs / (audio_bs + text_bs)
 
@@ -758,14 +774,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask = self.forward(
+            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
                 processed_signal=signal,
                 processed_signal_length=signal_len,
                 transcript=input_ids,
                 transcript_length=transcript_len,
             )
         else:
-            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask = self.forward(
+            ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask, transcript = self.forward(
                 input_signal=signal,
                 input_signal_length=signal_len,
                 transcript=input_ids,

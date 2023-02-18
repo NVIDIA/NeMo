@@ -81,6 +81,24 @@
 #
 #   --log: Whether the script should display log messages
 
+
+"""
+
+python process_asr_text_tokenizer.py \
+    --manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_translation/manifests/mustc_2023_dev_manifest.json,/media/smajumdar/data/Datasets/Must-C/manifests/train/tarred_audio_manifest.json,/media/smajumdar/data/Datasets/Must-C/manifests/train/tarred_audio_manifest_base.json,/media/smajumdar/data/Datasets/Must-C/manifests/train/tarred_audio_manifest_ft.json,/media/smajumdar/data/Datasets/Must-C/manifests/train/tarred_audio_manifest_real.json" \
+    --data_root="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_translation/manifests/tokenizers" \
+    --no_lower_case \
+    --spe_type="bpe" \
+    --tokenizer="spe" \
+    --spe_character_coverage=0.9995 \
+    --spe_bos \
+    --spe_eos \
+    --spe_pad \
+    --log \
+    --vocab_size=1024
+
+"""
+
 import argparse
 import json
 import logging
