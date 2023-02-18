@@ -43,7 +43,7 @@ class PromptEncoderType(enum.Enum):
     TPMLP = "tpmlp"  # mlp model that support tensor parallel, better work together with a large language model
     MLP = "mlp"
     LSTM = "lstm"
-    PROMPT_TABLE = "prompt_table"
+    EMBEDDING = "embedding"
 
 class PromptEmbedding(NeuralModule, Exportable):
     """Prompt embeddings
@@ -248,7 +248,7 @@ class PromptEncoder(NeuralModule, Exportable):
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
         self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens) 
 
-        if self.encoder_type == PromptEncoderType.PROMPT_TABLE:
+        if self.encoder_type == PromptEncoderType.EMBEDDING:
            init.xavier_normal_(self.embedding.weight)  # Equivalent to random init in old implementation
         if self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
@@ -300,7 +300,7 @@ class PromptEncoder(NeuralModule, Exportable):
         
     def _forward(self,):
         input_embeds = self.embedding(self.indices)
-        if self.encoder_type == PromptEncoderType.PROMPT_TABLE:
+        if self.encoder_type == PromptEncoderType.EMBEDDING:
             output_embeds = input_embeds
         elif self.encoder_type == PromptEncoderType.LSTM:
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
