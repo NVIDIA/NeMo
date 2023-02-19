@@ -255,7 +255,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,
-            hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
+            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
             lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
             num_layers=self.cfg.p_tuning.get("num_layers", 2),
             init_std=self.cfg.p_tuning.get("init_std", 0.023),

@@ -225,7 +225,6 @@ class PromptEncoder(NeuralModule, Exportable):
         self.input_size = token_dim
         self.output_size = token_dim
         self.hidden_size = hidden_size
-        self.lstm_hidden_size = self.hidden_size // 2
         self.total_virtual_tokens = total_virtual_tokens
         self.encoder_type = encoder_type
         self.activation = "gelu"
@@ -245,7 +244,7 @@ class PromptEncoder(NeuralModule, Exportable):
             # LSTM
             self.lstm_head = torch.nn.LSTM(
                 input_size=self.input_size,
-                hidden_size=self.lstm_hidden_size,
+                hidden_size=self.hidden_size,
                 num_layers=num_layers,
                 dropout=lstm_dropout,
                 bidirectional=True,
@@ -253,9 +252,9 @@ class PromptEncoder(NeuralModule, Exportable):
             )
 
             self.mlp_head = nn.Sequential(
-                nn.Linear(self.lstm_hidden_size * 2, self.lstm_hidden_size * 2),
+                nn.Linear(self.hidden_size * 2, self.hidden_size * 2),
                 nn.ReLU(),
-                nn.Linear(self.lstm_hidden_size * 2, self.output_size),
+                nn.Linear(self.hidden_size * 2, self.output_size),
             )
 
         elif self.encoder_type == PromptEncoderType.MLP:
