@@ -147,12 +147,9 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
             labels = key[index].reshape(labels.shape)
             labels = labels.to(t_device)
 
-        # Get the last layer
-        last_layer = self.last_linear_layer
-
         # Extract out partial weight tensor and bias tensor of just the V_Pos vocabulary from the full joint.
-        true_weights = last_layer.weight[target_label_vocab_ids, :]
-        true_bias = last_layer.bias[target_label_vocab_ids]
+        true_weights = self.last_linear_layer.weight[target_label_vocab_ids, :]
+        true_bias = self.last_linear_layer.bias[target_label_vocab_ids]
 
         # Compute the target scores (only of vocab V_Pos)
         target_scores = torch.matmul(output_states, true_weights.transpose(0, 1)) + true_bias
@@ -195,8 +192,8 @@ class SampledMultiLayerPerceptron(MultiLayerPerceptron):
             accept_samples = accept_samples[sample_mask]
 
         # Extract out partial weight tensor and bias tensor of just the V_Neg vocabulary from the full joint.
-        sample_weights = last_layer.weight[accept_samples, :]
-        sample_bias = last_layer.bias[accept_samples]
+        sample_weights = self.last_linear_layer.weight[accept_samples, :]
+        sample_bias = self.last_linear_layer.bias[accept_samples]
 
         # Compute the noise joint scores (only of vocab V_Neg) to be used for softmax
         # The quality of this sample determines the quality of the softmax gradient.
