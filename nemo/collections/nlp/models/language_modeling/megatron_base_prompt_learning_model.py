@@ -238,7 +238,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
                 taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
                 batch_size = taskname_embeddings.shape[0]
-                virtual_prompt_embeddings = self.prompt_encoder(batch_size=batch_size, use_cached_reps=False).squeeze(0)
+                virtual_prompt_embeddings = self.prompt_encoder(batch_size=batch_size, use_cached_reps=False).squeeze(
+                    0
+                )
                 total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
                 self.prompt_table.add_prompt_from_p_tuning_encoder(
                     taskname, virtual_prompt_embeddings, total_virtual_tokens
@@ -344,7 +346,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             virtual_token_embeds = torch.stack(virtual_token_embeds)
 
         elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            #taskname_embeddings = self.word_embeddings(taskname_ids)
+            # taskname_embeddings = self.word_embeddings(taskname_ids)
             batch_size, _ = taskname_ids.size()
             virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=False)
         else:
