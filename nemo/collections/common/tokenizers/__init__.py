@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec  # isort:skip
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
@@ -19,6 +20,5 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_wrapper import TextToSpeechTokenizer
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
