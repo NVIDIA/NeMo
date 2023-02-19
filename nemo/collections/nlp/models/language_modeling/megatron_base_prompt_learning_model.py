@@ -82,6 +82,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
+            VirtualPromptStyle.PROMPT_TUNING,
+            VirtualPromptStyle.INFERENCE,
         ]:
 
             # TODO: Handle this when moving GPT prompt learning to the base class.
@@ -95,12 +97,16 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.hidden_size,
             )
 
+        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
-        if self.virtual_prompt_style in [VirtualPromptStyle.P_TUNING]:
-            self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
+        if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
+        # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
+        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
         elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
             self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
         else:
@@ -471,7 +477,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             return
 
         if self.first_stage_of_pipeline():
-            if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
+                self.init_new_prompts()
+            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.init_prompt_encoder()
             self.freeze_existing_virtual_prompt_params()
 
