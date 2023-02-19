@@ -237,11 +237,10 @@ class PromptEncoder(NeuralModule, Exportable):
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
-        init.xavier_normal_(self.embedding.weight)
         self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens)
 
         if self.encoder_type == PromptEncoderType.EMBEDDING:
-            pass
+            init.xavier_normal_(self.embedding.weight)
         elif self.encoder_type == PromptEncoderType.LSTM:
             # LSTM
             self.lstm_head = torch.nn.LSTM(
