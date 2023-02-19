@@ -675,6 +675,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         else:
             original_pad_id_loc = None
 
+        if self.tts_model is None or self.speakers is None:
+            raise ValueError("TTS model and speakers must be provided for text loss computation")
+
         with torch.no_grad():
             speaker_id = random.choice(self.speakers)
             speaker = torch.tensor([speaker_id]).to(src_ids.device)
