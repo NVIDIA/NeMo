@@ -37,6 +37,9 @@ model:
   use_audio_data: true # whether to use audio2text data
   use_transf_encoder: false # whether to add additional TransformerEncoder module before TransformerDecoder
 
+  sampled_softmax: false # whether to use sampled softmax for training
+  n_samples: -1 # number of samples for sampled softmax, -1 will raise an error if sampled_softmax is True
+
   train_ds:
     text:
       use_tarred_dataset: true
@@ -165,7 +168,10 @@ model:
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
   ctc_decoder:
-    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    _target_: nemo.collections.asr.modules.SampledConvASRDecoder
+    sampled_softmax: ${model.sampled_softmax}
+    n_samples: ${model.n_samples}
+
     feat_in: 768
     num_classes: -1
     vocabulary: []
@@ -204,8 +210,8 @@ model:
     log_softmax: true
     dropout: 0.0
     use_transformer_init: true
-    sampled_softmax: False
-    num_samples: 0
+    sampled_softmax: ${model.sampled_softmax}
+    n_samples: ${model.n_samples}
     
   beam_search:
     beam_size: 4
