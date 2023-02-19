@@ -177,7 +177,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
-        self.init_prompt_encoder()
+        self.prompt_encoder = None
 
     def load_task_templates(self, task_templates):
         """
@@ -302,6 +302,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         if self.frozen_model.model.pre_process:
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                if self.prompt_encoder is None:
+                    self.init_prompt_encoder()
                 self.prompt_encoder.load_state_dict(state_dict, strict)
             else:
                 raise RuntimeError("invalid virtual prompt source")
