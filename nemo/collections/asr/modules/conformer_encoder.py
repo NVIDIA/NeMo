@@ -113,12 +113,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         Returns:
             A tuple of input examples.
         """
-        # dev = next(self.parameters()).device
-        dev = torch.device("cuda")
-        input_example = torch.randn(max_batch, self._feat_in, 57).to(dev)
-        input_example_length = torch.randint(1, 57, (max_batch,)).to(dev)
+        dev = next(self.parameters()).device
+        if self.export_cache_support:
+            window_size = 57  # TODO: use stream config
+            input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
+            input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
 
-        if hasattr(self, 'export_cache_support') and self.export_cache_support:
             cache_last_channel = torch.randn(self.n_layers, max_batch, max_dim, self.d_model).to(dev)
             cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, self.conv_context_size[0]).to(dev)
             cache_last_channel_len = torch.randint(1, max_dim, (max_batch,)).to(dev)
@@ -132,6 +132,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 ]
             )
         else:
+            input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
+            input_example_length = torch.randint(max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int32)
             all_input_example = tuple([input_example, input_example_length])
 
         return all_input_example

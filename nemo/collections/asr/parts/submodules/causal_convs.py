@@ -172,7 +172,7 @@ class CausalConv1D(nn.Conv1d):
                 cache_next = update_cache_next(input_x, cache, cache_next, self.cache_drop_size, self._cache_id)
         return x
 
-    def forward(self, x, cache, cache_next):
+    def forward(self, x, cache=None, cache_next=None):
         x = self.update_cache(x=x, cache=cache, cache_next=cache_next)
         x = super().forward(x)
         return x

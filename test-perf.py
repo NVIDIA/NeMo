@@ -101,7 +101,7 @@ def main_perf_onnx_full_ctx(batch_size=128, profile=True):
 
 
 def main_perf_pt(batch_size=128):
-    with open("streaming-conformer-fp16.ts", "rb") as f:
+    with open("streaming-conformer.ts", "rb") as f:
         buffer = io.BytesIO(f.read())
     asr_model = torch.jit.load(buffer, map_location=torch.device("cuda"))
 

@@ -198,10 +198,14 @@ class ExportableEncDecModel(Exportable):
                 )
         else:
             if cache_last_channel is None and cache_last_time is None:
-                encoder_output = self.input_module(input, length)
+                encoder_output = self.input_module(audio_signal=input, length=length)
             else:
                 encoder_output = self.input_module(
-                    input, length, cache_last_channel, cache_last_time, cache_last_channel_len
+                    audio_signal=input,
+                    length=length,
+                    cache_last_channel=cache_last_channel,
+                    cache_last_time=cache_last_time,
+                    cache_last_channel_len=cache_last_channel_len,
                 )
         if isinstance(encoder_output, tuple):
             decoder_input = encoder_output[0]
