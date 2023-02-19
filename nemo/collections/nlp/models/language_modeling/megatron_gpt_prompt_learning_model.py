@@ -178,7 +178,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.init_prompt_encoder()
-        
 
     def load_task_templates(self, task_templates):
         """
