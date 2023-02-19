@@ -25,7 +25,6 @@ import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from sacrebleu import corpus_bleu
 from torch.utils.data import ChainDataset, DataLoader
 from tqdm.auto import tqdm
 
@@ -61,6 +60,12 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging
 
+try:
+    from sacrebleu import corpus_bleu
+    HAS_SACREBLEU = True
+except (ModuleNotFoundError, ImportError):
+    HAS_SACREBLEU = False
+
 __all__ = ['EncDecTransfModelBPE']
 
 
@@ -74,6 +79,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if not HAS_SACREBLEU:
+            raise ImportError(f"{self.__class__.__name__} model relies on sacrebleu which is not installed.")
+
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1

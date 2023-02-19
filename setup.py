@@ -89,6 +89,7 @@ extras_require = {
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
+    'st': req_file("requirements_st.txt"),
 }
 
 
@@ -133,6 +134,8 @@ extras_require['tts'] = list(
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
 
 extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']]))
+
+extras_require['st'] = list(chain([extras_require['st'], extras_require['asr']]))
 
 tests_requirements = extras_require["test"]
 
