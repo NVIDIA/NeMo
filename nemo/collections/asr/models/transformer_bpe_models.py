@@ -697,20 +697,21 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         )
 
         original_ctc_blank_id = self.ctc_loss.blank
-        if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
-            ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
+        ctc_sampled_softmax = False
 
-            # Override ctc loss blank id to 0th position
-            self.ctc_loss.blank = 0
-            self.ctc_loss._blank = 0
-        else:
-            ctc_sampled_softmax = False
+        if self.training:
+            if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
+                ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
+
+                # Override ctc loss blank id to 0th position
+                self.ctc_loss.blank = 0
+                self.ctc_loss._blank = 0
 
         ctc_loss = self.ctc_loss(
             log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
-        if ctc_sampled_softmax:
+        if self.training and ctc_sampled_softmax:
             # Restore ctc loss blank id
             self.ctc_loss.blank = original_ctc_blank_id
             self.ctc_loss._blank = original_ctc_blank_id
@@ -748,21 +749,20 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             labels=labels,
         )
 
-        original_ctc_blank_id = self.ctc_loss.blank
-        if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
-            ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
+        ctc_sampled_softmax, original_ctc_blank_id = False, self.ctc_loss.blank
+        if self.training:
+            if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
+                ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
 
-            # Override ctc loss blank id to 0th position
-            self.ctc_loss.blank = 0
-            self.ctc_loss._blank = 0
-        else:
-            ctc_sampled_softmax = False
+                # Override ctc loss blank id to 0th position
+                self.ctc_loss.blank = 0
+                self.ctc_loss._blank = 0
 
         ctc_loss = self.ctc_loss(
             log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
-        if ctc_sampled_softmax:
+        if self.training and ctc_sampled_softmax:
             # Restore ctc loss blank id
             self.ctc_loss.blank = original_ctc_blank_id
             self.ctc_loss._blank = original_ctc_blank_id

@@ -527,13 +527,13 @@ class SampledConvASRDecoder(ConvASRDecoder):
         # If in inference mode, revert to basic token classifier behaviour.
         # Sampled softmax is only used for training.
         if not self.sampled_softmax:
-            return super().forward(encoder_output), transcript
+            return super().forward(encoder_output=encoder_output)
 
         # If in eval mode, and sampled softmax is enabled, skip sampled softmax.
         if self.sampled_softmax and (
                 self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled() is True
         ):
-            return super().forward(encoder_output=encoder_output), transcript
+            return super().forward(encoder_output=encoder_output)
 
         # Check if targets are provided for sampled softmax
         if transcript is None:
