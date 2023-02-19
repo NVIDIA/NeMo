@@ -84,8 +84,14 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
 
         if activation not in [
-            'gelu', 'geglu', 'reglu', 'swiglu', 'squared-relu',
-            'fast-geglu', 'fast-swiglu', 'fast-reglu'
+            'gelu',
+            'geglu',
+            'reglu',
+            'swiglu',
+            'squared-relu',
+            'fast-geglu',
+            'fast-swiglu',
+            'fast-reglu',
         ]:
             raise ValueError(
                 f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu, squared-relu are supported."
@@ -98,7 +104,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
             hidden_size,
-            ffn_hidden_size * 2 if self.fast_glu_activation else ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+            ffn_hidden_size * 2
+            if self.fast_glu_activation
+            else ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
@@ -125,7 +133,14 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
-        self.glu_activation_family = activation in ['geglu', 'reglu', 'swiglu', 'fast-geglu', 'fast-reglu', 'fast-swiglu']
+        self.glu_activation_family = activation in [
+            'geglu',
+            'reglu',
+            'swiglu',
+            'fast-geglu',
+            'fast-reglu',
+            'fast-swiglu',
+        ]
         bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
 
         if bias_activation_fusion_unavailable and bias_activation_fusion:
