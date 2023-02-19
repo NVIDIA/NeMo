@@ -177,6 +177,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
+        self.init_prompt_encoder()
+        
 
     def load_task_templates(self, task_templates):
         """
@@ -346,10 +348,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
             if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
                     position_ids
@@ -387,7 +386,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return output
 
-    def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
+    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
         Replaces the virtual tokens in the input_ids with embeddings 
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
@@ -415,7 +414,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Get virtual token embeddings from the prompt table or prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             batch_size, _ = taskname_ids.size()
-            virtual_token_embeds = self.prompt_encoder(batch_size)
+            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
         else:
             raise RuntimeError("invalid VirtualPromptSource..")
 
@@ -433,54 +432,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
         input_embeds = discrete_token_embeds
 
-        return input_embeds
-
-    def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
-        """
-        Replaces the virtual tokens in the input_ids with embeddings the 
-        'prompt_table' only. The virtual token placeholders each have their
-        own unique token_id within `self.pseudo_token_ids` to facilitate 
-        placing the virtual tokens in their correct locations at each 
-        decoding time step. 
-
-        params:
-            input_ids: the input token ids
-            taskname_ids: the NLP task tag token ids
-        returns:
-            the token embedding for the LM model.
-        """
-        batch_size, seq_length = input_ids.shape
-
-        # Replace virtual token ids with padding for forward pass through vocab embeddings
-        discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_embeds = self.frozen_model.model.language_model.embedding.word_embeddings(
-            discrete_token_ids
-        ).clone()
-
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-        virtual_token_locations = virtual_token_locations.unsqueeze(-1)
-        virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
-
-        # If there are no virtual tokens, just return discrete token embeds
-        if not virtual_token_locations.any():
-            return discrete_token_embeds
-
-        # Convert virtual token vocab_id to virtual token embedding idx
-        virtual_token_ids = input_ids.clone()
-        virtual_token_ids = torch.sub(virtual_token_ids, self.pseudo_token_ids_start)
-        virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
-
-        # Only get needed virtual token embeddings from the prompt table according to virtual token ids
-        virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
-        virtual_token_embeds = torch.stack(virtual_token_embeds)
-
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        # Put virtual and discrete token embs in their correct locations for final output
-        input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
