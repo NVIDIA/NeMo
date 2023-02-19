@@ -62,6 +62,7 @@ from nemo.utils import logging
 
 try:
     from sacrebleu import corpus_bleu
+
     HAS_SACREBLEU = True
 except (ModuleNotFoundError, ImportError):
     HAS_SACREBLEU = False
