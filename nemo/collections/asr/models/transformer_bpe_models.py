@@ -372,7 +372,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return hypotheses
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        
+
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
             config=config,
             local_rank=self.local_rank,
@@ -494,7 +494,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         "Model Trainer was not set before constructing the dataset, incorrect number of "
                         "training batches will be used. Please set the trainer and rebuild the dataset."
                     )
-            
+
         else:
             raise ValueError("Either text or audio data is required for training.")
 
@@ -672,6 +672,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         input_ids = transcript.clone()
         batch_size = src_ids.shape[0]
 
+        # Track if pad_id is used in the input_ids, and if so, we will use it to
+        # remap to new pad_id after sampling the vocabulary
+        original_pad_id_loc = (input_ids == self.tokenizer.pad_id).nonzero(as_tuple=False)
+        if len(original_pad_id_loc) > 0:
+            original_pad_id_loc = [original_pad_id_loc[0][0].cpu(), original_pad_id_loc[0][1].cpu()]
+        else:
+            original_pad_id_loc = None
+
         with torch.no_grad():
             speaker_id = random.choice(self.speakers)
             speaker = torch.tensor([speaker_id]).to(src_ids.device)
@@ -699,24 +707,49 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         original_ctc_blank_id = self.ctc_loss.blank
         ctc_sampled_softmax = False
 
+        # Remap the CTC Blank ID to 0 for calculating sampled softmax CTC loss
         if self.training:
             if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
                 ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
 
-                # Override ctc loss blank id to 0th position
-                self.ctc_loss.blank = 0
-                self.ctc_loss._blank = 0
+                if ctc_sampled_softmax:
+                    # Override ctc loss blank id to 0th position
+                    self.ctc_loss.blank = 0
+                    self.ctc_loss._blank = 0
 
+        # Compute CTC loss
         ctc_loss = self.ctc_loss(
             log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
+        # Restore ctc loss blank id
         if self.training and ctc_sampled_softmax:
             # Restore ctc loss blank id
             self.ctc_loss.blank = original_ctc_blank_id
             self.ctc_loss._blank = original_ctc_blank_id
 
+        # Remap the pad_id to the new position
+        lm_sampled_softmax, original_pad_id = False, self.transf_loss._pad_id
+        if self.training:
+            if hasattr(self.log_softmax, 'sampled_softmax') and self.log_softmax.sampled_softmax:
+                lm_sampled_softmax = self.log_softmax.sampled_softmax
+
+                if original_pad_id_loc is not None and lm_sampled_softmax:
+                    # Get pad_id value from remapped text
+                    new_pad_id = int(input_ids[original_pad_id_loc[0], original_pad_id_loc[1]])
+
+                    # Override pad id to 0th position
+                    self.transf_loss._pad_id = new_pad_id
+
+        # Compute transformer loss
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
+
+        # Restore pad id to original value
+        if self.training and lm_sampled_softmax:
+            # Restore pad id
+            self.transf_loss._pad_id = original_pad_id
+
+        # Compute final loss
         loss_value = self.ctc_coef * ctc_loss + (1 - self.ctc_coef) * transf_loss
 
         return loss_value, batch_size
@@ -729,6 +762,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1].clone(), transcript[:, 1:].clone()
         batch_size = signal.shape[0]
+
+        # Track if pad_id is used in the input_ids, and if so, we will use it to
+        # remap to new pad_id after sampling the vocabulary
+        original_pad_id_loc = (input_ids == self.tokenizer.pad_id).nonzero(as_tuple=False)
+        if len(original_pad_id_loc) > 0:
+            original_pad_id_loc = [original_pad_id_loc[0][0].cpu(), original_pad_id_loc[0][1].cpu()]
+        else:
+            original_pad_id_loc = None
 
         (
             ctc_log_probs,
@@ -749,25 +790,50 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             labels=labels,
         )
 
+        # Remap the CTC Blank ID to 0 for calculating sampled softmax CTC loss
         ctc_sampled_softmax, original_ctc_blank_id = False, self.ctc_loss.blank
         if self.training:
             if hasattr(self.ctc_decoder, 'sampled_softmax') and self.ctc_decoder.sampled_softmax:
                 ctc_sampled_softmax = self.ctc_decoder.sampled_softmax
 
-                # Override ctc loss blank id to 0th position
-                self.ctc_loss.blank = 0
-                self.ctc_loss._blank = 0
+                if ctc_sampled_softmax:
+                    # Override ctc loss blank id to 0th position
+                    self.ctc_loss.blank = 0
+                    self.ctc_loss._blank = 0
 
+        # Calculate CTC loss
         ctc_loss = self.ctc_loss(
             log_probs=ctc_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
+        # Restore CTC Blank ID
         if self.training and ctc_sampled_softmax:
             # Restore ctc loss blank id
             self.ctc_loss.blank = original_ctc_blank_id
             self.ctc_loss._blank = original_ctc_blank_id
 
+        # Remap the pad_id to the new position
+        lm_sampled_softmax, original_pad_id = False, self.transf_loss._pad_id
+        if self.training:
+            if hasattr(self.log_softmax, 'sampled_softmax') and self.log_softmax.sampled_softmax:
+                lm_sampled_softmax = self.log_softmax.sampled_softmax
+
+                if original_pad_id_loc is not None and lm_sampled_softmax:
+                    # Get pad_id value from remapped text
+                    new_pad_id = int(input_ids[original_pad_id_loc[0], original_pad_id_loc[1]])
+
+                    # Override pad id to 0th position
+                    self.transf_loss._pad_id = new_pad_id
+
+        # Compute transformer loss
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
+
+        # Restore pad id to original value
+        if self.training and lm_sampled_softmax:
+            # Restore pad id
+            self.transf_loss._pad_id = original_pad_id
+
+        # Combine both losses
         loss_value = self.ctc_coef * ctc_loss + (1 - self.ctc_coef) * transf_loss
 
         return loss_value, batch_size
@@ -840,6 +906,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         ground_truths = [self.decoder_tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()]
         translations = [self.decoder_tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()]
+
+        logging.info(f"\nGround Truth : {ground_truths[0]}")
+        logging.info(f"Translation  : {translations[0]}")
 
         self.val_loss(loss=loss_value, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
 
