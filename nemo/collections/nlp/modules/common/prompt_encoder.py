@@ -139,6 +139,7 @@ class TPMLP(NeuralModule, Exportable):
     The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
     token embeddings for p-tuning. It only have two layers.
     """
+
     def __init__(
         self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
     ):

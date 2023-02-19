@@ -259,7 +259,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             num_layers=self.cfg.p_tuning.get("num_layers", 2),
             init_std=self.cfg.p_tuning.get("init_std", 0.023),
         )
-        
 
     def freeze_existing_word_embeddings(self):
         """Freeze params of existing virtual prompts that should not be tuned further
