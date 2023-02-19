@@ -45,10 +45,11 @@ python speech_to_text_transf.py \
 
 """
 
-import torch
-import pytorch_lightning as pl
-from omegaconf import OmegaConf
 from collections import OrderedDict
+
+import pytorch_lightning as pl
+import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecTransfModelBPE
 from nemo.core.config import hydra_runner
@@ -68,12 +69,12 @@ def main(cfg):
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     # Initialize encoder with the weights from pre-trained ASR encoder
-#     enc_weights = OrderedDict()
-#     weights = torch.load("/workspace/models/test/rnnt_ln.ckpt")
-#     for key in weights.keys():
-#         if key[:7]=="encoder":
-#             enc_weights[key[8:]]=weights[key]
-#     asr_model.encoder.load_state_dict(enc_weights)
+    #     enc_weights = OrderedDict()
+    #     weights = torch.load("/workspace/models/test/rnnt_ln.ckpt")
+    #     for key in weights.keys():
+    #         if key[:7]=="encoder":
+    #             enc_weights[key[8:]]=weights[key]
+    #     asr_model.encoder.load_state_dict(enc_weights)
 
     trainer.fit(asr_model)
 

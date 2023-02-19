@@ -652,7 +652,7 @@ def bitext_collate_fn(batch, src_pad_id, tgt_pad_id, mask_pad_id=0):
     for b in batch:
         padded_batch.append([])
         for i in range(5):
-            pad_width = ((0, 0), (0, max_len[i]-b[i].shape[1]))
+            pad_width = ((0, 0), (0, max_len[i] - b[i].shape[1]))
             padded_array = np.pad(b[i], pad_width=pad_width, constant_values=pad_ids[i])
             padded_batch[-1].append(padded_array)
 

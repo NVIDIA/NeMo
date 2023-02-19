@@ -31,8 +31,8 @@ from nemo.collections.asr.modules.conv_asr import (
     ConvASREncoder,
     ConvASREncoderAdapter,
     ECAPAEncoder,
-    SampledConvASRDecoder,
     ParallelConvASREncoder,
+    SampledConvASRDecoder,
     SpeakerDecoder,
 )
 from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph

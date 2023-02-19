@@ -42,10 +42,10 @@ from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
+    ChannelType,
     LengthsType,
     LogitsType,
     LogprobsType,
-    ChannelType,
     NeuralType,
     SpectrogramType,
 )
@@ -505,16 +505,31 @@ class SampledConvASRDecoder(ConvASRDecoder):
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                            "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            }
+        )
 
     @property
     def output_types(self):
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-                            "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),})
+        return OrderedDict(
+            {
+                "logprobs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+                "transcript": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            }
+        )
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None,
-                 sampled_softmax: bool = False, n_samples: Optional[int] = None):
+    def __init__(
+        self,
+        feat_in,
+        num_classes,
+        init_mode="xavier_uniform",
+        vocabulary=None,
+        sampled_softmax: bool = False,
+        n_samples: Optional[int] = None,
+    ):
         super().__init__(feat_in=feat_in, num_classes=num_classes, init_mode=init_mode, vocabulary=vocabulary)
         self.sampled_softmax = sampled_softmax
         self.n_samples = n_samples
@@ -531,15 +546,13 @@ class SampledConvASRDecoder(ConvASRDecoder):
 
         # If in eval mode, and sampled softmax is enabled, skip sampled softmax.
         if self.sampled_softmax and (
-                self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled() is True
+            self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled() is True
         ):
             return super().forward(encoder_output=encoder_output)
 
         # Check if targets are provided for sampled softmax
         if transcript is None:
-            logging.warning(
-                "Sampled CTC currently only works with `targets` is provided to the module"
-            )
+            logging.warning("Sampled CTC currently only works with `targets` is provided to the module")
             raise ValueError(
                 "Sampled CTC only works when the `targets`` are provided during training."
                 "Please ensure that you correctly pass the `targets`."
@@ -608,7 +621,8 @@ class SampledConvASRDecoder(ConvASRDecoder):
             # Useful to debug cases where you expect sampled vocab to get exact same training curve as
             # full vocab.
             sample_ids = torch.randperm(n=self.num_classes_with_blank - 1, device=transcript_scores.device)[
-                         :self.n_samples]
+                : self.n_samples
+            ]
 
             # We need to compute the intersection(V_Pos, V_Neg), then eliminate the intersection arguments
             # from inside V_Neg.
