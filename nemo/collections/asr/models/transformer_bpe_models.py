@@ -691,12 +691,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             enc_mask,
             transcript,
             input_ids,
+            labels,
         ) = self.forward(
             processed_signal=signal,
             processed_signal_length=signal_len,
             transcript=transcript,
             transcript_length=transcript_len,
             input_ids=input_ids,
+            labels=labels,
         )
 
         original_ctc_blank_id = self.ctc_loss.blank
