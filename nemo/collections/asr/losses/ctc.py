@@ -23,8 +23,6 @@ __all__ = ['CTCLoss']
 
 
 class CTCLoss(nn.CTCLoss, Serialization, Typing):
-    __constants__ = ['reduction']
-
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
