@@ -38,7 +38,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ["PromptEncoder", "PromptEncoderType"]
-__all__ = ["PromptEncoder", "PromptEncoderType"]
 
 
 class PromptEncoderType(enum.Enum):
@@ -140,10 +139,6 @@ class TPMLP(NeuralModule, Exportable):
     The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
     token embeddings for p-tuning. It only have two layers.
     """
-
-    def __init__(
-        self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
-    ):
     def __init__(
         self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
     ):
@@ -161,15 +156,12 @@ class TPMLP(NeuralModule, Exportable):
         self.total_virtual_tokens = total_virtual_tokens
         self.activation = "gelu"
 
-        self.activation = "gelu"
-
         sequence_parallel = False
         gradient_accumulation_fusion = False
         no_async_tensor_model_parallel_allreduce = (
             parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
         )
         self.first = tensor_parallel.ColumnParallelLinear(
-            self.output_size,
             self.output_size,
             self.hidden_size,
             gather_output=False,
@@ -184,7 +176,6 @@ class TPMLP(NeuralModule, Exportable):
         self.second = tensor_parallel.RowParallelLinear(
             self.hidden_size,
             self.output_size,
-            self.output_size,
             input_is_parallel=True,
             init_method=init_method_normal(init_std),
             skip_bias_add=True,
@@ -194,7 +185,6 @@ class TPMLP(NeuralModule, Exportable):
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
-    def forward(self, input_embeds) -> torch.Tensor:
     def forward(self, input_embeds) -> torch.Tensor:
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
@@ -213,12 +203,10 @@ class PromptEncoder(NeuralModule, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
-            "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"output_embeds": NeuralType(("B", "T", "C"), ChannelType())}
         return {"output_embeds": NeuralType(("B", "T", "C"), ChannelType())}
 
     def __init__(
@@ -240,14 +228,12 @@ class PromptEncoder(NeuralModule, Exportable):
             lstm_dropout: the dropout used for the LSTM
             num_layers: number of layers used in the LSTM
             init_std: used for TPMLP encoder type to initialize the mlp weights
-            init_std: used for TPMLP encoder type to initialize the mlp weights
         """
         super().__init__()
         self.token_dim = token_dim
         self.input_size = token_dim
         self.output_size = token_dim
         self.hidden_size = hidden_size
-        self.lstm_hidden_size = self.hidden_size // 2
         self.lstm_hidden_size = self.hidden_size // 2
         self.total_virtual_tokens = total_virtual_tokens
         self.encoder_type = encoder_type
@@ -256,7 +242,6 @@ class PromptEncoder(NeuralModule, Exportable):
         self.taskname = taskname
 
         # Set fixed indicies for forward pass
-        self.register_buffer("indices", torch.LongTensor(list(range(self.total_virtual_tokens))))
         self.register_buffer("indices", torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
@@ -270,7 +255,6 @@ class PromptEncoder(NeuralModule, Exportable):
             self.lstm_head = torch.nn.LSTM(
                 input_size=self.input_size,
                 hidden_size=self.lstm_hidden_size,
-                hidden_size=self.lstm_hidden_size,
                 num_layers=num_layers,
                 dropout=lstm_dropout,
                 bidirectional=True,
@@ -279,9 +263,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
             self.mlp_head = nn.Sequential(
                 nn.Linear(self.lstm_hidden_size * 2, self.lstm_hidden_size * 2),
-                nn.Linear(self.lstm_hidden_size * 2, self.lstm_hidden_size * 2),
                 nn.ReLU(),
-                nn.Linear(self.lstm_hidden_size * 2, self.output_size),
                 nn.Linear(self.lstm_hidden_size * 2, self.output_size),
             )
 
