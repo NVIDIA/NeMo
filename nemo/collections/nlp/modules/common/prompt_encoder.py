@@ -200,12 +200,6 @@ class PromptEncoder(NeuralModule, Exportable):
     """
 
     @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "taskname_embeddings": NeuralType(("B", "T", "C"), ChannelType(), optional=False),
-        }
-
-    @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(("B", "T", "C"), ChannelType())}
 
@@ -246,6 +240,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
+        init.xavier_normal_(self.embedding.weight)
         self.inference_table = InferenceTable(taskname, self.token_dim, self.total_virtual_tokens)
 
         if self.encoder_type == PromptEncoderType.EMBEDDING:
@@ -285,11 +280,11 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
-    def set_inference_table(self,):
+    def set_inference_table(self, prompt_representation: torch.Tensor):
         """
         This method caches the output representation from the Encoder and saves it inside `self.inference_table`.
         """
-        prompt_representation = self._forward().detach().clone()
+        prompt_representation = prompt_representation.detach().clone()
         self.inference_table.set_prompt_table(prompt_representation)
 
     def clear_inference_table(self,):
@@ -299,7 +294,7 @@ class PromptEncoder(NeuralModule, Exportable):
         return self.inference_table.get_prompt_table()
 
     def _forward(self,):
-        input_embeds = self.embedding(self.indices)
+        input_embeds = self.embedding(self.indices).unsqueeze(0)
         if self.encoder_type == PromptEncoderType.EMBEDDING:
             output_embeds = input_embeds
         elif self.encoder_type == PromptEncoderType.LSTM:
@@ -319,8 +314,9 @@ class PromptEncoder(NeuralModule, Exportable):
             output_embeds = self._forward()
         else:
             if not self.inference_table.is_inference_ready:
-                self.set_inference_table()
-            output_embeds = self.get_inference_table()
+                output_embeds = self._forward()
+                self.set_inference_table(output_embeds.squeeze(0))
+            output_embeds = self.get_inference_table().unsqueeze(0)
 
         output_embeds = output_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim)
         return output_embeds
