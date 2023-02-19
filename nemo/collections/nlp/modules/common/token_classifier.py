@@ -47,7 +47,7 @@ class TokenClassifierConfig:
 @dataclass
 class SampledTokenClassifierConfig(TokenClassifierConfig):
     sampled_softmax: bool = False
-    num_samples: Optional[int] = None
+    n_samples: Optional[int] = None
 
 
 class TokenClassifier(Classifier):
