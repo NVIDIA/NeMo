@@ -14,6 +14,7 @@
 
 import contextlib
 import os
+import math
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
@@ -32,6 +33,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     transcribe_partial_audio,
     write_transcription,
 )
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -113,6 +115,22 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
+    
+    beam_strategy: str = "beam" # greedy, beam, flashlight, pyctcdecode
+    lm_path: Optional[str] = None  # Path to a KenLM model file
+    beam_width: int = 30 # for beam
+    beam_alpha: float = 0.5 # for beam
+    beam_beta: float = 0.3 # for beam
+    return_best_hypothesis: bool = True # for beam
+    
+    # flashlight 
+    lexicon_path: Optional[str] = None
+    beam_size_token: int = 16
+    beam_threshold: float = 20.0
+    unk_weight: float = -math.inf
+    sil_weight: float = 0.0
+    unit_lm: bool = True
+
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
@@ -226,7 +244,27 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
-
+            
+            cfg.ctc_decoding.strategy = cfg.beam_strategy # beam flashlight, pyctcdecode
+            cfg.ctc_decoding.beam = ctc_beam_decoding.BeamCTCInferConfig(
+                beam_size=cfg.beam_width,
+                preserve_alignments=False,
+                compute_timestamps=cfg.compute_timestamps,
+                return_best_hypothesis=cfg.return_best_hypothesis,
+                beam_alpha=cfg.beam_alpha,
+                beam_beta=cfg.beam_alpha,
+                kenlm_path=cfg.lm_path,
+            )
+            if cfg.beam_strategy == "flashlight":
+                cfg.ctc_decoding.beam.flashlight_cfg = ctc_beam_decoding.FlashlightConfig(
+                        lexicon_path = cfg.lexicon_path,
+                        beam_size_token = cfg.beam_size_token,
+                        beam_threshold = cfg.beam_threshold,
+                        unk_weight = cfg.unk_weight,
+                        sil_weight = cfg.sil_weight,
+                        unit_lm = cfg.unit_lm,
+                        )
+        
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # prepare audio filepaths and decide wether it's partical audio
