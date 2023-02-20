@@ -230,14 +230,7 @@ class DiscriminatorBlock(torch.nn.Module):
 
 class Generator(torch.nn.Module):
     def __init__(
-        self,
-        n_bands,
-        latent_dim,
-        style_depth,
-        network_capacity=16,
-        channels=1,
-        fmap_max=512,
-        max_spectrogram_length=2000,
+        self, n_bands, latent_dim, style_depth, network_capacity=16, channels=1, fmap_max=512,
     ):
         super().__init__()
         self.image_size = n_bands
