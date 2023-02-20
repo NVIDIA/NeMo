@@ -290,10 +290,10 @@ def write_transcription(
     else:
         pred_text_attr_name = 'pred_text'
 
-    if isinstance(transcriptions[0], rnnt_utils.Hypothesis): # List[rnnt_utils.Hypothesis]
+    if isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
         best_hyps = transcriptions
         assert cfg.return_best_hypothesis, "Works only for NBestHypothesis"
-    elif isinstance(transcriptions[0], list): # List[List[rnnt_utils.Hypothesis]]
+    elif isinstance(transcriptions[0], list):  # List[List[rnnt_utils.Hypothesis]]
         best_hyps, beams = [], []
         for hyps in transcriptions:
             best_hyps.append(hyps[0])
@@ -302,7 +302,6 @@ def write_transcription(
                 for hyp in hyps:
                     beam.append((hyp.text, hyp.score))
                 beams.append(beam)
-
 
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
@@ -440,11 +439,13 @@ def transcribe_partial_audio(
         logging.set_verbosity(logging_level)
     return hypotheses
 
+
 def separate_punctuation(line):
     punctuation_marks = '.,?'
     regex_separate_punctuation = fr"([{''.join(punctuation_marks)}])"
     line = re.sub(regex_separate_punctuation, r' \1 ', line)
     return line
+
 
 def preprocess(line, do_lowercase, rm_punctuation):
     line = line.replace("\n", " ").strip()

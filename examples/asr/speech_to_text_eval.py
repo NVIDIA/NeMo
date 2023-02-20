@@ -70,6 +70,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.collections.asr.parts.utils.transcribe_utils import separate_punctuation, preprocess
 
+
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     dataset_manifest: str = MISSING
@@ -141,7 +142,7 @@ def main(cfg: EvaluationConfig):
     # Compute the WER
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
-    
+
     if cfg.use_cer:
         metric_name = 'CER'
         metric_value = cer
@@ -157,8 +158,7 @@ def main(cfg: EvaluationConfig):
     else:
         logging.info(f'Got {metric_name} of {metric_value}')
 
-    logging.info(f'WER/CER '+str(round(100*wer, 2))+"%/"+str(round(100*cer, 2))+"%")
-        
+    logging.info(f'WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):

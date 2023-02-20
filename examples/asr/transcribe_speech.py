@@ -115,15 +115,15 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    
-    beam_strategy: str = "beam" # greedy, beam, flashlight, pyctcdecode
+
+    beam_strategy: str = "beam"  # greedy, beam, flashlight, pyctcdecode
     lm_path: Optional[str] = None  # Path to a KenLM model file
-    beam_width: int = 30 # for beam
-    beam_alpha: float = 0.5 # for beam
-    beam_beta: float = 0.3 # for beam
-    return_best_hypothesis: bool = True # for beam
-    
-    # flashlight 
+    beam_width: int = 30  # for beam
+    beam_alpha: float = 0.5  # for beam
+    beam_beta: float = 0.3  # for beam
+    return_best_hypothesis: bool = True  # for beam
+
+    # flashlight
     lexicon_path: Optional[str] = None
     beam_size_token: int = 16
     beam_threshold: float = 20.0
@@ -244,8 +244,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
-            
-            cfg.ctc_decoding.strategy = cfg.beam_strategy # beam flashlight, pyctcdecode
+
+            cfg.ctc_decoding.strategy = cfg.beam_strategy  # beam flashlight, pyctcdecode
             cfg.ctc_decoding.beam = ctc_beam_decoding.BeamCTCInferConfig(
                 beam_size=cfg.beam_width,
                 preserve_alignments=False,
@@ -257,14 +257,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             )
             if cfg.beam_strategy == "flashlight":
                 cfg.ctc_decoding.beam.flashlight_cfg = ctc_beam_decoding.FlashlightConfig(
-                        lexicon_path = cfg.lexicon_path,
-                        beam_size_token = cfg.beam_size_token,
-                        beam_threshold = cfg.beam_threshold,
-                        unk_weight = cfg.unk_weight,
-                        sil_weight = cfg.sil_weight,
-                        unit_lm = cfg.unit_lm,
-                        )
-        
+                    lexicon_path=cfg.lexicon_path,
+                    beam_size_token=cfg.beam_size_token,
+                    beam_threshold=cfg.beam_threshold,
+                    unk_weight=cfg.unk_weight,
+                    sil_weight=cfg.sil_weight,
+                    unit_lm=cfg.unit_lm,
+                )
+
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # prepare audio filepaths and decide wether it's partical audio
