@@ -14,6 +14,7 @@
 
 import os
 from argparse import Namespace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Literal, Mapping, Optional, Union
 
@@ -35,18 +36,30 @@ except (ImportError, ModuleNotFoundError):
     HAVE_CLEARML_LOGGER = False
 
 
+@dataclass
+class ClearMLParams:
+    project: Optional[str] = None
+    task: Optional[str] = None
+    connect_pytorch: Optional[bool] = False
+    model_name: Optional[str] = None
+    tags: Optional[List[str]] = None
+    log_model: Optional[bool] = False
+    log_cfg: Optional[bool] = False
+    log_metrics: Optional[bool] = False
+
+
 class ClearMLLogger(Logger):
     @property
-    def name(self):
+    def name(self) -> str:
         return self.clearml_task.name
 
     @property
-    def version(self):
+    def version(self) -> str:
         return self.clearml_task.id
 
     def __init__(
         self, clearml_cfg: DictConfig, log_dir: str, prefix: str, save_best_model: bool, postfix: str = ".nemo"
-    ):
+    ) -> None:
         if not HAVE_CLEARML_LOGGER:
             raise ImportError(
                 "Found create_clearml_logger is True."
@@ -93,7 +106,7 @@ class ClearMLLogger(Logger):
                 name=model_name, task=self.clearml_task, tags=tags, framework="NeMo"
             )
 
-    def log_hyperparams(self, params, *args, **kwargs):
+    def log_hyperparams(self, params, *args, **kwargs) -> None:
         if self.clearml_model and self.clearml_cfg.log_cfg:
             if isinstance(params, Namespace):
                 params = vars(params)
@@ -159,7 +172,7 @@ class ClearMLLogger(Logger):
         elif status == "aborted":
             self.clearml_task.mark_stopped()
 
-    def _log_model(self, save_path: str):
+    def _log_model(self, save_path: str) -> None:
         if self.clearml_model:
             if os.path.exists(save_path):
                 self.clearml_model.update_weights(

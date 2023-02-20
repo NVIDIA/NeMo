@@ -43,7 +43,7 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
-from nemo.utils.clearml_logger import ClearMLLogger
+from nemo.utils.clearml_logger import ClearMLLogger, ClearMLParams
 from nemo.utils.dllogger import DLLogger
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
@@ -127,18 +127,6 @@ class DLLoggerParams:
     verbose: Optional[bool] = False
     stdout: Optional[bool] = False
     json_file: Optional[str] = "./dllogger.json"
-
-
-@dataclass
-class ClearMLParams:
-    project: Optional[str] = None
-    task: Optional[str] = None
-    connect_pytorch: Optional[bool] = False
-    model_name: Optional[str] = None
-    tags: Optional[List[str]] = None
-    log_model: Optional[bool] = False
-    log_cfg: Optional[bool] = False
-    log_metrics: Optional[bool] = False
 
 
 @dataclass
