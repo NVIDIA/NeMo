@@ -364,7 +364,7 @@ if __name__ == "__main__":
     # for bs in (128,):
     main_perf(bs)
     # main_perf_pt(bs)
-    main_perf_full_context(bs)
+    # main_perf_full_context(bs)
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     # print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))

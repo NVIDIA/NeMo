@@ -424,101 +424,36 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.att_mask = None
 
     @typecheck()
-    def forward_for_export(
-        self,
-        audio_signal=None,
-        length=None,
-        cache_last_channel=None,
-        cache_last_time=None,
-        cache_last_channel_len=None,
-    ):
-        if not self.export_streaming_support:
-            return self.forward_internal(
-                audio_signal=audio_signal,
-                length=length,
-                cache_last_channel=cache_last_channel,
-                cache_last_time=cache_last_time,
-                cache_last_channel_len=cache_last_channel_len,
-            )
-        if self.streaming_cfg is None:
-            self.setup_streaming_params()
-
-        encoder_output = self.forward_internal(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            cache_last_channel_len=cache_last_channel_len,
-        )
-
-        if len(encoder_output) == 2:
-            encoded, encoded_len = encoder_output
-            cache_last_channel_next = cache_last_time_next = None
-        else:
-            (
-                encoded,
-                encoded_len,
-                cache_last_channel_next,
-                cache_last_time_next,
-                cache_last_channel_len,
-            ) = encoder_output
-
-        if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
-            if self.streaming_cfg.last_channel_cache_size > 0:
-                cache_last_channel_next = cache_last_channel_next[
-                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
-                ]
-            else:
-                cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
-
-        if cache_last_channel_next is not None:
-            encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
-            encoded_len = torch.clamp(encoded_len.long(), max=self.streaming_cfg.valid_out_len).to(torch.int32)
-
-        return encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_len
-
-    @typecheck()
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
-        return self.forward_internal(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            cache_last_channel_len=cache_last_channel_len,
-        )
-
-    def forward_internal(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
-    ):
-        # TODO this will be needed in some cases, though never in production because the cache size if fixed
-        # self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        if length is None:
-            length = audio_signal.new_full(
-                (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int32, device=audio_signal.device
-            )
+        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, nn.Linear):
+        if length is None or isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
         else:
             audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
-            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
-            if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
-                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
-                # TODO: find a better solution
+
+        # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
+        if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
+            audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
+            if length is not None:
                 length = length - self.streaming_cfg.drop_extra_pre_encoded
                 length = torch.clamp(length.long(), min=0).to(torch.int32)
 
         max_audio_length = audio_signal.size(1)
 
+        # TODO: extend fixed length, no-pad optimization for streaming
+        if length is None:
+            length = audio_signal.new_full(
+                (audio_signal.size(0),), max_audio_length, dtype=torch.int32, device=audio_signal.device
+            )
+
         if cache_last_time is not None:
             cache_last_time = cache_last_time.transpose(0, 1)
-            cache_last_time_next = torch.zeros(
-                cache_last_time.size(), dtype=cache_last_time.dtype, device=cache_last_time.device
-            )
+            cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
             cache_last_time_next = None
 
@@ -559,7 +494,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         # Create the self-attention and padding masks
         pad_mask, att_mask = self._create_masks(max_audio_length, padding_length, offset, audio_signal.device)
-
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
             if self.att_mask is not None:
@@ -588,6 +522,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             # break
 
         if cache_last_channel is not None:
+            if self.streaming_cfg.last_channel_cache_size > 0:
+                cache_last_channel_next = cache_last_channel_next[
+                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
+                ]
+            else:
+                cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
             cache_last_channel_len = torch.clamp(
                 (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
             )
@@ -601,7 +541,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if cache_last_channel is not None:
+        if self.streaming_cfg.valid_out_len > 0:
+            audio_signal = audio_signal[:, :, : self.streaming_cfg.valid_out_len]
+            length = torch.clamp(length.long(), max=self.streaming_cfg.valid_out_len).to(torch.int32)
+
+        if cache_last_channel_next is not None:
             return (
                 audio_signal,
                 length,
