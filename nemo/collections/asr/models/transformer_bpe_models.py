@@ -67,12 +67,14 @@ try:
     from nemo.collections.nlp.modules.common import SampledTokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
     from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+
     HAS_NEMO_NLP = True
 except (ImportError, ModuleNotFoundError):
     HAS_NEMO_NLP = False
 
 try:
     from nemo.collections.tts.models import FastPitchModel
+
     HAS_NEMO_TTS = True
 except (ImportError, ModuleNotFoundError):
     HAS_NEMO_TTS = False
@@ -94,7 +96,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             raise ImportError(f"{self.__class__.__name__} model relies on sacrebleu which is not installed.")
 
         if not HAS_NEMO_NLP:
-            raise ImportError(f"{self.__class__.__name__} model relies on nemo.collections.nlp which is not installed.")
+            raise ImportError(
+                f"{self.__class__.__name__} model relies on nemo.collections.nlp which is not installed."
+            )
 
         if not HAS_NEMO_TTS:
             raise ValueError(f"{self.__class__.__name__} model relies on nemo.collections.tts which is not installed.")
