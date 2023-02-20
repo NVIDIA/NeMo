@@ -94,7 +94,6 @@ class ClearMLLogger(Logger):
             )
 
     def log_hyperparams(self, params, *args, **kwargs):
-        logging.warning("!!! log_hyperparams")
         if self.clearml_model and self.clearml_cfg.log_cfg:
             if isinstance(params, Namespace):
                 params = vars(params)
@@ -106,7 +105,6 @@ class ClearMLLogger(Logger):
             self.clearml_model.update_design(config_text=params)
 
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
-        logging.warning("!!! log_metrics")
         if self.clearml_model and self.clearml_cfg.log_metrics:
             metrics = {
                 k: {

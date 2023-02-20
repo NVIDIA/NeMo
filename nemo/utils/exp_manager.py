@@ -960,7 +960,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         # output = None
-        logging.warning("!!! NeMoModelCheckpoint.on_save_checkpoint")
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
@@ -989,7 +988,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 pl_module.load_state_dict(checkpoint, strict=True)
                 pl_module.save_to(save_path=app_state.model_restore_path)
                 pl_module.load_state_dict(old_state_dict, strict=True)
-                logging.warning("!!! NeMoModelCheckpoint.on_save_checkpoint saved")
             else:
                 pl_module.save_to(save_path=app_state.model_restore_path)
             return output
