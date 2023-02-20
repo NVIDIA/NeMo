@@ -277,7 +277,7 @@ class Generator(torch.nn.Module):
             torch.nn.init.zeros_(block.to_noise2.weight)
             torch.nn.init.zeros_(block.to_noise2.bias)
 
-        initial_block_size = n_bands // self.upsample_factor, math.ceil(max_spectrogram_length / self.upsample_factor)
+        initial_block_size = n_bands // self.upsample_factor, 1
         self.initial_block = torch.nn.Parameter(
             torch.randn((1, init_channels, *initial_block_size)), requires_grad=False
         )
@@ -304,8 +304,7 @@ class Generator(torch.nn.Module):
     def forward(self, condition: torch.Tensor, lengths: torch.Tensor, ws: List[torch.Tensor], noise: torch.Tensor):
         batch_size, _, _, max_length = condition.shape
 
-        x = self.initial_block.expand(batch_size, -1, -1, -1)
-        x = x[:, :, :, : max_length // self.upsample_factor]
+        x = self.initial_block.expand(batch_size, -1, -1, max_length // self.upsample_factor)
 
         rgb = None
         x = self.initial_conv(x)
