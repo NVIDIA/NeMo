@@ -780,7 +780,7 @@ class AutocastTransformerLayer(TransformerLayer):
         drop_path_rate: float = 0,
         use_emha: bool = False,
         autocast_dtype: Any = 16,
-        zero_centered_gamma: bool = False
+        zero_centered_gamma: bool = False,
     ) -> None:
         super().__init__(
             hidden_size=hidden_size,
