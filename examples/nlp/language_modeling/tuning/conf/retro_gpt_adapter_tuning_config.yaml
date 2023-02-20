@@ -119,7 +119,7 @@ model:
   
   optim:
     name: fused_adam
-    lr: 1e-4
+    lr: 1e-1
     weight_decay: 0.01 
     betas: 
     - 0.9
@@ -127,13 +127,13 @@ model:
     sched:
       name: CosineAnnealing
       warmup_steps: 500
-      constant_steps: 50000
-      min_lr: 1e-5
+      constant_steps: 500
+      min_lr: 1e-2
 
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 8
+    adapter_dim: 4
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
