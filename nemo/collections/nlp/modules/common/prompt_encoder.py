@@ -56,9 +56,6 @@ class PromptEmbedding(NeuralModule, Exportable):
                                corresponding to a prompt string
         hidden_size: hidden size should match lm embedding size
         total_virtual_tokens: length of prompt initalized from torch init method
-        word_embedding_weights: token embedding vectors for text init option
-        init_method: pytorch init method
-        prompt_embedding_dropout_prob: dropout probablity
     """
 
     def __init__(
