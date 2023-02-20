@@ -43,6 +43,7 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.clearml_logger import ClearMLLogger
 from nemo.utils.dllogger import DLLogger
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
@@ -135,6 +136,7 @@ class ClearMLParams:
     connect_pytorch: Optional[bool] = False
     model_name: Optional[str] = None
     tags: Optional[List[str]] = None
+    log_model: Optional[bool] = False
     log_cfg: Optional[bool] = False
     log_metrics: Optional[bool] = False
 
@@ -252,8 +254,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
 
     The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
-    to False. It optionally creates TensorBoardLogger, WandBLogger, DLLogger, MLFlowLogger, ModelCheckpoint objects from pytorch lightning.
-    Also ClearML logger can be created for PyTorch and TensorBoard auto integration and `.nemo` files logging.
+    to False. It optionally creates TensorBoardLogger, WandBLogger, DLLogger, MLFlowLogger, ClearMLLogger,
+    ModelCheckpoint objects from pytorch lightning.
     It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
     process to log their output into.
 
@@ -300,8 +302,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - create_dllogger_logger (bool): Whether to create an DLLogger logger and attach it to the pytorch lightning
                 training. Defaults to False
             - dllogger_logger_kwargs (dict): optional parameters for the DLLogger logger
-            - create_clearml_logger (bool): Whether to create an ClearML logger for auto PyTorch and TensorBoard logging.
-                Defaults to False
+            - create_clearml_logger (bool): Whether to create an ClearML logger and attach it to the pytorch lightning
+                training. Defaults to False
             - clearml_logger_kwargs (dict): optional parameters for the ClearML logger
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
@@ -427,12 +429,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         or cfg.create_wandb_logger
         or cfg.create_mlflow_logger
         or cfg.create_dllogger_logger
+        or cfg.create_clearml_logger
     ):
         configure_loggers(
             trainer,
             exp_dir,
+            log_dir,
             cfg.name,
             cfg.version,
+            cfg.checkpoint_callback_params,
             cfg.create_tensorboard_logger,
             cfg.summary_writer_kwargs,
             cfg.create_wandb_logger,
@@ -441,6 +446,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.mlflow_logger_kwargs,
             cfg.create_dllogger_logger,
             cfg.dllogger_logger_kwargs,
+            cfg.create_clearml_logger,
+            cfg.clearml_logger_kwargs,
         )
 
     # add loggers timing callbacks
@@ -462,12 +469,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.callbacks.append(early_stop_callback)
 
     if cfg.create_checkpoint_callback:
-        if cfg.create_clearml_logger:
-            clearml_cfg = cfg.clearml_logger_kwargs
-        else:
-            clearml_cfg = None
         configure_checkpointing(
-            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params, clearml_cfg
+            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
         )
 
     if cfg.disable_validation_on_resume:
@@ -783,8 +786,10 @@ def get_git_diff():
 def configure_loggers(
     trainer: 'pytorch_lightning.Trainer',
     exp_dir: [Path, str],
+    log_dir: [Path, str],
     name: str,
     version: str,
+    checkpoint_callback_params: dict,
     create_tensorboard_logger: bool,
     summary_writer_kwargs: dict,
     create_wandb_logger: bool,
@@ -793,9 +798,11 @@ def configure_loggers(
     mlflow_kwargs: dict,
     create_dllogger_logger: bool,
     dllogger_kwargs: dict,
+    create_clearml_logger: bool,
+    clearml_kwargs: dict,
 ):
     """
-    Creates TensorboardLogger and/or WandBLogger / MLFlowLogger / DLlogger and attach them to trainer.
+    Creates TensorboardLogger and/or WandBLogger / MLFlowLogger / DLlogger / ClearMLLogger and attach them to trainer.
     Raises ValueError if summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
     # Potentially create tensorboard logger and/or WandBLogger / MLFlowLogger / DLLogger
@@ -839,6 +846,17 @@ def configure_loggers(
         logger_list.append(dllogger_logger)
         logging.info("DLLogger has been set up")
 
+    if create_clearml_logger:
+        clearml_logger = ClearMLLogger(
+            clearml_cfg=clearml_kwargs,
+            log_dir=log_dir,
+            prefix=name,
+            save_best_model=checkpoint_callback_params.save_best_model,
+        )
+
+        logger_list.append(clearml_logger)
+        logging.info("ClearMLLogger has been set up")
+
     trainer._logger_connector.configure_logger(logger_list)
 
 
@@ -854,7 +872,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         postfix: str = ".nemo",
         n_resume: bool = False,
         model_parallel_size: int = None,
-        clearml_cfg: Optional[DictConfig] = None,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -877,13 +894,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.prefix = kwargs.pop('prefix')
         else:
             self.prefix = ""
-
-        # Init ClearML Logging, if setted in config.
-        self.clearml_task = None
-        self.clearml_model = None
-        self.clearml_cfg = clearml_cfg
-        if clearml_cfg:
-            self._init_clearml(clearml_cfg)
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
@@ -950,6 +960,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         # output = None
+        logging.warning("!!! NeMoModelCheckpoint.on_save_checkpoint")
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
@@ -978,10 +989,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 pl_module.load_state_dict(checkpoint, strict=True)
                 pl_module.save_to(save_path=app_state.model_restore_path)
                 pl_module.load_state_dict(old_state_dict, strict=True)
+                logging.warning("!!! NeMoModelCheckpoint.on_save_checkpoint saved")
             else:
                 pl_module.save_to(save_path=app_state.model_restore_path)
-
-            self._log_clearml(app_state.model_restore_path, cfg=pl_module.hparams, metrics=trainer.callback_metrics)
             return output
 
     def on_train_end(self, trainer, pl_module):
@@ -1015,9 +1025,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
         if self.save_nemo_on_train_end:
-            save_path = os.path.join(self.dirpath, self.prefix + self.postfix)
-            pl_module.save_to(save_path=save_path)
-            self._log_clearml(save_path, cfg=pl_module.hparams, metrics=trainer.callback_metrics)
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
@@ -1072,80 +1080,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def _is_ema_filepath(self, filepath: Union[Path, str]) -> bool:
         return str(filepath).endswith(f'-EMA{self.FILE_EXTENSION}')
 
-    def _init_clearml(self, clearml_cfg: DictConfig):
-        self.clearml_task = None
-        self.clearml_model = None
-        self.clearml_cfg = clearml_cfg
-        try:
-            import clearml
-
-            project_name = clearml_cfg.project if clearml_cfg.project else "NeMo"
-            task_name = clearml_cfg.task if clearml_cfg.task else f"Trainer {self.prefix}"
-
-            tags = ["NeMo"]
-            if clearml_cfg.tags:
-                tags.extend(clearml_cfg.tags)
-
-            self.clearml_task: clearml.Task = clearml.Task.init(
-                project_name=os.getenv("CLEARML_PROJECT", project_name),
-                task_name=os.getenv("CLEARML_TASK", task_name),
-                auto_connect_frameworks={"pytorch": clearml_cfg.connect_pytorch},
-                output_uri=True,
-                tags=tags,
-            )
-
-            if clearml_cfg.model_name:
-                model_name = clearml_cfg.model_name
-            elif self.prefix:
-                model_name = self.prefix
-            else:
-                model_name = task_name
-
-            self.clearml_model: clearml.OutputModel = clearml.OutputModel(
-                name=model_name, task=self.clearml_task, tags=tags, framework="NeMo"
-            )
-
-        except (ImportError, ModuleNotFoundError):
-            logging.warning(
-                (
-                    "Found create_clearml_logger is True."
-                    "But ClearML not found. lease see the README for installation instructions:"
-                    "https://github.com/allegroai/clearml"
-                )
-            )
-
-    def _log_clearml(self, save_path: str, cfg: Optional[dict] = None, metrics: dict = None):
-        if self.clearml_model:
-            self.clearml_model.update_weights(
-                weights_filename=save_path,
-                upload_uri=self.clearml_task.storage_uri or self.clearml_task._get_default_report_storage_uri(),
-                auto_delete_file=False,
-                is_package=True,
-            )
-            if self.clearml_cfg.log_cfg and cfg:
-                self.clearml_model.update_design(config_text=OmegaConf.to_yaml(cfg))
-            if self.clearml_cfg.log_metrics:
-                metrics = {
-                    k: {
-                        "value": str(v.item() if type(v) == torch.Tensor else v),
-                        "type": str(type(v.item() if type(v) == torch.Tensor else v)),
-                    }
-                    for k, v in metrics.items()
-                }
-                self.clearml_model.set_all_metadata(metrics)
-
     @property
     def _saved_checkpoint_paths(self) -> Iterable[Path]:
         return Path(self.dirpath).rglob("*.ckpt")
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer',
-    log_dir: Path,
-    name: str,
-    resume: bool,
-    params: 'DictConfig',
-    clearml_cfg: DictConfig,
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig',
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback
@@ -1198,7 +1139,7 @@ def configure_checkpointing(
                 f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
             )
 
-    checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, clearml_cfg=clearml_cfg, **params)
+    checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer._checkpoint_connector.resume_from_checkpoint_fit_path or ""
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
