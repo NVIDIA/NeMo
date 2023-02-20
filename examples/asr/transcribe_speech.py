@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import contextlib
-import os
 import math
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
@@ -26,6 +26,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -33,11 +34,9 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     transcribe_partial_audio,
     write_transcription,
 )
-from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
