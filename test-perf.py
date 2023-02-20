@@ -101,7 +101,7 @@ def main_perf_onnx_full_ctx(batch_size=128, profile=True):
 
 
 def main_perf_pt(batch_size=128):
-    with open("streaming-conformer.ts", "rb") as f:
+    with open("streaming-conformer-fp16.ts", "rb") as f:
         buffer = io.BytesIO(f.read())
     asr_model = torch.jit.load(buffer, map_location=torch.device("cuda"))
 
@@ -131,7 +131,7 @@ def main_perf_pt(batch_size=128):
         )
         stop = time.time()
 
-    for _ in range(64):
+    for _ in range(23):
         start = time.time()
         (log_probs, encoded_len, cache_last_channel, cache_last_time, cache_last_channel_len,) = asr_model(
             input=audio_signal,
@@ -154,22 +154,26 @@ def main_perf_pt(batch_size=128):
 
 
 def main_perf_onnx(batch_size=128, profile=True):
-    # Inputs
-    cache_last_channel = create_ort_gpu_value(
-        torch.randn((batch_size, 18, 104, 512), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False)
-    )
-    cache_last_time = create_ort_gpu_value(
-        torch.randn((batch_size, 18, 512, 30), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False)
-    )
-    cache_last_channel_len = create_ort_gpu_value(
-        torch.randint(1, 104, (batch_size,), device=torch.device("cpu"), dtype=torch.int64, requires_grad=False)
-    )
 
-    audio_signal = create_ort_gpu_value(
-        torch.randn((batch_size, 80, 57), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False)
+    cache_last_channel = torch.zeros(
+        (batch_size, 18, 104, 512), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
     )
-    length = create_ort_gpu_value(
-        torch.full((batch_size,), 57, device=torch.device("cpu"), dtype=torch.int64, requires_grad=False)
+    cache_last_time = torch.zeros(
+        (batch_size, 18, 512, 30), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
+    )
+    cache_last_channel_len = torch.zeros(
+        (batch_size,), dtype=torch.int64, device=torch.device("cuda:0"), requires_grad=False
+    )
+    audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"), requires_grad=False)
+    length = torch.full((batch_size,), 57, device=torch.device("cuda"), requires_grad=False)
+    cache_last_channel_next = torch.zeros(
+        (batch_size, 18, 104, 512), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
+    )
+    cache_last_time_next = torch.zeros(
+        (batch_size, 18, 512, 30), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
+    )
+    cache_last_channel_next_len = torch.zeros(
+        (batch_size,), dtype=torch.int64, device=torch.device("cuda:0"), requires_grad=False
     )
 
     # Outputs
@@ -178,15 +182,6 @@ def main_perf_onnx(batch_size=128, profile=True):
     )
     encoded_len = create_ort_gpu_value(
         torch.zeros((batch_size,), device=torch.device("cpu"), dtype=torch.int32, requires_grad=False)
-    )
-    cache_last_channel_next = create_ort_gpu_value(
-        torch.zeros((batch_size, 18, 104, 512), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False)
-    )
-    cache_last_time_next = create_ort_gpu_value(
-        torch.zeros((batch_size, 18, 512, 30), device=torch.device("cpu"), dtype=torch.float32, requires_grad=False)
-    )
-    cache_last_channel_next_len = create_ort_gpu_value(
-        torch.zeros((batch_size,), device=torch.device("cpu"), dtype=torch.int64, requires_grad=False)
     )
 
     opts = onnxruntime.SessionOptions()
@@ -225,13 +220,18 @@ def main_perf_onnx(batch_size=128, profile=True):
     io_binding.bind_output("logprobs", "cuda", 0, np.float32, [batch_size, 13, 1025], logprobs.data_ptr())
     io_binding.bind_output("encoded_lengths", "cuda", 0, np.int32, [batch_size,], encoded_len.data_ptr())
     io_binding.bind_output(
-        "cache_last_channel_next", "cuda", 0, np.float32, [batch_size, 18, 104, 512], cache_last_channel.data_ptr(),
+        "cache_last_channel_next",
+        "cuda",
+        0,
+        np.float32,
+        [batch_size, 18, 104, 512],
+        cache_last_channel_next.data_ptr(),
     )
     io_binding.bind_output(
-        "cache_last_time_next", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time.data_ptr()
+        "cache_last_time_next", "cuda", 0, np.float32, [batch_size, 18, 512, 30], cache_last_time_next.data_ptr()
     )
     io_binding.bind_output(
-        "cache_last_channel_next_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_len.data_ptr()
+        "cache_last_channel_next_len", "cuda", 0, np.int64, [batch_size,], cache_last_channel_next_len.data_ptr()
     )
 
     io_binding.synchronize_inputs()
@@ -266,6 +266,7 @@ def main_perf(batch_size=128):
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
+        asr_model.input_module.enable_pad_mask(False)
         asr_model.encoder.export_streaming_support = False
         asr_model.encoder.setup_streaming_params()
 
@@ -277,7 +278,21 @@ def main_perf(batch_size=128):
 
         total_audio_len = []
         total_time = []
-        for _ in range(64):
+        for _ in range(10):
+            (
+                log_probs,
+                encoded_len,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            ) = asr_model.forward_for_export(
+                input=audio_signal,
+                length=length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
+            )
+        for _ in range(10):
             start = time.time()
             (
                 log_probs,
@@ -310,14 +325,18 @@ def main_perf_full_context(batch_size=128):
     with torch.inference_mode(), torch.no_grad():
         asr_model.to(torch.device("cuda")).freeze()
         asr_model.eval()
+        asr_model.input_module.enable_pad_mask(False)
+
         asr_model.encoder.export_streaming_support = True
         asr_model.encoder.setup_streaming_params()
 
-        audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"))
-        length = torch.full((batch_size,), 57, device=torch.device("cuda"))
+        audio_signal = torch.randn((batch_size, 80, 57 + 104), device=torch.device("cuda"))
+        length = torch.full((batch_size,), 57 + 104, device=torch.device("cuda"))
 
         total_audio_len = []
         total_time = []
+        for _ in range(10):
+            log_probs = asr_model.forward_for_export(input=audio_signal, length=length,)
         for _ in range(10):
             start = time.time()
             log_probs = asr_model.forward_for_export(input=audio_signal, length=length,)
@@ -343,9 +362,9 @@ if __name__ == "__main__":
     #    with record_function("model_inference"):
     # main_perf_onnx(bs, False)
     # for bs in (128,):
-    # main_perf(bs)
-    main_perf_pt(bs)
-
+    main_perf(bs)
+    # main_perf_pt(bs)
+    main_perf_full_context(bs)
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     # print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
