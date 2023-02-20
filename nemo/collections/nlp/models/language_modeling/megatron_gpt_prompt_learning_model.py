@@ -585,8 +585,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.save_to(save_path=self.cfg.nemo_path)
+        self.save_to(save_path=self.cfg.nemo_path)
 
     def setup(self, stage=None):
         if (stage == 'predict') and self.frozen_model.model.pre_process:
