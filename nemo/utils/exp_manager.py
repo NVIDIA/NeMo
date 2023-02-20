@@ -928,7 +928,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # Load the best model and then re-save it
             app_state = AppState()
             if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                logging.warning("attempting to save nemo for model_parallel_size > 1, this will likely cause slowdown of the training process.")
+                logging.warning(
+                    "attempting to save nemo for model_parallel_size > 1, this will likely cause slowdown of the training process."
+                )
             # since we are creating tarfile artifacts we need to update .nemo path
             app_state.model_restore_path = os.path.abspath(
                 os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
