@@ -41,12 +41,6 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data.data_utils.data_preprocessing import bitext_collate_fn
-from nemo.collections.nlp.models.machine_translation import MTEncDecModel
-from nemo.collections.nlp.modules.common import SampledTokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-from nemo.collections.tts.models import FastPitchModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -67,6 +61,22 @@ try:
 except (ModuleNotFoundError, ImportError):
     HAS_SACREBLEU = False
 
+try:
+    from nemo.collections.nlp.data.data_utils.data_preprocessing import bitext_collate_fn
+    from nemo.collections.nlp.models.machine_translation import MTEncDecModel
+    from nemo.collections.nlp.modules.common import SampledTokenClassifier
+    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
+    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+    HAS_NEMO_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAS_NEMO_NLP = False
+
+try:
+    from nemo.collections.tts.models import FastPitchModel
+    HAS_NEMO_TTS = True
+except (ImportError, ModuleNotFoundError):
+    HAS_NEMO_TTS = False
+
 __all__ = ['EncDecTransfModelBPE']
 
 
@@ -82,6 +92,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if not HAS_SACREBLEU:
             raise ImportError(f"{self.__class__.__name__} model relies on sacrebleu which is not installed.")
+
+        if not HAS_NEMO_NLP:
+            raise ImportError(f"{self.__class__.__name__} model relies on nemo.collections.nlp which is not installed.")
+
+        if not HAS_NEMO_TTS:
+            raise ValueError(f"{self.__class__.__name__} model relies on nemo.collections.tts which is not installed.")
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0

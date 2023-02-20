@@ -135,7 +135,7 @@ extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']
 
 extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']]))
 
-extras_require['st'] = list(chain([extras_require['st'], extras_require['asr']]))
+extras_require['st'] = list(chain([extras_require['st'], extras_require['asr'], extras_require['nlp']]))
 
 tests_requirements = extras_require["test"]
 
