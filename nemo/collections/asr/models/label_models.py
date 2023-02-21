@@ -40,6 +40,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from transformers import WavLMModel
 
 __all__ = ['EncDecSpeakerLabelModel']
 
@@ -147,7 +148,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
 
-        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
+        self.preprocessor = WavLMModel.from_pretrained("microsoft/WavLM-Large")
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
@@ -264,6 +265,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         train_data_layer_config['labels'] = self.labels
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
+        
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
@@ -330,7 +332,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
-
+        
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
@@ -344,6 +346,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.log('loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
         self.log('global_step', self.trainer.global_step)
+        self.log('sum_weights_model', sum(p.sum() for p in self.parameters() if p.requires_grad))
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
