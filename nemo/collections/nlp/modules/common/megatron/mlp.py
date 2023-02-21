@@ -163,13 +163,13 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # Give openai_gelu precedence over other activations if set, for HF compatibility. Normally this is off and shouldn't affect regular model training.
         if openai_gelu:
             self.activation_func = openai_gelu_func
-        elif activation in ["gelu", "geglu"]:
+        elif activation in ["gelu", "geglu", "fast-geglu"]:
             self.activation_func = F.gelu
         elif onnx_safe:
             self.activation_func = erf_gelu
-        elif activation == "reglu":
+        elif activation in ["reglu", "fast-reglu"]:
             self.activation_func = F.relu
-        elif activation == "swiglu":
+        elif activation in ["swiglu", "fast-swiglu"]:
             # SiLU or sigmoid linear unit is the same as swish with beta = 1 (which is what https://arxiv.org/pdf/2002.05202.pdf uses.)
             self.activation_func = F.silu
         elif activation == 'squared-relu':
