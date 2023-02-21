@@ -14,7 +14,6 @@
 
 import contextlib
 import os
-import math
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
