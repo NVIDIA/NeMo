@@ -66,9 +66,9 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
 
 
 @dataclass

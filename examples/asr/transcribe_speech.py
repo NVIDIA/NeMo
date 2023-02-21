@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import contextlib
-import os
 import math
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
