@@ -196,8 +196,12 @@ class TestEncDecSpeechLabelModel:
             with open(temp_manifest, 'w', encoding='utf-8') as fp:
                 entry = {"audio_filepath": filename, "duration": 4.5, "label": 'en'}
                 fp.write(json.dumps(entry) + '\n')
+                entry = {"audio_filepath": filename, "duration": 4.5, "label": 'test'} # test sample outside of training set
+                fp.write(json.dumps(entry) + '\n')
 
             embs, logits, gt_labels, trained_labels = lang_model.batch_inference(temp_manifest, device=device)
             pred_label = trained_labels[logits.argmax(axis=-1)[0]]
             true_label = gt_labels[0]
+
             assert pred_label == true_label
+            assert gt_labels[1] == 'test'
