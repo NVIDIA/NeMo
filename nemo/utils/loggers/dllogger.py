@@ -25,8 +25,8 @@ from pytorch_lightning.utilities.parsing import AttributeDict
 from nemo.utils import logging
 
 try:
-    import nemo.utils.loggers.dllogger as dllogger
-    from nemo.utils.loggers.dllogger import Verbosity
+    import dllogger
+    from dllogger import Verbosity
 
     HAVE_DLLOGGER = True
 except (ImportError, ModuleNotFoundError):
