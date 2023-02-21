@@ -91,6 +91,7 @@ EXCLUDE_PHRASES = {
     "you'd",
     "you'll",
     "you've",
+    "you're",
     "they'd",
     "they're",
     "they've",
