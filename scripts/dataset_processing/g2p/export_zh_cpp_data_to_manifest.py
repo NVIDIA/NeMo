@@ -15,11 +15,11 @@
 import csv
 import json
 from argparse import ArgumentParser
+from collections import defaultdict
 from glob import glob
 from typing import List, Tuple
-from collections import defaultdict
-from tqdm import tqdm
 
+from tqdm import tqdm
 
 """
 Converts CPP data to .json manifest format for Chinese HeteronymClassificationModel training.
@@ -32,8 +32,11 @@ Chinese dataset could be found here:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--data_folder', help="Path to data folder with the CPP data files", type=str, required=True)
-    parser.add_argument("--output_folder", help="Path to data folder with output .json file to store the data", type=str, required=True)
+    parser.add_argument(
+        "--output_folder", help="Path to data folder with output .json file to store the data", type=str, required=True
+    )
     return parser.parse_args()
+
 
 def convert_cpp_data_to_manifest(data_folder: str, output_folder: str):
     """
@@ -57,7 +60,7 @@ def convert_cpp_data_to_manifest(data_folder: str, output_folder: str):
 
             for i, index in enumerate(lines_idx):
                 wordid_dict[lines_sent[i][index]].add(lines_label[i])
-                    
+
             for i, sent in enumerate(lines_sent):
                 start, end = lines_idx[i], lines_idx[i] + 1
                 heteronym_span = sent[start:end]
@@ -70,13 +73,13 @@ def convert_cpp_data_to_manifest(data_folder: str, output_folder: str):
                 f_out.write(json.dumps(entry, ensure_ascii=False) + "\n")
         print(f"Data saved at {output_manifest}")
 
-
     word_id_file = f"{output_folder}/wordid.tsv"
     with open(word_id_file, 'w') as f_wordid:
         f_wordid.write(f"homograph\twordid\tlabel\tpronunciation\n")
         for key, pronunciations in wordid_dict.items():
             for value in pronunciations:
                 f_wordid.write(f"{key}\t{key}_{value}\tNone\t{value}\n")
+
 
 if __name__ == '__main__':
     args = parse_args()
