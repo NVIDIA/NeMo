@@ -62,7 +62,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-
+    from apex.transformer.enums import AttnMaskType
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -157,6 +157,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
+        if self.cfg.get('attn_mask_type', 'causal') == 'causal':
+            attn_mask_type = AttnMaskType.causal
+        elif self.cfg.get('attn_mask_type', 'causal') == 'padding':
+            attn_mask_type = AttnMaskType.padding
+        else:
+            raise ValueError(f"attn_mask_type {self.cfg.get('attn_mask_type', 'causal')} not supported")
         model = GPTModel(
             vocab_size=self.padded_vocab_size,
             hidden_size=self.cfg.hidden_size,
@@ -214,6 +220,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
             reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
+            attn_mask_type=attn_mask_type,
         )
 
         return model

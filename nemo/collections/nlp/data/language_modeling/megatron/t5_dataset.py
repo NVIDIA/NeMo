@@ -56,6 +56,7 @@ class T5Dataset(Dataset):
         favor_long_ngrams=False,
         respect_document_boundaries=True,
         documents=None,
+        skip_masking_id=None,
     ):
         super().__init__()
         # Params to store.
@@ -72,6 +73,7 @@ class T5Dataset(Dataset):
         self.whole_word_masking = whole_word_masking
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
+        self.skip_masking_id = skip_masking_id
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
@@ -206,6 +208,7 @@ class T5Dataset(Dataset):
             bos_id=self.bos_id,
             eos_id=self.eos_id,
             pad_id=self.pad_id,
+            skip_masking_id=self.skip_masking_id,
         )
         return training_sample
 
