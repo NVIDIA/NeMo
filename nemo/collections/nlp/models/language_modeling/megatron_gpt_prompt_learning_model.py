@@ -28,9 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_da
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
-    BIGLSTMPromptEncoder,
     PromptEncoder,
-    PromptEncoderMLP,
     PromptEncoderType,
     PromptTable,
     VirtualPromptPlaceholderToken,
@@ -268,32 +266,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
-        if encoder_type == PromptEncoderType.TPMLP:
-            self.prompt_encoder = PromptEncoderMLP(
-                total_virtual_tokens=total_virtual_tokens,
-                hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
-                output_size=self.hidden_size,
-                init_std=self.cfg.p_tuning.get("init_std", 0.023),
-            )
-        elif encoder_type == PromptEncoderType.BIGLSTM:
-            self.prompt_encoder = BIGLSTMPromptEncoder(
-                total_virtual_tokens=total_virtual_tokens,
-                hidden_size=self.cfg.p_tuning.encoder_hidden,
-                output_size=self.hidden_size,
-                lstm_dropout=self.cfg.p_tuning.dropout,
-                num_layers=self.cfg.p_tuning.num_layers,
-            )
-        elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
-            self.prompt_encoder = PromptEncoder(
-                encoder_type=encoder_type,
-                total_virtual_tokens=total_virtual_tokens,
-                token_dim=self.hidden_size,
-                hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
-                lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
-                num_layers=self.cfg.p_tuning.get("num_layers", 2),
-            )
-        else:
-            raise ValueError('not supported')
+        self.prompt_encoder = PromptEncoder(
+            encoder_type=encoder_type,
+            total_virtual_tokens=total_virtual_tokens,
+            token_dim=self.hidden_size,
+            hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
+            lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
+            num_layers=self.cfg.p_tuning.get("num_layers", 2),
+            init_std=self.cfg.p_tuning.get("init_std", 0.023),
+        )
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -431,8 +412,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 input_embeds = self.embed_input_inference(input_ids, taskname_ids)
             else:
                 input_embeds = self.embed_input_train(input_ids, taskname_ids)
-            position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
+                position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
+                    position_ids
+                )
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
