@@ -101,7 +101,6 @@ class FaissRetrievalResource(Resource):
                 "similarity": I[0].tolist(),
                 "first_neighbor": first_neighbor,
             }
-            return results[0]
         else:
             json_result = {
                 "knn": np.stack(results, axis=0).astype(np.int64).tolist(),
