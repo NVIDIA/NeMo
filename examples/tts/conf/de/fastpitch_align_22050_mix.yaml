@@ -29,7 +29,7 @@ highfreq: null
 window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/de/de_nv230119.dict"
-heteronyms_path: "scripts/tts_dataset_files/de/de_nv230119.heteronyms"
+heteronyms_path: "scripts/tts_dataset_files/de/de_nv230119.heteronym"
 
 model:
   learn_alignment: true

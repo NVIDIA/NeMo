@@ -628,6 +628,11 @@ class IPAG2P(BaseG2p):
                 return self.phoneme_dict[word][0], True
 
         if self.apply_to_oov_word is not None:
+            logging.warning(
+                "apply_to_oov_word is not None. This means that OOV words will be processed accordingly. If graphemes"
+                " are part of returned values, it is advised that `grapheme_case` and `grapheme_prefix` should be"
+                " enabled, and `grapheme_prefix` should be prepended."
+            )
             return self.apply_to_oov_word(word), True
         else:
             return self._prepend_prefix_for_one_word(word), False

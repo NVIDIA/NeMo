@@ -123,6 +123,20 @@ class TestTTSTokenizers:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
+    def test_ipa_tokenizer_with_hyphened_words(self):
+        input_text = "moderedaktions-assistentin friederike hauer."
+        expected_output = "#m#o#d#e#r#e#d#a#k#t#i#o#n#s#-#a#s#s#i#s#t#e#n#t#i#n frˈiːdeːrˌɪkə #h#a#u#e#r."
+
+        g2p = IPAG2P(
+            phoneme_dict="scripts/tts_dataset_files/de/de_nv230119.dict", locale="de-DE", phoneme_probability=1.0
+        )
+        tokenizer = IPATokenizer(g2p=g2p, locale="de-DE")
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
     def test_ipa_tokenizer_de_de(self):
         input_text = "Hallo welt"
         expected_output = "hˈaloː vˈɛlt"

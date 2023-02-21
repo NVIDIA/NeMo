@@ -322,6 +322,8 @@ class TestIPAG2P:
             grapheme_prefix=self.GRAPHEME_PREFIX,
             apply_to_oov_word=None,
         )
+        # en-US doesn't use mixed cases because there is no evidence showing pronunciations are
+        # capitalization-sensitive.
         expected_output_mixed = (
             [char for char in "həˈɫoʊ ɛnˈvɪdiəz ˈɛɹˌpɔɹts ˈdʒoʊnzɪz ˈɛɹˌpɔɹts ˈwɝɫdz"]
             + [" "]
@@ -341,6 +343,30 @@ class TestIPAG2P:
         input_text = "¿Hola mundo, amigo?"
         expected_output = [char for char in "¿ˈola mˈundo, AMIGO?"]
         g2p = self._create_g2p(phoneme_dict=self.PHONEME_DICT_PATH_ES, locale="es-ES")
+
+        phonemes = g2p(input_text)
+        assert phonemes == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_forward_call_with_hyphened_words(self):
+        input_text = "Das gab Der axel-springer-verlag Top-Stars."
+        expected_output = (
+            [char for char in "das ɡˈɑːp dɛɾ ˈaksəl-ʃpɾˈɪŋɜ-fɛɾlˈɑːk"]
+            + [" "]
+            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "Top"]
+            + ["-"]
+            + [f"{self.GRAPHEME_PREFIX}{char}" for char in "Stars"]
+            + ["."]
+        )
+        g2p = self._create_g2p(
+            use_chars=True,
+            apply_to_oov_word=None,
+            phoneme_dict=self.PHONEME_DICT_PATH_DE,
+            grapheme_prefix=self.GRAPHEME_PREFIX,
+            grapheme_case=GRAPHEME_CASE_MIXED,
+            locale="de-DE",
+        )
 
         phonemes = g2p(input_text)
         assert phonemes == expected_output
