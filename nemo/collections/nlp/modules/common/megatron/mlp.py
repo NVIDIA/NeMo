@@ -83,7 +83,16 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dropout = dropout
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
 
-        supported_activations = ['gelu','geglu','reglu','swiglu','squared-relu','fast-geglu','fast-swiglu','fast-reglu']
+        supported_activations = [
+            'gelu',
+            'geglu',
+            'reglu',
+            'swiglu',
+            'squared-relu',
+            'fast-geglu',
+            'fast-swiglu',
+            'fast-reglu',
+        ]
 
         if activation not in supported_activations:
             raise ValueError(
