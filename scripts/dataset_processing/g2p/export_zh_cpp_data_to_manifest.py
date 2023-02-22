@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import csv
 import json
 from argparse import ArgumentParser
 from collections import defaultdict
-from glob import glob
-from typing import List, Tuple
 
-from tqdm import tqdm
 
 """
-Converts CPP data to .json manifest format for Chinese HeteronymClassificationModel training.
+Converts Chinese Polyphones with Pinyin (CPP) data to .json manifest format for Chinese HeteronymClassificationModel training.
 Chinese dataset could be found here:
     https://github.com/kakaobrain/g2pM#the-cpp-dataset
+
+Usage
+# prepare manifest
+mkdir -p ./cpp_manifest
+git clone https://github.com/kakaobrain/g2pM.git
+python3 export_zh_cpp_data_to_manifest.py --data_folder g2pM/data/ --output_folder ./cpp_manifest
 
 """
 

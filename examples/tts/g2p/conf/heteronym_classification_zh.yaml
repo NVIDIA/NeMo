@@ -1,6 +1,8 @@
 name: HeteronymClassification
 
 # Dataset info
+# Chinese Polyphones with Pinyin (CPP)
+# https://github.com/kakaobrain/g2pM#the-cpp-dataset
 train_manifest: ???
 validation_manifest: ???
 test_manifest: ???
