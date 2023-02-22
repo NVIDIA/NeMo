@@ -11,19 +11,22 @@ import torch
 import torchvision.models as models
 from torch.profiler import ProfilerActivity, profile, record_function
 
-import nemo
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import (
-    AudioSignal,
-    ChannelType,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+try:
+    import nemo
+    import nemo.collections.asr as nemo_asr
+    from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+    from nemo.core.classes.common import typecheck
+    from nemo.core.neural_types import (
+        AudioSignal,
+        ChannelType,
+        LabelsType,
+        LengthsType,
+        LogprobsType,
+        NeuralType,
+        SpectrogramType,
+    )
+except Exception:
+    pass
 
 
 def to_numpy(tensor):
@@ -162,10 +165,10 @@ def main_perf_onnx(batch_size=128, profile=True):
         (batch_size, 18, 512, 30), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
     )
     cache_last_channel_len = torch.zeros(
-        (batch_size,), dtype=torch.int64, device=torch.device("cuda:0"), requires_grad=False
+        (batch_size,), dtype=torch.int32, device=torch.device("cuda:0"), requires_grad=False
     )
     audio_signal = torch.randn((batch_size, 80, 57), device=torch.device("cuda"), requires_grad=False)
-    length = torch.full((batch_size,), 57, device=torch.device("cuda"), requires_grad=False)
+    length = torch.full((batch_size,), 57, device=torch.device("cuda"), requires_grad=False, dtype=torch.int32)
     cache_last_channel_next = torch.zeros(
         (batch_size, 18, 104, 512), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
     )
@@ -189,12 +192,12 @@ def main_perf_onnx(batch_size=128, profile=True):
     if profile:
         opts.enable_profiling = True
     sess = onnxruntime.InferenceSession(
-        "/git/models/streaming-conformer-14.onnx",
+        "/git/models/streaming-conformer-17.onnx",
         providers=[
             (
                 'CUDAExecutionProvider',
                 {
-                    "gpu_mem_limit": 40 * 1024 * 1024 * 1024,
+                    "gpu_mem_limit": 20 * 1024 * 1024 * 1024,
                     "do_copy_in_default_stream": False,
                     "cudnn_conv_algo_search": "EXHAUSTIVE",
                 },
@@ -206,7 +209,7 @@ def main_perf_onnx(batch_size=128, profile=True):
     io_binding = sess.io_binding()
 
     io_binding.bind_input("audio_signal", "cuda", 0, np.float32, [batch_size, 80, 57], audio_signal.data_ptr())
-    io_binding.bind_input("length", "cuda", 0, np.int64, [batch_size,], length.data_ptr())
+    io_binding.bind_input("length", "cuda", 0, np.int32, [batch_size,], length.data_ptr())
     io_binding.bind_input(
         "cache_last_channel", "cuda", 0, np.float32, [batch_size, 18, 104, 512], cache_last_channel.data_ptr()
     )
@@ -360,9 +363,9 @@ if __name__ == "__main__":
     #    with record_function("model_inference"):
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, profile_memory=True, with_stack=True) as prof:
     #    with record_function("model_inference"):
-    # main_perf_onnx(bs, False)
+    main_perf_onnx(bs, False)
     # for bs in (128,):
-    main_perf(bs)
+    # main_perf(bs)
     # main_perf_pt(bs)
     # main_perf_full_context(bs)
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
