@@ -66,7 +66,7 @@ def main():
         type=str,
         help="Path to the training files or whitespace separated files. Files can be a text file, JSON manifest or .json.gz",
     )
-    
+
     parser.add_argument(
         "--nemo_model_file",
         required=True,
@@ -77,78 +77,95 @@ def main():
         "--kenlm_model_file", required=True, type=str, help="The path to store the KenLM binary model file"
     )
     parser.add_argument("--ngram_length", required=True, type=int, help="The order of N-gram LM")
-    parser.add_argument("--ngram_prun", default="0", required=False, nargs="+", type=str, help="Whitespace separated digits. Example: 0 0 1")
+    parser.add_argument(
+        "--ngram_prun",
+        default="0",
+        required=False,
+        nargs="+",
+        type=str,
+        help="Whitespace separated digits. Example: 0 0 1",
+    )
     parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
     parser.add_argument("--cache_path", required=False, type=str, default=None, help="Cache path")
-    parser.add_argument("--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text")
-    parser.add_argument("--rm_punctuation", action='store_true', help="Whether to remove punctuation on the training text")
+    parser.add_argument(
+        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
+    )
+    parser.add_argument(
+        "--rm_punctuation", action='store_true', help="Whether to remove punctuation on the training text"
+    )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
-    parser.add_argument("--verbose",type=int, default=1, help="Verbose level from 0. Default is 1 ")
+    parser.add_argument("--verbose", type=int, default=1, help="Verbose level from 0. Default is 1 ")
 
     args = parser.parse_args()
     args.train_path = kenlm_utils.get_train_list(args.train_path)
-    
-    if type(args.ngram_prun) == str: args.ngram_prun = [args.ngram_prun]
+
+    if type(args.ngram_prun) == str:
+        args.ngram_prun = [args.ngram_prun]
 
     model, encoding_level, offset_encoding = kenlm_utils.setup_tokenizer(args.nemo_model_file)
     encoded_train_files = []
 
-    if args.cache_path:  
-      """ DATASET SETUP """
-      
-      for file_num, train_file in enumerate(args.train_path):
-        logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(args.train_path)} ...")
+    if args.cache_path:
+        """ DATASET SETUP """
 
-        cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1])+"*")
-        encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
-        if cached_files:
-            if cached_files[0]!=encoded_train_file:
-                os.rename(cached_files[0], encoded_train_file)
-                logging.info("Rename", cached_files[0], "to", encoded_train_file)
-        else:
-            dataset = kenlm_utils.read_train_file(train_file,
-                        lowercase=args.do_lowercase,
-                        rm_punctuation=args.rm_punctuation,
-                        clean_text=args.clean_text,
-                        verbose=args.verbose)
+        for file_num, train_file in enumerate(args.train_path):
+            logging.info(
+                f"Encoding the train file '{train_file}' number {file_num+1} out of {len(args.train_path)} ..."
+            )
 
-            if encoding_level == "subword":
-                kenlm_utils.tokenize_text(
-                    dataset,
-                    model.tokenizer,
-                    path=encoded_train_file,
-                    chunk_size=CHUNK_SIZE,
-                    buffer_size=CHUNK_BUFFER_SIZE,
-                    token_offset=TOKEN_OFFSET if offset_encoding else -1,
-                )
+            cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
+            encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
+            if cached_files:
+                if cached_files[0] != encoded_train_file:
+                    os.rename(cached_files[0], encoded_train_file)
+                    logging.info("Rename", cached_files[0], "to", encoded_train_file)
             else:
-                with open(encoded_train_file, 'w', encoding='utf-8') as f:
-                    for line in dataset:
-                        f.write(f"{line}\n")
+                dataset = kenlm_utils.read_train_file(
+                    train_file,
+                    lowercase=args.do_lowercase,
+                    rm_punctuation=args.rm_punctuation,
+                    clean_text=args.clean_text,
+                    verbose=args.verbose,
+                )
 
-        encoded_train_files.append(encoded_train_file)
+                if encoding_level == "subword":
+                    kenlm_utils.tokenize_text(
+                        dataset,
+                        model.tokenizer,
+                        path=encoded_train_file,
+                        chunk_size=CHUNK_SIZE,
+                        buffer_size=CHUNK_BUFFER_SIZE,
+                        token_offset=TOKEN_OFFSET if offset_encoding else -1,
+                    )
+                else:
+                    with open(encoded_train_file, 'w', encoding='utf-8') as f:
+                        for line in dataset:
+                            f.write(f"{line}\n")
 
-      del model
-      first_process_args = ["cat"] + encoded_train_files
+            encoded_train_files.append(encoded_train_file)
+
+        del model
+        first_process_args = ["cat"] + encoded_train_files
 
     else:
-      first_process_args = ["python3", 
-                        os.path.join(file_path, "kenlm_utils.py"),
-                        "--nemo_model_file",
-                        args.nemo_model_file,
-                        "--train_path",
-                        ] + args.train_path
-      if args.clean_text:
-        first_process_args.append("--clean_text")
-      if args.do_lowercase:
-        first_process_args.append("--do_lowercase")
-      if args.rm_punctuation:
-        first_process_args.append("--rm_punctuation")
+        first_process_args = [
+            "python3",
+            os.path.join(file_path, "kenlm_utils.py"),
+            "--nemo_model_file",
+            args.nemo_model_file,
+            "--train_path",
+        ] + args.train_path
+        if args.clean_text:
+            first_process_args.append("--clean_text")
+        if args.do_lowercase:
+            first_process_args.append("--do_lowercase")
+        if args.rm_punctuation:
+            first_process_args.append("--rm_punctuation")
 
     first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
-    
+
     if encoding_level == "subword":
-        discount_arg = "--discount_fallback" # --discount_fallback is needed for training KenLM for BPE-based models
+        discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
     else:
         discount_arg = ""
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
@@ -160,10 +177,12 @@ def main():
         "--arpa",
         arpa_file,
         discount_arg,
-        "--prune"
+        "--prune",
     ] + args.ngram_prun
 
-    ret = subprocess.run(kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(
+        kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr
+    )
     first_process.wait()
     logging.setLevel(logging.INFO)
     if ret.returncode != 0:

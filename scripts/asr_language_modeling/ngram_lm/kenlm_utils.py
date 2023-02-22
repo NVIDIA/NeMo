@@ -37,11 +37,13 @@ SUPPORTED_MODELS = {
     'EncDecRNNTBPEModel': ('subword', False),
     'EncDecCTCModel': ('char', True),
     'EncDecRNNTModel': ('char', False),
-    }
+}
+
 
 def softmax(x):
     e = np.exp(x - np.max(x))
     return e / e.sum(axis=-1).reshape([x.shape[0], 1])
+
 
 def get_train_list(args_train_path):
 
@@ -54,6 +56,7 @@ def get_train_list(args_train_path):
         elif os.path.isfile(train_item):
             train_path.append(train_item)
     return sorted(train_path)
+
 
 def setup_tokenizer(nemo_model_file):
     """ TOKENIZER SETUP """
@@ -75,78 +78,99 @@ def setup_tokenizer(nemo_model_file):
         encoding_level = 'char'
     return model, encoding_level, offset_encoding
 
+
 def iter_files(train_path, nemo_model_file, do_lowercase, rm_punctuation, clean_text):
     model, _, offset_encoding = setup_tokenizer(nemo_model_file)
     for fname in train_path:
         dataset = read_train_file(fname, do_lowercase, rm_punctuation, clean_text, verbose=0)
-        tokenize_text(dataset, model.tokenizer, path='', chunk_size=8192, 
-                      buffer_size=32, 
-                      token_offset=TOKEN_OFFSET if offset_encoding else -1)
+        tokenize_text(
+            dataset,
+            model.tokenizer,
+            path='',
+            chunk_size=8192,
+            buffer_size=32,
+            token_offset=TOKEN_OFFSET if offset_encoding else -1,
+        )
 
 
 def norm_spaces(text):
-    #regex for removing extra whitespaces:
-    #"because  they're say-   we- at    least that's" -> "because they're say- we- at least that's"
+    # regex for removing extra whitespaces:
+    # "because  they're say-   we- at    least that's" -> "because they're say- we- at least that's"
     reg_remove_extra_space = '\s{2,}'
     text = re.sub(reg_remove_extra_space, ' ', text)
-    
-    #regex for removing whitespaces at the begining and at the end:
-    #" because they're say- we- at least that's " -> "because they're say- we- at least that's"
+
+    # regex for removing whitespaces at the begining and at the end:
+    # " because they're say- we- at least that's " -> "because they're say- we- at least that's"
     reg_remove_start_end_spaces = '\A\s|\s$'
     text = re.sub(reg_remove_start_end_spaces, '', text)
-    
+
     return text
 
 
 def norm_punctuation(text, punctuation_marks):
     i = 1
-    
+
     while i < len(text):
         char = text[i]
-        
+
         if char in punctuation_marks and text[i - 1] == ' ':
-            text = text[ : i - 1] + text[i : ]
+            text = text[: i - 1] + text[i:]
         else:
             i += 1
-    
+
     return text
 
 
-class TextProcessor():
+class TextProcessor:
     def __init__(self) -> None:
         self.TARGET_PUNCTUATION_MARKS = ['.', ',', '?']
         self.rm_TARGET_PUNCTUATION_MARKS = str.maketrans('', '', ''.join(self.TARGET_PUNCTUATION_MARKS))
 
         self.REGEX_TARGET_CHARS = re.compile("[a-zA-Z\'\ " + '\\'.join(self.TARGET_PUNCTUATION_MARKS) + "]+")
-            
-        self.CHARS_TO_REPLACE = {'!' : '.', 
-                            ';' : ',',
-                            '…' : '.'}
-        
-        self.CHARS_TO_REPLACE_WITH_SPACE = ['"', '-', ':', '“', '”', '—', '–', '(', ')', 
-                                    '\t', '\n', '[', ']', '«', '»', '„', '/', '_']
-        
+
+        self.CHARS_TO_REPLACE = {'!': '.', ';': ',', '…': '.'}
+
+        self.CHARS_TO_REPLACE_WITH_SPACE = [
+            '"',
+            '-',
+            ':',
+            '“',
+            '”',
+            '—',
+            '–',
+            '(',
+            ')',
+            '\t',
+            '\n',
+            '[',
+            ']',
+            '«',
+            '»',
+            '„',
+            '/',
+            '_',
+        ]
+
         self.APOSTROPHES = ["'", '’', '‘', '´', '`', 'ʻ']
-        
+
         self.REGEX_ELLIPSIS_NORMALIZATION = re.compile(r'(\.\.\.)')
 
         self.regex_apostophe_norm = re.compile("([a-zA-Z]\'[a-z])")
 
         self.white_space = re.compile(r"\s+", flags=re.UNICODE)
 
-
     def get_text_pc(self, text):
         if self.REGEX_TARGET_CHARS.fullmatch(text):
             return text
         else:
-            #ellipsis normalization ('...' -> '.')
+            # ellipsis normalization ('...' -> '.')
             text = self.REGEX_ELLIPSIS_NORMALIZATION.sub('.', text)
-            
+
             processed = ''
-            
+
             for char in text:
                 if self.REGEX_TARGET_CHARS.match(char):
-                    processed += char   
+                    processed += char
                 elif char in self.CHARS_TO_REPLACE:
                     processed += self.CHARS_TO_REPLACE[char]
                 elif char in self.CHARS_TO_REPLACE_WITH_SPACE:
@@ -155,28 +179,26 @@ class TextProcessor():
                     processed += "'"
                 else:
                     return None
-            
-            #apostrophe normalization (removing quotations and saving apostrophes) 
-            #ex. ‘Never mind,’ said Wardle's wife --> Never mind, said Wardle's wife
-            
-            if processed[0] == "'":
-                processed = processed[1 : ]
 
+            # apostrophe normalization (removing quotations and saving apostrophes)
+            # ex. ‘Never mind,’ said Wardle's wife --> Never mind, said Wardle's wife
+
+            if processed[0] == "'":
+                processed = processed[1:]
 
             for i in range(1, len(processed) - 1):
                 if processed[i] == "'":
                     if self.regex_apostophe_norm.match(processed[i - 1 : i + 2]):
                         continue
                     else:
-                        processed = processed[: i] + ' ' + processed[i + 1 : ]
-                    
+                        processed = processed[:i] + ' ' + processed[i + 1 :]
 
             if processed[-1] == "'":
-                processed = processed[: -1]
-            
+                processed = processed[:-1]
+
             processed = norm_spaces(processed)
             processed = norm_punctuation(processed, self.TARGET_PUNCTUATION_MARKS)
-            
+
             return processed
 
     def preprocess(self, line_list, lowercase: bool = False, rm_punctuation: bool = False, clean_text: bool = False):
@@ -198,7 +220,10 @@ class TextProcessor():
                 l_list.append(line)
         return " ".join(l_list)
 
-def read_train_file(path, lowercase: bool = False, rm_punctuation: bool = False, clean_text: bool = False, verbose: int=0):
+
+def read_train_file(
+    path, lowercase: bool = False, rm_punctuation: bool = False, clean_text: bool = False, verbose: int = 0
+):
     lines_read = 0
     text_dataset = []
     text_processor = TextProcessor()
@@ -207,7 +232,7 @@ def read_train_file(path, lowercase: bool = False, rm_punctuation: bool = False,
     else:
         fin = open(path, 'r', encoding='utf-8')
 
-    if verbose>0:
+    if verbose > 0:
         reader = tqdm(iter(lambda: fin.readline(), ''), desc="Read 0 lines", unit=' lines')
     else:
         reader = fin
@@ -218,14 +243,14 @@ def read_train_file(path, lowercase: bool = False, rm_punctuation: bool = False,
                 line = json.loads(line.decode('utf-8'))['text']
             elif path.endswith('.json'):
                 line = json.loads(line)['text']
-            
+
             line_list = line.split("\n")
             line = text_processor.preprocess(line_list, lowercase, rm_punctuation, clean_text)
 
             if line:
                 text_dataset.append(line)
                 lines_read += 1
-                if verbose>0 and lines_read % 100000 == 0:
+                if verbose > 0 and lines_read % 100000 == 0:
                     reader.set_description(f"Read {lines_read} lines")
         else:
             break
@@ -252,7 +277,7 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_
     if path and os.path.exists(path):
         os.remove(path)
 
-    with Parallel(n_jobs=-2, verbose=0) as parallel: 
+    with Parallel(n_jobs=-2, verbose=0) as parallel:
         while True:
             start = current_step * chunk_size
             end = min((current_step + buffer_size) * chunk_size, dataset_len)
@@ -288,6 +313,7 @@ def write_dataset(chunks, path):
                 line = ' '.join(text)
                 print(f"{line}\n")
 
+
 def _parse_args():
     parser = argparse.ArgumentParser(description="Avg pytorch weights")
     parser.add_argument(
@@ -311,6 +337,7 @@ def _parse_args():
     )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     logging.setLevel(logging.ERROR)
