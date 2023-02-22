@@ -24,11 +24,10 @@
 # to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
 # USAGE: python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
-#                              --train_file <path to the training text or JSON manifest file \
+#                              --train_path <path to the training text or JSON manifest file \
 #                              --kenlm_bin_path <path to the bin folder of KenLM library> \
 #                              --kenlm_model_file <path to store the binary KenLM model> \
-#                              --ngram_length <order of N-gram model> \
-#                              --preserve_arpa
+#                              --ngram_length <order of N-gram model>
 #
 # After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'.
 # You may find more info on how to use this script at:
@@ -39,11 +38,9 @@ import logging
 import os
 import subprocess
 import sys
+from glob import glob
 
 import kenlm_utils
-import torch
-
-import nemo.collections.asr as nemo_asr
 from nemo.utils import logging
 
 """
@@ -52,22 +49,24 @@ use a trick to encode the sub-word tokens of the training data as unicode charac
 TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
 the required memory significantly, and the LM and its binary blob format require less storage space.
 """
-TOKEN_OFFSET = 100
-
+TOKEN_OFFSET = kenlm_utils.TOKEN_OFFSET
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
 
 
 def main():
+    file_path = os.path.split(os.path.realpath(__file__))[0]
     parser = argparse.ArgumentParser(
         description='Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.'
     )
     parser.add_argument(
-        "--train_file",
+        "--train_path",
         required=True,
+        nargs="+",
         type=str,
-        help="Path to the training file, it can be a text file or JSON manifest",
+        help="Path to the training files or whitespace separated files. Files can be a text file, JSON manifest or .json.gz",
     )
+    
     parser.add_argument(
         "--nemo_model_file",
         required=True,
@@ -78,71 +77,95 @@ def main():
         "--kenlm_model_file", required=True, type=str, help="The path to store the KenLM binary model file"
     )
     parser.add_argument("--ngram_length", required=True, type=int, help="The order of N-gram LM")
+    parser.add_argument("--ngram_prun", default="0", required=False, nargs="+", type=str, help="Whitespace separated digits. Example: 0 0 1")
     parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
-    parser.add_argument(
-        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
-    )
-    parser.add_argument(
-        '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
-    )
+    parser.add_argument("--cache_path", required=False, type=str, default=None, help="Cache path")
+    parser.add_argument("--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text")
+    parser.add_argument("--rm_punctuation", action='store_true', help="Whether to remove punctuation on the training text")
+    parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
+    parser.add_argument("--verbose",type=int, default=1, help="Verbose level from 0. Default is 1 ")
+
     args = parser.parse_args()
+    args.train_path = kenlm_utils.get_train_list(args.train_path)
+    
+    if type(args.ngram_prun) == str: args.ngram_prun = [args.ngram_prun]
 
-    """ TOKENIZER SETUP """
-    logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
+    model, encoding_level, offset_encoding = kenlm_utils.setup_tokenizer(args.nemo_model_file)
+    encoded_train_files = []
 
-    if args.nemo_model_file.endswith('.nemo'):
-        model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
+    if args.cache_path:  
+      """ DATASET SETUP """
+      
+      for file_num, train_file in enumerate(args.train_path):
+        logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(args.train_path)} ...")
+
+        cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1])+"*")
+        encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
+        if cached_files:
+            if cached_files[0]!=encoded_train_file:
+                os.rename(cached_files[0], encoded_train_file)
+                logging.info("Rename", cached_files[0], "to", encoded_train_file)
+        else:
+            dataset = kenlm_utils.read_train_file(train_file,
+                        lowercase=args.do_lowercase,
+                        rm_punctuation=args.rm_punctuation,
+                        clean_text=args.clean_text,
+                        verbose=args.verbose)
+
+            if encoding_level == "subword":
+                kenlm_utils.tokenize_text(
+                    dataset,
+                    model.tokenizer,
+                    path=encoded_train_file,
+                    chunk_size=CHUNK_SIZE,
+                    buffer_size=CHUNK_BUFFER_SIZE,
+                    token_offset=TOKEN_OFFSET if offset_encoding else -1,
+                )
+            else:
+                with open(encoded_train_file, 'w', encoding='utf-8') as f:
+                    for line in dataset:
+                        f.write(f"{line}\n")
+
+        encoded_train_files.append(encoded_train_file)
+
+      del model
+      first_process_args = ["cat"] + encoded_train_files
+
     else:
-        logging.warning(
-            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
-        )
-        model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
+      first_process_args = ["python3", 
+                        os.path.join(file_path, "kenlm_utils.py"),
+                        "--nemo_model_file",
+                        args.nemo_model_file,
+                        "--train_path",
+                        ] + args.train_path
+      if args.clean_text:
+        first_process_args.append("--clean_text")
+      if args.do_lowercase:
+        first_process_args.append("--do_lowercase")
+      if args.rm_punctuation:
+        first_process_args.append("--rm_punctuation")
 
-    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
-    if not encoding_level:
-        logging.warning(
-            f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
-        )
-        encoding_level = 'char'
-
-    """ DATASET SETUP """
-    logging.info(f"Encoding the train file '{args.train_file}' ...")
-    dataset = kenlm_utils.read_train_file(args.train_file, lowercase=args.do_lowercase)
-    encoded_train_file = f"{args.kenlm_model_file}.tmp.txt"
+    first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
+    
     if encoding_level == "subword":
-        kenlm_utils.tokenize_text(
-            dataset,
-            model.tokenizer,
-            path=encoded_train_file,
-            chunk_size=CHUNK_SIZE,
-            buffer_size=CHUNK_BUFFER_SIZE,
-            token_offset=TOKEN_OFFSET,
-        )
-        # --discount_fallback is needed for training KenLM for BPE-based models
-        discount_arg = "--discount_fallback"
+        discount_arg = "--discount_fallback" # --discount_fallback is needed for training KenLM for BPE-based models
     else:
-        with open(encoded_train_file, 'w', encoding='utf-8') as f:
-            for line in dataset:
-                f.write(f"{line}\n")
-
         discount_arg = ""
-
-    del model
-
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, 'lmplz'),
         "-o",
-        f"{args.ngram_length}",
-        "--text",
-        encoded_train_file,
+        str(args.ngram_length),
         "--arpa",
         arpa_file,
         discount_arg,
-    ]
+        "--prune"
+    ] + args.ngram_prun
 
-    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    first_process.wait()
+    logging.setLevel(logging.INFO)
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
     """ BINARY BUILD """
@@ -157,13 +180,6 @@ def main():
 
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
-
-    os.remove(encoded_train_file)
-    logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
-
-    if not args.preserve_arpa:
-        os.remove(arpa_file)
-        logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
 if __name__ == '__main__':
