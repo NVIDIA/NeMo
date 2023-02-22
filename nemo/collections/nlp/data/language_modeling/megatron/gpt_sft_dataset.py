@@ -41,6 +41,7 @@ class GPTSFTDataset(Dataset):
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
+        pad_to_max_length: bool = True,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -59,6 +60,7 @@ class GPTSFTDataset(Dataset):
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -75,6 +77,7 @@ class GPTSFTDataset(Dataset):
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
+        self.pad_to_max_length = pad_to_max_length
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -126,12 +129,14 @@ class GPTSFTDataset(Dataset):
         BOS, EOS, and SEP, are added if specified.
         """
         context = example[self.context_key]
+        label = example[self.label_key]
         if self.separate_prompt_and_response_with_newline:
-            context = context + '\n'
+            text = context + '\n' + label
         else:
-            context = context + ' '
+            text = context + ' ' + label
+        tokenized_text = self.tokenizer.text_to_ids(text)
         text_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
+        answer_ids = tokenized_text[len(context):]
 
         total_ids = len(text_ids) + len(answer_ids)
         if self.add_bos:
@@ -232,7 +237,10 @@ class GPTSFTDataset(Dataset):
 
         max_length = max([len(x) for x in input_ids])
         # increase max length to nearest multiple of 4 or 8
-        max_length = min(self.max_seq_length, self._round_to_nearest(max_length, 8))
+        if self.pad_to_max_length:
+            max_length = self.max_seq_length
+        else:
+            max_length = min(self.max_seq_length, self._round_to_nearest(max_length, 8))
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]
