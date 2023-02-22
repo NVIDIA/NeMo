@@ -4,10 +4,10 @@ title: "NeMo: a toolkit for Conversational AI and Large Language Models"
 url: https://nvidia.github.io/NeMo/
 repository-code: https://github.com/NVIDIA/NeMo
 authors:
-  - family-names: Majumdar
-    given-names: Somshubra
   - family-names: Harper
     given-names: Eric
+  - family-names: Majumdar
+    given-names: Somshubra
   - family-names: Kuchaiev
     given-names: Oleksii
   - family-names: Jason
@@ -28,3 +28,14 @@ authors:
     given-names: Fei
   - family-names: Balam
     given-names: Jagadeesh
+  - family-names: Yang
+    given-names: Xuesong
+  - family-names: Livne
+    given-names: Micha
+  - family-names: Dong
+    given-names: Yi
+  - family-names: Naren
+    given-names: Sean
+  - family-names: Boris
+    given-names: Ginsburg
+
