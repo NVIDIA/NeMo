@@ -27,20 +27,13 @@ SHORT_ASSIST_PROMPT = """The following is a conversation with an AI assistant. T
 
 User: """
 
-LONG_ASSIST_PROMPT = """Me: Assistant is a large language model trained by NVIDIA. I am able to provide general information and answer questions to the best of my ability based on the knowledge that I have been trained on.
+LONG_ASSIST_PROMPT = """Assistant: I am Assistant, a large language model trained by NVIDIA.
 
-As a language model, I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
+I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
 
-Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. I am here to assist you and provide you with the information that you need.
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input.Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
 
-My training data includes a wide range of text from different sources, including news articles, books, websites, and more. This allows me to have a broad understanding of many different topics and to provide informed responses to a wide range of questions. I have been trained to understand the nuances of natural language and to generate text that is coherent and easy to understand.
-
-In addition to answering questions and generating text, I can also help with tasks such as language translation and text summarization. If you have a document or text that you would like to have translated into another language, I can provide a translation that is accurate and faithful to the original text. I can also summarize long documents or articles to help you quickly get the main points without having to read the entire thing.
-
-Overall, my goal is to assist you and provide you with the information and tools that you need to accomplish your goals. Whether you have a specific question that you need answered, or you need help with a language-related task, I am here to help. Please don't hesitate to contact me with any questions or requests that you have, and I will do my best to assist you.
-
-User: 
-"""
+User: """
 
 class GPTSFTDataset(Dataset):
     def __init__(
@@ -156,7 +149,7 @@ class GPTSFTDataset(Dataset):
         if self.assist_prompt == 'short':
             context = SHORT_ASSIST_PROMPT + context + "\n\nMe: "
         elif self.assist_prompt == 'long': 
-            context = LONG_ASSIST_PROMPT + context + "\n\nMe: "
+            context = LONG_ASSIST_PROMPT + context + "\n\nAssistant: "
         
         text_ids = self.tokenizer.text_to_ids(context)
         answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
