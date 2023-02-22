@@ -17,13 +17,14 @@
 Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
 """
 
+import argparse
+import gzip
 import json
 import os
-import gzip
 import re
-import argparse
-import torch
+
 import numpy as np
+import torch
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
