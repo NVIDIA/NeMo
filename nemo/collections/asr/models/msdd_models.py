@@ -1184,9 +1184,7 @@ class NeuralDiarizer(LightningModule):
         self.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         thresholds = list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold)
-        if self._cfg.evaluate:
-            return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
-        return None
+        return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
 
     def get_range_average(
         self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
@@ -1424,7 +1422,12 @@ class NeuralDiarizer(LightningModule):
                 out_rttm_dir=self.out_rttm_dir,
             )
             output = score_labels(
-                rttm_map, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
+                rttm_map,
+                all_reference,
+                all_hypothesis,
+                collar=collar,
+                ignore_overlap=ignore_overlap,
+                verbose=self._cfg.verbose,
             )
             outputs.append(output)
         logging.info(f"  \n")
@@ -1525,7 +1528,6 @@ class NeuralDiarizer(LightningModule):
         num_workers: int,
         verbose: bool,
     ) -> None:
-        self._cfg.evaluate = False
         self._cfg.batch_size = batch_size
         self._cfg.num_workers = num_workers
         self._cfg.diarizer.manifest_filepath = manifest_path

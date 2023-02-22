@@ -189,7 +189,6 @@ class NeuralDiarizerInferenceConfig(DiarizerComponentConfig):
     device: str = "cpu"
     map_location: Optional[str] = None
     verbose: bool = False
-    evaluate: bool = True
     batch_size: int = 64
     num_workers: int = 1
     sample_rate: int = 16000
