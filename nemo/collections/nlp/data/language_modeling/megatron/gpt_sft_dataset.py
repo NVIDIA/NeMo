@@ -23,7 +23,7 @@ from nemo.core.classes import Dataset
 __all__ = ['GPTSFTDataset']
 
 
-SHORT_ASSIST_PROMPT = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
+SHORT_ASSIST_PROMPT = """Assistant: The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
 
 User: """
 
@@ -147,12 +147,13 @@ class GPTSFTDataset(Dataset):
             context = context + ' '
 
         if self.assist_prompt == 'short':
-            context = SHORT_ASSIST_PROMPT + context + "\n\nMe: "
+            context = SHORT_ASSIST_PROMPT + context + "\n\nAssistant:"
         elif self.assist_prompt == 'long': 
-            context = LONG_ASSIST_PROMPT + context + "\n\nAssistant: "
+            context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
         
         text_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
+        prepend_str = "" if self.assist_prompt is None else " "
+        answer_ids = self.tokenizer.text_to_ids(prepend_str + example[self.label_key])
 
         total_ids = len(text_ids) + len(answer_ids)
         if self.add_bos:
