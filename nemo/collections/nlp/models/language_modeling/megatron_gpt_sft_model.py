@@ -55,10 +55,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-        self.val_metric = torch.nn.ModuleList(self.val_metric)
+        self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
-            self.test_metric = torch.nn.ModuleList(self.test_metric)
+            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
 
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -76,6 +76,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             if not hasattr(data_cfg.metric, "name"):
                 raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name == "loss":
+                return None, "loss"
             if data_cfg.metric.name not in MetricStringToTorchMetric:
                 raise KeyError(
                     f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
@@ -269,6 +271,16 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Call parent validation step to get the loss.
         loss = super().validation_step(batch, batch_idx)
 
+        # NOTE: This is a hack to to sidestep inference when the user wants to just monitor the loss only.
+        # TODO (sandeepsub): This should be a better check.
+        if self.val_metric is None:
+            return {
+                'loss': loss,
+                'preds': None,
+                'labels': None,
+                'inputs': None,
+            }
+
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
@@ -346,9 +358,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            self.log(loss_log_key, loss)
+            averaged_loss.append(loss)
+
+            # Skip the rest of this loop if the user wants to monitor the loss only.
+            if self.val_metric is None:
+                continue
             # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
             metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            self.log(loss_log_key, loss)
             metric_object = (
                 self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             )
@@ -368,7 +385,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
             metric_object.reset()
 
-            averaged_loss.append(loss)
             averaged_metric.append(metric)
 
             # Write predictions, labels, and inputs to a file for each validation/test dataset.
@@ -415,10 +431,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
             app_state = AppState()
             monitor_mode = app_state.checkpoint_callback_params.mode
             assert monitor_mode in ['min', 'max']
@@ -426,10 +442,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         if mode == 'validation':
             self.log("validation_loss", averaged_loss)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric)
+            if averaged_metric is not None:
+                self.log(f"validation_{self.val_metric_name}", averaged_metric)
         elif mode == 'test':
             self.log("test_loss", averaged_loss)
-            self.log(f"test_{self.test_metric_name}", averaged_metric)
+            if averaged_metric is not None:
+                self.log(f"test_{self.test_metric_name}", averaged_metric)
 
         return averaged_loss, averaged_metric
 
