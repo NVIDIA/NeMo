@@ -66,9 +66,10 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.transcribe_utils import separate_punctuation, preprocess
+
 
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
@@ -79,6 +80,8 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     tolerance: Optional[float] = None
 
     only_score_manifest: bool = False
+
+    separate_punctuation: bool = True
     do_lowercase: bool = False
     rm_punctuation: bool = False
 
@@ -124,12 +127,19 @@ def main(cfg: EvaluationConfig):
                 invalid_manifest = True
                 break
 
-            target_text = separate_punctuation(data['text'])
-            target_text = preprocess(target_text, cfg.do_lowercase, cfg.rm_punctuation)
-            ground_truth_text.append(target_text)
+            ground_truth_text.append(data['text'])
 
-            pred_text = preprocess(data['pred_text'], cfg.do_lowercase, cfg.rm_punctuation)
-            predicted_text.append(pred_text)
+            predicted_text.append(data['pred_text'])
+
+    pc = PunctuationCapitalization('.,?')
+    if cfg.separate_punctuation:
+        ground_truth_text = pc.separate_punctuation(ground_truth_text)
+    if cfg.do_lowercase:
+        ground_truth_text = pc.do_lowercase(ground_truth_text)
+        predicted_text = pc.do_lowercase(predicted_text)
+    if cfg.rm_punctuation:
+        ground_truth_text = pc.rm_punctuation(ground_truth_text)
+        predicted_text = pc.rm_punctuation(predicted_text)
 
     # Test for invalid manifest supplied
     if invalid_manifest:
@@ -141,7 +151,7 @@ def main(cfg: EvaluationConfig):
     # Compute the WER
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
-    
+
     if cfg.use_cer:
         metric_name = 'CER'
         metric_value = cer
@@ -157,8 +167,7 @@ def main(cfg: EvaluationConfig):
     else:
         logging.info(f'Got {metric_name} of {metric_value}')
 
-    logging.info(f'WER/CER '+str(round(100*wer, 2))+"%/"+str(round(100*cer, 2))+"%")
-        
+    logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):

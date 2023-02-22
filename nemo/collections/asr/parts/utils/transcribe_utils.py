@@ -290,19 +290,18 @@ def write_transcription(
     else:
         pred_text_attr_name = 'pred_text'
 
-    if isinstance(transcriptions[0], rnnt_utils.Hypothesis): # List[rnnt_utils.Hypothesis]
+    if isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
         best_hyps = transcriptions
-        assert cfg.return_best_hypothesis, "Works only for NBestHypothesis"
-    elif isinstance(transcriptions[0], list): # List[List[rnnt_utils.Hypothesis]]
+        assert cfg.ctc_decoding.beam.return_best_hypothesis, "Works only for NBestHypothesis"
+    elif isinstance(transcriptions[0], list):  # List[List[rnnt_utils.Hypothesis]]
         best_hyps, beams = [], []
         for hyps in transcriptions:
             best_hyps.append(hyps[0])
-            if not cfg.return_best_hypothesis:
+            if not cfg.ctc_decoding.beam.return_best_hypothesis:
                 beam = []
                 for hyp in hyps:
                     beam.append((hyp.text, hyp.score))
                 beams.append(beam)
-
 
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
@@ -320,7 +319,7 @@ def write_transcription(
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
-                if not cfg.return_best_hypothesis:
+                if not cfg.ctc_decoding.beam.return_best_hypothesis:
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
@@ -343,7 +342,7 @@ def write_transcription(
                         item['pred_lang'] = best_hyps[idx].langs
                         item['pred_lang_chars'] = best_hyps[idx].langs_chars
 
-                    if not cfg.return_best_hypothesis:
+                    if not cfg.ctc_decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
@@ -440,18 +439,16 @@ def transcribe_partial_audio(
         logging.set_verbosity(logging_level)
     return hypotheses
 
-def separate_punctuation(line):
-    punctuation_marks = '.,?'
-    regex_separate_punctuation = fr"([{''.join(punctuation_marks)}])"
-    line = re.sub(regex_separate_punctuation, r' \1 ', line)
-    return line
 
-def preprocess(line, do_lowercase, rm_punctuation):
-    line = line.replace("\n", " ").strip()
-    if do_lowercase:
-        line = line.lower()
-    if rm_punctuation:
-        line = line.replace(",", " ").strip()
-        line = line.replace(".", " ").strip()
-        line = line.replace("?", " ").strip()
-    return line
+class PunctuationCapitalization:
+    def __init__(self, punctuation_marks='.,?'):
+        self.regex_punctuation = re.compile(fr"([{''.join(punctuation_marks)}])")
+
+    def separate_punctuation(self, lines):
+        return [self.regex_punctuation.sub(r' \1 ', line) for line in lines]
+
+    def do_lowercase(self, lines):
+        return [line.lower() for line in lines]
+
+    def rm_punctuation(self, lines):
+        return [self.regex_punctuation.sub(' ', line).strip() for line in lines]
