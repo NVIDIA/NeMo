@@ -122,6 +122,50 @@ class LinearNorm(torch.nn.Module):
         return self.linear_layer(x)
 
 
+class ConvMultires(torch.nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=1,
+        stride=1,
+        padding=None,
+        dilation=1,
+        bias=True,
+        w_init_gain='linear',
+        use_partial_padding=False,
+        norm_fn=None,
+    ):
+        super(ConvMultires, self).__init__()
+
+        convolutions = []
+        if isinstance(kernel_size, int):
+            kernel_size = [kernel_size]
+        for ks in kernel_size:
+            padding = int((ks * dilation - dilation) / 2)
+            conv_layer = ConvNorm(
+                in_channels,
+                out_channels // len(kernel_size),
+                kernel_size=ks,
+                stride=1,
+                padding=padding,
+                dilation=dilation,
+                w_init_gain='relu',
+                use_partial_padding=use_partial_padding,
+                use_weight_norm=True,
+            )
+            convolutions.append(conv_layer)
+        self.convs = torch.nn.ModuleList(convolutions)
+
+    def forward(self, signal, mask=None):
+        out = []
+        for conv in self.convs:
+            out.append(conv(signal, mask))
+        conv_signal = torch.cat(out, dim=1)
+
+        return conv_signal
+
+
 class ConvNorm(torch.nn.Module):
     __constants__ = ['use_partial_padding']
     use_partial_padding: bool
@@ -159,8 +203,10 @@ class ConvNorm(torch.nn.Module):
         )
         torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
         if use_weight_norm:
+            print("Applying weight norm to {}".format(self.conv))
             self.conv = torch.nn.utils.weight_norm(self.conv)
         if norm_fn is not None:
+            print("Applying {} norm to {}".format(norm_fn, self.conv))
             self.norm = norm_fn(out_channels, affine=True)
         else:
             self.norm = None

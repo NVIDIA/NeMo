@@ -275,6 +275,11 @@ class RadTTSModule(NeuralModule, Exportable):
             self.use_vpred_module = True
 
         if self.use_vpred_module:
+            self.v_pred_concat_text_and_text_enc = kwargs.get('v_pred_concat_text_and_text_enc', True)  # borisf: TJ
+            v_model_config['hparams']['bottleneck_hparams']['in_dim'] = n_text_dim
+            if self.v_pred_concat_text_and_text_enc:
+                v_model_config['hparams']['bottleneck_hparams']['in_dim'] += n_text_dim
+
             v_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
             self.v_pred_module = get_attribute_prediction_model(v_model_config)
             # 4 embeddings, first two are scales, second two are biases
@@ -624,7 +629,7 @@ class RadTTSModule(NeuralModule, Exportable):
             speaker_id_attributes = speaker_id
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
-        txt_enc, _ = self.encode_text(text, in_lens)
+        txt_enc, txt_emb = self.encode_text(text, in_lens)
 
         if dur is None:
             # get token durations
@@ -647,8 +652,15 @@ class RadTTSModule(NeuralModule, Exportable):
         txt_enc_time_expanded.transpose_(1, 2)
         if voiced_mask is None:
             if self.use_vpred_module:
+                vpred_in = torch.detach(txt_enc_time_expanded)
+                if self.v_pred_concat_text_and_text_enc:
+                    txt_emb_expanded, dur_v = regulate_len(
+                        dur, txt_emb.transpose(2, 1), pace, group_size=self.n_group_size, dur_lens=in_lens
+                    )
+                    print(dur_v.shape, txt_emb_expanded.shape, vpred_in.shape)
+                    vpred_in = torch.cat((txt_emb_expanded.transpose(2, 1), vpred_in), dim=1)
                 # get logits
-                voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
+                voiced_mask = self.v_pred_module.infer(vpred_in, spk_vec_attributes, lens=out_lens)
                 voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > self.v_pred_threshold
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
             else:

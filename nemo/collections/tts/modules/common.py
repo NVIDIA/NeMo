@@ -30,7 +30,7 @@ from nemo.collections.tts.helpers.splines import (
     piecewise_linear_transform,
     unbounded_piecewise_quadratic_transform,
 )
-from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm, MaskedInstanceNorm1d
+from nemo.collections.tts.modules.submodules import ConvMultires, ConvNorm, LinearNorm, MaskedInstanceNorm1d
 
 
 @torch.jit.script
@@ -124,39 +124,52 @@ class ConvLSTMLinear(nn.Module):
         n_channels=256,
         kernel_size=3,
         p_dropout=0.1,
+        lstm_type='bilstm',
+        use_linear=True,
+        dilation=1,
         use_partial_padding=False,
         norm_fn=None,
     ):
         super(ConvLSTMLinear, self).__init__()
-        self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
+        self.out_dim = out_dim
+        self.lstm_type = lstm_type
+        self.use_linear = use_linear
+        if lstm_type == '':
+            self.bilstm = None
+        else:
+            self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
         self.convolutions = nn.ModuleList()
 
         if n_layers > 0:
             self.dropout = nn.Dropout(p=p_dropout)
 
-        use_weight_norm = norm_fn is None
+        if isinstance(kernel_size, int):
+            # for backwards compatibility
+            padding = int((kernel_size * dilation - dilation) / 2)
+            conv_class = ConvNorm
+            use_weight_norm = norm_fn is None
+        else:
+            conv_class = ConvMultires
+            padding = None
+            norm_fn = None
+            use_weight_norm = True
 
         for i in range(n_layers):
-            conv_layer = ConvNorm(
+            conv_layer = conv_class(
                 in_dim if i == 0 else n_channels,
                 n_channels,
                 kernel_size=kernel_size,
                 stride=1,
-                padding=int((kernel_size - 1) / 2),
+                padding=padding,
                 dilation=1,
                 w_init_gain='relu',
-                use_weight_norm=use_weight_norm,
                 use_partial_padding=use_partial_padding,
                 norm_fn=norm_fn,
             )
-            if norm_fn is not None:
-                print("Applying {} norm to {}".format(norm_fn, conv_layer))
-            else:
-                print("Applying weight norm to {}".format(conv_layer))
             self.convolutions.append(conv_layer)
 
         self.dense = None
-        if out_dim is not None:
+        if self.use_linear and out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
@@ -165,7 +178,8 @@ class ConvLSTMLinear(nn.Module):
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
         # Apply Bidirectional LSTM
-        context = self.bilstm(context.transpose(1, 2), lens=lens)
+        if self.bilstm:
+            context = self.bilstm(context.transpose(1, 2), lens=lens)
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
         return context
