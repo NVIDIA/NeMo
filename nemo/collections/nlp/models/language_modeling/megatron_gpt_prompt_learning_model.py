@@ -259,6 +259,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
             num_layers=self.cfg.p_tuning.get("num_layers", 2),
             init_std=self.cfg.p_tuning.get("init_std", 0.023),
+            taskname=new_task,
         )
 
     def freeze_existing_word_embeddings(self):
