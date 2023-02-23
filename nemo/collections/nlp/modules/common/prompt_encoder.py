@@ -285,6 +285,39 @@ class PromptEncoder(NeuralModule, Exportable):
     def get_inference_table(self,):
         return self.inference_table.get_prompt_table()
 
+    def state_dict(self, desination=None, prefix=None, keep_vars=False):
+        _state_dict = {}
+        _state_dict['prompt_table'] = self.inference_table.state_dict()
+        _state_dict['embeddings'] = self.embedding.state_dict()
+        if self.encoder_type == PromptEncoderType.EMBEDDING:
+            pass
+        elif self.encoder_type == PromptEncoderType.LSTM:
+            _state_dict['mlp_head'] = self.mlp_head.state_dict()
+            _state_dict['lstm_head'] = self.lstm_head.state_dict()
+        elif self.encoder_type == PromptEncoderType.MLP:
+            _state_dict['mlp_head'] = self.mlp_head.state_dict()
+        elif self.encoder_type == PromptEncoderType.TPMLP:
+            _state_dict['tpmlp'] = self.tpmlp.state_dict()
+        else:
+            raise ValueError("Prompt encoder type not recognized. Pl.")
+        return _state_dict
+        
+    def load_state_dict(self, state_dict, strict=True):
+        self.inference_table.load_state_dict(state_dict['prompt_table'])
+        self.embedding.load_state_dict(state_dict['embeddings'])
+        if self.encoder_type == PromptEncoderType.EMBEDDING:
+            pass
+        elif self.encoder_type == PromptEncoderType.LSTM:
+            self.mlp_head.load_state_dict(state_dict['mlp_head'])
+            self.lstm_head.state_dict(state_dict['lstm_head'])
+        elif self.encoder_type == PromptEncoderType.MLP:
+            self.mlp_head.load_state_dict(state_dict['mlp_head'])
+        elif self.encoder_type == PromptEncoderType.TPMLP:
+            self.tpmlp.load_state_dict(state_dict['tpmlp'])
+        else:
+            raise ValueError("Prompt encoder type not recognized. Pl.")
+        return
+    
     def _forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         if self.encoder_type == PromptEncoderType.EMBEDDING:
@@ -298,7 +331,7 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Pl.")
         return output_embeds
-
+    
     @typecheck()
     def forward(self, batch_size: int, use_cached_reps: bool) -> torch.Tensor:
         """ 
