@@ -195,7 +195,7 @@ class TextMemMapDataset(Dataset):
         # create data map
         mdata = np.memmap(fn, dtype=np.uint8, mode='r')
 
-        if os.path.exists(idx_fn + ".npy"):
+        if _index_file_exists(idx_fn):
             # load index file into memory map
             midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode='r')
             # test for header
@@ -219,7 +219,7 @@ class TextMemMapDataset(Dataset):
                     f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. Expected version = {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
                 )
         else:
-            raise ValueError(f'Memory Map for {fn} is not found')
+            raise ValueError(f'Memory Map for {fn} is not found, missing one or more of files: {idx_fn}.{{.npy,.info}}')
 
         return (mdata, midx)
 
@@ -280,13 +280,19 @@ class JSONLMemMapDataset(TextMemMapDataset):
         """Return a dictionary of data based on a single JSON line."""
         return json.loads(text)
 
+def _index_file_exists(idx_fn):
+    """Helper function to test if index file exists"""
+    if os.path.exists(idx_fn + ".npy") and os.path.exists(idx_fn + ".info"):
+        return True
+    else:
+        return False
 
 def _build_memmap_index_files(newline_int, build_index_fn, fn):
     """Helper function to build an index file"""
     idx_fn = f"{fn}.{__idx_suffix__}"
 
     # create data map
-    if os.path.exists(idx_fn + ".npy"):
+    if _index_file_exists(idx_fn):
         return False
     else:
         logging.info(f"Building indexing for fn = {fn}")
