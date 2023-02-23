@@ -51,16 +51,10 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 
 try:
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
-        _forward_backward_pipelining_with_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 
@@ -70,6 +64,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -315,17 +310,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def _get_fwd_bwd_function(self):
-        fwd_bwd_function = None
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-                fwd_bwd_function = _forward_backward_pipelining_with_interleaving
-            else:
-                fwd_bwd_function = forward_backward_pipelining_without_interleaving
-        else:
-            fwd_bwd_function = forward_backward_no_pipelining
-        return fwd_bwd_function
-
     def training_step(self, dataloader_iter, batch_idx):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
@@ -376,23 +360,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = self._get_fwd_bwd_function()
+        fwd_bwd_function = get_forward_backward_func()
 
+        #TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=dataloader_iter,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            custom_sync_context_handler=custom_sync_context_handler,
-            custom_grad_sync_func=custom_grad_sync_func,
-            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-            num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
-                'num_micro_batches_with_partial_activation_checkpoints', None
-            ),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
         )
 
         # only the last stages of the pipeline return losses
@@ -635,17 +615,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # run forward passes for an entire global batch
         # we do this inside validation_step to support pipeline parallelism
-        fwd_bwd_function = self._get_fwd_bwd_function()
+        fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
-            batch=dataloader_iter,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
         )
 
         # only the last stage of the pipeline returns losses

@@ -32,7 +32,6 @@ from nemo.core import adapter_mixins
 try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_APEX = True
 
@@ -42,6 +41,17 @@ except (ImportError, ModuleNotFoundError):
 
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+
+
+try:
+    from megatron.core import tensor_parallel, parallel_state
+    from megatron.core.parallel_state import get_tensor_model_parallel_world_size
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
@@ -101,7 +111,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+            async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
@@ -117,7 +127,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
