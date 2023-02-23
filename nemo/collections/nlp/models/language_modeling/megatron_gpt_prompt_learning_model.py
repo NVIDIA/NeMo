@@ -985,7 +985,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-        batch_size: Optional[int] = 1, 
+        batch_size: Optional[int] = 1,
     ):
 
         # check whether the DDP is initialized
