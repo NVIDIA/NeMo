@@ -405,6 +405,7 @@ class ASRWithTTSModel(ASRModel):
                 # apply enhancer
                 with typecheck.disable_checks():
                     # spectrogram_len are of TokenDurationType, enhancer requires LengthsType
+                    # TODO: fix FastPitch model to return LengthsType
                     spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
             spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
             return spectrogram, spectrogram_len
