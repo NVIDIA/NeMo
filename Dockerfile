@@ -16,6 +16,12 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.01-py3
 
+# torchaudio: temporary not required by default
+ARG REQUIRE_TORCHAUDIO=false
+
+# k2: not required by default
+ARG REQUIRE_K2=false
+
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
 # image (by specifying build target as `nemo-deps`)
@@ -47,7 +53,8 @@ RUN pip3 uninstall -y sacrebleu torchtext
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
 COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
-RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh
+RUN INSTALL_TORCHAUDIO_CODE=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh) && \
+    if [ "${REQUIRE_TORCHAUDIO}" = true ] && [ ${INSTALL_TORCHAUDIO_CODE} -ne 0 ] ; then echo "torchaudio installation failed" && exit ${INSTALL_TORCHAUDIO_CODE} fi
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -56,7 +63,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
-RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh || exit 0
+RUN INSTALL_K2_CODE=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh) && \
+    if [ "${REQUIRE_K2}" = true ] && [ ${INSTALL_K2_CODE} -ne 0 ] ; then echo "k2 installation failed" && exit ${INSTALL_K2_CODE} fi
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
