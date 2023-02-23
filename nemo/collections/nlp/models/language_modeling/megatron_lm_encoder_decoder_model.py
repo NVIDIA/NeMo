@@ -1122,7 +1122,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+        sampler_fn=None,
     ):
+        """
+        sampler_fn - a function that takes in a tensor of logits and returns a tuple (tensor of logits, tensor of indices to sample from logits).
+        """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
