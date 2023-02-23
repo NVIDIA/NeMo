@@ -301,7 +301,7 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Pl.")
         return _state_dict
-        
+
     def load_state_dict(self, state_dict, strict=True):
         self.inference_table.load_state_dict(state_dict['prompt_table'])
         self.embedding.load_state_dict(state_dict['embeddings'])
@@ -317,7 +317,7 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Pl.")
         return
-    
+
     def _forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         if self.encoder_type == PromptEncoderType.EMBEDDING:
@@ -331,7 +331,7 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Pl.")
         return output_embeds
-    
+
     @typecheck()
     def forward(self, batch_size: int, use_cached_reps: bool) -> torch.Tensor:
         """ 

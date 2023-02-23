@@ -136,8 +136,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         with open_dict(self.cfg):
-            self.cfg.existing_tasks = self.existing_tasks + self.new_tasks  #TODO: for backward compatibility (@adithyare) in general these tasks lists should be depricated
-            
+            self.cfg.existing_tasks = (
+                self.existing_tasks + self.new_tasks
+            )  # TODO: for backward compatibility (@adithyare) in general these tasks lists should be depricated
+
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         if self.pipeline_parallel:
