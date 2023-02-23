@@ -287,7 +287,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
     def state_dict(self, desination=None, prefix=None, keep_vars=False):
         _state_dict = {}
-        _state_dict['prompt_table'] = self.inference_table.state_dict()
+        _state_dict['prompt_table'] = self.inference_table.state_dict()  # (@adithyare) this key is for backward compatibility with downstream users of the "inference ready" model.
         _state_dict['embeddings'] = self.embedding.state_dict()
         if self.encoder_type == PromptEncoderType.EMBEDDING:
             pass
