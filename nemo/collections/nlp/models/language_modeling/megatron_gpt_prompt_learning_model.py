@@ -28,9 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_da
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
-    BIGLSTMPromptEncoder,
     PromptEncoder,
-    PromptEncoderMLP,
     PromptEncoderType,
     PromptTable,
     VirtualPromptPlaceholderToken,
@@ -46,13 +44,14 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
     HAVE_APEX = True
 
@@ -122,12 +121,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-        if self.trainer.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.trainer.precision == 'bf16':
+        if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.trainer.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -139,8 +138,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
-        # TODO: Enable amp_o2 training
-        self.megatron_amp_o2 = False
+        self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -202,6 +200,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
+        self.lowest_val_loss = None
 
     def load_task_templates(self, task_templates):
         """
@@ -275,36 +274,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
-        if encoder_type == PromptEncoderType.TPMLP:
-            self.prompt_encoder = PromptEncoderMLP(
-                total_virtual_tokens=total_virtual_tokens,
-                hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
-                output_size=self.hidden_size,
-                init_std=self.cfg.p_tuning.get("init_std", 0.023),
-            )
-        elif encoder_type == PromptEncoderType.BIGLSTM:
-            self.prompt_encoder = BIGLSTMPromptEncoder(
-                total_virtual_tokens=total_virtual_tokens,
-                hidden_size=self.cfg.p_tuning.encoder_hidden,
-                output_size=self.hidden_size,
-                lstm_dropout=self.cfg.p_tuning.dropout,
-                num_layers=self.cfg.p_tuning.num_layers,
-            )
-        elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
-            self.prompt_encoder = PromptEncoder(
-                encoder_type=encoder_type,
-                total_virtual_tokens=total_virtual_tokens,
-                token_dim=self.hidden_size,
-                hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
-                lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
-                num_layers=self.cfg.p_tuning.get("num_layers", 2),
-            )
-        else:
-            raise ValueError('not supported')
-        # cast the model weights to bf16 only for 'bf16' precision
-        # For fp16, cannot cast the model weights as AMP will complain
-        if self.trainer.precision == 'bf16':
-            self.prompt_encoder = self.prompt_encoder.to(dtype=self.autocast_dtype)
+        self.prompt_encoder = PromptEncoder(
+            encoder_type=encoder_type,
+            total_virtual_tokens=total_virtual_tokens,
+            token_dim=self.hidden_size,
+            hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
+            lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
+            num_layers=self.cfg.p_tuning.get("num_layers", 2),
+            init_std=self.cfg.p_tuning.get("init_std", 0.023),
+        )
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -316,18 +294,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         weights during inference or future p-tuning/prompt-tuning.
         """
         # Save p-tuned prompts to prompt table
-        for taskname in self.new_tasks:
-            device = next(self.word_embeddings.parameters()).device
-            tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
-            taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
-            virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            self.prompt_table.add_prompt_from_p_tuning_encoder(
-                taskname, virtual_prompt_embeddings, total_virtual_tokens
-            )
-
-        # Remove prompt encoder from model
-        self.prompt_encoder = None
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in self.new_tasks:
+                device = next(self.word_embeddings.parameters()).device
+                tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
+                taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
+                virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
+                total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+                self.prompt_table.add_prompt_from_p_tuning_encoder(
+                    taskname, virtual_prompt_embeddings, total_virtual_tokens
+                )
 
     def freeze_existing_virtual_prompt_params(self):
         """Freeze params of existing virtual prompts that should not be tuned further
@@ -444,8 +420,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 input_embeds = self.embed_input_inference(input_ids, taskname_ids)
             else:
                 input_embeds = self.embed_input_train(input_ids, taskname_ids)
-            position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
+                position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
+                    position_ids
+                )
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -464,16 +445,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
-                output = self.frozen_model.model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    inference_max_sequence_len=inference_max_sequence_len,
-                )
+            output = self.frozen_model.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+            )
 
         return output
 
@@ -575,11 +555,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
-    def on_fit_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_fit_start()
-
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -587,7 +562,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
 
         if self.pipeline_parallel:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -599,6 +574,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -609,6 +585,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
 
         # only the last stages of the pipeline return losses
@@ -658,12 +635,49 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         return
 
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
     def validation_step(self, batch, batch_idx):
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
         return loss_mean
+
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def on_train_epoch_start(self) -> None:
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_train_epoch_start()
+
+    def on_validation_epoch_start(self) -> None:
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_validation_epoch_start()
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
@@ -676,6 +690,17 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        logging.info(f'val_loss: {averaged_loss}')
+
+        # Save inference ready .nemo checkpoint version
+        if self.cfg.get("save_nemo_on_validation_end", False):
+            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
+                self.save_checkpoint_as_nemo_file()
+                self.lowest_val_loss = averaged_loss
+
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -684,12 +709,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
+    def update_config_for_inference_and_save(self):
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
@@ -701,7 +721,46 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
-        logging.info(f"The final model was saved to {self.cfg.nemo_path}")
+        logging.info(f"An inference ready model was saved to {self.cfg.nemo_path}")
+
+    def save_checkpoint_as_nemo_file(self):
+        self.add_ptuned_prompts_to_prompt_table()
+
+        # Save current config and state dict params in temp values
+        current_virtual_prompt_style = self.virtual_prompt_style
+        current_virtual_prompt_source = self.virtual_prompt_source
+        current_existing_tasks = self.cfg.existing_tasks
+        current_new_tasks = self.cfg.new_tasks
+
+        # Temporarily overwrite params to save an inference ready .nemo checkpoint
+        self.update_config_for_inference_and_save()
+
+        # Set values back to their training state to continue training
+        self.virtual_prompt_style = current_virtual_prompt_style
+        self.virtual_prompt_source = current_virtual_prompt_source
+
+        # Revert prompt table back to previous state
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in current_new_tasks:
+                if taskname in self.prompt_table.prompt_table:
+                    del self.prompt_table.prompt_table[taskname]
+
+        with open_dict(self.cfg):
+            self.cfg.existing_tasks = current_existing_tasks
+            self.cfg.new_tasks = current_new_tasks
+            self.cfg.virtual_prompt_style = current_virtual_prompt_style.value
+
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+
+            # Remove prompt encoder from model
+            self.prompt_encoder = None
+            logging.info(f"Prompt encoder deleted")
+
+        self.update_config_for_inference_and_save()
 
     def setup(self, stage=None):
         if (
@@ -747,13 +806,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('validation_ds', None):
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.global_batch_size,
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
-                drop_last=True,
+                drop_last=self.cfg.get('validation_drop_last', True),
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
@@ -765,7 +824,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.cfg.data.get('test_ds', None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.test_ds,
-                batch_size=self.cfg.global_batch_size,
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
@@ -782,7 +841,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def build_virtual_prompt_dataset(
         self,
         data,
-        batch_size=None,
+        batch_size,
         max_seq_length=2048,
         min_seq_length=1,
         add_bos=False,
@@ -821,7 +880,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
@@ -844,6 +903,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
         )
 
         return dataset, dataloader
@@ -965,7 +1025,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
-            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
         )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:

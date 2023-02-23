@@ -7,6 +7,7 @@ team at NVIDIA. NeMo Megatron supports several types of models:
 * GPT-style models (decoder only)
 * T5/BART/UL2-style models (encoder-decoder)
 * BERT-style models (encoder only)
+* RETRO model (decoder only)
 
 
 
@@ -19,9 +20,16 @@ team at NVIDIA. NeMo Megatron supports several types of models:
 
    mlm_migration   
    gpt/gpt_training
-   t5/t5_training
-   batching 
+   batching
    parallelisms  
    prompt_learning
+   retro/retro_model
 
 
+References
+----------
+
+.. bibliography:: ../nlp_all.bib
+    :style: plain
+    :labelprefix: nlp-megatron
+    :keyprefix: nlp-megatron-

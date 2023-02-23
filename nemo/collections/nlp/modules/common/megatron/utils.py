@@ -20,10 +20,11 @@ from typing import Dict, List, Tuple, Union
 import torch
 
 try:
+    from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer.pipeline_parallel.schedules.common import listify_model
     from apex.transformer.layers.layer_norm import FastLayerNorm
+    from apex.transformer.pipeline_parallel.schedules.common import listify_model
 
     HAVE_APEX = True
 
@@ -155,6 +156,10 @@ def gelu_impl(x):
 
 def openai_gelu(x):
     return gelu_impl(x)
+
+
+def squared_relu(x):
+    return torch.pow(torch.nn.functional.relu(x), 2)
 
 
 # This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter
@@ -335,7 +340,7 @@ def get_params_for_weight_decay_optimization(
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
     for module in modules:
         for module_ in module.modules():
-            if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
                 no_weight_decay_params['params'].extend(
                     [p for p in list(module_._parameters.values()) if p is not None]
                 )

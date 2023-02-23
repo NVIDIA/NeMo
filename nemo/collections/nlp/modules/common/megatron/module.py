@@ -49,7 +49,6 @@ class MegatronModule(torch.nn.Module):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super(MegatronModule, self).__init__()
-
         self.share_token_embeddings = share_token_embeddings
 
     def word_embeddings_weight(self):
@@ -161,7 +160,7 @@ class MegatronModule(torch.nn.Module):
     def sync_initial_word_embeddings(self):
 
         if torch.distributed.is_initialized():
-            if parallel_state.is_rank_in_embedding_group():
+            if parallel_state.is_rank_in_embedding_group() and self.share_token_embeddings:
                 torch.distributed.all_reduce(
                     self.word_embeddings_weight().data, group=parallel_state.get_embedding_group()
                 )
@@ -186,6 +185,11 @@ class MegatronModule(torch.nn.Module):
             # self.language_model.embedding.cuda()
             position_embeddings = self.position_embeddings_weight()
             torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_position_embedding_group())
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """Use this function to override the state dict for
+        saving checkpoints."""
+        return self.state_dict(destination, prefix, keep_vars)
 
     def sync_initial_encoder_relative_position_embeddings(self):
         # Ensure that all encoder RPE stages have the same weights.

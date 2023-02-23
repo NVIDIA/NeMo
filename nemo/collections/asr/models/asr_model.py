@@ -13,15 +13,16 @@
 # limitations under the License.
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List
 
 import torch
 
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
-from nemo.utils.export_utils import cast_all
+from nemo.utils.cast_utils import cast_all
 
 __all__ = ['ASRModel']
 
@@ -82,15 +83,16 @@ class ASRModel(ModelPT, ABC):
 
             for loss_key, loss_registry in registry.items():
                 # Add auxiliary loss to total loss
-                loss_list = loss_registry['adapter_loss']
-                loss_value = sum(loss_list)
-                loss += loss_value
+                if 'adapter_loss' in loss_registry:
+                    loss_list = loss_registry['adapter_loss']
+                    loss_value = sum(loss_list)
+                    loss += loss_value
 
-                # Log current loss name and value
-                keys = loss_key.split(".")
-                key = "/".join(keys)
-                key = "adapter_loss/" + key
-                log_dict[key] = loss_value.detach()
+                    # Log current loss name and value
+                    keys = loss_key.split(".")
+                    key = "/".join(keys)
+                    key = "adapter_loss/" + key
+                    log_dict[key] = loss_value.detach()
 
             if len(log_dict) > 0:
                 self.log_dict(log_dict)
@@ -141,7 +143,7 @@ class ASRModel(ModelPT, ABC):
 
 class ExportableEncDecModel(Exportable):
     """
-    Simple utiliy mix-in to export models that consist of encoder/decoder pair 
+    Simple utiliy mix-in to export models that consist of encoder/decoder pair
     plus pre/post processor, but have to be exported as encoder/decoder pair only
     (covers most ASR classes)
     """

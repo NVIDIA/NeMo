@@ -1,11 +1,12 @@
 black==19.10b0
-isort[requirements] < 5
+click==8.0.2
+isort>5.1.0,<6.0.0
 parameterized
 pytest
 pytest-runner
 ruamel.yaml
 sphinx
 sphinxcontrib-bibtex
-wrapt
-wget
 wandb
+wget
+wrapt

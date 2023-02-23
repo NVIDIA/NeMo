@@ -54,9 +54,44 @@ Modules
     :show-inheritance:
     :members:
 
+.. _conformer-encoder-api:
+
 .. autoclass:: nemo.collections.asr.modules.ConformerEncoder
     :show-inheritance:
     :members:
+
+.. _squeezeformer-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.SqueezeformerEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnn-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-decoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTDecoder
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.StatelessTransducerDecoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-joint-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTJoint
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.SampledRNNTJoint
+    :show-inheritance:
+    :members:
+
 
 
 Parts
@@ -78,6 +113,10 @@ Mixins
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.mixins.interctc_mixin.InterCTCMixin
+    :show-inheritance:
+    :members:
+
 Datasets
 --------
 
@@ -89,10 +128,6 @@ Character Encoding Datasets
     :members:
 
 .. autoclass:: nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
     :show-inheritance:
     :members:
 
@@ -168,6 +203,25 @@ Audio Augmentors
 Miscellaneous Classes
 ---------------------
 
+CTC Decoding
+~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.metrics.wer.CTCDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.metrics.wer_bpe.CTCBPEDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_greedy_decoding.GreedyCTCInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_beam_decoding.BeamCTCInfer
+    :show-inheritance:
+    :members:
+
 RNNT Decoding
 ~~~~~~~~~~~~~
 
@@ -201,3 +255,45 @@ Hypotheses
 .. autoclass:: nemo.collections.asr.parts.utils.rnnt_utils.NBestHypotheses
     :show-inheritance:
     :no-members:
+
+Adapter Networks
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.PositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+
+Adapter Strategies
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MHAResidualAddAdapterStrategy
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+    :undoc-members: adapter_module_names
+
+-----
+

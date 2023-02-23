@@ -56,6 +56,7 @@ def main(cfg) -> None:
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
+            app_state.virtual_pipeline_model_parallel_rank,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -114,7 +115,7 @@ def main(cfg) -> None:
     outputs = trainer.predict(model, test_dl)
     with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for batch in outputs:
-            preds = batch["predicted_token_ids"]
+            preds = batch["preds_text"]
             for pred in preds:
                 pred = pred.strip().replace("\n", " ")
                 pred_file.write(pred + "\n")

@@ -91,6 +91,8 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
         for i, (st, end, score) in enumerate(segments):
             segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
             duration = len(segment) / sampling_rate
+            if duration > args.max_duration:
+                continue
             if duration > 0:
                 text_processed = ref_text_processed[i].strip()
                 text_no_preprocessing = ref_text_no_preprocessing[i].strip()
@@ -148,7 +150,7 @@ if __name__ == "__main__":
     print("Splitting audio files into segments...")
 
     if os.path.isdir(args.alignment):
-        alignment_files = glob(f"{args.alignment}/*.txt")
+        alignment_files = glob(f"{args.alignment}/*_segments.txt")
     else:
         alignment_files = [args.alignment]
 

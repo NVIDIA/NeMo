@@ -663,6 +663,7 @@ def _get_features(
     create_progress_process = progress_queue is None
     if n_jobs is None:
         n_jobs = min(mp.cpu_count(), len(queries))
+
     if verbose:
         logging.info(f"Running tokenization with {n_jobs} jobs.")
 
@@ -816,7 +817,7 @@ def create_label_ids(unique_labels: Set[str], pad_label: str) -> Dict[str, int]:
 
 def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
     ids = {}
-    with open(file_path) as f:
+    with open(file_path, encoding='utf_8') as f:
         for i, line in enumerate(f):
             ids[line.strip()] = i
     return ids
@@ -832,7 +833,7 @@ def save_label_ids(label_ids: Dict[str, int], file_path: Path) -> None:
         file_path: path to a file where labels will be saved
     """
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    with file_path.open('w') as out:
+    with file_path.open('w', encoding='utf_8', newline='\n') as out:
         labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
         out.write('\n'.join(labels))
 
@@ -981,6 +982,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
                 if ``n_jobs > 0``.
+
         number_of_batches_is_multiple_of (:obj:`int`, `optional`, defaults to :obj:`1`): number of batches in the
             dataset is made divisible by ``number_of_batches_is_multiple_of``. If ``number_of_batches_is_multiple_of``
             is greater than 1, then several batches are split in parts until number of batches
@@ -1382,11 +1384,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def _read_dataset(
         text_file: Path, labels_file: Path, num_samples: int, audio_file: Optional[Path] = None
     ) -> Union[Tuple[Any, Any, Any, Set[Any], Set[Any], Any], Tuple[Any, Any, Any, Set[Any], Set[Any]]]:
-        with open(text_file, 'r') as f:
+        with open(text_file, 'r', encoding='utf_8') as f:
             text_lines = f.readlines()
         punct_unique_labels, capit_unique_labels = set(), set()
         punct_labels_lines, capit_labels_lines = [], []
-        with labels_file.open() as f:
+        with labels_file.open(encoding='utf_8') as f:
             for i, line in enumerate(f):
                 pairs = line.split()
                 if not all([len(p) == 2 for p in pairs]):
@@ -1991,8 +1993,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 computed for corresponding token. See more in description of constructor parameters
                 ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
                 ``False``, then these items is missing).
-                - ``'features'`` (:obj:`numpy.ndarray`) :obj:`np.float` array of waveforms of audio if ``self.preload_audio`` is set to ``True`` else empty.
-                - ``'features_length'`` (:obj:`numpy.ndarray`) :obj:`np.long` array of number of samples per audio.
-                - ``'audio_filepaths'`` (:obj:`List`) :obj:`str` contains paths of audio files if ``self.preload_audio`` set to ``False``
+              - ``'features'`` (:obj:`numpy.ndarray`) :obj:`np.float` array of waveforms of audio if ``self.preload_audio`` is set to ``True`` else empty.
+              - ``'features_length'`` (:obj:`numpy.ndarray`) :obj:`np.long` array of number of samples per audio.
+              - ``'audio_filepaths'`` (:obj:`List`) :obj:`str` contains paths of audio files if ``self.preload_audio`` set to ``False``
         """
         return self.batches[idx]

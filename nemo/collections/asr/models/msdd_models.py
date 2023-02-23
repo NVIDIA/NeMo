@@ -31,6 +31,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
+from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
@@ -50,7 +51,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniq_id_list_from_manifest,
     make_rttm_with_overlap,
     parse_scale_configs,
-    score_labels,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -94,7 +94,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="diar_msdd_telephonic",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/diar_msdd_telephonic/versions/1.0.0/files/diar_msdd_telephonic.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/diar_msdd_telephonic/versions/1.0.1/files/diar_msdd_telephonic.nemo",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:diar_msdd_telephonic",
         )
         result.append(model)
@@ -348,10 +348,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                 the multi-scale input matrix during forward propagating.
 
 		Example: `batch_size=3, scale_n=6, emb_dim=192`
-                    ms_seg_counts =
-                     [[8,  9, 12, 16, 25, 51],
-                      [11, 13, 14, 17, 25, 51],
-                      [ 9,  9, 11, 16, 23, 50]]
+                    ms_seg_counts =  
+                     [[8,  9, 12, 16, 25, 51],  
+                      [11, 13, 14, 17, 25, 51],  
+                      [ 9,  9, 11, 16, 23, 50]]  
 
 		In this function, `ms_seg_counts` is used to get the actual length of each embedding sequence without
 		zero-padding.
@@ -395,13 +395,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                 multi-scale input tensors during forward propagating.
 
                 Example: `batch_size=3, scale_n=6, emb_dim=192`
-                    ms_seg_counts =
-                     [[8,  9, 12, 16, 25, 51],
-                      [11, 13, 14, 17, 25, 51],
-                      [ 9,  9, 11, 16, 23, 50]]
-                    Counts of merged segments: (121, 131, 118)
-                    embs has shape of (370, 192)
-                    clus_label_index has shape of (3, 131)
+                    ms_seg_counts =  
+                     [[8,  9, 12, 16, 25, 51],  
+                      [11, 13, 14, 17, 25, 51],  
+                      [ 9,  9, 11, 16, 23, 50]]  
+                    Counts of merged segments: (121, 131, 118)  
+                    embs has shape of (370, 192)  
+                    clus_label_index has shape of (3, 131)  
 
                 Shape: (batch_size, scale_n)
 
@@ -459,31 +459,31 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         `self.emb_batch_size` is 0.
 
         Args:
-            processed_signal: (Tensor)
+            processed_signal (Tensor):
                 Zero-padded Feature input.
                 Shape: (batch_size, feat_dim, the longest feature sequence length)
-            processed_signal_len: (Tensor)
+            processed_signal_len (Tensor):
                 The actual legnth of feature input without zero-padding.
                 Shape: (batch_size,)
-            ms_seg_timestamps: (Tensor)
+            ms_seg_timestamps (Tensor):
                 Timestamps of the base-scale segments.
                 Shape: (batch_size, scale_n, number of base-scale segments, self.num_spks_per_model)
-            ms_seg_counts: (Tensor)
+            ms_seg_counts (Tensor):
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
                 the multi-scale input matrix during forward propagating.
                 Shape: (batch_size, scale_n)
 
         Returns:
-            ms_mel_feat: (Tensor)
+            ms_mel_feat (Tensor):
                 Feature input stream split into the same length.
                 Shape: (total number of segments, feat_dim, self.frame_per_sec * the-longest-scale-length)
-            ms_mel_feat_len: (Tensor)
+            ms_mel_feat_len (Tensor):
                 The actual length of feature without zero-padding.
                 Shape: (total number of segments,)
-            seq_len: (Tensor)
+            seq_len (Tensor):
                 The length of the input embedding sequences.
                 Shape: (total number of segments,)
-            detach_ids: (tuple)
+            detach_ids (tuple):
                 Tuple containing both detached embeding indices and attached embedding indices
         """
         device = processed_signal.device
@@ -858,7 +858,7 @@ class ClusterEmbedding:
 
         # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
         if scores is not None:
-            metric, speaker_mapping_dict = scores
+            metric, speaker_mapping_dict, _ = scores
         else:
             metric, speaker_mapping_dict = None, None
 
@@ -1100,9 +1100,9 @@ class NeuralDiarizer:
                     Examples: (0, 1, 2)
                 data[1]: Tensor containing estimaged sigmoid values.
                    [[0.0264, 0.9995],
-		            [0.0112, 1.0000],
-		            ...,
-		            [1.0000, 0.0512]]
+                    [0.0112, 1.0000],
+                    ...,
+                    [1.0000, 0.0512]]
 
         Returns:
             sum_pred (Tensor):

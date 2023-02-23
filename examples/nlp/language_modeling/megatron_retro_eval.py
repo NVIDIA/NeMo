@@ -24,6 +24,12 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 """
 This is the script to run RETRO Model text generation.
@@ -64,9 +70,10 @@ def main(cfg) -> None:
     )
 
     with open_dict(model_cfg):
-        # work around for the fused softmax bug
-        model_cfg.masked_softmax_fusion = False
         model_cfg.precision = trainer.precision
+        model_cfg.sequence_parallel = False
+        model_cfg.activations_checkpoint_granularity = None
+        model_cfg.activations_checkpoint_method = None
 
     model = MegatronRetrievalModel.restore_from(
         model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
@@ -88,21 +95,32 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
+    # check whether the DDP is initialized
+    if parallel_state.is_unitialized():
+
+        def dummy():
+            return
+
+        if model.trainer.strategy.launcher is not None:
+            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+        model.trainer.strategy.setup_environment()
+
+    config = OmegaConf.to_container(cfg.inference)
+    retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
+    model.set_inference_config(config, retrieval_service)
+
     if not cfg.use_predict_method:
         # First method of running text generation, call model.generate method
         response = model.generate(
             inputs=OmegaConf.to_container(cfg.prompts),
             length_params=length_params,
             sampling_params=sampling_params,
-            **cfg.retrieval_service,
+            strategy=model.inference_strategy,
         )
     else:
         # Second method of running text generation, call trainer.predict
         ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
         request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
-        config = OmegaConf.to_container(cfg.inference)
-        retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
-        model.set_inference_config(config, retrieval_service)
         response = trainer.predict(model, request_dl)
 
     print("***************************")

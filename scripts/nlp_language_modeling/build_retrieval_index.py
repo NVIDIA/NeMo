@@ -149,7 +149,7 @@ def process_sentence_chunks(
         logging.info(f"Use {use_num_docs} out of {num_docs} docs to build index")
         total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
     logging.info(f"{total_chunks} chunks are used to build the index")
-
+    start = 0
     if stage is None or stage == 0:
         beg = time.time()
         # only prepare the warmup batch for stage None and stage 0
@@ -264,6 +264,7 @@ if __name__ == "__main__":
     group.add_argument(
         '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
     )
+    group.add_argument('--no_pq', action='store_true', help="don't use the Product Quantizer")
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
     group.add_argument(
@@ -273,6 +274,8 @@ if __name__ == "__main__":
         help='used for building the large index in multiple stages',
         choices=[0, 1, 2],
     )
+    group.add_argument('--faiss_factory', type=str, default=None, help="faiss index factory str")
+    group.add_argument('--faiss_factory_metric', type=str, default='IP', help="faiss index factory metric, l2 or IP")
     group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
     group.add_argument(
@@ -307,8 +310,18 @@ if __name__ == "__main__":
         faiss.write_index(index, args.output_file)
         logging.info(f'Write to {args.output_file},  Size of Index : {index.ntotal}')
         # consolidate it as one index
-        out_index = faiss.read_index(args.output_file)
-        faiss.write_index(out_index, args.output_file)
+        if args.devices is None or not torch.cuda.is_available():
+            device_list = None
+        else:
+            device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+        index = faiss.read_index(args.output_file)
+        co = faiss.GpuMultipleClonerOptions()
+        co.useFloat16 = True
+        co.usePrecomputed = False
+        co.shard = True
+        index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
+        index = faiss.index_gpu_to_cpu(index)
+        faiss.write_index(index, args.output_file)
         sys.exit(0)
 
     model = SentenceTransformer(args.sentence_transformer_model)
@@ -367,7 +380,16 @@ if __name__ == "__main__":
         k = 4  # num_nearest neighbors to get
         quantizer = faiss.IndexFlatIP(emb.shape[1])
         # 8 specifies that each sub-vector is encoded as 8 bits
-        index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+        if args.no_pq:
+            index = faiss.IndexIVFFlat(quantizer, emb.shape[1], nlist)
+        elif args.faiss_factory is not None:
+            if args.faiss_factory_metric == 'IP':
+                metric = faiss.METRIC_INNER_PRODUCT
+            else:
+                metric = faiss.METRIC_L2
+            index = faiss.index_factory(emb.shape[1], args.faiss_factory, metric)
+        else:
+            index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         if has_gpu:
             co = faiss.GpuMultipleClonerOptions()
             co.useFloat16 = True

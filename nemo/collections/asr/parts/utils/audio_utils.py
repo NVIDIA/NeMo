@@ -12,17 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Iterable, Optional, Union
 
 import librosa
 import numpy as np
 import numpy.typing as npt
+import scipy
+import soundfile as sf
+import torch
 from scipy.spatial.distance import pdist, squareform
 
 from nemo.utils import logging
 
 SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
+
+
+def get_samples(audio_file: str, target_sr: int = 16000, dtype: str = 'float32'):
+    """
+    Read the samples from the given audio_file path. If not specified, the input audio file is automatically
+    resampled to 16kHz.
+
+    Args:
+        audio_file (str):
+            Path to the input audio file
+        target_sr (int):
+            Targeted sampling rate
+    Returns:
+        samples (numpy.ndarray):
+            Time-series sample data from the given audio file
+    """
+    with sf.SoundFile(audio_file, 'r') as f:
+        samples = f.read(dtype=dtype)
+        if f.samplerate != target_sr:
+            samples = librosa.core.resample(samples, orig_sr=f.samplerate, target_sr=target_sr)
+        samples = samples.transpose()
+    return samples
 
 
 def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelectorType] = None) -> npt.NDArray:
@@ -303,3 +329,185 @@ def transform_to_match_coherence(
     x = x.transpose()
 
     return x
+
+
+def rms(x: np.ndarray) -> float:
+    """Calculate RMS value for the input signal.
+
+    Args:
+        x: input signal
+
+    Returns:
+        RMS of the input signal.
+    """
+    return np.sqrt(np.mean(np.abs(x) ** 2))
+
+
+def mag2db(mag: float, eps: Optional[float] = 1e-16) -> float:
+    """Convert magnitude ratio from linear scale to dB.
+
+    Args:
+        mag: linear magnitude value
+        eps: small regularization constant
+
+    Returns:
+        Value in dB.
+    """
+    return 20 * np.log10(mag + eps)
+
+
+def db2mag(db: float) -> float:
+    """Convert value in dB to linear magnitude ratio.
+    
+    Args:
+        db: magnitude ratio in dB
+
+    Returns:
+        Magnitude ratio in linear scale.
+    """
+    return 10 ** (db / 20)
+
+
+def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
+    """Convert power ratio from linear scale to dB.
+
+    Args:
+        power: power ratio in linear scale
+        eps: small regularization constant
+    
+    Returns:
+        Power in dB.
+    """
+    return 10 * np.log10(power + eps)
+
+
+def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
+    """Get starting point of `segment` in `signal`.
+    We assume that `segment` is a sub-segment of `signal`.
+    For example, `signal` may be a 10 second audio signal,
+    and `segment` could be the signal between 2 seconds and
+    5 seconds. This function will then return the index of
+    the sample where `segment` starts (at 2 seconds).
+
+    Args:
+        signal: numpy array with shape (num_samples,)
+        segment: numpy array with shape (num_samples,)
+
+    Returns:
+        Index of the start of `segment` in `signal`.
+    """
+    if len(signal) <= len(segment):
+        raise ValueError(
+            f'segment must be shorter than signal: len(segment) = {len(segment)}, len(signal) = {len(signal)}'
+        )
+    cc = scipy.signal.correlate(signal, segment, mode='valid')
+    return np.argmax(cc)
+
+
+def calculate_sdr_numpy(
+    estimate: np.ndarray,
+    target: np.ndarray,
+    scale_invariant: bool = False,
+    remove_mean: bool = True,
+    sdr_max: Optional[float] = None,
+    eps: float = 1e-10,
+) -> float:
+    """Calculate signal-to-distortion ratio.
+
+        SDR = 10 * log10( ||t||_2^2 / (||e-t||_2^2 + alpha * ||t||^2)
+
+    where
+        alpha = 10^(-sdr_max/10)
+
+    Optionally, apply scale-invariant scaling to target signal.
+
+    Args:
+        estimate: estimated signal
+        target: target signal
+
+    Returns:
+        SDR in dB.
+    """
+    if remove_mean:
+        estimate = estimate - np.mean(estimate)
+        target = target - np.mean(target)
+
+    if scale_invariant:
+        estimate_dot_target = np.mean(estimate * target)
+        target_pow = np.mean(np.abs(target) ** 2)
+        target_scale = estimate_dot_target / (target_pow + eps)
+        target = target_scale * target
+
+    target_pow = np.mean(np.abs(target) ** 2)
+    distortion_pow = np.mean(np.abs(estimate - target) ** 2)
+
+    if sdr_max is not None:
+        distortion_pow = distortion_pow + 10 ** (-sdr_max / 10) * target_pow
+
+    sdr = 10 * np.log10(target_pow / (distortion_pow + eps) + eps)
+    return sdr
+
+
+def wrap_to_pi(x: torch.Tensor) -> torch.Tensor:
+    """Wrap angle in radians to [-pi, pi]
+
+    Args:
+        x: angle in radians
+
+    Returns:
+        Angle in radians wrapped to [-pi, pi]
+    """
+    pi = torch.tensor(math.pi, device=x.device)
+    return torch.remainder(x + pi, 2 * pi) - pi
+
+
+def convmtx_numpy(x: np.ndarray, filter_length: int, delay: int = 0, n_steps: Optional[int] = None) -> np.ndarray:
+    """Construct a causal convolutional matrix from x delayed by `delay` samples.
+
+    Args:
+        x: input signal, shape (N,)
+        filter_length: length of the filter in samples
+        delay: delay the signal by a number of samples
+        n_steps: total number of time steps (rows) for the output matrix
+
+    Returns:
+        Convolutional matrix, shape (n_steps, filter_length)
+    """
+    if x.ndim != 1:
+        raise ValueError(f'Expecting one-dimensional signal. Received signal with shape {x.shape}')
+
+    if n_steps is None:
+        # Keep the same length as the input signal
+        n_steps = len(x)
+
+    # pad as necessary
+    x_pad = np.hstack([np.zeros(delay), x])
+    if (pad_len := n_steps - len(x_pad)) > 0:
+        x_pad = np.hstack([x_pad, np.zeros(pad_len)])
+    else:
+        x_pad = x_pad[:n_steps]
+
+    return scipy.linalg.toeplitz(x_pad, np.hstack([x_pad[0], np.zeros(filter_length - 1)]))
+
+
+def convmtx_mc_numpy(x: np.ndarray, filter_length: int, delay: int = 0, n_steps: Optional[int] = None) -> np.ndarray:
+    """Construct a causal multi-channel convolutional matrix from `x` delayed by `delay` samples.
+
+    Args:
+        x: input signal, shape (N, M)
+        filter_length: length of the filter in samples
+        delay: delay the signal by a number of samples
+        n_steps: total number of time steps (rows) for the output matrix
+
+    Returns:
+        Multi-channel convolutional matrix, shape (n_steps, M * filter_length)
+    """
+    if x.ndim != 2:
+        raise ValueError(f'Expecting two-dimensional signal. Received signal with shape {x.shape}')
+
+    mc_mtx = []
+
+    for m in range(x.shape[1]):
+        mc_mtx.append(convmtx_numpy(x[:, m], filter_length=filter_length, delay=delay, n_steps=n_steps))
+
+    return np.hstack(mc_mtx)

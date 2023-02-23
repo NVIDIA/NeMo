@@ -21,10 +21,18 @@ from unittest.mock import Mock, patch
 
 import pytest
 import torch
+from torchmetrics.audio.snr import SignalNoiseRatio
 
+from nemo.collections.asr.metrics.audio import AudioMetricWrapper
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
-from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig, word_error_rate
+from nemo.collections.asr.metrics.wer import (
+    WER,
+    CTCDecoding,
+    CTCDecodingConfig,
+    word_error_rate,
+    word_error_rate_detail,
+)
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
@@ -102,6 +110,31 @@ class TestWordErrorRate:
         assert word_error_rate(hypotheses=['ducati motorcycle'], references=['motorcycle']) == 1.0
         assert word_error_rate(hypotheses=['ducati motorcycle'], references=['ducuti motorcycle']) == 0.5
         assert word_error_rate(hypotheses=['a B c'], references=['a b c']) == 1.0 / 3.0
+
+        assert word_error_rate_detail(hypotheses=['cat'], references=['cot'])[0] == 1.0
+        assert word_error_rate_detail(hypotheses=['GPU'], references=['G P U'])[0] == 1.0
+        assert word_error_rate_detail(hypotheses=['G P U'], references=['GPU'])[0] == 3.0
+        assert word_error_rate_detail(hypotheses=['ducati motorcycle'], references=['motorcycle'])[0] == 1.0
+        assert word_error_rate_detail(hypotheses=['ducati motorcycle'], references=['ducuti motorcycle'])[0] == 0.5
+        assert word_error_rate_detail(hypotheses=['a B c'], references=['a b c'])[0] == 1.0 / 3.0
+
+        assert word_error_rate_detail(hypotheses=['cat'], references=['']) == (
+            float("inf"),
+            0,
+            float("inf"),
+            float("inf"),
+            float("inf"),
+        )
+        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (2.0, 1, 1.0, 1.0, 0.0,)
+        assert word_error_rate_detail(hypotheses=['cat'], references=['cot']) == (1.0, 1, 0.0, 0.0, 1.0)
+        assert word_error_rate_detail(hypotheses=['G P U'], references=['GPU']) == (3.0, 1, 2.0, 0.0, 1.0)
+        assert word_error_rate_detail(hypotheses=[''], references=['ducuti motorcycle'], use_cer=True) == (
+            1.0,
+            17,
+            0.0,
+            1.0,
+            0.0,
+        )
 
     @pytest.mark.unit
     @pytest.mark.parametrize("batch_dim_index", [0, 1])
@@ -491,3 +524,130 @@ class TestWordErrorRate:
         assert hyp.text != ''
         assert len(hyp.timestep) == 3
         assert hyp.alignments is None
+
+
+class TestAudioMetricWrapper:
+    def test_metric_full_batch(self):
+        """Test metric on batches where all examples have equal length.
+        """
+        ref_metric = SignalNoiseRatio()
+        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
+
+        num_resets = 5
+        num_batches = 10
+        batch_size = 8
+        num_channels = 2
+        num_samples = 200
+
+        batch_shape = (batch_size, num_channels, num_samples)
+
+        for nr in range(num_resets):
+            for nb in range(num_batches):
+                target = torch.rand(*batch_shape)
+                preds = target + torch.rand(1) * torch.rand(*batch_shape)
+
+                # test forward for a single batch
+                batch_value_wrapped = wrapped_metric(preds=preds, target=target)
+                batch_value_ref = ref_metric(preds=preds, target=target)
+
+                assert torch.allclose(
+                    batch_value_wrapped, batch_value_ref
+                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+
+            # test compute (over num_batches)
+            assert torch.allclose(
+                wrapped_metric.compute(), ref_metric.compute()
+            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+
+            ref_metric.reset()
+            wrapped_metric.reset()
+
+    def test_input_length(self):
+        """Test metric on batches where examples have different length.
+        """
+        ref_metric = SignalNoiseRatio()
+        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
+
+        num_resets = 5
+        num_batches = 10
+        batch_size = 8
+        num_channels = 2
+        num_samples = 200
+
+        batch_shape = (batch_size, num_channels, num_samples)
+
+        for nr in range(num_resets):
+            for nb in range(num_batches):
+                target = torch.rand(*batch_shape)
+                preds = target + torch.rand(1) * torch.rand(*batch_shape)
+
+                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
+
+                # test forward for a single batch
+                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
+
+                # compute reference value, assuming batch reduction using averaging
+                batch_value_ref = 0
+                for b_idx, b_len in enumerate(input_length):
+                    batch_value_ref += ref_metric(preds=preds[b_idx, ..., :b_len], target=target[b_idx, ..., :b_len])
+                batch_value_ref /= batch_size  # average
+
+                assert torch.allclose(
+                    batch_value_wrapped, batch_value_ref
+                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+
+            # test compute (over num_batches)
+            assert torch.allclose(
+                wrapped_metric.compute(), ref_metric.compute()
+            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+
+            ref_metric.reset()
+            wrapped_metric.reset()
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('channel', [0, 1])
+    def test_channel(self, channel):
+        """Test metric on a single channel from a batch.
+        """
+        ref_metric = SignalNoiseRatio()
+        # select only a single channel
+        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio(), channel=channel)
+
+        num_resets = 5
+        num_batches = 10
+        batch_size = 8
+        num_channels = 2
+        num_samples = 200
+
+        batch_shape = (batch_size, num_channels, num_samples)
+
+        for nr in range(num_resets):
+            for nb in range(num_batches):
+                target = torch.rand(*batch_shape)
+                preds = target + torch.rand(1) * torch.rand(*batch_shape)
+
+                # varying length
+                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
+
+                # test forward for a single batch
+                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
+
+                # compute reference value, assuming batch reduction using averaging
+                batch_value_ref = 0
+                for b_idx, b_len in enumerate(input_length):
+                    batch_value_ref += ref_metric(
+                        preds=preds[b_idx, channel, :b_len], target=target[b_idx, channel, :b_len]
+                    )
+                batch_value_ref /= batch_size  # average
+
+                assert torch.allclose(
+                    batch_value_wrapped, batch_value_ref
+                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+
+            # test compute (over num_batches)
+            assert torch.allclose(
+                wrapped_metric.compute(), ref_metric.compute()
+            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+
+            ref_metric.reset()
+            wrapped_metric.reset()

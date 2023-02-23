@@ -17,21 +17,25 @@ from nemo.collections.tts.models.fastpitch import FastPitchModel
 from nemo.collections.tts.models.hifigan import HifiGanModel
 from nemo.collections.tts.models.mixer_tts import MixerTTSModel
 from nemo.collections.tts.models.radtts import RadTTSModel
+from nemo.collections.tts.models.spectrogram_enhancer import SpectrogramEnhancerModel
 from nemo.collections.tts.models.tacotron2 import Tacotron2Model
 from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
 from nemo.collections.tts.models.univnet import UnivNetModel
+from nemo.collections.tts.models.vits import VitsModel
 from nemo.collections.tts.models.waveglow import WaveGlowModel
 
 __all__ = [
-    "Tacotron2Model",
-    "WaveGlowModel",
-    "TwoStagesModel",
-    "GriffinLimModel",
-    "MelPsuedoInverseModel",
-    "HifiGanModel",
-    "FastPitchModel",
     "AlignerModel",
+    "FastPitchModel",
+    "GriffinLimModel",
+    "HifiGanModel",
+    "MelPsuedoInverseModel",
     "MixerTTSModel",
-    "UnivNetModel",
     "RadTTSModel",
+    "Tacotron2Model",
+    "TwoStagesModel",
+    "UnivNetModel",
+    "VitsModel",
+    "WaveGlowModel",
+    "SpectrogramEnhancerModel",
 ]
