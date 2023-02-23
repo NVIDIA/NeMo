@@ -1,14 +1,14 @@
 """Script to build and install decoder package."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from setuptools import setup, Extension, distutils
-import glob
-import platform
-import os, sys
-import multiprocessing.pool
 import argparse
+import glob
+import multiprocessing.pool
+import os
+import platform
+import sys
+
+from setuptools import Extension, distutils, setup
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
