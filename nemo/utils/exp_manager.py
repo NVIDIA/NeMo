@@ -32,6 +32,7 @@ from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
@@ -67,6 +68,21 @@ class LoggerMisconfigurationError(NeMoBaseException):
 
 class CheckpointMisconfigurationError(NeMoBaseException):
     """ Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
+
+
+@dataclass
+class EarlyStoppingParams:
+    monitor: str = "val_loss"  # The metric that early stopping should consider.
+    mode: str = "min"  # inform early stopping whether to look for increase or decrease in monitor.
+    min_delta: float = 0.001  # smallest change to consider as improvement.
+    patience: int = 10  # how many (continuous) validation cycles to wait with no improvement and stopping training.
+    verbose: bool = True
+    strict: bool = True
+    check_finite: bool = True
+    stopping_threshold: Optional[float] = None
+    divergence_threshold: Optional[float] = None
+    check_on_train_epoch_end: Optional[bool] = None
+    log_rank_zero_only: bool = False
 
 
 @dataclass
@@ -153,6 +169,8 @@ class ExpManagerConfig:
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
+    create_early_stopping_callback: Optional[bool] = False
+    early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
@@ -185,7 +203,8 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
+        # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
@@ -271,6 +290,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
                 Defaults to True.
+            - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False.
+             See EarlyStoppingParams dataclass above.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
@@ -418,6 +439,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             every_n_steps=cfg.ema.every_n_steps,
         )
         trainer.callbacks.append(ema_callback)
+
+    if cfg.create_early_stopping_callback:
+        early_stop_callback = EarlyStopping(**cfg.early_stopping_callback_params)
+        trainer.callbacks.append(early_stop_callback)
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(

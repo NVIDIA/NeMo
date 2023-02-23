@@ -242,7 +242,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._get_parameters()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
+        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -326,8 +326,9 @@ class MegatronBaseModel(NLPModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate grads since we are storing between microbatches
+            # Allocate contiguous buffers to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_param_buffer'] = True
 
             if self.megatron_amp_o2:
                 # Match param allgather with model dtype
@@ -417,6 +418,9 @@ class MegatronBaseModel(NLPModel):
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
+            # Initialize contiguous parameter buffer
+            self._optimizer.init_param_buffer()
+
         if self._scheduler is None:
             return self._optimizer
         else:
@@ -504,7 +508,7 @@ class MegatronBaseModel(NLPModel):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
             )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_first_stage(
                 ignore_virtual=True
             ):
                 # substract the embedding weights on the last virtual stage
@@ -512,8 +516,7 @@ class MegatronBaseModel(NLPModel):
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
-
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_first_stage(
                 ignore_virtual=True
             ):
                 # substract the embedding weights on the last stage
