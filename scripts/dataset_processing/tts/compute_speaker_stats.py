@@ -34,7 +34,8 @@ from typing import List, Tuple
 import torch
 from tqdm import tqdm
 
-from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir, get_sup_data_file_path, read_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir, get_sup_data_file_path
 from nemo.collections.tts.torch.tts_data_types import Pitch
 from nemo.utils import logging
 
@@ -44,7 +45,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
     )
     parser.add_argument(
-        "--manifest_path", required=True, type=Path, help="Path to training manifest.",
+        "--manifest_path", required=True, type=str, help="Path to training manifest.",
     )
     parser.add_argument(
         "--sup_data_path", default=Path("sup_data"), type=Path, help="Path to base directory with supplementary data.",
