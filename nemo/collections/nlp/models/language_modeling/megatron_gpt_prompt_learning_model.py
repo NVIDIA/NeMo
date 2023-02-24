@@ -185,7 +185,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
-    
+
     def load_task_templates(self, task_templates):
         """
         Takes in the task template portion of the config and turns  

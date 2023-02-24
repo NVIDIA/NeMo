@@ -244,7 +244,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             else:
                 raise RuntimeError("invalid virtual prompt source")
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor,  use_cached_reps: bool):
+    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
         Replaces the virtual tokens in the input_ids with embeddings 
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
