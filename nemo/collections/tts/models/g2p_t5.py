@@ -1,4 +1,16 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#  Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +35,7 @@ from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.tts.data.g2p_dataset import T5G2PDataset
-from nemo.collections.tts.g2p.models.g2p_model import G2PModel
+from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
 from nemo.utils import logging
