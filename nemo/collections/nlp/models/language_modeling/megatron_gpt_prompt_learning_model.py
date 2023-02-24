@@ -247,54 +247,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
-        """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
-        The virtual token placeholders have token_ids listed in
-        `self.pseudo_token_ids`.
-
-        params:
-            input_ids: the input token ids
-            taskname_ids: the NLP task tag token ids
-        returns:
-            the token embedding for the LM model.
-        """
-        # Replace virtual token ids with padding for forward pass through vocab embeddings
-        discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
-
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-
-        # If there are no virtual tokens, just return discrete token embeds
-        if not virtual_token_locations.any():
-            return discrete_token_embeds
-
-        # Get virtual token embeddings from the prompt table or prompt encoder
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            batch_size, _ = taskname_ids.size()
-            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
-        else:
-            raise RuntimeError("invalid VirtualPromptSource..")
-
-        # Create index template specifying where virtual token embeddings should be placed
-        batch_size, _, embedding_size = discrete_token_embeds.shape
-        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(
-            batch_size, self.total_new_task_virtual_tokens, embedding_size
-        )
-
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
-        input_embeds = discrete_token_embeds
-
-        return input_embeds
-
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
