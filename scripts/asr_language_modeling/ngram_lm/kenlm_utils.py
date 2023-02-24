@@ -29,8 +29,8 @@ from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessor
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.transcribe_utils import TextProcessor, PunctuationCapitalization
 
 TOKEN_OFFSET = 100
 # List of the supported models to be used with N-gram LM and beam search decoding
@@ -84,7 +84,9 @@ def setup_tokenizer(nemo_model_file):
 def iter_files(train_path, nemo_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation):
     model, _, offset_encoding = setup_tokenizer(nemo_model_file)
     for fname in train_path:
-        dataset = read_train_file(fname, do_lowercase, punctuation_to_preserve, separate_punctuation, clean_text, verbose=0)
+        dataset = read_train_file(
+            fname, do_lowercase, punctuation_to_preserve, separate_punctuation, clean_text, verbose=0
+        )
         tokenize_text(
             dataset,
             model.tokenizer,
@@ -96,12 +98,12 @@ def iter_files(train_path, nemo_model_file, do_lowercase, clean_text, punctuatio
 
 
 def read_train_file(
-    path, 
-    do_lowercase: bool = False, 
-    punctuation_to_preserve: str = "", 
-    separate_punctuation: bool = True, 
-    clean_text: bool = True, 
-    verbose: int = 0
+    path,
+    do_lowercase: bool = False,
+    punctuation_to_preserve: str = "",
+    separate_punctuation: bool = True,
+    clean_text: bool = True,
+    verbose: int = 0,
 ):
     lines_read = 0
     text_dataset = []
@@ -132,7 +134,7 @@ def read_train_file(
                 line_list = text_processor.get_text_pc(line_list)
             if do_lowercase:
                 line_list = punctuation_capitalization.do_lowercase(line_list)
-            
+
             line = " ".join(line_list)
             if line:
                 text_dataset.append(line)
@@ -222,12 +224,18 @@ def _parse_args():
     )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
     parser.add_argument(
-        "--punctuation_to_preserve", required=False, default='', type=str, help="Punctuation marks to preserve in text when --clean_text is used. For instanse --punctuation_to_preserve=,.? "
+        "--punctuation_to_preserve",
+        required=False,
+        default='',
+        type=str,
+        help="Punctuation marks to preserve in text when --clean_text is used. For instanse --punctuation_to_preserve=,.? ",
     )
     parser.add_argument(
-        "--separate_punctuation", action='store_true', help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used"
+        "--separate_punctuation",
+        action='store_true',
+        help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used",
     )
-    
+
     return parser.parse_args()
 
 

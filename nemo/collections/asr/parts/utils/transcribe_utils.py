@@ -465,7 +465,7 @@ class PunctuationCapitalization:
 
 class TextProcessor:
     def __init__(self, target_punctuation_marks) -> None:
-        
+
         self.target_punctuation_marks = set(target_punctuation_marks)
 
         self.regex_target_chars = re.compile("[a-zA-Z\'\ " + '\\'.join(self.target_punctuation_marks) + "]+")
@@ -507,68 +507,65 @@ class TextProcessor:
 
         self.reg_remove_start_end_spaces = re.compile('\A\s|\s$')
 
-
     def get_text_pc(self, texts):
         new_texts = []
         for text in texts:
             if text:
-              if self.regex_target_chars.fullmatch(text):
-                new_texts.append(text)
-              else:
-                flag = True
-                # ellipsis normalization ('...' -> '.')
-                text = self.regex_ellipsis_normalization.sub('.', text)
+                if self.regex_target_chars.fullmatch(text):
+                    new_texts.append(text)
+                else:
+                    flag = True
+                    # ellipsis normalization ('...' -> '.')
+                    text = self.regex_ellipsis_normalization.sub('.', text)
 
-                processed = ''
+                    processed = ''
 
-                for char in text:
-                    if self.regex_target_chars.match(char):
-                        processed += char
-                    elif char in self.chars_to_replace:
-                        processed += self.chars_to_replace[char]
-                    elif char in self.chars_to_replace_with_space:
-                        processed += ' '
-                    elif char in self.apostrophes:
-                        processed += "'"
-                    else:
-                        flag = False
-                        break
+                    for char in text:
+                        if self.regex_target_chars.match(char):
+                            processed += char
+                        elif char in self.chars_to_replace:
+                            processed += self.chars_to_replace[char]
+                        elif char in self.chars_to_replace_with_space:
+                            processed += ' '
+                        elif char in self.apostrophes:
+                            processed += "'"
+                        else:
+                            flag = False
+                            break
 
-                # apostrophe normalization (removing quotations and saving apostrophes)
-                # ex. ‘Never mind,’ said Wardle's wife --> Never mind, said Wardle's wife
-                if flag:
-                    if processed[0] == "'":
-                        processed = processed[1:]
+                    # apostrophe normalization (removing quotations and saving apostrophes)
+                    # ex. ‘Never mind,’ said Wardle's wife --> Never mind, said Wardle's wife
+                    if flag:
+                        if processed[0] == "'":
+                            processed = processed[1:]
 
-                    for i in range(1, len(processed) - 1):
-                        if processed[i] == "'":
-                            if self.regex_apostophe_norm.match(processed[i - 1 : i + 2]):
-                                continue
-                            else:
-                                processed = processed[:i] + ' ' + processed[i + 1 :]
+                        for i in range(1, len(processed) - 1):
+                            if processed[i] == "'":
+                                if self.regex_apostophe_norm.match(processed[i - 1 : i + 2]):
+                                    continue
+                                else:
+                                    processed = processed[:i] + ' ' + processed[i + 1 :]
 
-                    if processed[-1] == "'":
-                        processed = processed[:-1]
+                        if processed[-1] == "'":
+                            processed = processed[:-1]
 
-                    processed = self.norm_spaces(processed)
-                    new_texts.append(processed)
+                        processed = self.norm_spaces(processed)
+                        new_texts.append(processed)
 
             return new_texts
-
 
     def norm_spaces(self, text):
         # regex for removing extra whitespaces:
         # "because  they're say-   we- at    least that's" -> "because they're say- we- at least that's"
-        
+
         text = self.reg_remove_extra_space.sub(' ', text)
 
         # regex for removing whitespaces at the begining and at the end:
         # " because they're say- we- at least that's " -> "because they're say- we- at least that's"
-        
+
         text = self.reg_remove_start_end_spaces.sub('', text)
 
         return text
-    
 
     def norm_punctuation(self, text):
         i = 1

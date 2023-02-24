@@ -92,16 +92,26 @@ def main():
     )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
     parser.add_argument(
-        "--punctuation_to_preserve", required=False, default='', type=str, help="Punctuation marks to preserve in text when --clean_text is used"
+        "--punctuation_to_preserve",
+        required=False,
+        default='',
+        type=str,
+        help="Punctuation marks to preserve in text when --clean_text is used",
     )
     parser.add_argument(
-        "--separate_punctuation", action='store_true', help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used"
+        "--separate_punctuation",
+        action='store_true',
+        help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used",
     )
     parser.add_argument("--verbose", type=int, default=1, help="Verbose level from 0. Default is 1 ")
 
     args = parser.parse_args()
-    assert (args.clean_text or args.punctuation_to_preserve!="" and args.clean_text), "--punctuation_to_preserve work only with --clean_text "
-    assert (args.clean_text or args.clean_text and args.separate_punctuation and args.punctuation_to_preserve!=""), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
+    assert (
+        args.clean_text or args.punctuation_to_preserve != "" and args.clean_text
+    ), "--punctuation_to_preserve work only with --clean_text "
+    assert (
+        args.clean_text or args.clean_text and args.separate_punctuation and args.punctuation_to_preserve != ""
+    ), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
     args.train_path = kenlm_utils.get_train_list(args.train_path)
 
     if type(args.ngram_prun) == str:
@@ -128,8 +138,8 @@ def main():
                 dataset = kenlm_utils.read_train_file(
                     train_file,
                     do_lowercase=args.do_lowercase,
-                    punctuation_to_preserve = args.punctuation_to_preserve,
-                    separate_punctuation = args.separate_punctuation,
+                    punctuation_to_preserve=args.punctuation_to_preserve,
+                    separate_punctuation=args.separate_punctuation,
                     clean_text=args.clean_text,
                     verbose=args.verbose,
                 )
