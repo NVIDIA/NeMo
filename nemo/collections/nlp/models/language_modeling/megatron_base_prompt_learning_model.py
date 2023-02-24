@@ -61,7 +61,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer)
         self.init_model(cfg, trainer)
 
-    def init_model(self, cfg: DictConfig, trainer:Trainer):
+    def init_model(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
 
         self.load_frozen_model(cfg, trainer)
@@ -241,7 +241,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self._optimizer_param_groups = (virtual_prompt_params,)
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor,  use_cached_reps: bool):
+    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
         Replaces the virtual tokens in the input_ids with embeddings 
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
