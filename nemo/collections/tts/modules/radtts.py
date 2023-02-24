@@ -15,9 +15,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-from nemo.collections.tts.helpers.helpers import mas_width1 as mas
-from nemo.collections.tts.helpers.helpers import regulate_len
 from nemo.collections.tts.modules.attribute_prediction_model import get_attribute_prediction_model
 from nemo.collections.tts.modules.common import (
     AffineTransformationLayer,
@@ -29,6 +26,9 @@ from nemo.collections.tts.modules.common import (
     LinearNorm,
     get_radtts_encoder,
 )
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
+from nemo.collections.tts.parts.utils.helpers import mas_width1 as mas
+from nemo.collections.tts.parts.utils.helpers import regulate_len
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.neural_types.elements import Index, LengthsType, MelSpectrogramType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
