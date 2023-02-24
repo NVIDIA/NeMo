@@ -91,11 +91,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
+            input_embeds = self.embed_input(input_ids, taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -176,10 +172,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         virtual_prompt_params = {'params': []}
 
         if self.first_stage_of_pipeline():
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
-
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+            else:
+                raise ValueError("Optimizer only supports Prompt Encoder.")
 
         self._optimizer_param_groups = (virtual_prompt_params,)
 
@@ -359,7 +355,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, False)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -435,12 +431,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 val_acc = torch.tensor(0.0).cuda()
 
             self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
-
-        # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_nemo_on_validation_end", False):
-            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-                self.save_checkpoint_as_nemo_file()
-                self.lowest_val_loss = averaged_loss
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size

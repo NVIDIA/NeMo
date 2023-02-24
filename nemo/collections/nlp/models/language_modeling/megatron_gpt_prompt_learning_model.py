@@ -150,14 +150,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.frozen_model.model.pre_process and self.virtual_prompt_style in [
+        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
         ]:
 
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
 
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
-        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
@@ -184,6 +183,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.lowest_val_loss = None
         self.prompt_encoder = None
 
+    def first_stage_of_pipeline(self):
+        return self.frozen_model.model.pre_process
+    
     def load_task_templates(self, task_templates):
         """
         Takes in the task template portion of the config and turns  
@@ -274,17 +276,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
-    def get_model_tasks(self):
-        """
-        For user to inspect which tasks the model has been
-        p-tuned/prompt-tuned to preform.
-        """
-        tasks = {}
-        for taskname in self.prompt_table.prompt_table.keys():
-            tasks[taskname] = self.task_templates[taskname].copy()
-
-        return tasks
-
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         """
         Custom state dict that only contains prompt table and prompt encoder parameters. 
@@ -293,7 +284,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
         state_dict_ = {}
-        if self.frozen_model.model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 state_dict_ = self.prompt_encoder.state_dict()
             else:
@@ -306,7 +297,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self.frozen_model.model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 if self.prompt_encoder is None:
                     self.init_prompt_encoder()
@@ -330,11 +321,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         virtual_prompt_params = {'params': []}
 
-        if self.frozen_model.model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
             else:
-                raise RuntimeError("should not be here.")
+                raise ValueError("Optimizer only supports Prompt Encoder.")
         self._optimizer_param_groups = (virtual_prompt_params,)
 
     def forward(
@@ -354,7 +345,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        if self.frozen_model.model.pre_process:
+        if self.first_stage_of_pipeline():
             input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
             if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
@@ -594,7 +585,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.save_to(save_path=self.cfg.nemo_path)
 
     def setup(self, stage=None):
-        if (stage == 'predict') and self.frozen_model.model.pre_process:
+        if stage == 'predict' and self.first_stage_of_pipeline():
             self.freeze_existing_word_embeddings()
             return
 
@@ -602,7 +593,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
-        if self.frozen_model.model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.init_prompt_encoder()
 
