@@ -361,6 +361,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                 softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                tokens_type=self.cfg.beam.get('tokens_type', 'subword'),
             )
 
         else:
