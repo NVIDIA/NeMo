@@ -90,13 +90,18 @@ def main():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
-    parser.add_argument(
-        "--rm_punctuation", action='store_true', help="Whether to remove punctuation on the training text"
-    )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
+    parser.add_argument(
+        "--punctuation_to_preserve", required=False, default='', type=str, help="Punctuation marks to preserve in text when --clean_text is used"
+    )
+    parser.add_argument(
+        "--separate_punctuation", action='store_true', help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used"
+    )
     parser.add_argument("--verbose", type=int, default=1, help="Verbose level from 0. Default is 1 ")
 
     args = parser.parse_args()
+    assert (args.clean_text or args.punctuation_to_preserve!="" and args.clean_text), "--punctuation_to_preserve work only with --clean_text "
+    assert (args.clean_text or args.clean_text and args.separate_punctuation and args.punctuation_to_preserve!=""), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
     args.train_path = kenlm_utils.get_train_list(args.train_path)
 
     if type(args.ngram_prun) == str:
@@ -122,8 +127,9 @@ def main():
             else:
                 dataset = kenlm_utils.read_train_file(
                     train_file,
-                    lowercase=args.do_lowercase,
-                    rm_punctuation=args.rm_punctuation,
+                    do_lowercase=args.do_lowercase,
+                    punctuation_to_preserve = args.punctuation_to_preserve,
+                    separate_punctuation = args.separate_punctuation,
                     clean_text=args.clean_text,
                     verbose=args.verbose,
                 )
@@ -153,14 +159,16 @@ def main():
             os.path.join(file_path, "kenlm_utils.py"),
             "--nemo_model_file",
             args.nemo_model_file,
+            "--punctuation_to_preserve",
+            args.punctuation_to_preserve,
             "--train_path",
         ] + args.train_path
         if args.clean_text:
             first_process_args.append("--clean_text")
         if args.do_lowercase:
             first_process_args.append("--do_lowercase")
-        if args.rm_punctuation:
-            first_process_args.append("--rm_punctuation")
+        if args.separate_punctuation:
+            first_process_args.append("--separate_punctuation")
 
     first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
 
