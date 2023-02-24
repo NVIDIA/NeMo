@@ -3249,7 +3249,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.optim.sched.min_lr=8e-5 \
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
-        model.activation=swiglu \
+        model.activation=fast-swiglu \
         model.bias_activation_fusion=False \
         model.hidden_dropout=0.0 \
         model.attention_dropout=0.0 \
@@ -3285,7 +3285,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.optim.sched.min_lr=8e-5 \
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
-        model.activation=swiglu \
+        model.activation=fast-swiglu \
         model.bias_activation_fusion=False \
         model.hidden_dropout=0.0 \
         model.attention_dropout=0.0 \
@@ -3361,7 +3361,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_epochs=null \
                 model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
-                model.virtual_prompt_style='prompt-tuning' \
+                model.virtual_prompt_style='p-tuning' \
+                model.p_tuning.encoder_type='embedding' \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
@@ -3562,7 +3563,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.num_layers=2 \
         model.decoder.hidden_size=64 \
         model.decoder.num_attention_heads=8 \
-        model.decoder.activation='swiglu' \
+        model.decoder.activation='fast-swiglu' \
         model.decoder.masked_softmax_fusion=False \
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
@@ -3604,7 +3605,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.num_layers=2 \
         model.decoder.hidden_size=64 \
         model.decoder.num_attention_heads=8 \
-        model.decoder.activation='swiglu' \
+        model.decoder.activation='fast-swiglu' \
         model.decoder.masked_softmax_fusion=False \
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
