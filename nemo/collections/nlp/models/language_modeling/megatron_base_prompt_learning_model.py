@@ -95,7 +95,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
         else:
             raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+                f"\nvirtual prompt style '{cfg.virtual_prompt_style}'"
             )
 
         self._reduced_loss_buffer = []
@@ -204,7 +204,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 state_dict_ = self.prompt_encoder.state_dict()
             else:
-                raise RuntimeError("invalid virtual prompt source")
+                raise ValueError("invalid virtual prompt source")
 
         return state_dict_
 
@@ -219,7 +219,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                     self.init_prompt_encoder()
                 self.prompt_encoder.load_state_dict(state_dict, strict)
             else:
-                raise RuntimeError("invalid virtual prompt source")
+                raise ValueError("invalid virtual prompt source")
 
     def setup_optimizer_param_groups(self):
         """
@@ -270,7 +270,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             batch_size, _ = taskname_ids.size()
             virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
         else:
-            raise RuntimeError("invalid VirtualPromptSource..")
+            raise ValueError("invalid VirtualPromptSource.")
 
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape

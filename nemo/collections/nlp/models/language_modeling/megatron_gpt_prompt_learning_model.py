@@ -176,7 +176,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
         else:
             raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+                f"\nvirtual prompt style '{cfg.virtual_prompt_style}.'"
             )
 
         self._reduced_loss_buffer = []
