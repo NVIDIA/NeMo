@@ -471,7 +471,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         batch_size, seq_length = input_ids.shape
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=True)
 
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
