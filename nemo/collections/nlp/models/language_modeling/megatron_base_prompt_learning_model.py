@@ -94,9 +94,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
             self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
         else:
-            raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_style}'"
-            )
+            raise ValueError(f"\nvirtual prompt style '{cfg.virtual_prompt_style}'")
 
         self._reduced_loss_buffer = []
         self._inference_config = None
