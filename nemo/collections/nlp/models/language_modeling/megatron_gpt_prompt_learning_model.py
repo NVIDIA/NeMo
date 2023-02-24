@@ -26,6 +26,9 @@ from torch import Tensor
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
+    MegatronBasePromptLearningModel,
+)
 from nemo.collections.nlp.modules.common import (
     PromptEncoder,
     PromptEncoderType,
@@ -62,7 +65,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPromptLearningModel']
 
 
-class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
+class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
@@ -84,7 +87,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        self.init_model(cfg, trainer)
 
+    def init_model(self, cfg: DictConfig, trainer:Trainer):
         self.cfg = cfg
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('language_model_path')):
@@ -186,148 +191,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
     
-    def load_task_templates(self, task_templates):
-        """
-        Takes in the task template portion of the config and turns  
-        it into a table where each task's prompt template and 
-        the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. 
-        """
-        self.task_templates = {}
-        self.task_id_num_to_name = {}
-        self.max_virtual_tokens = 0
-
-        task_id_num = 0
-        for task in task_templates:
-            self.task_templates[task.taskname] = {
-                "prompt_template": task.prompt_template,
-                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
-                "answer_only_loss": task.get("answer_only_loss", False),
-                "answer_field": task.get("answer_field", None),
-                "truncate_field": task.truncate_field,
-                "total_virtual_tokens": task.total_virtual_tokens,
-                "virtual_token_splits": task.virtual_token_splits,
-                "task_id_num": task_id_num,
-            }
-
-            self.max_virtual_tokens = max(self.max_virtual_tokens, task.total_virtual_tokens)
-            self.task_id_num_to_name[task_id_num] = task.taskname
-            task_id_num += 1
-
-        # Check that all new tasks have the same total num virtual tokens
-        # Num virtual tokens for new tasks don't need to match num used for previously tuned tasks
-        if self.new_tasks:
-            new_task_name = self.new_tasks[0]
-            self.total_new_task_virtual_tokens = self.task_templates[new_task_name]["total_virtual_tokens"]
-
-            assert all(
-                self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens
-                for taskname in self.new_tasks
-            ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
-
-    def init_new_prompts(self):
-        """
-        Initialize new virtual prompts to be tuned using prompt tuning 
-        """
-        for idx, taskname in enumerate(self.new_tasks):
-            init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-
-            if init_method == "text":
-                init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
-                init_text_ids = self.tokenizer.text_to_ids(init_text)
-                self.prompt_table.init_prompt_from_text(
-                    taskname, init_text_ids, self.word_embeddings, total_virtual_tokens
-                )
-
-            elif init_method == 'random':
-                self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
-
-            else:
-                raise AttributeError(
-                    f'\nvirtual prompt init method {init_method} is not recognized\
-                                        please use one of text or random'
-                )
-
-    def init_prompt_encoder(self):
-        """
-        Init the prompt encoder needed for p-tuning on a new task
-        """
-        # Total virtual tokens should be the same across all new tasks, so just need one
-        new_task = self.new_tasks[0]
-        total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
-
-        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
-        self.prompt_encoder = PromptEncoder(
-            encoder_type=encoder_type,
-            total_virtual_tokens=total_virtual_tokens,
-            token_dim=self.hidden_size,
-            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
-            lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
-            num_layers=self.cfg.p_tuning.get("num_layers", 2),
-            init_std=self.cfg.p_tuning.get("init_std", 0.023),
-            taskname=new_task,
-        )
-
-    def freeze_existing_word_embeddings(self):
-        """Freeze params of existing virtual prompts that should not be tuned further
-        """
-        # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
-
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """
-        Custom state dict that only contains prompt table and prompt encoder parameters. 
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
-        are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only. 
-        """
-        state_dict_ = {}
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                state_dict_ = self.prompt_encoder.state_dict()
-            else:
-                raise RuntimeError("invalid virtual prompt source")
-
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method. 
-        """
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                if self.prompt_encoder is None:
-                    self.init_prompt_encoder()
-                self.prompt_encoder.load_state_dict(state_dict, strict)
-            else:
-                raise RuntimeError("invalid virtual prompt source")
-
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
-        rate for the frozen model's params will always be zero effectively
-        freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
-        """
-        # Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
-
-        virtual_prompt_params = {'params': []}
-
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-            else:
-                raise ValueError("Optimizer only supports Prompt Encoder.")
-        self._optimizer_param_groups = (virtual_prompt_params,)
-
     def forward(
         self,
         input_ids,
@@ -580,28 +443,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        self.save_to(save_path=self.cfg.nemo_path)
-
-    def setup(self, stage=None):
-        if stage == 'predict' and self.first_stage_of_pipeline():
-            self.freeze_existing_word_embeddings()
-            return
-
-        self.setup_test_data()
-        if stage == 'test':
-            return
-
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-                self.init_prompt_encoder()
-
-            self.freeze_existing_word_embeddings()
-
-        self.setup_training_data()
-        self.setup_validation_data()
-
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
@@ -725,12 +566,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         return dataset, dataloader
-
-    def set_inference_config(self, inference_config):
-        self._inference_config = inference_config
-
-    def get_inference_config(self):
-        return self._inference_config
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.

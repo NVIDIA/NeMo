@@ -59,7 +59,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        self.init_model(cfg, trainer)
 
+    def init_model(self, cfg: DictConfig, trainer:Trainer):
         self.cfg = cfg
 
         self.load_frozen_model(cfg, trainer)
@@ -163,30 +165,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 for taskname in self.new_tasks
             ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
 
-    def init_new_prompts(self):
-        """
-        Initialize new virtual prompts to be tuned using prompt tuning 
-        """
-        for idx, taskname in enumerate(self.new_tasks):
-            init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-
-            if init_method == "text":
-                init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
-                init_text_ids = self.tokenizer.text_to_ids(init_text)
-                self.prompt_table.init_prompt_from_text(
-                    taskname, init_text_ids, self.word_embeddings, total_virtual_tokens
-                )
-
-            elif init_method == 'random':
-                self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
-
-            else:
-                raise AttributeError(
-                    f'\nvirtual prompt init method {init_method} is not recognized\
-                                        please use one of text or random'
-                )
-
     def init_prompt_encoder(self):
         """
         Init the prompt encoder needed for p-tuning on a new task
@@ -243,6 +221,25 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.prompt_encoder.load_state_dict(state_dict, strict)
             else:
                 raise RuntimeError("invalid virtual prompt source")
+
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Only want virtual prompt params to be passed to the optimizer.
+        """
+        ## Freeze frozen model
+        for param in self.frozen_model.parameters():
+            param.requires_grad = False
+
+        virtual_prompt_params = {'params': []}
+
+        if self.first_stage_of_pipeline():
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+            else:
+                raise ValueError("Optimizer only supports Prompt Encoder.")
+
+        self._optimizer_param_groups = (virtual_prompt_params,)
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor,  use_cached_reps: bool):
         """

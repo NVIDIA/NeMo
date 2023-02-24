@@ -160,24 +160,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
 
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
 
-        virtual_prompt_params = {'params': []}
-
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-            else:
-                raise ValueError("Optimizer only supports Prompt Encoder.")
-
-        self._optimizer_param_groups = (virtual_prompt_params,)
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
