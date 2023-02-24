@@ -25,10 +25,10 @@ from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
     PromptEncoder,
     PromptEncoderType,
@@ -89,7 +89,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         super().__init__(cfg, trainer)
         self.init_model(cfg, trainer)
 
-    def init_model(self, cfg: DictConfig, trainer:Trainer):
+    def init_model(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('language_model_path')):
@@ -190,7 +190,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
-    
+
     def forward(
         self,
         input_ids,

@@ -160,8 +160,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
 
-
-
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
