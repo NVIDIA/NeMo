@@ -715,7 +715,9 @@ class DialogueGPTClassificationModel(NLPModel):
             if self.cfg.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.language_model.init_prompt_encoder()
             else:
-                raise ValueError("Use model.virtual_prompt_style='p-tuning' with model.p_tuning.encoder_type='embedding' to enable prompt-tuning.")
+                raise ValueError(
+                    "Use model.virtual_prompt_style='p-tuning' with model.p_tuning.encoder_type='embedding' to enable prompt-tuning."
+                )
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
         """
