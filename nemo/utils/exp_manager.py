@@ -940,7 +940,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return output
 
             self.previous_best_path = self.best_model_path
-            #checkpoint_path = inject_model_parallel_rank(self.best_model_path)
+            # checkpoint_path = inject_model_parallel_rank(self.best_model_path)
             old_state_dict = deepcopy(pl_module.state_dict())
             # Load the best model and then re-save it
             checkpoint = torch.load(injected_best_model_path, map_location='cpu')
@@ -957,9 +957,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.save_to(save_path=app_state.model_restore_path)
             logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
             pl_module.load_state_dict(old_state_dict, strict=True)
-            
+
         if self.always_save_nemo:
-                raise NotImplementedError("Only saving best model is currently implemented.")
+            raise NotImplementedError("Only saving best model is currently implemented.")
         return output
 
     def on_train_end(self, trainer, pl_module):
