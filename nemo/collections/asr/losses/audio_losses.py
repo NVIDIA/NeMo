@@ -247,6 +247,9 @@ def calculate_sdr_batch(
     Returns:
         SDR in dB for each channel, shape (B, C)
     """
+    if scale_invariant and convolution_invariant:
+        raise ValueError(f'Arguments scale_invariant and convolution_invariant cannot be used simultaneously.')
+
     assert (
         estimate.shape == target.shape
     ), f'Estimate shape ({estimate.shape}) not matching target shape ({target.shape})'
