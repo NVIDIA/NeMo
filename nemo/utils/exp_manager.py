@@ -955,7 +955,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return output
 
             self.previous_best_path = self.best_model_path
-            # checkpoint_path = inject_model_parallel_rank(self.best_model_path)
             old_state_dict = deepcopy(pl_module.state_dict())
             # Load the best model and then re-save it
             checkpoint = torch.load(injected_best_model_path, map_location='cpu')
