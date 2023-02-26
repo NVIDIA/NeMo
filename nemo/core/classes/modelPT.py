@@ -373,7 +373,8 @@ class ModelPT(LightningModule, Model):
                     )
             if is_global_rank_zero():
                 maybe_make_save_dir(save_path)
-            torch.distributed.barrier()
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
