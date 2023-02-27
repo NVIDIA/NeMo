@@ -313,15 +313,15 @@ class BeamRNNTInfer(Typing):
         if ngram_lm_model:
             if KENLM_AVAILABLE:
                 self.ngram_lm = kenlm.Model(ngram_lm_model)
+                self.ngram_lm_alpha = ngram_lm_alpha
                 if tokens_type == "subword":
-                    self.token_offset = 100 # 100 for BPE, 0 for char tokens
+                    self.token_offset = 100 # 100 for BPE, 0 for char tokenization
                 else:
                     self.token_offset = 0
             else:
-                raise ImportError("KenLM package (https://github.com/kpu/kenlm) is not installed..")
+                raise ImportError("KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None.")
         else:
             self.ngram_lm = None
-        self.ngram_lm_alpha = ngram_lm_alpha
 
     @typecheck()
     def __call__(
@@ -1070,8 +1070,6 @@ class BeamRNNTInfer(Typing):
         if self.ngram_lm:
             init_lm_state = kenlm.State()
             self.ngram_lm.BeginSentenceWrite(init_lm_state)
-        else:
-            init_lm_state = None
 
         # TODO: Setup LM
         if self.language_model is not None:
@@ -1098,9 +1096,10 @@ class BeamRNNTInfer(Typing):
                 lm_scores=lm_scores,
                 timestep=[-1],
                 length=0,
-                ngram_lm_state=init_lm_state,
             )
         ]
+        if self.ngram_lm:
+            kept_hyps[0].ngram_lm_state=init_lm_state
 
         # Initialize alignment buffer
         if self.preserve_alignments:
@@ -1384,8 +1383,8 @@ class BeamRNNTInfer(Typing):
         return hypotheses
 
     def compute_ngram_score(
-        self, current_lm_state: kenlm.State, label: int
-    ) -> Tuple[float, kenlm.State]:
+        self, current_lm_state: "kenlm.State", label: int
+    ) -> Tuple[float, "kenlm.State"]:
         """
         Score computation for kenlm ngram language model.
         """
