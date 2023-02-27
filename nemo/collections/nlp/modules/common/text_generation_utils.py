@@ -871,14 +871,7 @@ def sample_token_greedy(logits):
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids
     """
-    logits = logits.float()
-    logits /= temperature
-    # handle repetition penality
-    logits = repetition_penalty(logits, extra.get('repetition_penalty', 1.2), all_generated_indices)
-    logits = top_k_logits(logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9))
-    log_probs = F.softmax(logits, dim=-1)
-
-    log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+    log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(logits, dim=-1), dim=-1)
     
     return log_probs, token_ids
 
@@ -899,7 +892,7 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
     """
     logits = logits.float()
     logits /= temperature
-    logits = top_k_logits(logits, top_k=top_k, top_p=top_p)
+    logits = top_k_logits(logits, top_k=top_k, top_p=top_p, filter_value=filter_value)
     log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
 
     token_ids = torch.multinomial(log_probs.exp(), num_samples=1).view(-1)
