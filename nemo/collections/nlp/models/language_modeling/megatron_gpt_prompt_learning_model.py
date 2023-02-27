@@ -14,11 +14,13 @@
 
 import os
 import re
+import itertools
 from functools import partial
 from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
+from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
@@ -185,6 +187,23 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.lowest_val_loss = None
         self.prompt_encoder = None
 
+        # default inference related params -> for evaluation metrics
+        self.length_params: LengthParam = {
+                "max_length": 30,
+                "min_length": 0,
+            }
+
+        self.sampling_params: SamplingParam = {
+            "use_greedy": True,
+            "temperature": 1.0,
+            "top_k": 0,
+            "top_p": 0.9,
+            "repetition_penalty": 1.2,
+            "add_BOS": True,
+            "all_probs": False,
+            "compute_logprob": False,
+        }
+
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
 
@@ -344,7 +363,32 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        return loss_mean
+        if self.cfg.get('report_validation_accuracy', False):
+            preds_text, labels_text = [], []
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch            
+            input_lenghts = torch.cuda.LongTensor([input.shape[0] - self.length_params['max_length'] for input in input_ids])
+
+            res = megatron_gpt_generate(
+                self.cuda(), (input_ids, torch.cuda.LongTensor(input_lenghts)), self.tokenizer, self.length_params, self.sampling_params, task_ids=taskname_ids
+            )
+
+            for pred, label in zip(res['token_ids'], labels):
+                additional_special_tokens_ids = []
+                if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
+                    additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
+                
+                pred = [id for id in pred if id not in additional_special_tokens_ids]
+                label = [id for id in label if id not in additional_special_tokens_ids]
+                pred = self.tokenizer.ids_to_text(pred)
+                label = self.tokenizer.ids_to_text(label)
+                preds_text.append(pred)
+                labels_text.append(label)
+
+        return {
+            'loss': loss_mean,
+            'preds': preds_text,
+            'labels': labels_text,
+        }
 
     def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
         app_state = AppState()
@@ -371,7 +415,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
@@ -380,6 +424,40 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         logging.info(f'val_loss: {averaged_loss}')
+
+        if self.cfg.get("report_validation_accuracy", False):
+            gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+
+            all_preds = list(itertools.chain(*[item['preds'] for item in outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+
+            assert len(all_preds) == len(all_labels)
+
+            # Gather inputs, preds, labels from all workers
+            torch.distributed.all_gather_object(
+                gather_results,
+                [(pred, label) for (pred, label) in zip(all_preds, all_labels)],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+            # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+            if parallel_state.get_data_parallel_rank() == 0:
+
+                gather_results_dedup = list(set(itertools.chain(*gather_results)))
+
+                correct = 0
+                for (pred, label) in gather_results_dedup:
+                    if pred == label:
+                        correct += 1
+
+                val_acc = correct / len(gather_results_dedup)
+                val_acc = torch.tensor(val_acc).cuda()
+
+                logging.info(f'Validation accuracy: {val_acc}')
+            else:
+                val_acc = torch.tensor(0.0).cuda()
+
+            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
