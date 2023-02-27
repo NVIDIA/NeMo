@@ -601,8 +601,8 @@ class ContriverRetrievalServer(object):
             manual.append((text, title))
         all_contexts = chunk_car_manual(manual)
         all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
-        self.distil_model = SentenceTransformer('sentence-transformers/msmarco-distilbert-base-tas-b')
-        self.rank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
+        self.distil_model = SentenceTransformer('sentence-transformers/msmarco-distilbert-base-tas-b', device='cuda')
+        self.rank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512, device='cuda')
         self.all_contexts_formatted_emb = self.distil_model.encode(all_contexts_formatted)
         self.all_contexts = all_contexts
 
