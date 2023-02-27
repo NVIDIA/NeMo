@@ -187,7 +187,9 @@ class BeamRNNTInfer(Typing):
         ngram_lm_model: str
             The path to the N-gram LM
         ngram_lm_alpha: float
-            alpha weight of N-gram LM
+            Alpha weight of N-gram LM
+        tokens_type: str
+            Tokenization type ['subword', 'char']
     """
 
     @property
@@ -225,7 +227,7 @@ class BeamRNNTInfer(Typing):
         language_model: Optional[Dict[str, Any]] = None,
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
-        ngram_lm_model: str = None,
+        ngram_lm_model: Optional[str] = None,
         ngram_lm_alpha: float = 0.0,
         tokens_type: str = "subword",
     ):
