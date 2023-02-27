@@ -36,13 +36,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, sample_token_topk
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    sample_token_greedy,
-    sample_token_topk,
-)
-
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -1243,7 +1239,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
                 # collect all predicted tokens and log_probs
-                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1)
+                predicted_tokens_dec = torch.cat(
+                    [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
+                )
                 predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
 
                 # # TODO: do log_softmax in fp32?

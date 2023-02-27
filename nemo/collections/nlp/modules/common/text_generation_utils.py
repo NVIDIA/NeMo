@@ -860,6 +860,7 @@ def tab_sample_sequence_batch(
             if done:
                 break
 
+
 def sample_token_greedy(logits):
     """
     Greedy sampling. Returns the token with the highest probability, and corresponding log_prob.
@@ -879,8 +880,9 @@ def sample_token_greedy(logits):
     log_probs = F.softmax(logits, dim=-1)
 
     log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-    
+
     return log_probs, token_ids
+
 
 def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=-float('Inf')):
     """
