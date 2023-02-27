@@ -31,7 +31,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     english_word_tokenize,
     normalize_unicode_text,
 )
-from nemo.collections.tts.g2p.data.data_utils import GRAPHEME_CASE_MIXED, GRAPHEME_CASE_UPPER, set_grapheme_case
+from nemo.collections.tts.parts.utils.g2p_utils import GRAPHEME_CASE_MIXED, GRAPHEME_CASE_UPPER, set_grapheme_case
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
@@ -79,7 +79,7 @@ class BaseG2p(ABC):
         """
 
         try:
-            from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
+            from nemo.collections.tts.models.g2p_heteronym_classification import HeteronymClassificationModel
 
             self.heteronym_model = heteronym_model
             self.heteronym_model.set_wordid_to_phonemes(wordid_to_phonemes_file)

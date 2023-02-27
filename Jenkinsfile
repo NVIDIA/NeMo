@@ -1035,7 +1035,7 @@ pipeline {
               steps {
                 sh 'cd examples/tts/g2p && \
                     TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
-                    python heteronym_classification_train_and_evaluate.py \
+                    python g2p_heteronym_classification_train_and_evaluate.py \
                         train_manifest=/home/TestData/g2p/manifest.json \
                         validation_manifest=/home/TestData/g2p/manifest.json \
                         test_manifest=/home/TestData/g2p/manifest.json \
@@ -1047,7 +1047,7 @@ pipeline {
                         exp_manager.exp_dir=${OUTPUT_DIR} \
                         +exp_manager.use_datetime_version=False\
                         +exp_manager.version=test && \
-                    python heteronym_classification_inference.py \
+                    python g2p_heteronym_classification_inference.py \
                         manifest=/home/TestData/g2p/manifest.json \
                         pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
                         output_manifest=preds.json'
@@ -3361,7 +3361,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_epochs=null \
                 model.data.num_workers=1 \
                 model.tensor_model_parallel_size=1 \
-                model.virtual_prompt_style='prompt-tuning' \
+                model.virtual_prompt_style='p-tuning' \
+                model.p_tuning.encoder_type='embedding' \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
