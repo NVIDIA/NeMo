@@ -214,15 +214,18 @@ def main():
         rnnt_cfg.beam.maes_expansion_gamma = args.maes_expansion_gamma
         asr_model.change_decoding_strategy(OmegaConf.structured(rnnt_cfg))
 
+        @contextlib.contextmanager
+        def default_autocast():
+            yield
+
         if args.use_amp:
             if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
+            else:
+                autocast = default_autocast
         else:
-
-            @contextlib.contextmanager
-            def autocast():
-                yield
+            autocast = default_autocast
 
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha}
 
