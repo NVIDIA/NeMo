@@ -38,6 +38,11 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    sample_token_greedy,
+    sample_token_topk,
+)
+
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -1122,10 +1127,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
-        sampler_fn=None,
+        sample_token_fn=sample_token_greedy,
+        predicted_tokens_dec=None,
     ):
         """
-        sampler_fn - a function that takes in a tensor of logits and returns a tuple (tensor of logits, tensor of indices to sample from logits).
+        sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
+        predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1171,7 +1178,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
         # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
         bos_id = tokenizer.bos_id if bos_id is None else bos_id
-        predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # initial prompt can be given
+        if predicted_tokens_dec is None:
+            predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # collect log probs that were used in the sampling
+        predicted_log_probs = torch.zeros((global_batch_per_gpu, 0), dtype=self.autocast_dtype).to(device)
+
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
@@ -1227,19 +1239,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
                     )
 
-                # TODO: do log_softmax in fp32?
-                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-                predicted_tokens_dec = torch.cat(
-                    [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
-                )
+                log_probs, token_ids = sample_token_fn(logits=output_tensor)
+                # enforce valid range of token ids
+                token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
+                # collect all predicted tokens and log_probs
+                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1)
+                predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
+
+                # # TODO: do log_softmax in fp32?
+                # log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+                # predicted_tokens_dec = torch.cat(
+                #     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
+                # )
             else:
-                log_probs = torch.zeros(
-                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
-                ).cuda()
+                predicted_log_probs = torch.zeros(
+                    (predicted_log_probs.shape[0], predicted_log_probs.shape[1]), dtype=self.autocast_dtype
+                ).to(device)
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
-                ).cuda()
+                ).to(device)
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # Broadcast from the last pipeline stage to all other model-parallel ranks.
@@ -1262,7 +1281,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return predicted_tokens_dec, log_probs
+        return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """
