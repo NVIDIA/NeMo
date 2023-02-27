@@ -40,7 +40,6 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
-from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -921,60 +920,21 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
 
-    def _on_save_nlp_model_checkpoint(self, trainer, pl_module, checkpoint):
-        # output = None
-        output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
-        if not self.always_save_nemo:
-            return output
-        else:
-            # Load the best model and then re-save it
-            app_state = AppState()
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
-            # since we are creating tarfile artifacts we need to update .nemo path
-            app_state.model_restore_path = os.path.abspath(
-                os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-            )
-            if self.save_best_model:
-                injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
-                if not os.path.exists(injected_best_model_path):
-                    return output
-
-                if self.best_model_path == self.previous_best_path:
-                    return output
-
-                self.previous_best_path = self.best_model_path
-                old_state_dict = deepcopy(pl_module.state_dict())
-                # Load the best model and then re-save it
-                checkpoint = torch.load(injected_best_model_path, map_location='cpu')
-                if 'state_dict' in checkpoint:
-                    checkpoint_weights_only = checkpoint['state_dict']
-                # get a new instanace of the model
-                pl_module.load_state_dict(checkpoint_weights_only, strict=True)
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-                with open_dict(pl_module.cfg):
-                    pl_module.cfg.val_monitor_score = self.best_model_score.item()
-                    pl_module.cfg.val_monitor = self.monitor
-                    pl_module.cfg.global_steps = self._last_global_step_saved
-                pl_module.save_to(save_path=app_state.model_restore_path)
-                logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
-                pl_module.load_state_dict(old_state_dict, strict=True)
-            else:
-                last_loss = self.last_saved_path.split(self.monitor + '=')[1].split('-')[0]
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-                with open_dict(pl_module.cfg):
-                    pl_module.cfg.val_monitor_score = float(last_loss)
-                    pl_module.cfg.val_monitor = self.monitor
-                    pl_module.cfg.global_steps = self._last_global_step_saved
-                pl_module.save_to(save_path=app_state.model_restore_path)
-                logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
-            return output
-
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
-        if isinstance(pl_module, NLPModel):
-            return self._on_save_nlp_model_checkpoint(trainer, pl_module, checkpoint)
+        if hasattr(pl_module, "custom_on_save_checkpoint"):
+            output = pl_module.custom_on_save_checkpoint(
+                os.path.join(self.dirpath, self.prefix + self.postfix),
+                trainer,
+                checkpoint,
+                always_save_nemo=self.always_save_nemo,
+                save_best_model=self.save_best_model,
+                best_model_path=self.best_model_path,
+                last_saved_path=self.last_model_path,
+                best_model_score=self.best_model_score.item(),
+                last_global_step_saved=self._last_global_step_saved,
+                monitor=self.monitor,
+            )
+            return output
         else:
             # output = None
             output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
