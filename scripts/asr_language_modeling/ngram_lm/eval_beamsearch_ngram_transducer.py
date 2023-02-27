@@ -115,11 +115,14 @@ def main():
         "--kenlm_model_file", required=False, default=None, type=str, help="The path of the KenLM binary model file"
     )
     parser.add_argument(
-        "--tokens_type", required=False, choices=['subword', 'char'], default='subword', type=str, help="Type of tokens (need for ngram LM fusion)"
+        "--tokens_type",
+        required=False,
+        choices=['subword', 'char'],
+        default='subword',
+        type=str,
+        help="Type of tokens (need for ngram LM fusion)",
     )
-    parser.add_argument(
-        "--input_manifest", required=True, type=str, help="The manifest file of the evaluation set"
-        )
+    parser.add_argument("--input_manifest", required=True, type=str, help="The manifest file of the evaluation set")
     parser.add_argument(
         "--preds_output_folder", default=None, type=str, help="The optional folder where the predictions are stored"
     )
@@ -152,7 +155,10 @@ def main():
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
     )
     parser.add_argument(
-        "--maes_prefix_alpha", default=1, type=int, help="Float pruning threshold used in the prune-by-value step when computing the expansions."
+        "--maes_prefix_alpha",
+        default=1,
+        type=int,
+        help="Float pruning threshold used in the prune-by-value step when computing the expansions.",
     )
     parser.add_argument(
         "--maes_expansion_gamma", default=2.3, type=float, help="Maximum prefix length in prefix search"
@@ -161,9 +167,7 @@ def main():
     args = parser.parse_args()
 
     if args.kenlm_model_file and args.decoding_mode != "maes":
-        raise ValueError(
-            "External n-gram LM fusion is available only for 'maes' decoding mode."
-        )
+        raise ValueError("External n-gram LM fusion is available only for 'maes' decoding mode.")
 
     if args.nemo_model_file.endswith('.nemo'):
         asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
@@ -241,28 +245,24 @@ def main():
 
     if args.preds_output_folder:
         preds_output_file = os.path.join(
-            args.preds_output_folder,
-            f"preds_out_width{args.beam_width}_alpha{args.beam_alpha}.tsv",
+            args.preds_output_folder, f"preds_out_width{args.beam_width}_alpha{args.beam_alpha}.tsv",
         )
-        preds_output_manifest = os.path.join(
-            args.preds_output_folder,
-            f"preds_manifest.json",
-        )
+        preds_output_manifest = os.path.join(args.preds_output_folder, f"preds_manifest.json",)
         with open(preds_output_manifest, 'w') as fn:
             for i, file_name in enumerate(audio_file_paths):
-                item = {'audio_filepath': file_name,
-                        'duration': durations[i],
-                        'text': target_transcripts[i],
-                        'pred_text': hypotheses[i].text}
+                item = {
+                    'audio_filepath': file_name,
+                    'duration': durations[i],
+                    'text': target_transcripts[i],
+                    'pred_text': hypotheses[i].text,
+                }
                 fn.write(json.dumps(item) + "\n")
 
     else:
         preds_output_file = None
 
     beam_search_eval(
-        all_hypotheses=all_hypotheses,
-        target_transcripts=target_transcripts,
-        preds_output_file=preds_output_file,
+        all_hypotheses=all_hypotheses, target_transcripts=target_transcripts, preds_output_file=preds_output_file,
     )
 
 

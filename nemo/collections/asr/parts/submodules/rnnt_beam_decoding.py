@@ -28,7 +28,7 @@
 
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -42,6 +42,7 @@ from nemo.utils import logging
 
 try:
     import kenlm
+
     KENLM_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     KENLM_AVAILABLE = False
@@ -226,7 +227,7 @@ class BeamRNNTInfer(Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: str = None,
         ngram_lm_alpha: float = 0.0,
-        tokens_type: str = "subword"
+        tokens_type: str = "subword",
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -315,11 +316,13 @@ class BeamRNNTInfer(Typing):
                 self.ngram_lm = kenlm.Model(ngram_lm_model)
                 self.ngram_lm_alpha = ngram_lm_alpha
                 if tokens_type == "subword":
-                    self.token_offset = 100 # 100 for BPE, 0 for char tokenization
+                    self.token_offset = 100  # 100 for BPE, 0 for char tokenization
                 else:
                     self.token_offset = 0
             else:
-                raise ImportError("KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None.")
+                raise ImportError(
+                    "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+                )
         else:
             self.ngram_lm = None
 
@@ -1099,7 +1102,7 @@ class BeamRNNTInfer(Typing):
             )
         ]
         if self.ngram_lm:
-            kept_hyps[0].ngram_lm_state=init_lm_state
+            kept_hyps[0].ngram_lm_state = init_lm_state
 
         # Initialize alignment buffer
         if self.preserve_alignments:
@@ -1171,8 +1174,10 @@ class BeamRNNTInfer(Typing):
 
                                 # Setup ngram LM:
                                 if self.ngram_lm:
-                                    lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(hyp.ngram_lm_state, int(k))
-                                    new_hyp.score += self.ngram_lm_alpha * lm_score                            
+                                    lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
+                                        hyp.ngram_lm_state, int(k)
+                                    )
+                                    new_hyp.score += self.ngram_lm_alpha * lm_score
 
                                 # TODO: Setup LM
                                 if self.language_model is not None:
@@ -1361,11 +1366,14 @@ class BeamRNNTInfer(Typing):
                     )
                     logp = logp[0, 0, 0, :]
                     if self.ngram_lm:
-                        lm_score, next_state = self.compute_ngram_score(hyp_i.ngram_lm_state, int(hyp_j.y_sequence[pref_id]))
-                        curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]]) + self.ngram_lm_alpha * lm_score
+                        lm_score, next_state = self.compute_ngram_score(
+                            hyp_i.ngram_lm_state, int(hyp_j.y_sequence[pref_id])
+                        )
+                        curr_score = (
+                            hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]]) + self.ngram_lm_alpha * lm_score
+                        )
                     else:
                         curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
-
 
                     for k in range(pref_id, (curr_id - 1)):
                         logp = torch.log_softmax(
@@ -1382,9 +1390,7 @@ class BeamRNNTInfer(Typing):
 
         return hypotheses
 
-    def compute_ngram_score(
-        self, current_lm_state: "kenlm.State", label: int
-    ) -> Tuple[float, "kenlm.State"]:
+    def compute_ngram_score(self, current_lm_state: "kenlm.State", label: int) -> Tuple[float, "kenlm.State"]:
         """
         Score computation for kenlm ngram language model.
         """
@@ -1392,8 +1398,9 @@ class BeamRNNTInfer(Typing):
         next_state = kenlm.State()
         lm_score = self.ngram_lm.BaseScore(current_lm_state, chr(label + self.token_offset), next_state)
         lm_score *= 1.0 / np.log10(np.e)
-        
+
         return lm_score, next_state
+
 
 @dataclass
 class BeamRNNTInferConfig:
