@@ -450,7 +450,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if length is None or isinstance(self.pre_encode, nn.Linear):
@@ -555,7 +554,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, offset, audio_signal.device)
             # uncomment to profile just one conformer layer
             # break
-
         if cache_last_channel is not None:
             if self.streaming_cfg.last_channel_cache_size > 0:
                 cache_last_channel_next = cache_last_channel_next[
@@ -566,7 +564,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel_len = torch.clamp(
                 (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
             )
-
             # saving tensors if required for interctc loss
             if self.is_access_enabled():
                 if self.interctc_capture_at_layers is None:
@@ -613,6 +610,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         pad_mask_off = torch.arange(0, max_audio_length, device=device).expand(
             padding_length.size(0), -1
         ) >= offset.unsqueeze(-1)
+
         pad_mask = pad_mask_off.logical_and(pad_mask_len)
 
         if self.att_mask is not None:
@@ -624,12 +622,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
             att_mask = pad_mask_for_att_mask.logical_and(att_mask)
-
-            att_mask = ~att_mask
+            att_mask = ~(att_mask.to(torch.bool))
         else:
             att_mask = None
 
-        pad_mask = ~pad_mask
+        pad_mask = ~(pad_mask.to(torch.bool))
 
         return pad_mask, att_mask
 

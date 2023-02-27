@@ -154,7 +154,7 @@ class CausalConv1D(nn.Conv1d):
             dtype=dtype,
         )
 
-    def update_cache(self, x, cache, cache_next):
+    def update_cache(self, x, cache=None, cache_next=None):
         # print("cache", cache.size())
         # print("cache_next", cache_next.size())
         # print("x", x.size())
@@ -167,7 +167,6 @@ class CausalConv1D(nn.Conv1d):
             x = torch.constant_pad_nd(x, (0, self._right_padding), 0)
             # print("x post pad", x.size(), F.pad(x, (0, self._right_padding)).size())
             x = torch.cat((needed_cache, x), dim=-1)
-
             if cache_next is not None:
                 cache_next = update_cache_next(input_x, cache, cache_next, self.cache_drop_size, self._cache_id)
         return x
