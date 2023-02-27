@@ -873,7 +873,7 @@ def sample_token_greedy(logits):
         token_ids: [batch_size] - sampled token ids
     """
     log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(logits, dim=-1), dim=-1)
-    
+
     return log_probs, token_ids
 
 
