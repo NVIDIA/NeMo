@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import hashlib
 import json
 import os
 from copy import deepcopy
 from typing import Any, Optional
 
-import pytorch_lightning
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -43,7 +41,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 __all__ = ['NLPModel']
 
@@ -82,7 +80,7 @@ class NLPModel(ModelPT, Exportable):
             ):
                 self.setup_tokenizer(cfg.tokenizer)
             elif pretrain_model_name in all_pretrained_megatron_bert_models:
-                copy_cfg = copy.deepcopy(cfg)
+                copy_cfg = deepcopy(cfg)
                 bert_model = get_lm_model(
                     config_file=config_file,
                     config_dict=config_dict,
