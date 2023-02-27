@@ -19,13 +19,13 @@
 # encodings and models which is detected automatically from the type of the model.
 # You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
 #
-# USAGE: python eval_beamsearch_ngram.py  nemo_model_file=<path to the .nemo file of the model> \
-#                                         input_manifest=<path to the evaluation JSON manifest file \
-#                                         kenlm_model_file=<path to the binary KenLM model> \
-#                                         beam_width=<list of the beam widths> \
-#                                         beam_alpha=<list of the beam alphas> \
-#                                         preds_output_folder=<optional folder to store the predictions> \
-#                                         decoding_mode=maes
+# USAGE: python eval_beamsearch_ngram.py  --nemo_model_file=<path to the .nemo file of the model> \
+#                                         --input_manifest=<path to the evaluation JSON manifest file \
+#                                         --kenlm_model_file=<path to the binary KenLM model> \
+#                                         --beam_width=<list of the beam widths> \
+#                                         --beam_alpha=<list of the beam alphas> \
+#                                         --preds_output_folder=<optional folder to store the predictions> \
+#                                         --decoding_mode=maes
 #                                         ...
 #
 # You may find more info on how to use this script at:
