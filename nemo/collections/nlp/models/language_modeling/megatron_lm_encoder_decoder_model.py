@@ -1269,7 +1269,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
                 torch.distributed.broadcast(
-                    log_probs,
+                    predicted_log_probs,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
