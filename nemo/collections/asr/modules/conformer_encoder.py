@@ -128,7 +128,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         dev = next(self.parameters()).device
         if self.export_cache_support:
-            window_size = 57  # TODO: use stream config
+            window_size = max_dim
+            if self.streaming_cfg is not None:
+                if isinstance(self.streaming_cfg.chunk_size, list):
+                    chunk_size = self.streaming_cfg.chunk_size[1]
+                else:
+                    chunk_size = self.streaming_cfg.chunk_size
+                if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
+                else:
+                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
+                window_size = chunk_size + pre_encode_cache_size
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
             input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
 
