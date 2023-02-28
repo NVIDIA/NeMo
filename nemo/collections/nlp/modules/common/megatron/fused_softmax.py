@@ -51,7 +51,6 @@ if HAVE_APEX:
                 input = input * self.scale
             mask_output = self.mask_func(input, mask) if mask is not None else input
             probs = torch.nn.Softmax(dim=-1)(mask_output)
-            # TODO (yuya): check this
             if mask is not None:
                 all_k_masked = mask.all(axis=-1)
                 zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]

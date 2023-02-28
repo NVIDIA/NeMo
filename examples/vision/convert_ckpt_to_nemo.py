@@ -25,15 +25,14 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
 """
 
 import os
-from argparse import ArgumentParser
-
 import torch
 from apex.transformer import parallel_state
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+from argparse import ArgumentParser
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -85,7 +84,6 @@ def get_args():
 
 
 def convert(local_rank, rank, world_size, args):
-
     app_state = AppState()
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
@@ -132,7 +130,8 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'vit_classification':
-        model = MegatronVitClassificationModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatronVitClassificationModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
+                                                                    trainer=trainer)
     else:
         raise ValueError(f"Unrecognized model_type {args.model_type}.")
 

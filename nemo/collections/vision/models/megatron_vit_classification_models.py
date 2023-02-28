@@ -449,7 +449,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                 batch = [x.cuda(non_blocking=True) for x in batch]
                 tokens, labels = batch
             else:
-                # GPT3 uses only causal mask, which doesn't need attention mask
+                # Vision transformer doesn't need attention mask
                 if parallel_state.is_pipeline_first_stage():
                     # Fist pipeline stage needs only the tokens and position_ids
                     tokens = batch[0].cuda(non_blocking=True)
@@ -469,31 +469,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(batch, model):
-            extra_arg = {}
-            if len(batch) == 3:
-                batch = [x.cuda() for x in batch]
-                tokens, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
-            else:
-                (
-                    tokens,
-                    attention_mask,
-                    position_ids,
-                    set_inference_key_value_memory,
-                    inference_max_sequence_len,
-                ) = batch
-                tokens = tokens.cuda()
-                attention_mask = attention_mask.cuda()
-                position_ids = position_ids.cuda()
-                attention_mask = attention_mask[0:1]
-                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
-
-            def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
-
-            return output_tensor, id_func
+            raise NotImplementedError
 
         return fwd_output_only_func
 
@@ -595,13 +571,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    # def loss_func(self, loss_mask, output_tensor):
-    #     losses = output_tensor.float()
-    #     loss_mask = loss_mask.view(-1).float()
-    #     # TODO: add nemo version here
-    #     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
-    #     return loss
-
     def process_global_batch(self, global_batch, global_batch_size=None):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
@@ -632,21 +601,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         logging.info('Building datasets for ViT...')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
-        global_batch_size = self.cfg.global_batch_size
-        max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
-
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
-
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
         self._train_ds, self._validation_ds = build_train_valid_datasets(
             model_cfg=self.cfg,

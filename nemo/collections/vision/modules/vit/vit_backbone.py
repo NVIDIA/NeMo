@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 
 try:
     import apex
@@ -42,7 +43,44 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     LayerType = ApexGuardDefaults()
 
-CLASS_TOKEN_LENGTH = 8
+
+class DropPatch(MegatronModule):
+    """
+    https://arxiv.org/abs/2212.00794
+    """
+
+    def __init__(self, prob, class_token_length=8, exclude_cls_tokens=True):
+        assert 0 <= prob < 1.
+        super(DropPatch, self).__init__()
+        self.prob = prob
+        self.class_token_length = class_token_length
+        self.exclude_cls_tokens = exclude_cls_tokens  # exclude CLS token
+
+    def __call__(self, x):
+        if self.prob == 0. or not self.training:
+            return x
+
+        class_token_length = self.class_token_length
+        if self.exclude_cls_tokens:
+            cls_tokens, x = x[:, :class_token_length], x[:, class_token_length:]
+
+        batch, num_tokens, _, device = *x.shape, x.device
+
+        batch_indices = torch.arange(batch, device=device)
+        batch_indices = batch_indices[..., None]
+
+        keep_prob = 1 - self.prob
+        num_patches_keep = max(1, int(num_tokens * keep_prob))
+
+        rand = torch.randn(batch, num_tokens, device=device)
+        patch_indices_keep = rand.topk(num_patches_keep, dim=-1).indices
+
+        x = x[batch_indices, patch_indices_keep]
+
+        if self.exclude_cls_tokens:
+            x = torch.cat((cls_tokens, x), dim=1)
+
+        return x
 
 
 class VitMlpHead(MegatronModule):
@@ -95,6 +133,7 @@ def twod_interpolate_position_embeddings_hook(
     num_patches_per_dim_w = model_cfg.img_w // model_cfg.patch_dim
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     hidden_size = model_cfg.hidden_size
+    class_token_length = model_cfg.get("class_token_length", 8)
 
     key = prefix + "weight"
 
@@ -103,18 +142,18 @@ def twod_interpolate_position_embeddings_hook(
         input_param = state_dict[key]
 
         input_seq_len = input_param.shape[0]
-        assert (isPerfectSquare(input_seq_len) or isPerfectSquare(input_seq_len - CLASS_TOKEN_LENGTH))
+        assert (isPerfectSquare(input_seq_len) or isPerfectSquare(input_seq_len - class_token_length))
         input_has_class_token = not isPerfectSquare(input_seq_len)
-        num_tok_input = input_seq_len - CLASS_TOKEN_LENGTH if input_has_class_token else input_seq_len
+        num_tok_input = input_seq_len - class_token_length if input_has_class_token else input_seq_len
         num_tok_output = num_patches
         output_has_class_token = class_token_present
 
         # update input_param and load it to state_dict[key]
         if input_has_class_token:
-            input_param_tok = input_param[:CLASS_TOKEN_LENGTH, :]
-            input_param_grid = input_param[CLASS_TOKEN_LENGTH:, :]
+            input_param_tok = input_param[:class_token_length, :]
+            input_param_grid = input_param[class_token_length:, :]
         else:
-            input_param_tok = torch.zeros(CLASS_TOKEN_LENGTH, hidden_size)
+            input_param_tok = torch.zeros(class_token_length, hidden_size)
             input_param_grid = input_param
 
         assert input_param.shape[1] == hidden_size
@@ -180,25 +219,28 @@ class VitBackbone(MegatronModule):
         self.patch_dim = model_cfg.patch_dim
         self.img_h = model_cfg.img_h
         self.img_w = model_cfg.img_w
-        self.micro_batch_size = model_cfg.micro_batch_size
         self.single_token_output = single_token_output
-        self.drop_path_rate = model_cfg.drop_path_rate
+        self.drop_patch_rate = model_cfg.get("drop_patch_rate", 0.)
+        self.drop_path_rate = model_cfg.get("drop_path_rate", 0.)
+        preprocess_layernorm = model_cfg.get("preprocess_layernorm", False)
 
         assert self.img_h % self.patch_dim == 0
         assert self.img_w % self.patch_dim == 0
         self.num_patches_per_dim_h = self.img_h // self.patch_dim
         self.num_patches_per_dim_w = self.img_w // self.patch_dim
         self.num_patches = self.num_patches_per_dim_h * self.num_patches_per_dim_w
-        self.seq_length = self.num_patches + (CLASS_TOKEN_LENGTH if self.class_token else 0)
+        class_token_length = model_cfg.get("class_token_length", 8)
+        self.seq_length = self.num_patches + (class_token_length if self.class_token else 0)
         self.flatten_dim = self.patch_dim * self.patch_dim * model_cfg.num_channels
         self.input_tensor = None
         self.position_ids = None
+        self.preprocess_layernorm = None
 
         if self.pre_process:
             # cls_token
             if self.class_token:
                 self.cls_token = torch.nn.Parameter(
-                    torch.randn(1, CLASS_TOKEN_LENGTH, self.hidden_size)
+                    torch.randn(1, class_token_length, self.hidden_size)
                 )
                 torch.nn.init.zeros_(self.cls_token)
             self.position_ids = torch.arange(self.seq_length).expand(1, -1).cuda()
@@ -209,23 +251,46 @@ class VitBackbone(MegatronModule):
             )
 
             # embedding
-            self.position_embeddings = torch.nn.Embedding(
-                self.seq_length, self.hidden_size
-            )
-            init_method_normal(model_cfg.init_method_std)(
-                self.position_embeddings.weight
-            )
+            self.position_embedding_type = model_cfg.get("position_embedding_type", "learned_absolute")
 
-            class_token_present = self.class_token
-            self.position_embeddings._register_load_state_dict_pre_hook(
-                partial(
-                    twod_interpolate_position_embeddings_hook,
-                    model_cfg,
-                    class_token_present
+            if self.position_embedding_type == "learned_absolute":
+                self.position_embeddings = torch.nn.Embedding(
+                    self.seq_length, self.hidden_size
                 )
-            )
+                init_method_normal(model_cfg.init_method_std)(
+                    self.position_embeddings.weight
+                )
+
+                class_token_present = self.class_token
+                self.position_embeddings._register_load_state_dict_pre_hook(
+                    partial(
+                        twod_interpolate_position_embeddings_hook,
+                        model_cfg,
+                        class_token_present
+                    )
+                )
+            elif self.position_embedding_type == "learned_parameters":
+                self.position_embeddings = torch.nn.Parameter(
+                    torch.empty(self.seq_length, self.hidden_size)
+                )
+                init_method_normal(model_cfg.init_method_std)(
+                    self.position_embeddings
+                )
+            else:
+                raise ValueError(f"Unrecognized positional embedding type {self.position_embedding_type}!")
 
             self.embedding_dropout = torch.nn.Dropout(model_cfg.hidden_dropout)
+            self.drop_patch = DropPatch(
+                self.drop_patch_rate,
+                class_token_length=class_token_length,
+                exclude_cls_tokens=self.class_token
+            )
+
+            if preprocess_layernorm:
+                self.preprocess_layernorm = get_layer_norm(
+                    model_cfg.hidden_size, model_cfg.layernorm_epsilon, model_cfg.persist_layer_norm,
+                    sequence_parallel=model_cfg.sequence_parallel
+                )
 
         self.transformer = ParallelVisionTransformer(
             init_method=init_method,
@@ -249,7 +314,7 @@ class VitBackbone(MegatronModule):
             attention_dropout=model_cfg.attention_dropout,
             drop_path_rate=model_cfg.drop_path_rate,
             use_cpu_initialization=model_cfg.use_cpu_initialization,
-            bias_activation_fusion=model_cfg.bias_gelu_fusion,
+            bias_activation_fusion=model_cfg.get("bias_activation_fusion", False),
             persist_layer_norm=model_cfg.persist_layer_norm,
             openai_gelu=model_cfg.openai_gelu,
             onnx_safe=model_cfg.onnx_safe,
@@ -274,7 +339,7 @@ class VitBackbone(MegatronModule):
                 p2=self.patch_dim,
             )
 
-            # assert rearranged_input.dtype == torch.half # TODO (yuya)
+            # [b num_patch patch_dim*patch_dim*c] ->  [b, s, h]; s:=num_patch, h:=hidden
             encoder_output = self.linear_encoder(rearranged_input)
 
             concatenated_tokens = encoder_output
@@ -282,8 +347,18 @@ class VitBackbone(MegatronModule):
                 cls_tokens = self.cls_token.expand(encoder_output.shape[0], -1, -1)
                 concatenated_tokens = torch.cat((cls_tokens, encoder_output), dim=1)
 
-            token_embeddings = concatenated_tokens + \
-                               self.position_embeddings(self.position_ids[:, :concatenated_tokens.shape[1]])
+            if self.position_embedding_type == "learned_absolute":
+                token_embeddings = concatenated_tokens + \
+                                   self.position_embeddings(self.position_ids[:, :concatenated_tokens.shape[1]])
+            elif self.position_embedding_type == "learned_parameters":
+                token_embeddings = concatenated_tokens + self.position_embeddings
+
+            # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
+            token_embeddings = self.drop_patch(token_embeddings)
+
+            if self.preprocess_layernorm is not None:
+                token_embeddings = self.preprocess_layernorm(token_embeddings)
+
             # [b s h] => [s b h]
             token_embeddings = token_embeddings.transpose(0, 1).contiguous()
             hidden_states = self.embedding_dropout(token_embeddings)

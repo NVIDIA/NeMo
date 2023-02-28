@@ -56,8 +56,6 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             bucket_offset = current_epoch_samples // self.data_parallel_size
             start_idx = self.data_parallel_rank * bucket_size
 
-            # print(len(self.dataset), self.epoch, self.dataset.curr_seed, active_total_samples, current_epoch_samples, bucket_size, bucket_offset, start_idx)
-
             g = torch.Generator()
             g.manual_seed(self.epoch)
             random_idx = torch.randperm(bucket_size, generator=g).tolist()
@@ -78,7 +76,6 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         for idx in idx_range:
             batch.append(idx)
             if len(batch) == self._global_batch_size_on_this_data_parallel_rank:
-                # print("*" * 4, self.data_parallel_rank, batch)
                 self.consumed_samples += self._global_batch_size
                 yield batch
                 batch = []
