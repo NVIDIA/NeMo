@@ -19,6 +19,9 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+    ALiBiRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -522,6 +525,18 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_dim = int(rotary_dim * rotary_percentage)
             self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
 
+        elif position_embedding_type == 'alibi':
+            # TODO: If this is used for encoder-decoder model, implement proper logic and following
+            # addition for decoder. Currently it is only used for decoder model only. 
+            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
+            self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                bidirectional=False,
+                num_attention_heads=num_attention_heads,
+                layer_type=LayerType.encoder,
+                num_attention_heads_alibi=None,
+                max_seq_len=max_position_embeddings,
+            )
+
         # Transformer.
         self.encoder = ParallelTransformer(
             init_method=self.init_method,
@@ -668,6 +683,8 @@ class TransformerLanguageModel(MegatronModule):
 
         # enc_attn_mask: [1, 1, s, s]
 
+        rotary_pos_emb = None
+        encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
             if not set_inference_key_value_memory and inference_max_sequence_len is not None:
                 rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
@@ -675,8 +692,12 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
                 rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
-        else:
-            rotary_pos_emb = None
+        elif self.position_embedding_type == 'alibi':
+            enc_seq_length = enc_input_ids.size(1)
+            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            )
+            
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
@@ -690,6 +711,8 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_pos_emb=(rotary_pos_emb, None, None)
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
+                self_attention_relative_position_bias=encoder_self_attention_relative_position_bias
+                if encoder_self_attention_relative_position_bias is not None else None
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
