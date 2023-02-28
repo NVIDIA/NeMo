@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 # from lightning_lite.plugins.environments import TorchElasticEnvironment
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy, PipelineMixedPrecisionPlugin
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
@@ -83,7 +85,25 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronFusedRetrievalAdapterModel(cfg.model, trainer)
+    save_restore_connector = NLPSaveRestoreConnector()
+    if os.path.isdir(cfg.get('restore_from_path')):
+        save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
+    frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
+        cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+    )
+
+    frozen_model_cfg.tokenizer = cfg.model.tokenizer
+    frozen_model_cfg.data = cfg.model.data
+    frozen_model_cfg.adapter_tuning = cfg.model.adapter_tuning
+    frozen_model_cfg.optim = cfg.model.optim
+    frozen_model_cfg.restore_from_path = cfg.model.restore_from_path
+    frozen_model_cfg.eval = cfg.model.eval
+    # frozen_model_cfg.pop("shape_file")
+    frozen_model_cfg.micro_batch_size = 1
+    frozen_model_cfg.tensor_model_parallel_size = 4
+
+
+    model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
     # model = MegatronRetrievalModel(cfg.model, trainer)
 
     trainer.fit(model)

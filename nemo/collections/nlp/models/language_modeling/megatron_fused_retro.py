@@ -74,104 +74,110 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         # )
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         
-
-
-        save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.get('restore_from_path')):
-            save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
-
-        frozen_model_cfg = MegatronRetrievalModel.restore_from(
-            cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
-        )
-
-        # with open_dict(frozen_model_cfg):
-        #     # work around for the fused softmax bug
-        #     frozen_model_cfg.masked_softmax_fusion = False
-        #     frozen_model_cfg.precision = trainer.precision
-
-
-        # Need to overwrite some params in frozen model's config before restoring
-        # with open_dict(frozen_model_cfg):
-        #     frozen_model_cfg.megatron_amp_O2 = False
-        #     frozen_model_cfg.optim.name = "fused_adam"
-        #     frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-        #     # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
-        #     frozen_model_cfg.precision = trainer.precision
-        #     frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-        #     frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
-        #         "activations_checkpoint_granularity", None
-        #     )
-        #     frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
-        #         "activations_checkpoint_num_layers", None
-        #     )
-        #     frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
-
-        # if self._trainer.precision == 'bf16':
-        #     self.autocast_dtype = torch.bfloat16
-        # elif int(self._trainer.precision) == 32:
-        #     self.autocast_dtype = torch.float
-        # elif int(self._trainer.precision) == 16:
-        #     self.autocast_dtype = torch.half
-        # else:
-        #     raise ValueError('precision must be in [32, 16, "bf16"]')
-
-        # self.frozen_model = MegatronRetrievalModel.restore_from(
-        #     cfg.get('restore_from_path'),
-        #     trainer=trainer,
-        #     save_restore_connector=save_restore_connector,
-        #     override_config_path=frozen_model_cfg,
-        # ).to(dtype=self.autocast_dtype)
-
-        # if cfg.get('restore_from_path', None):
-        #     self.frozen_model = MegatronGPTModel.restore_from(
-        #         cfg.get('restore_from_path'),
-        #         trainer=trainer,
-        #         save_restore_connector=save_restore_connector,
-        #         override_config_path=frozen_model_cfg,
-        #     ).to(dtype=self.autocast_dtype)
-
-        for _, layer in self.frozen_model.named_modules():
-            if hasattr(layer, 'activations_checkpoint_method'):
-                layer.activations_checkpoint_method = (
-                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
-                )
-        
-        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
-
-        if cfg.adapter_tuning.type == "parallel_adapter":
-            adapter_cfg = ParallelLinearAdapterConfig(
-                in_features=frozen_model_cfg.hidden_size,
-                dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
-                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
-                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
-                dropout=cfg.adapter_tuning.adapter_dropout,
-            )
+        if self._trainer.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        elif int(self._trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self._trainer.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
-            adapter_cfg = LinearAdapterConfig(
-                in_features=frozen_model_cfg.hidden_size,
-                dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                dropout=cfg.adapter_tuning.adapter_dropout,
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        if cfg.get("eval") is True or cfg.get("eval") is False:
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.get('restore_from_path')):
+                save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
+
+            frozen_model_cfg = MegatronRetrievalModel.restore_from(
+                cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
             )
 
-        self.frozen_model.freeze()
-        for _, module in self.frozen_model.named_modules():
-            logging.info(f'Named modules:\n{module}')
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=adapter_key, cfg=adapter_cfg,
-                        )
+            with open_dict(frozen_model_cfg):
+                # work around for the fused softmax bug
+                frozen_model_cfg.masked_softmax_fusion = False
+                frozen_model_cfg.precision = trainer.precision
 
-        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
-        for name, module in self.frozen_model.named_modules():
-            logging.info(f'Module name:\n{name}{module}')
+            # Need to overwrite some params in frozen model's config before restoring
+            with open_dict(frozen_model_cfg):
+                frozen_model_cfg.megatron_amp_O2 = False
+                frozen_model_cfg.optim.name = "fused_adam"
+                frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+                # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+                frozen_model_cfg.precision = trainer.precision
+                frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+                frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+                    "activations_checkpoint_granularity", None
+                )
+                frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+                    "activations_checkpoint_num_layers", None
+                )
+                frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+
+            self.model = MegatronRetrievalModel.restore_from(
+                cfg.get('restore_from_path'),
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                override_config_path=frozen_model_cfg,
+            ).to(dtype=self.autocast_dtype)
+
+            for _, layer in self.model.named_modules():
+                if hasattr(layer, 'activations_checkpoint_method'):
+                    layer.activations_checkpoint_method = (
+                        None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                    )
+            
+            logging.info(f'Before adding adapters:\n{self.model.summarize()}')
+
+            if cfg.adapter_tuning.type == "parallel_adapter":
+                adapter_cfg = ParallelLinearAdapterConfig(
+                    in_features=frozen_model_cfg.hidden_size,
+                    dim=cfg.adapter_tuning.adapter_dim,
+                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                    norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                    column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                    row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                    dropout=cfg.adapter_tuning.adapter_dropout,
+                )
+            else:
+                adapter_cfg = LinearAdapterConfig(
+                    in_features=frozen_model_cfg.hidden_size,
+                    dim=cfg.adapter_tuning.adapter_dim,
+                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                    dropout=cfg.adapter_tuning.adapter_dropout,
+                )
+
+            self.model.freeze()
+            if cfg.adapter_tuning.pre_decoder is True:
+                for _, module in self.model.model.pre_decoder.named_modules():
+                    logging.info(f'Named modules:\n{module}')
+                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                        self.add_adapters_init(module, adapter_cfg)
+            if cfg.adapter_tuning.post_decoder is True:
+                for _, module in self.model.model.post_decoder.named_modules():
+                    logging.info(f'Named modules:\n{module}')
+                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                        self.add_adapters_init(module, adapter_cfg)
+            if cfg.adapter_tuning.encoder is True:
+                for _, module in self.model.model.encoder.named_modules():
+                    logging.info(f'Named modules:\n{module}')
+                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                        self.add_adapters_init(module, adapter_cfg)
+
+            logging.info(f'After adding adapters:\n{self.model.summarize()}')
+
+            for name, module in self.model.named_modules():
+                logging.info(f'Module name:\n{name}{module}')
 
         logging.info("Done")
+        # self.model = self.frozen_model
+
+    def add_adapters_init(self, module, adapter_cfg):
+        for adapter_key in self.adapter_name_keys:
+            if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
+                module.add_adapter(
+                    name=adapter_key, cfg=adapter_cfg,
+                )
 
     def forward(
         self,
@@ -184,7 +190,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         input_emb=None,
         position_ids=None,
     ):
-        output_tensor = self.frozen_model(
+        output_tensor = self.model(
             input_ids=input_ids,
             input_attn_mask=input_attn_mask,
             retrieved_ids=retrieved_ids,
@@ -222,7 +228,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #     Loads a state_dict expecting the state_dict to contain key,values 
     #     only for the adapter parameters.
     #     """
-    #     state_dict = self.frozen_model.state_dict()
+    #     # state_dict = self.frozen_model.state_dict()
     #     for name, module in self.frozen_model.named_modules():
     #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
     #             for adapter_key in self.adapter_name_keys:
@@ -236,26 +242,75 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #     # self.frozen_model.load_state_dict(state_dict)
     #     print("Loaded state dict")
 
-    def setup_optimizer_param_groups(self):
+    def get_forward_output_only_func(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
-        rate for the frozen model's params will always be zero effectively
-        freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        Used for generate method only.
         """
-        self.frozen_model.freeze()  # Freeze the entire model
-        opt_params = []
-        for _, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                module.set_enabled_adapters(enabled=True)
-                module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
-                opt_params += [p for p in module.parameters()]
 
-        self._optimizer_param_groups = [{'params': opt_params}]
-        logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                retrieved,
+                retrieved_mask,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+                neighbors,
+                position_ids,
+            ) = batch
+
+            if len(retrieved.shape) == 1:
+                retrieved = None
+                retrieved_mask = None
+            else:
+                retrieved = retrieved.cuda()
+                retrieved_mask = retrieved_mask.cuda()
+
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            extra_arg['neighbors'] = neighbors[0].item()
+            # extra_arg['position_ids'] = position_ids
+
+            output_tensor = model.model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
+
+    # def setup_optimizer_param_groups(self):
+    #     """
+    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
+    #     Makes two optimizer param groups, one for the frozen model params
+    #     and one for the prompt-table/prompt-encoder params. The learning 
+    #     rate for the frozen model's params will always be zero effectively
+    #     freezing the model's params but still allowing for the needed gradients
+    #     to be passed around in pipeline parallel models. The prompt-encoder 
+    #     and/or prompt table will use the learning rate set by the user. 
+    #     """
+    #     self.frozen_model.freeze()  # Freeze the entire model
+    #     opt_params = []
+    #     for _, module in self.frozen_model.named_modules():
+    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+    #             module.set_enabled_adapters(enabled=True)
+    #             module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
+    #             opt_params += [p for p in module.parameters()]
+
+    #     self._optimizer_param_groups = [{'params': opt_params}]
+    #     logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 
     # def training_step(self, batch, batch_idx):
     #     # we zero grads here because we also call backward in the apex fwd/bwd functions

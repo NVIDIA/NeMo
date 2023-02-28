@@ -293,7 +293,8 @@ def model_inference_strategy_dispatcher(model, **args):
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
         del args['strategy']
-        megatron_lm_compatible = model.model.megatron_lm_compatible
+        # megatron_lm_compatible = model.model.megatron_lm_compatible
+        megatron_lm_compatible = False
         args['megatron_lm_compatible'] = megatron_lm_compatible
         if strategy_name == 'RetroModelTextGenerationStrategy':
             return RetroModelTextGenerationStrategy(model, **args)

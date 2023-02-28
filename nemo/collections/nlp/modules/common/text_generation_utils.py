@@ -643,7 +643,6 @@ def sample_sequence_batch(
 
                 # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens
-
                 if output_logits is None:
                     output = F.log_softmax(output[:, :context_length, :], 2)
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)

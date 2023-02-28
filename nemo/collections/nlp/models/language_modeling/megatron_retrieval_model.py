@@ -85,13 +85,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
-        if cfg.get('restore_from_path') is not None:
+        if cfg.get('run_retrieval') is True:
             save_restore_connector = NLPSaveRestoreConnector()
             if os.path.isdir(cfg.get('restore_from_path')):
                 save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
 
             frozen_model_cfg = MegatronRetrievalModel.restore_from(
-                cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+                "/dataset/retro/checkpoints/megatron_retro.nemo", trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
             )
 
             with open_dict(frozen_model_cfg):
@@ -124,15 +124,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             else:
                 raise ValueError('precision must be in [32, 16, "bf16"]')
 
+            print("WE ARE HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
             self.frozen_model = MegatronRetrievalModel.restore_from(
-                cfg.get('restore_from_path'),
+                "/dataset/retro/checkpoints/megatron_retro.nemo",
                 trainer=trainer,
                 save_restore_connector=save_restore_connector,
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
         else:
-                
+                    
             # TODO does not support PP yet
             self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
 
@@ -270,6 +271,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             version=self.cfg.get('version', 1),
         )
         return model
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
 
     def forward(
         self,

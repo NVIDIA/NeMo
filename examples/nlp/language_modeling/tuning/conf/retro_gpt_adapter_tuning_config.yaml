@@ -13,9 +13,9 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 4000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 500
   limit_val_batches: null
   limit_test_batches: null
   accumulate_grad_batches: 1
@@ -30,7 +30,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: null
     name: null
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -50,7 +50,7 @@ model:
 
   # model architecture
   encoder_seq_length: 2048
-  max_position_embeddings: ${.encoder_seq_length}
+  max_position_embeddings: 2048
 
   gradient_as_bucket_view: False # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
@@ -63,7 +63,7 @@ model:
   dec_num_layers: 6    # total number of decoder layers
   enc_cross_attention: [3]    # layer numbers for cross attention in encoder
   dec_cross_attention: [3, 5]    # layer numbers for chunked cross attention in decoder
-  add_position_embedding: True   # whether use the absolute position encoding
+  add_position_embedding: False   # whether use the absolute position encoding
 
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
@@ -74,6 +74,7 @@ model:
   grad_allreduce_chunk_size_mb: 125
 
   restore_from_path: "/dataset/retro/retro_1100m_final"
+  eval: false
 
 
   tokenizer:
@@ -111,7 +112,7 @@ model:
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 900,50,50
-    seq_length: ${model.encoder_seq_length}  # must be multiple of the chunk_size in your dataset
+    seq_length: 2048  # must be multiple of the chunk_size in your dataset
     skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
@@ -119,15 +120,15 @@ model:
   
   optim:
     name: fused_adam
-    lr: 1e-1
+    lr: 1e1
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 500
+      warmup_steps: 0
+      constant_steps: 0
       min_lr: 1e-2
 
 
@@ -139,3 +140,19 @@ model:
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+
+    pre_decoder: False
+    post_decoder: True
+    encoder : False
+
+  hidden_size: 2304
+  ffn_hidden_size: 9216
+  hidden_dropout: 0
+  init_method_std: 0.023
+  attention_dropout: 0
+  apply_query_key_layer_scaling: False
+  normalization: rmsnorm
+  fp32_residual_connection: True
+  activations_checkpoint_num_layers: null
+
+
