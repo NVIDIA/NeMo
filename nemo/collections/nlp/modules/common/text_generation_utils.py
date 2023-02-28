@@ -898,5 +898,6 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
     log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
 
     token_ids = torch.multinomial(log_probs.exp(), num_samples=1).view(-1)
+    log_probs = log_probs.gather(1, token_ids.unsqueeze(1)).squeeze(1)
 
     return log_probs, token_ids
