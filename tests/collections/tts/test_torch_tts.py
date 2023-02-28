@@ -18,11 +18,11 @@ from pathlib import Path
 
 import pytest
 import torch
-from nemo_text_processing.g2p.modules import EnglishG2p
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer
-from nemo.collections.tts.torch.data import TTSDataset
-from nemo.collections.tts.torch.helpers import get_base_dir
+from nemo.collections.tts.data.tts_dataset import TTSDataset
+from nemo.collections.tts.g2p.modules import EnglishG2p
+from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 
 
 class TestTTSDataset:

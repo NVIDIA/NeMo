@@ -15,9 +15,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-from nemo.collections.tts.helpers.helpers import mas_width1 as mas
-from nemo.collections.tts.helpers.helpers import regulate_len
 from nemo.collections.tts.modules.attribute_prediction_model import get_attribute_prediction_model
 from nemo.collections.tts.modules.common import (
     AffineTransformationLayer,
@@ -29,6 +26,7 @@ from nemo.collections.tts.modules.common import (
     LinearNorm,
     get_radtts_encoder,
 )
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, mas_width1, regulate_len
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.neural_types.elements import Index, LengthsType, MelSpectrogramType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
@@ -54,13 +52,19 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
     return energy_avg, f0
 
 
-def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
+def adjust_f0(f0, f0_mean, f0_std, vmask_bool, musical_scaling=True):
     if f0_mean > 0.0:
-        f0_sigma, f0_mu = torch.std_mean(f0[vmask_bool])
-        f0 = ((f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
-        f0_std = f0_std if f0_std > 0 else f0_sigma
-        f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
-    return f0.masked_fill(~vmask_bool, 0.0)
+        if musical_scaling:
+            f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
+            f0_factor = f0_mean / f0_mu
+            f0[vmask_bool] *= f0_factor
+        else:
+            f0_sigma, f0_mu = torch.std_mean(f0[vmask_bool])
+            f0 = ((f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
+            f0_std = f0_std if f0_std > 0 else f0_sigma
+            f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
+            f0 = f0.masked_fill(~vmask_bool, 0.0)
+    return f0
 
 
 class FlowStep(nn.Module):
@@ -274,6 +278,7 @@ class RadTTSModule(NeuralModule, Exportable):
             # 4 embeddings, first two are scales, second two are biases
             if self.ap_use_voiced_embeddings:
                 self.v_embeddings = torch.nn.Embedding(4, n_text_dim)
+            self.v_pred_threshold = 0.5
 
         if 'apm' in include_modules:
             f0_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
@@ -391,7 +396,7 @@ class RadTTSModule(NeuralModule, Exportable):
             attn_cpu = attn.data.cpu().numpy()
             attn_out = torch.zeros_like(attn)
             for ind in range(b_size):
-                hard_attn = mas(attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]])
+                hard_attn = mas_width1(attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]])
                 attn_out[ind, 0, : out_lens[ind], : in_lens[ind]] = torch.tensor(hard_attn, device=attn.get_device())
         return attn_out
 
@@ -443,6 +448,7 @@ class RadTTSModule(NeuralModule, Exportable):
         attn = None
         attn_soft = None
         attn_hard = None
+        attn_logprob = None
         if 'atn' in self.include_modules or 'dec' in self.include_modules:
             # make sure to do the alignments before folding
             attn_mask = ~get_mask_from_lengths(in_lens)[..., None]
@@ -581,13 +587,13 @@ class RadTTSModule(NeuralModule, Exportable):
         self,
         speaker_id,
         text,
-        sigma,
-        sigma_txt=0.8,
-        sigma_f0=0.8,
-        sigma_energy=0.8,
+        sigma=0.7,
+        sigma_txt=0.7,
+        sigma_f0=1.0,
+        sigma_energy=1.0,
         speaker_id_text=None,
         speaker_id_attributes=None,
-        pace=1.0,
+        pace=None,
         token_duration_max=100,
         in_lens=None,
         dur=None,
@@ -600,10 +606,16 @@ class RadTTSModule(NeuralModule, Exportable):
     ):
 
         batch_size = text.shape[0]
-        n_tokens = text.shape[1]
         if in_lens is None:
-            in_lens = text.new_ones((batch_size,), dtype=torch.int) * n_tokens
+            in_lens = text.new_ones((batch_size,), dtype=torch.int64) * text.shape[1]
+            txt_len_pad_removed = text.shape[1]
+        else:
+            txt_len_pad_removed = torch.max(in_lens)
+            # borisf : this should not be needed as long as we have properly formed input batch
+            text = text[:, :txt_len_pad_removed]
+
         spk_vec = self.encode_speaker(speaker_id)
+
         if speaker_id_text is None:
             speaker_id_text = speaker_id
         if speaker_id_attributes is None:
@@ -618,19 +630,14 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
-        # text encoded removes padding tokens so shape of text_enc is changed
-        # need to adjust pace, pitch_shift to account for this
-        txt_len_pad_removed = torch.max(in_lens)
-        pace = pace[:, :txt_len_pad_removed]
-        pitch_shift = pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1)
+
+        if pace is None:
+            pace = txt_enc.new_ones((batch_size, txt_len_pad_removed))
+        else:
+            pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
-            dur,
-            txt_enc.transpose(1, 2),
-            pace,
-            replicate_to_nearest_multiple=True,
-            group_size=self.n_group_size,
-            in_lens=in_lens,
+            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size, dur_lens=in_lens,
         )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
@@ -640,7 +647,7 @@ class RadTTSModule(NeuralModule, Exportable):
             if self.use_vpred_module:
                 # get logits
                 voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
-                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
+                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > self.v_pred_threshold
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
             else:
                 voiced_mask_bool = None
@@ -661,7 +668,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if f0 is None:
             f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=False)
 
         if energy_avg is None:
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
@@ -671,25 +678,18 @@ class RadTTSModule(NeuralModule, Exportable):
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
 
-        pitch_shift_spec_len = 0
         if pitch_shift is not None:
             pitch_shift_spec_len, _ = regulate_len(
                 dur,
-                pitch_shift,
+                pitch_shift[:, :txt_len_pad_removed].unsqueeze(-1),
                 pace,
-                replicate_to_nearest_multiple=True,
                 group_size=self.n_group_size,
-                in_lens=in_lens,
+                dur_lens=in_lens,
             )
-            pitch_shift_spec_len = pitch_shift_spec_len.squeeze(-1)
+            f0_bias = pitch_shift_spec_len.squeeze(-1) + f0_bias
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded,
-            spk_vec,
-            out_lens,
-            (f0 + f0_bias + pitch_shift_spec_len) * voiced_mask,
-            energy_avg,
-            assume_padded=True,
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True,
         )
 
         residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
@@ -698,7 +698,9 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
-        remaining_residual, mel = torch.tensor_split(residual, [num_steps_to_exit * self.n_early_size,], dim=1)
+        split = num_steps_to_exit * self.n_early_size
+        mel = residual[:, split:]
+        residual = residual[:, :split]
 
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
@@ -706,9 +708,9 @@ class RadTTSModule(NeuralModule, Exportable):
             if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
-                remaining_residual, residual_to_add = torch.tensor_split(
-                    remaining_residual, [num_steps_to_exit * self.n_early_size,], dim=1
-                )
+                split = num_steps_to_exit * self.n_early_size
+                residual_to_add = residual[:, split:]
+                residual = residual[:, :split]
                 mel = torch.cat((residual_to_add, mel), 1)
 
         if self.n_group_size > 1:

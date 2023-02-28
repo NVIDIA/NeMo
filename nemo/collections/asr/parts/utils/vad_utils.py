@@ -19,7 +19,7 @@ import os
 import shutil
 from itertools import repeat
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import IPython.display as ipd
 import librosa
@@ -58,7 +58,8 @@ def prepare_manifest(config: dict) -> str:
     if 'prepared_manifest_vad_input' in config and config['prepared_manifest_vad_input']:
         manifest_vad_input = config['prepared_manifest_vad_input']
     else:
-        manifest_vad_input = "manifest_vad_input.json"
+        default_path = "manifest_vad_input.json"
+        manifest_vad_input = os.path.join(config["out_dir"], default_path) if "out_dir" in config else default_path
 
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
     if type(config['input']) == str:
@@ -1070,9 +1071,10 @@ def generate_vad_frame_pred(
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
-        file = json.loads(line)['audio_filepath'].split("/")[-1]
-        data.append(file.split(".wav")[0])
+    with open(manifest_vad_input, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)['audio_filepath'].split("/")[-1]
+            data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)
@@ -1135,9 +1137,10 @@ def stitch_segmented_asr_output(
         os.mkdir(speech_segments_tensor_dir)
 
     segmented_output = []
-    for line in open(segmented_output_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        segmented_output.append(file)
+    with open(segmented_output_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            segmented_output.append(file)
 
     with open(stitched_output_manifest, 'w', encoding='utf-8') as fout:
         speech_segments = torch.Tensor()
@@ -1207,22 +1210,24 @@ def construct_manifest_eval(
     Because some pure noise samples might not appear in stitched_output_manifest.
     """
     stitched_output = dict()
-    for line in open(stitched_output_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        stitched_output[file["audio_filepath"]] = file
+    with open(stitched_output_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            stitched_output[file["audio_filepath"]] = file
 
     out = []
-    for line in open(input_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        sample = file["audio_filepath"]
-        if sample in stitched_output:
-            file["pred_text"] = stitched_output[sample]["pred_text"]
-            file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
-        else:
-            file["pred_text"] = ""
-            file["speech_segments_filepath"] = ""
+    with open(input_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            sample = file["audio_filepath"]
+            if sample in stitched_output:
+                file["pred_text"] = stitched_output[sample]["pred_text"]
+                file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
+            else:
+                file["pred_text"] = ""
+                file["speech_segments_filepath"] = ""
 
-        out.append(file)
+            out.append(file)
 
     with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
         for i in out:
@@ -1265,7 +1270,7 @@ def load_rttm_file(filepath: str) -> pd.DataFrame:
     """
     if not Path(filepath).exists():
         raise ValueError(f"File not found: {filepath}")
-    data = pd.read_csv(filepath, sep=" ", delimiter=None, header=None)
+    data = pd.read_csv(filepath, sep="\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
 
     data['start'] = data['start'].astype(float)
@@ -1305,3 +1310,118 @@ def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
     speech_segments = [list(x) for x in speech_segments]
     speech_segments = merge_intervals(speech_segments)
     return speech_segments
+
+
+def load_speech_overlap_segments_from_rttm(rttm_file: str) -> Tuple[List[List[float]], List[List[float]]]:
+    """
+    Load speech segments from RTTM file, merge and extract possible overlaps
+
+    Args:
+        rttm_file (str): Path to RTTM file
+
+    Returns:
+        merged (List[List[float]]): merged speech intervals without overlaps
+        overlaps (List[List[float]]): intervals without overlap speech
+    """
+    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = [list(x) for x in speech_segments]
+    speech_segments.sort(key=lambda x: x[0])  # sort by start time
+    merged = []
+    overlaps = []
+    for interval in speech_segments:
+        # if the list of merged intervals is empty or if the current
+        # interval does not overlap with the previous, simply append it.
+        if not merged or merged[-1][1] < interval[0]:
+            merged.append(interval)
+        else:
+            # otherwise, there is overlap, so we merge the current and previous
+            # intervals.
+            overlaps.append([interval[0], min(merged[-1][1], interval[1])])
+            merged[-1][1] = max(merged[-1][1], interval[1])
+    return merged, overlaps
+
+
+def get_nonspeech_segments(
+    speech_segments: List[List[float]], max_duration: Optional[float] = None
+) -> List[List[float]]:
+    """
+    Get non-speech segments from given speech segments and maximum duration
+
+    Args:
+        speech_segments (List[List[float]]): speech segment intervals loaded by load_speech_segments()
+        max_duration (Optional[float]): maximum duration of the audio, used to calculate the last silence segment
+    
+    Returns:
+        nonspeech_segments (List[List[float]]): intervals of non-speech segments
+    """
+    nonspeech_segments = []
+    start = 0.0
+    for sp_seg in speech_segments:
+        end = sp_seg[0]
+        nonspeech_segments.append([start, end])
+        start = sp_seg[1]
+
+    if max_duration is not None and start < max_duration:
+        nonspeech_segments.append([start, max_duration])
+
+    return nonspeech_segments
+
+
+def get_frame_labels(segments: List[List[float]], frame_length: float, offset: float, duration: float) -> str:
+    """
+    Generate frame-level binary labels for audio, '0' for non-speech and '1' for speech
+
+    Args:
+        segments (List[List[float]]): speech segments loaded by load_speech_segments_from_rttm
+        frame_length (float): frame length in seconds, e.g. 0.01 for 10ms frames
+        offset (float): Offset of the audio clip
+        duration (float): duration of the audio clip
+    """
+    labels = []
+    n_frames = int(np.ceil(duration / frame_length))
+
+    sid = 0
+    for i in range(n_frames):
+        t = offset + i * frame_length
+        while sid < len(segments) - 1 and segments[sid][1] < t:
+            sid += 1
+        if segments[sid][0] <= t <= segments[sid][1]:
+            labels.append('1')
+        else:
+            labels.append('0')
+    return ' '.join(labels)
+
+
+def plot_sample_from_rttm(
+    audio_file: str, rttm_file: str, max_duration: Optional[float] = None, save_path: str = "", show: bool = True
+):
+    plt.figure(figsize=[20, 2])
+    UNIT_FRAME_LEN = 0.01
+
+    audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=0, duration=max_duration)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
+
+    segments = load_speech_segments_from_rttm(rttm_file)
+    labels = get_frame_labels(segments, UNIT_FRAME_LEN, 0.0, dur)
+    labels = [float(x) for x in labels.split()]
+
+    length = len(labels)
+    ax1 = plt.subplot()
+    ax1.set_title(audio_file)
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.set_xlim([0, int(dur) + 1])
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylabel('Signal')
+    ax1.set_ylim([-1, 1])
+    ax2 = ax1.twinx()
+
+    ax2.plot(np.arange(length) * UNIT_FRAME_LEN, labels, 'r', label='label')
+    ax2.tick_params(axis='y', labelcolor='r')
+    ax2.legend(loc='lower right', shadow=True)
+    ax2.set_ylabel('Labels')
+    ax2.set_ylim([-0.1, 1.1])
+    if show:
+        plt.show()
+    if save_path:
+        plt.savefig(save_path)
+    return ipd.Audio(audio, rate=16000)

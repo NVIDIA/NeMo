@@ -38,7 +38,7 @@ WORKDIR /tmp/
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 75f401e088ef88e7c85a57ecf70fb232235f0334 && \
+    git checkout c0a0b0f69d2d5a98bd141be12ee8e5eebd3ec7ca && \
     pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
@@ -53,10 +53,6 @@ RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
-
-# install pynini
-COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
-RUN /bin/bash /tmp/nemo/install_pynini.sh
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
@@ -81,8 +77,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
-    python -c "import nemo.collections.tts as nemo_tts" && \
-    python -c "import nemo_text_processing.text_normalization as text_normalization"
+    python -c "import nemo.collections.tts as nemo_tts"
 
 # TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
 # install pinned numba version
