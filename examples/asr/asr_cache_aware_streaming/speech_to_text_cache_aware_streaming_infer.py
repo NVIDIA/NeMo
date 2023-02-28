@@ -71,14 +71,11 @@ python speech_to_text_streaming_infer.py \
 
 
 import contextlib
-import io
 import json
 import os
 import time
 from argparse import ArgumentParser
 
-import numpy as np
-import onnxruntime
 import torch
 from omegaconf import open_dict
 
@@ -87,10 +84,6 @@ from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
 from nemo.utils import logging
-
-
-def to_numpy(tensor):
-    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 
 def extract_transcriptions(hyps):
@@ -109,164 +102,13 @@ def extract_transcriptions(hyps):
 
 def calc_drop_extra_pre_encoded(asr_model, step_num):
     # for the first step there is no need to drop any tokens after the downsampling as no caching is being used
-    # return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
     if step_num == 0:
         return 0
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
 
-def perform_streaming_unified_jit(
-    asr_model, asr_model_script, streaming_buffer, compare_vs_offline=False, debug_mode=False, exec_batch_size=128
-):
-    batch_size = len(streaming_buffer.streams_length)
-    final_offline_tran = None
-
-    cache_last_channel = torch.zeros(
-        (exec_batch_size, 18, 104, 512), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
-    )
-    cache_last_time = torch.zeros(
-        (exec_batch_size, 18, 512, 30), dtype=torch.float32, device=torch.device("cuda:0"), requires_grad=False
-    )
-    cache_last_channel_len = torch.zeros(
-        (exec_batch_size,), dtype=torch.int64, device=torch.device("cuda:0"), requires_grad=False
-    )
-
-    previous_hypotheses = None
-    streaming_buffer_iter = iter(streaming_buffer)
-    pred_out_stream = None
-    all_preds = None
-    all_preds_lens = None
-    transcribed_texts = []
-
-    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        chunk_audio = chunk_audio.to(torch.device("cuda"))
-        chunk_lengths = chunk_lengths.to(torch.device("cuda"))
-        if batch_size < exec_batch_size:
-            chunk_lengths = torch.nn.functional.pad(chunk_lengths, (0, exec_batch_size - batch_size))
-            chunk_audio = torch.nn.functional.pad(chunk_audio, (0, 0, 0, 0, 0, exec_batch_size - batch_size))
-        logging.debug(f"chunk_audio.size() {chunk_audio.size()}")
-        with torch.inference_mode():
-            with autocast():
-                with torch.no_grad():
-                    logging.debug(f"step_num: {step_num}")
-                    logging.debug(f"cache_last_channel.size(): {cache_last_channel.size()}")
-                    logging.debug(f"cache_last_time.size(): {cache_last_time.size()}")
-                    logging.debug(f"cache_last_channel_len: {cache_last_channel_len}")
-                    (
-                        log_probs,
-                        encoded_len,
-                        cache_last_channel,
-                        cache_last_time,
-                        cache_last_channel_len,
-                    ) = asr_model_script(
-                        input=chunk_audio,
-                        length=chunk_lengths,
-                        cache_last_channel=cache_last_channel,
-                        cache_last_time=cache_last_time,
-                        cache_last_channel_len=cache_last_channel_len,
-                    )
-                logging.debug(f"log_probs.size() {log_probs.size()}")
-                predictions_tensor = log_probs[:batch_size, :, :].argmax(dim=-1, keepdim=False)
-                if step_num == 0:
-                    all_preds = predictions_tensor
-                    all_preds_lens = encoded_len[:batch_size]
-                else:
-                    all_preds = torch.cat((all_preds, predictions_tensor), dim=1)
-                    all_preds_lens = all_preds_lens + encoded_len[:batch_size]
-
-    for preds_idx, preds in enumerate(all_preds):
-        preds_cur = all_preds[preds_idx, : all_preds_lens[preds_idx]]
-
-        # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-        decoded_out = asr_model.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=preds_cur.unsqueeze(0),
-            decoder_lengths=all_preds_lens[preds_idx : preds_idx + 1],
-            return_hypotheses=False,
-        )
-        transcribed_texts.append(decoded_out[0][0])
-
-        # if debug_mode:
-        #    logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
-
-    final_streaming_tran = extract_transcriptions(transcribed_texts)
-    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
-
-    return final_streaming_tran, final_offline_tran
-
-
-def perform_streaming_unified(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
-    batch_size = len(streaming_buffer.streams_length)
-    final_offline_tran = None
-    asr_model.encoder.export_streaming_support = True
-
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size, device=torch.device("cuda")
-    )
-
-    previous_hypotheses = None
-    streaming_buffer_iter = iter(streaming_buffer)
-    pred_out_stream = None
-    all_preds = None
-    all_preds_lens = None
-    transcribed_texts = []
-
-    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        chunk_audio = chunk_audio.to(torch.device("cuda"))
-        chunk_lengths = chunk_lengths.to(torch.device("cuda"))
-        logging.debug(f"chunk_audio.size() {chunk_audio.size()}")
-        with torch.inference_mode():
-            with autocast():
-                with torch.no_grad():
-                    logging.debug(f"step_num: {step_num}")
-                    logging.debug(f"cache_last_channel.size(): {cache_last_channel.size()}")
-                    logging.debug(f"cache_last_time.size(): {cache_last_time.size()}")
-                    logging.debug(f"cache_last_channel_len: {cache_last_channel_len}")
-                    (
-                        log_probs,
-                        encoded_len,
-                        cache_last_channel,
-                        cache_last_time,
-                        cache_last_channel_len,
-                    ) = asr_model.forward_for_export(
-                        input=chunk_audio,
-                        length=chunk_lengths,
-                        cache_last_channel=cache_last_channel,
-                        cache_last_time=cache_last_time,
-                        cache_last_channel_len=cache_last_channel_len,
-                    )
-                logging.debug(f"log_probs.size() {log_probs.size()}")
-                predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
-                if step_num == 0:
-                    all_preds = predictions_tensor
-                    all_preds_lens = encoded_len
-                else:
-                    all_preds = torch.cat((all_preds, predictions_tensor), dim=1)
-                    all_preds_lens = all_preds_lens + encoded_len
-
-    for preds_idx, preds in enumerate(all_preds):
-        preds_cur = all_preds[preds_idx, : all_preds_lens[preds_idx]]
-
-        # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-        decoded_out = asr_model.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=preds_cur.unsqueeze(0),
-            decoder_lengths=all_preds_lens[preds_idx : preds_idx + 1],
-            return_hypotheses=False,
-        )
-        transcribed_texts.append(decoded_out[0][0])
-
-        # if debug_mode:
-        #    logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
-
-    final_streaming_tran = extract_transcriptions(transcribed_texts)
-    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
-
-    return final_streaming_tran, final_offline_tran
-
-
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
-    if asr_model.encoder.streaming_cfg is None:
-        asr_model.encoder.setup_streaming_params()
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
@@ -291,9 +133,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     else:
         final_offline_tran = None
 
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
-    )
+    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
     streaming_buffer_iter = iter(streaming_buffer)
@@ -301,6 +141,9 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with torch.inference_mode():
             with autocast():
+                # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
+                # otherwise the last outputs would get dropped
+
                 with torch.no_grad():
                     (
                         pred_out_stream,
@@ -415,9 +258,6 @@ def main():
         asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)
-    with open("streaming-conformer.pt", "rb") as f:
-        buffer = io.BytesIO(f.read())
-    asr_model_script = torch.jit.load(buffer, map_location=torch.device("cuda:0"))
 
     global autocast
     if (
@@ -478,7 +318,7 @@ def main():
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
         )
-        perform_streaming_unified(
+        perform_streaming(
             asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
         )
     else:
@@ -506,22 +346,12 @@ def main():
 
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
-                if args.compare_vs_offline:
-                    streaming_tran, offline_tran = perform_streaming(
-                        asr_model=asr_model,
-                        streaming_buffer=streaming_buffer,
-                        compare_vs_offline=args.compare_vs_offline,
-                        debug_mode=args.debug_mode,
-                    )
-                else:
-                    streaming_tran, offline_tran = perform_streaming_unified_jit(
-                        asr_model=asr_model,
-                        asr_model_script=asr_model_script,
-                        streaming_buffer=streaming_buffer,
-                        compare_vs_offline=args.compare_vs_offline,
-                        debug_mode=args.debug_mode,
-                        exec_batch_size=128,
-                    )
+                streaming_tran, offline_tran = perform_streaming(
+                    asr_model=asr_model,
+                    streaming_buffer=streaming_buffer,
+                    compare_vs_offline=args.compare_vs_offline,
+                    debug_mode=args.debug_mode,
+                )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
                     all_offline_tran.extend(offline_tran)

@@ -477,7 +477,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             cache_last_channel_next,
             cache_last_time_next,
             cache_last_channel_len,
-        ) = self.encoder.forward_for_export(
+        ) = self.encoder.forward(
             audio_signal=processed_signal,
             length=processed_signal_length,
             cache_last_channel=cache_last_channel,
