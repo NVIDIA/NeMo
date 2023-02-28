@@ -133,7 +133,9 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     else:
         final_offline_tran = None
 
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
+    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
+        batch_size=batch_size
+    )
 
     previous_hypotheses = None
     streaming_buffer_iter = iter(streaming_buffer)
