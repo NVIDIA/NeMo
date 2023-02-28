@@ -1127,6 +1127,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         predicted_tokens_dec=None,
     ):
         """
+        tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
+        enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
+        num_tokens_to_generate - the max number of tokens to generate.
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
+        tokenizer - a tokenizer object.
+        enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
+        enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
+        ignore_ids - a list of token ids to ignore when sampling.
+        bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
         sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
         predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
         """
@@ -1243,12 +1252,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
                 )
                 predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
-
-                # # TODO: do log_softmax in fp32?
-                # log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-                # predicted_tokens_dec = torch.cat(
-                #     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
-                # )
             else:
                 predicted_log_probs = torch.zeros(
                     (predicted_log_probs.shape[0], predicted_log_probs.shape[1]), dtype=self.autocast_dtype
