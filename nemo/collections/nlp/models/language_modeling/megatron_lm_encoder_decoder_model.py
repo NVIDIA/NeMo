@@ -36,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, sample_token_topk
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -1235,7 +1235,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
                     )
 
-                log_probs, token_ids = sample_token_fn(logits=output_tensor)
+                log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
                 # collect all predicted tokens and log_probs
