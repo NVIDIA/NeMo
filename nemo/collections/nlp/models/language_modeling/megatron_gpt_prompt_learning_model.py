@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import os
 import re
-import itertools
 from functools import partial
 from typing import Any, List, Optional, Union
 
 import torch
-from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
@@ -189,9 +189,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         # default inference related params -> for evaluation metrics
         self.length_params: LengthParam = {
-                "max_length": 30,
-                "min_length": 0,
-            }
+            "max_length": 30,
+            "min_length": 0,
+        }
 
         self.sampling_params: SamplingParam = {
             "use_greedy": True,
@@ -365,18 +365,25 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.cfg.get('report_validation_accuracy', False):
             preds_text, labels_text = [], []
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch            
-            input_lenghts = torch.cuda.LongTensor([input.shape[0] - self.length_params['max_length'] for input in input_ids])
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            input_lenghts = torch.cuda.LongTensor(
+                [input.shape[0] - self.length_params['max_length'] for input in input_ids]
+            )
 
             res = megatron_gpt_generate(
-                self.cuda(), (input_ids, torch.cuda.LongTensor(input_lenghts)), self.tokenizer, self.length_params, self.sampling_params, task_ids=taskname_ids
+                self.cuda(),
+                (input_ids, torch.cuda.LongTensor(input_lenghts)),
+                self.tokenizer,
+                self.length_params,
+                self.sampling_params,
+                task_ids=taskname_ids,
             )
 
             for pred, label in zip(res['token_ids'], labels):
                 additional_special_tokens_ids = []
                 if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
                     additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
-                
+
                 pred = [id for id in pred if id not in additional_special_tokens_ids]
                 label = [id for id in label if id not in additional_special_tokens_ids]
                 pred = self.tokenizer.ids_to_text(pred)
