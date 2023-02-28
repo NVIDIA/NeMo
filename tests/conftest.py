@@ -55,15 +55,6 @@ def pytest_addoption(parser):
         help="numba compatibility checks will be relaxed to just availability of cuda, "
         "without cuda compatibility matrix check",
     )
-    parser.addoption(
-        '--tn_cache_dir',
-        type=str,
-        default=None,
-        help="path to a directory with .far grammars for CPU TN/ITN tests, (DEFAULT: None, i.e. no cache)",
-    )
-    parser.addoption(
-        '--run_audio_based', action='store_true', help="pass this argument to run audio-based TN tests",
-    )
 
 
 @pytest.fixture
@@ -108,9 +99,12 @@ def cleanup_local_folder():
         rmtree('./nemo_experiments', ignore_errors=True)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_dir():
-    """ Fixture returns test_data_dir. """
+    """
+    Fixture returns test_data_dir.
+    Use the highest fixture scope `session` to allow other fixtures with any other scope to use it.
+    """
     # Test dir.
     test_data_dir_ = join(dirname(__file__), __TEST_DATA_SUBDIR)
     return test_data_dir_
@@ -228,9 +222,3 @@ def pytest_configure(config):
 
         print("Setting numba compat :", config.option.relax_numba_compat)
         numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)
-
-    # Set cache directory for TN/ITN tests
-    from .nemo_text_processing.utils import set_cache_dir, set_audio_based_tests
-
-    set_cache_dir(config.option.tn_cache_dir)
-    set_audio_based_tests(config.option.run_audio_based)

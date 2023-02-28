@@ -113,6 +113,10 @@ Mixins
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.mixins.interctc_mixin.InterCTCMixin
+    :show-inheritance:
+    :members:
+
 Datasets
 --------
 
@@ -198,6 +202,25 @@ Audio Augmentors
 
 Miscellaneous Classes
 ---------------------
+
+CTC Decoding
+~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.metrics.wer.CTCDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.metrics.wer_bpe.CTCBPEDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_greedy_decoding.GreedyCTCInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_beam_decoding.BeamCTCInfer
+    :show-inheritance:
+    :members:
 
 RNNT Decoding
 ~~~~~~~~~~~~~

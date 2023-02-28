@@ -40,6 +40,9 @@ class SequenceToSequenceDataset(Dataset):
         tgt_tokenizer: TokenizerSpec,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
+        add_bos_to_input: bool = True,
+        add_eos_to_input: bool = True,
+        replace_bos_with_pad: bool = False,
     ):
         super().__init__()
         self.src_file_name = src_file_name
@@ -48,6 +51,9 @@ class SequenceToSequenceDataset(Dataset):
         self.tgt_tokenizer = tgt_tokenizer
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
+        self.add_bos_to_input = add_bos_to_input
+        self.add_eos_to_input = add_eos_to_input
+        self.replace_bos_with_pad = replace_bos_with_pad
         assert self.max_src_seq_length > 0
         assert self.max_tgt_seq_length > 0
         self._check_files_exist()
@@ -75,13 +81,14 @@ class SequenceToSequenceDataset(Dataset):
             for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
                 if i % 10000 == 0 and i != 0:
                     logging.info(f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}")
-                src = (
-                    [self.src_tokenizer.bos_id]
-                    + self.src_tokenizer.text_to_ids(src.strip())
-                    + [self.src_tokenizer.eos_id]
-                )
+                src = self.src_tokenizer.text_to_ids(src.strip())
+                if self.add_bos_to_input:
+                    src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
+                if self.add_eos_to_input:
+                    src = src + [self.src_tokenizer.eos_id]
+
                 tgt = (
-                    [self.tgt_tokenizer.bos_id]
+                    [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
                     + self.tgt_tokenizer.text_to_ids(tgt.strip())
                     + [self.tgt_tokenizer.eos_id]
                 )
@@ -95,39 +102,39 @@ class SequenceToSequenceDataset(Dataset):
         logging.info(f'Dataset Length : {len(self.examples)}')
 
     def collate_fn(self, batch):
-        enc_query = [item['text_enc'] for item in batch]
-        dec_input = [item['text_dec'] for item in batch]
+        text_enc = [item['text_enc'] for item in batch]
+        text_dec = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
 
-        if isinstance(enc_query[0], np.ndarray):
-            enc_query = [x.tolist() for x in enc_query]
+        if isinstance(text_enc[0], np.ndarray):
+            text_enc = [x.tolist() for x in text_enc]
 
-        if isinstance(dec_input[0], np.ndarray):
-            dec_input = [x.tolist() for x in dec_input]
+        if isinstance(text_dec[0], np.ndarray):
+            text_dec = [x.tolist() for x in text_dec]
 
         if isinstance(labels[0], np.ndarray):
             labels = [x.tolist() for x in labels]
 
-        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
-        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
+        max_dec_input_length = max([len(item) for item in text_dec]) if text_dec else 0
+        max_enc_input_length = max([len(item) for item in text_enc]) if text_enc else 0
         max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        enc_query = [item + [self.src_tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
-        dec_input = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
+        text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
+        text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
         labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
 
-        enc_query = torch.LongTensor(enc_query)
-        dec_input = torch.LongTensor(dec_input)
+        text_enc = torch.LongTensor(text_enc)
+        text_dec = torch.LongTensor(text_dec)
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
 
-        enc_mask = (enc_query != self.src_tokenizer.pad_id).long()
-        dec_mask = (dec_input != self.tgt_tokenizer.pad_id).long()
+        enc_mask = (text_enc != self.src_tokenizer.pad_id).long()
+        dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
 
         return {
-            'text_enc': enc_query,
-            'text_dec': dec_input,
+            'text_enc': text_enc,
+            'text_dec': text_dec,
             'labels': labels,
             'loss_mask': loss_mask,
             'enc_mask': enc_mask,
@@ -149,7 +156,10 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         seed: int = 1234,
-        max_num_samples=None,
+        add_bos_to_enc: bool = True,
+        add_eos_to_enc: bool = True,
+        max_num_samples: int = None,
+        prepend_id: int = None,
     ):
         """
         src_file_name: Path to a single source file on disk. This is either the path to a raw text file or the prefix to the processed src_file_name.bin/idx files.
@@ -160,6 +170,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         super().__init__(
             src_file_name=src_file_name,
@@ -171,6 +182,10 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         )
         self.seed = seed
         self.max_num_samples = max_num_samples
+        self.add_bos_to_enc = add_bos_to_enc
+        self.add_eos_to_enc = add_eos_to_enc
+        self.prepend_id = prepend_id
+
         logging.info(f'Desired number of samples : {self.max_num_samples}')
         logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
         logging.info(f'Target Dataset Length : {len(self.tgt_indexed_dataset)}')
@@ -179,9 +194,9 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         if self.max_num_samples is None:
             return len(self.src_indexed_dataset)
         else:
-            return len(self.samples_mapping)
+            return self.max_num_samples
 
-    def __getitem__(self, idx):
+    def _get_sample(self, idx):
         if isinstance(idx, np.int64):
             idx = idx.item()
 
@@ -193,18 +208,39 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
         assert idx < len(self.src_indexed_dataset)
         src = self.src_indexed_dataset[idx]
-        if len(src) > self.max_src_seq_length - 2:
-            src = src[: self.max_src_seq_length - 2]
-        text_enc = np.concatenate([[self.src_tokenizer.bos_id], src, [self.src_tokenizer.eos_id]])
-
         tgt = self.tgt_indexed_dataset[idx]
+
+        return src, tgt
+
+    def __getitem__(self, idx):
+        src, tgt = self._get_sample(idx)
+        offset = 0
+        if self.add_bos_to_enc:
+            offset += 1
+        if self.add_eos_to_enc:
+            offset += 1
+        if self.prepend_id is not None:
+            offset += 1
+
+        if len(src) > self.max_src_seq_length - offset:
+            src = src[: self.max_src_seq_length - offset]
+
+        if self.add_bos_to_enc:
+            src = np.concatenate([[self.src_tokenizer.bos_id], src])
+
+        if self.prepend_id is not None:
+            src = np.concatenate([[self.prepend_id], src])
+
+        if self.add_eos_to_enc:
+            src = np.concatenate([src, [self.src_tokenizer.eos_id]])
+
         if len(tgt) > self.max_tgt_seq_length - 2:
             tgt = tgt[: self.max_tgt_seq_length - 2]
 
         text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
         labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
 
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        return {'text_enc': src, 'text_dec': text_dec, 'labels': labels}
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -242,6 +278,9 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_tgt_seq_length: int,
         seed: int = 1234,
         max_num_samples: int = None,
+        add_bos_to_enc: bool = True,
+        add_eos_to_enc: bool = True,
+        prepend_id: int = None,
     ):
         """
         src_file_name: Path to a single source file on disk. The file should contain one sentence per line and be raw text.
@@ -252,6 +291,9 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        add_bos_to_enc: Add BOS token to the encoder input.
+        add_eos_to_enc: Add EOS token to the encoder input.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         self.seed = seed
         self.max_num_samples = max_num_samples
@@ -264,6 +306,9 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
             max_tgt_seq_length=max_tgt_seq_length,
             seed=seed,
             max_num_samples=max_num_samples,
+            add_bos_to_enc=add_bos_to_enc,
+            add_eos_to_enc=add_eos_to_enc,
+            prepend_id=prepend_id,
         )
 
     def _get_examples(self):
@@ -293,6 +338,9 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_tgt_seq_length: int,
         seed: int = 1234,
         max_num_samples: int = None,
+        add_bos_to_enc: bool = True,
+        add_eos_to_enc: bool = True,
+        prepend_id: int = None,
     ):
         """
         src_dataset_prefix: Path to the *prefix* of a single source bin/idx file on disk. This necessitates the existance src_file_prefix.bin and src_file_prefix.idx.
@@ -303,6 +351,9 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        add_bos_to_enc: Add BOS token to the encoder input.
+        add_eos_to_enc: Add EOS token to the encoder input.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
@@ -317,6 +368,9 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
             max_tgt_seq_length=max_tgt_seq_length,
             seed=seed,
             max_num_samples=max_num_samples,
+            add_bos_to_enc=add_bos_to_enc,
+            add_eos_to_enc=add_eos_to_enc,
+            prepend_id=prepend_id,
         )
 
     def _check_files_exist(self):

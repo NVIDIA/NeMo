@@ -31,7 +31,7 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -40,6 +40,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
     HAVE_APEX = True
 
@@ -72,7 +73,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model_type = ModelType.encoder_and_decoder
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -90,11 +90,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
+            input_embeds = self.embed_input(input_ids, taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -163,25 +159,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
 
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
-
-        virtual_prompt_params = {'params': []}
-
-        if self.first_stage_of_pipeline():
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
-
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-
-        self._optimizer_param_groups = (virtual_prompt_params,)
-
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -190,7 +167,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Get seq length of batch
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -271,6 +248,28 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         forward_step_func"""
         self.frozen_model.enc_dec_model.set_input_tensor(input_tensor)
 
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def on_train_epoch_start(self) -> None:
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_train_epoch_start()
+
+    def on_validation_epoch_start(self) -> None:
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        self._reconfigure_batch_sizes(gbs, mbs)
+        return super().on_validation_epoch_start()
+
     def training_step(self, batch, batch_idx):
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
@@ -290,31 +289,22 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
         return loss_mean
 
-    def validation_step(self, batch, batch_idx, inference=False):
-        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
-        mode = self.training
-        self.eval()
-
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
-
-        if self.first_stage_of_pipeline():
-            # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
-        else:
-            encoder_input = None
-
+    def compute_accuracy(self, input_ids, enc_mask, encoder_input, labels):
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
             enc_mask=enc_mask,
@@ -328,15 +318,44 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
         labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
         input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
-
-        self.train(mode=mode)
-        self.frozen_model.eval()
         return {
-            'loss': loss_mean,
             'predicted_token_ids': preds_text,
             'labels': labels_text,
             'enc_inputs': input_text,
         }
+
+    def validation_step(self, batch, batch_idx, inference=False):
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+
+        mode = self.training
+        self.eval()
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(input_ids.size(0), gbs)
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+
+        if self.first_stage_of_pipeline():
+            # Get embeddings for text tokens and insert virtual token embeddings
+            input_embeds = self.embed_input(input_ids, taskname_ids, False)
+
+            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
+                    position_ids
+                )
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
+        else:
+            encoder_input = None
+
+        if self.cfg.get("report_validation_accuracy", False):
+            metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
+            metrics['loss'] = loss_mean
+        else:
+            metrics = {'loss': loss_mean}
+
+        self.train(mode=mode)
+        self.frozen_model.eval()
+        return metrics
 
     def validation_epoch_end(self, outputs):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -357,47 +376,45 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
-        gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        if self.cfg.get("report_validation_accuracy", False):
+            gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
-        all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
-        all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
-        all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
 
-        assert len(all_preds) == len(all_labels)
-        assert len(all_preds) == len(all_inputs)
+            assert len(all_preds) == len(all_labels)
+            assert len(all_preds) == len(all_inputs)
 
-        # Gather inputs, preds, labels from all workers
-        torch.distributed.all_gather_object(
-            gather_results,
-            [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
-            group=parallel_state.get_data_parallel_group(),
-        )
+            # Gather inputs, preds, labels from all workers
+            torch.distributed.all_gather_object(
+                gather_results,
+                [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
+                group=parallel_state.get_data_parallel_group(),
+            )
 
-        # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
-        if parallel_state.get_data_parallel_rank() == 0:
+            # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+            if parallel_state.get_data_parallel_rank() == 0:
 
-            gather_results_dedup = list(set(itertools.chain(*gather_results)))
+                gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
-            correct = 0
-            for (input, pred, label) in gather_results_dedup:
-                if pred == label:
-                    correct += 1
+                correct = 0
+                for (input, pred, label) in gather_results_dedup:
+                    if pred == label:
+                        correct += 1
 
-            val_acc = correct / len(gather_results_dedup)
-            val_acc = torch.tensor(val_acc).cuda()
+                val_acc = correct / len(gather_results_dedup)
+                val_acc = torch.tensor(val_acc).cuda()
 
-            logging.info(f'Validation accuracy: {val_acc}')
-        else:
-            val_acc = torch.tensor(0.0).cuda()
+                logging.info(f'Validation accuracy: {val_acc}')
+            else:
+                val_acc = torch.tensor(0.0).cuda()
 
-        self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
-        logging.info(f'val_loss: {averaged_loss}')
+            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
-        # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_nemo_on_validation_end", False):
-            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-                self.save_checkpoint_as_nemo_file()
-                self.lowest_val_loss = averaged_loss
+        gbs = self.cfg.global_batch_size
+        mbs = self.cfg.micro_batch_size
+        self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -429,7 +446,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -440,6 +457,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
@@ -450,7 +468,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         batch_size, seq_length = input_ids.shape
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=True)
 
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
