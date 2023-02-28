@@ -1080,19 +1080,17 @@ class NeuralDiarizer(LightningModule):
         model_path = cfg.diarizer.msdd_model.model_path
         if model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {model_path}")
-            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.map_location)
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path, map_location=cfg.device)
         elif model_path.endswith('.ckpt'):
             logging.info(f"Using local checkpoint from {model_path}")
             self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
-                checkpoint_path=model_path, map_location=cfg.map_location
+                checkpoint_path=model_path, map_location=cfg.device
             )
         else:
             if model_path not in get_available_model_names(EncDecDiarLabelModel):
                 logging.warning(f"requested {model_path} model name not available in pretrained models, instead")
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self.msdd_model = EncDecDiarLabelModel.from_pretrained(
-                model_name=model_path, map_location=cfg.map_location
-            )
+            self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path, map_location=cfg.device)
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
         if self.use_speaker_model_from_ckpt:
             self._speaker_model = self.extract_standalone_speaker_model()

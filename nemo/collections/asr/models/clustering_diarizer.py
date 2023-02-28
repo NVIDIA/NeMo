@@ -116,7 +116,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         """
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
-            self._vad_model = EncDecClassificationModel.restore_from(model_path, map_location=self._cfg.map_location)
+            self._vad_model = EncDecClassificationModel.restore_from(model_path, map_location=self._cfg.device)
             logging.info("VAD model loaded locally from {}".format(model_path))
         else:
             if model_path not in get_available_model_names(EncDecClassificationModel):
@@ -126,7 +126,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(
-                model_name=model_path, map_location=self._cfg.map_location
+                model_name=model_path, map_location=self._cfg.device
             )
         self._vad_window_length_in_sec = self._vad_params.window_length_in_sec
         self._vad_shift_length_in_sec = self._vad_params.shift_length_in_sec
@@ -141,13 +141,11 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
             if model_path is not None and model_path.endswith('.nemo'):
-                self._speaker_model = EncDecSpeakerLabelModel.restore_from(
-                    model_path, map_location=self._cfg.map_location
-                )
+                self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=self._cfg.device)
                 logging.info("Speaker Model restored locally from {}".format(model_path))
             elif model_path.endswith('.ckpt'):
                 self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(
-                    model_path, map_location=self._cfg.map_location
+                    model_path, map_location=self._cfg.device
                 )
                 logging.info("Speaker Model restored locally from {}".format(model_path))
             else:
@@ -158,7 +156,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                     model_path = "ecapa_tdnn"
                 logging.info("Loading pretrained {} model from NGC".format(model_path))
                 self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
-                    model_name=model_path, map_location=self._cfg.map_location
+                    model_name=model_path, map_location=self._cfg.device
                 )
 
         self.multiscale_args_dict = parse_scale_configs(

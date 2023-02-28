@@ -187,7 +187,6 @@ class DiarizerConfig(DiarizerComponentConfig):
 class NeuralDiarizerInferenceConfig(DiarizerComponentConfig):
     diarizer: DiarizerConfig = DiarizerConfig()
     device: str = "cpu"
-    map_location: Optional[str] = None
     verbose: bool = False
     batch_size: int = 64
     num_workers: int = 1
@@ -200,6 +199,6 @@ class NeuralDiarizerInferenceConfig(DiarizerComponentConfig):
             DiarizerConfig(
                 vad=VADConfig(model_path=vad_model_path), msdd_model=MSDDConfig(model_path=diar_model_path),
             ),
-            map_location=map_location,
+            device=map_location,
             verbose=verbose,
         )
