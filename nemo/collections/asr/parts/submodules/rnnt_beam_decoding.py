@@ -1427,4 +1427,3 @@ class BeamRNNTInferConfig:
     preserve_alignments: bool = False
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
-    tokens_type: str = 'subword'
