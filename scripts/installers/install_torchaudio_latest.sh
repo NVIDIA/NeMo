@@ -52,7 +52,7 @@ fi
 
 
 # check if install branch exists
-if [[ $(git ls-remote --heads git@github.com:user/repo.git ${INSTALL_BRANCH} | wc -l) -eq 0 ]]
+if [[ $(git ls-remote --heads ${TORCHAUDIO_REPO} ${INSTALL_BRANCH} | wc -l) -eq 0 ]]
 then
   echo "Branch ${INSTALL_BRANCH} does not exist in torchaudio repo. Using latest release."
   INSTALL_BRANCH=${LATEST_RELEASE}
