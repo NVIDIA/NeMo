@@ -13,43 +13,36 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List, Optional, Union
 from functools import partial
+from typing import Any, Optional
 
 import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
-from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
 )
-
-from nemo.collections.vision.models.vision_base_model import MegatronVisionModel
-from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
-
 from nemo.collections.nlp.modules.common.megatron.module import (
     MegatronModule,
     Float16Module,
 )
-
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     get_linear_layer,
     init_method_normal,
-    parallel_lm_logits,
     scaled_init_method_normal,
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
     get_params_for_weight_decay_optimization,
 )
-
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
+from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
+from nemo.collections.vision.models.vision_base_model import MegatronVisionModel
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
@@ -129,7 +122,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         self._validate_trainer()
 
-        #TODO(yuya): clean up all default values
+        # TODO(yuya): clean up all default values
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
@@ -174,12 +167,11 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         model = VitClassificationModel(
             model_cfg=self.cfg,
-            num_classes=self.cfg.get("num_classes"), #TODO(yuya): clean this up
+            num_classes=self.cfg.get("num_classes"),  # TODO(yuya): clean this up
             finetune=self.cfg.get("finetune", False),
             pre_process=pre_process,
             post_process=post_process,
@@ -260,7 +252,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         self._optimizer.zero_grad()
 
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
+                ignore_virtual=True
         ):
             # we prepare the micro batches for the apex fwd/bwd function
             batch_for_pipeline = self.process_global_batch(batch)
@@ -515,7 +507,8 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                         if total_samples_remaining <= 0:
                             break
                         if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                            loss_with_batch_size_list.append([loss_reduced[metric_key].item(), self.cfg.micro_batch_size])
+                            loss_with_batch_size_list.append(
+                                [loss_reduced[metric_key].item(), self.cfg.micro_batch_size])
                         else:
                             loss_with_batch_size_list.append([loss_reduced[metric_key].item(), total_samples_remaining])
                         total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
@@ -545,7 +538,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                     batch_sizes = metric_with_batch_size_array[1::2]
                     total_num_samples += sum(batch_sizes)
                     total_metric += np.dot(batch_metrices, batch_sizes)
-    
+
                 avg_metric = total_metric / total_num_samples
                 return avg_metric
 
@@ -575,7 +568,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
         """
-        tokens = global_batch[0] # images
+        tokens = global_batch[0]  # images
         labels = global_batch[1]
 
         expected_batch_size = None
@@ -722,6 +715,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             else:
                 # self.model.sync_initial_word_embeddings()
                 pass
+
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds') and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)

@@ -15,20 +15,20 @@
 """Vision Transformer(VIT) model."""
 
 import math
+from functools import partial
+
 import einops
 import torch
 import torch.nn.functional as F
-from functools import partial
 
-from nemo.collections.vision.modules.common.megatron.vision_transformer import ParallelVisionTransformer
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
-    get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.vision.modules.common.megatron.vision_transformer import ParallelVisionTransformer
 
 try:
     import apex
@@ -203,7 +203,7 @@ class VitBackbone(MegatronModule):
                  class_token=True,
                  single_token_output=False):
         super(VitBackbone, self).__init__(share_token_embeddings=False)
-        
+
         self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
         num_layers = model_cfg.num_layers
         init_method_std = model_cfg.init_method_std
@@ -381,4 +381,3 @@ class VitBackbone(MegatronModule):
                 hidden_states = hidden_states.transpose(0, 1).contiguous()
 
         return hidden_states
-

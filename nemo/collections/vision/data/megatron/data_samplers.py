@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import random
 import torch
-import numpy as np
 from torch.utils.data import Dataset
+
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import BaseMegatronBatchSampler
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
@@ -22,16 +21,16 @@ from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 
     def __init__(
-        self,
-        dataset: Dataset,
-        total_samples: int,
-        consumed_samples: int,
-        micro_batch_size: int,
-        global_batch_size: int,
-        data_parallel_rank: int,
-        data_parallel_size: int,
-        drop_last: bool,
-        data_sharding: bool,
+            self,
+            dataset: Dataset,
+            total_samples: int,
+            consumed_samples: int,
+            micro_batch_size: int,
+            global_batch_size: int,
+            data_parallel_rank: int,
+            data_parallel_size: int,
+            drop_last: bool,
+            data_sharding: bool,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
@@ -75,7 +74,7 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             idx_range = [start_idx + x for x in random_idx[bucket_offset:]]
         else:
             full_bucket_size = (self.total_samples // self.micro_batch_size) \
-                                * self.micro_batch_size
+                               * self.micro_batch_size
             full_bucket_offset = current_epoch_samples
             g = torch.Generator()
             g.manual_seed(self.epoch)

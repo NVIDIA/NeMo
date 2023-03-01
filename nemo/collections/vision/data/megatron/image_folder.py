@@ -15,13 +15,14 @@
 # https://github.com/pytorch/vision/blob/main/torchvision/datasets/folder.py
 # added support for classes_fraction and data_per_class_fraction
 
-from torchvision.datasets import VisionDataset
-from PIL import Image
-
 import os
 import os.path
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple
+
 import numpy as np
+from PIL import Image
+from torchvision.datasets import VisionDataset
+
 
 def has_file_allowed_extension(filename: str, extensions: Tuple[str, ...]) -> bool:
     """Checks if a file is an allowed extension.
@@ -45,11 +46,11 @@ def is_image_file(filename: str) -> bool:
 
 
 def make_dataset(
-    directory: str,
-    class_to_idx: Dict[str, int],
-    data_per_class_fraction: float,
-    extensions: Optional[Tuple[str, ...]] = None,
-    is_valid_file: Optional[Callable[[str], bool]] = None,
+        directory: str,
+        class_to_idx: Dict[str, int],
+        data_per_class_fraction: float,
+        extensions: Optional[Tuple[str, ...]] = None,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
 ) -> List[Tuple[str, int]]:
     """Generates a list of samples of a form (path_to_sample, class).
     Args:
@@ -159,11 +160,11 @@ class DatasetFolder(VisionDataset):
 
     @staticmethod
     def make_dataset(
-        directory: str,
-        class_to_idx: Dict[str, int],
-        data_per_class_fraction: float,
-        extensions: Optional[Tuple[str, ...]] = None,
-        is_valid_file: Optional[Callable[[str], bool]] = None,
+            directory: str,
+            class_to_idx: Dict[str, int],
+            data_per_class_fraction: float,
+            extensions: Optional[Tuple[str, ...]] = None,
+            is_valid_file: Optional[Callable[[str], bool]] = None,
     ) -> List[Tuple[str, int]]:
         return make_dataset(directory,
                             class_to_idx,
@@ -282,4 +283,3 @@ class ImageFolder(DatasetFolder):
                                           data_per_class_fraction=data_per_class_fraction,
                                           is_valid_file=is_valid_file)
         self.imgs = self.samples
-

@@ -105,14 +105,14 @@ class SubPolicy:
     """
 
     def __init__(
-        self,
-        operation1,
-        probability1,
-        magnitude_idx1,
-        operation2,
-        probability2,
-        magnitude_idx2,
-        fillcolor,
+            self,
+            operation1,
+            probability1,
+            magnitude_idx1,
+            operation2,
+            probability2,
+            magnitude_idx2,
+            fillcolor,
     ):
         """Initialize a SubPolicy.
 
@@ -152,19 +152,19 @@ class SubPolicy:
             "invert",
         ]
         assert (operation1 in supported_ops) and (
-            operation2 in supported_ops
+                operation2 in supported_ops
         ), "SubPolicy:one of oper1 or oper2 refers to an unsupported operation."
 
         assert (
-            0.0 <= probability1 <= 1.0 and 0.0 <= probability2 <= 1.0
+                0.0 <= probability1 <= 1.0 and 0.0 <= probability2 <= 1.0
         ), "SubPolicy: prob1 and prob2 should be within [0., 1.]."
 
         assert (
-            isinstance(magnitude_idx1, int) and 0 <= magnitude_idx1 <= 10
+                isinstance(magnitude_idx1, int) and 0 <= magnitude_idx1 <= 10
         ), "SubPolicy: idx1 should be specified as an integer within [0, 10]."
 
         assert (
-            isinstance(magnitude_idx2, int) and 0 <= magnitude_idx2 <= 10
+                isinstance(magnitude_idx2, int) and 0 <= magnitude_idx2 <= 10
         ), "SubPolicy: idx2 should be specified as an integer within [0, 10]."
 
         # Define a dictionary where each key refers to a specific type of
@@ -186,11 +186,11 @@ class SubPolicy:
             "sharpness": np.linspace(0.0, 0.9, num_levels),
             "brightness": np.linspace(0.0, 0.9, num_levels),
             "autocontrast": [0]
-            * num_levels,  # This augmentation doesn't use magnitude parameter.
+                            * num_levels,  # This augmentation doesn't use magnitude parameter.
             "equalize": [0]
-            * num_levels,  # This augmentation doesn't use magnitude parameter.
+                        * num_levels,  # This augmentation doesn't use magnitude parameter.
             "invert": [0]
-            * num_levels,  # This augmentation doesn't use magnitude parameter.
+                      * num_levels,  # This augmentation doesn't use magnitude parameter.
         }
 
         def rotate_with_fill(img, magnitude):

@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import random
+
 import numpy as np
 import torch
 import torchvision.transforms as T
-from torch.utils.data import DataLoader, Dataset
-
-from nemo.collections.vision.data.megatron.image_folder import ImageFolder
-from nemo.collections.vision.data.megatron.autoaugment import ImageNetPolicy
 from PIL import Image, ImageFilter, ImageOps
+from torch.utils.data import Dataset
+
+from nemo.collections.vision.data.megatron.autoaugment import ImageNetPolicy
+from nemo.collections.vision.data.megatron.image_folder import ImageFolder
+
 
 def _to_torch_data_type(precision):
     if precision == 32:
@@ -32,6 +33,7 @@ def _to_torch_data_type(precision):
         return torch.bfloat16
     else:
         raise ValueError(f"Cannot recognize precision {precision}")
+
 
 class RandomSeedDataset(Dataset):
 
@@ -184,7 +186,6 @@ class InpaintingTransform():
         return trans_input, mask
 
 
-
 class DinoTransform(object):
     def __init__(self, model_cfg, image_size, train=True):
         self.data_type = _to_torch_data_type(model_cfg.precision)
@@ -251,7 +252,6 @@ class DinoTransform(object):
 
 
 def build_train_valid_datasets(model_cfg, data_path, image_size=224):
-    
     if model_cfg.vision_pretraining_type == 'classify':
         train_transform = ClassificationTransform(model_cfg, image_size)
         val_transform = ClassificationTransform(model_cfg, image_size, train=False)

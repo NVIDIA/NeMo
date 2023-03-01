@@ -146,16 +146,16 @@ model:
     enabled: False
     start_step: 10  # Global batch to start profiling
     end_step: 10 # Global batch to end profiling
-    ranks: [0] # Global rank IDs to profile
+    ranks: [ 0 ] # Global rank IDs to profile
     gen_shape: False # Generate model and kernel details including input shapes
   
   optim:
     name: fused_adam
     lr: 5e-4
     weight_decay: 0.1
-    betas: 
-    - 0.9
-    - 0.999
+    betas:
+      - 0.9
+      - 0.999
     sched:
       name: CosineAnnealing
       warmup_steps: 10000

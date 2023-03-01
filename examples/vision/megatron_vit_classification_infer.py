@@ -14,28 +14,23 @@
 
 import glob
 import os
+
 import torch
 from PIL import Image
+from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
     NLPSaveRestoreConnector,
 )
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 from nemo.utils.get_rank import is_global_rank_zero
 
 _IMG_EXTENSIONS = "jpg jpeg png ppm pgm pbm pnm".split()

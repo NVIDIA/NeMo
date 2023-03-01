@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import hashlib
-import json
 import os
 import re
 from typing import Any, Union, Dict, Optional
@@ -22,19 +19,14 @@ from typing import Any, Union, Dict, Optional
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.core.saving import _load_state as ptl_load_state
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
-
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.core.classes import ModelPT
-from nemo.core.classes.exportable import Exportable
 
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
@@ -42,6 +34,9 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.core.classes import ModelPT
+from nemo.core.classes.exportable import Exportable
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -53,7 +48,6 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
 
 __all__ = ['VisionModel', 'MegatronVisionModel']
 
@@ -92,12 +86,12 @@ class VisionModel(ModelPT, Exportable):
 
     @classmethod
     def load_from_checkpoint(
-        cls,
-        checkpoint_path: str,
-        map_location: Any = None,
-        hparams_file: Optional[str] = None,
-        strict: bool = True,
-        **kwargs,
+            cls,
+            checkpoint_path: str,
+            map_location: Any = None,
+            hparams_file: Optional[str] = None,
+            strict: bool = True,
+            **kwargs,
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
@@ -337,14 +331,14 @@ class MegatronVisionModel(VisionModel):
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
         if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+                self.trainer.precision_plugin, NativeMixedPrecisionPlugin
         ):
             precision_plugin = self.trainer.precision_plugin
 
             if (
-                hasattr(precision_plugin, 'scaler')
-                and precision_plugin.scaler is not None
-                and isinstance(precision_plugin.scaler, GradScaler)
+                    hasattr(precision_plugin, 'scaler')
+                    and precision_plugin.scaler is not None
+                    and isinstance(precision_plugin.scaler, GradScaler)
             ):
                 grad_scaler = precision_plugin.scaler
 
@@ -369,7 +363,7 @@ class MegatronVisionModel(VisionModel):
                     grad_scaler.optimizer_update_skipped = None
 
     def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+            self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
@@ -447,7 +441,6 @@ class MegatronVisionModel(VisionModel):
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
-
             # Initialize params so that main grads are available
             # Note: Consolidate grads without overlap
             self._optimizer.init_params(
@@ -463,8 +456,8 @@ class MegatronVisionModel(VisionModel):
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+                self.init_consumed_samples
+                + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
@@ -488,8 +481,8 @@ class MegatronVisionModel(VisionModel):
                 self.cfg.sequence_parallel = False
 
         if (
-            self.cfg.get('gradient_accumulation_fusion', False)
-            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                self.cfg.get('gradient_accumulation_fusion', False)
+                and self.cfg.get('pipeline_model_parallel_size', 1) == 1
         ):
             logging.info("Gradient accumulation fusion can only be used with pipeline parallel size > 1.")
             with open_dict(self.cfg):
