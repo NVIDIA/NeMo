@@ -229,7 +229,6 @@ class BeamRNNTInfer(Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
         ngram_lm_alpha: float = 0.0,
-        tokens_type: str = "subword",
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -313,20 +312,20 @@ class BeamRNNTInfer(Typing):
         self.language_model = language_model
         self.preserve_alignments = preserve_alignments
 
+        self.decoding_type = None
+        self.token_offset = 0
+
         if ngram_lm_model:
             if KENLM_AVAILABLE:
                 self.ngram_lm = kenlm.Model(ngram_lm_model)
                 self.ngram_lm_alpha = ngram_lm_alpha
-                if tokens_type == "subword":
-                    self.token_offset = 100  # 100 for BPE, 0 for char tokenization
-                else:
-                    self.token_offset = 0
             else:
                 raise ImportError(
                     "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
                 )
         else:
             self.ngram_lm = None
+        
 
     @typecheck()
     def __call__(
@@ -1162,7 +1161,7 @@ class BeamRNNTInfer(Typing):
                             length=t,
                         )
                         if self.ngram_lm:
-                            new_hyp.ngram_lm_state = hyp.ngram_lm_state.__deepcopy__()
+                            new_hyp.ngram_lm_state = hyp.ngram_lm_state
 
                         # If the expansion was for blank
                         if k == self.blank:
@@ -1367,26 +1366,24 @@ class BeamRNNTInfer(Typing):
                         self.joint.joint(enc_out, hyp_i.dec_out[-1]) / self.softmax_temperature, dim=-1,
                     )
                     logp = logp[0, 0, 0, :]
+                    curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
+                    # Setup ngram LM:
                     if self.ngram_lm:
                         lm_score, next_state = self.compute_ngram_score(
                             hyp_i.ngram_lm_state, int(hyp_j.y_sequence[pref_id])
                         )
-                        curr_score = (
-                            hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]]) + self.ngram_lm_alpha * lm_score
-                        )
-                    else:
-                        curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
+                        curr_score += self.ngram_lm_alpha * lm_score
 
                     for k in range(pref_id, (curr_id - 1)):
                         logp = torch.log_softmax(
                             self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature, dim=-1,
                         )
                         logp = logp[0, 0, 0, :]
+                        curr_score += float(logp[hyp_j.y_sequence[k + 1]])
+                        # Setup ngram LM:
                         if self.ngram_lm:
                             lm_score, next_state = self.compute_ngram_score(next_state, int(hyp_j.y_sequence[k + 1]))
-                            curr_score += float(logp[hyp_j.y_sequence[k + 1]]) + self.ngram_lm_alpha * lm_score
-                        else:
-                            curr_score += float(logp[hyp_j.y_sequence[k + 1]])
+                            curr_score += self.ngram_lm_alpha * lm_score
 
                     hyp_j.score = np.logaddexp(hyp_j.score, curr_score)
 
@@ -1402,6 +1399,13 @@ class BeamRNNTInfer(Typing):
         lm_score *= 1.0 / np.log10(np.e)
 
         return lm_score, next_state
+
+    def set_decoding_type(self, decoding_type: str):
+
+        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        # TOKEN_OFFSET for BPE-based models
+        if decoding_type == 'subword':
+            self.token_offset = 100
 
 
 @dataclass
