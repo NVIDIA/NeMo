@@ -141,18 +141,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 window_size = chunk_size + pre_encode_cache_size
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
             input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
-
-            cache_last_channel = torch.randn(self.n_layers, max_batch, max_dim, self.d_model).to(dev)
-            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, self.conv_context_size[0]).to(dev)
-            cache_last_channel_len = torch.randint(1, max_dim, (max_batch,)).to(dev)
+            cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
+                batch_size=max_batch, device=dev
+            )
             all_input_example = tuple(
-                [
-                    input_example,
-                    input_example_length,
-                    cache_last_channel.transpose(0, 1),
-                    cache_last_time.transpose(0, 1),
-                    cache_last_channel_len,
-                ]
+                [input_example, input_example_length, cache_last_channel, cache_last_time, cache_last_channel_len,]
             )
         else:
             input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
@@ -472,7 +465,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
             if length is not None:
                 length = length - self.streaming_cfg.drop_extra_pre_encoded
-                length = torch.clamp(length.long(), min=0).to(torch.int32)
+                length.clamp_(min=0)
 
         max_audio_length = audio_signal.size(1)
 
@@ -492,24 +485,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             if self.reduction_position is not None:
                 raise ValueError("Caching with reduction feature is not supported yet!")
             cache_last_channel = cache_last_channel.transpose(0, 1)
-            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
+            cache_len = self.streaming_cfg.last_channel_cache_size
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
-            cache_last_channel_next = torch.zeros(
-                (last_channel_num, bs, cache_len + cache_keep_size, channel_size),
-                device=cache_last_channel.device,
-                dtype=cache_last_channel.dtype,
-            )
+            cache_last_channel_next = torch.zeros_like(cache_last_channel)
             max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
-            offset = (
-                torch.full(
-                    cache_last_channel_len.size(),
-                    cache_len,
-                    dtype=cache_last_channel_len.dtype,
-                    device=cache_last_channel_len.device,
-                )
-                - cache_last_channel_len
-            )
+            offset = torch.neg(cache_last_channel_len) + cache_len
         else:
             padding_length = length
             cache_last_channel_next = None
@@ -570,9 +551,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 ]
             else:
                 cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
-            cache_last_channel_len = torch.clamp(
-                (cache_last_channel_len + cache_keep_size).long(), min=0, max=cache_last_channel_next.size(2)
-            )
+            cache_last_channel_len = torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len)
             # saving tensors if required for interctc loss
             if self.is_access_enabled():
                 if self.interctc_capture_at_layers is None:
@@ -598,7 +577,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if self.streaming_cfg.valid_out_len > 0:
             audio_signal = audio_signal[:, :, : self.streaming_cfg.valid_out_len]
-            length = torch.clamp(length.long(), max=self.streaming_cfg.valid_out_len).to(torch.int32)
+            length.clamp_(max=self.streaming_cfg.valid_out_len)
 
         if cache_last_channel_next is not None:
             return (
@@ -748,19 +727,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         last_time_cache_size = self.conv_context_size[0]
         cache_last_channel = torch.zeros(
             (
-                self.streaming_cfg.last_channel_num,
                 batch_size,
+                self.streaming_cfg.last_channel_num,
                 self.streaming_cfg.last_channel_cache_size,
                 self.d_model,
             ),
             device=device,
             dtype=dtype,
-        ).transpose(0, 1)
+        )
         cache_last_time = torch.zeros(
-            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size),
+            (batch_size, self.streaming_cfg.last_time_num, self.d_model, last_time_cache_size),
             device=device,
             dtype=dtype,
-        ).transpose(0, 1)
+        )
         cache_last_channel_len = torch.zeros((batch_size,), device=device, dtype=torch.int64)
 
         return cache_last_channel, cache_last_time, cache_last_channel_len

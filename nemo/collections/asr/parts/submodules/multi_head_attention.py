@@ -58,18 +58,6 @@ def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, keep_size:
     return cache_next
 
 
-@torch.jit.script
-def update_cache_next(
-    query: torch.Tensor, cache: torch.Tensor, cache_next: torch.Tensor, cache_drop_size: int, cache_id: int
-):
-    q_keep_size = max(query.shape[1] - cache_drop_size, 1)
-    cache_next[cache_id, :, :-q_keep_size, :] = cache[
-        cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
-    ]
-    cache_next[cache_id, :, -q_keep_size:, :] = query[:, :q_keep_size, :]
-    return cache_next
-
-
 class MultiHeadAttention(nn.Module):
     """Multi-Head Attention layer of Transformer.
     Args:
@@ -168,9 +156,15 @@ class MultiHeadAttention(nn.Module):
 
     def update_cache(self, key, value, query, cache, cache_next):
         if cache is not None:
-            key = value = torch.cat((cache[self._cache_id], key), dim=1)
+            cache_id = self._cache_id
+            key = value = torch.cat((cache[cache_id], key), dim=1)
             if cache_next is not None:
-                cache_next = update_cache_next(query, cache, cache_next, self.cache_drop_size, self._cache_id)
+                # query.shape[1] is constant
+                q_keep_size = max(query.shape[1] - self.cache_drop_size, 1)
+                cache_next[cache_id, :, :-q_keep_size, :] = cache[
+                    cache_id, :, (cache.size(2) - (cache_next.size(2) - q_keep_size)) :, :
+                ]
+                cache_next[cache_id, :, -q_keep_size:, :] = query[:, :q_keep_size, :]
         return key, value, query
 
 
