@@ -120,9 +120,8 @@ def main(cfg) -> None:
     # initialize apex DDP strategy
     def dummy():
         return
-
     if trainer.strategy.launcher is not None:
-        trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+        trainer.strategy.launcher.launch(dummy, trainer=trainer)
     trainer.strategy.setup_environment()
 
     with torch.no_grad():
