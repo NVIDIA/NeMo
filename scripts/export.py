@@ -61,9 +61,6 @@ def get_args(argv):
     )
     parser.add_argument("--device", default="cuda", help="Device to export for")
     parser.add_argument("--check-tolerance", type=float, default=0.01, help="tolerance for verification")
-    parser.add_argument(
-        "--streaming_support", action="store_true", help="enables streaming io for models that support it"
-    )
     args = parser.parse_args(argv)
     return args
 
@@ -135,10 +132,6 @@ def nemo_export(argv):
     if args.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
         model.encoder.export_cache_support = True
         logging.info("Caching support is enabled.")
-        model.encoder.setup_streaming_params()
-    if args.streaming_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_streaming_support"):
-        model.encoder.export_streaming_support = True
-        logging.info("Streaming export is enabled.")
         model.encoder.setup_streaming_params()
 
     autocast = nullcontext

@@ -142,7 +142,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
             input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
             cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
-                batch_size=max_batch, device=dev
+                batch_size=max_batch, device=dev, random_init=True
             )
             all_input_example = tuple(
                 [input_example, input_example_length, cache_last_channel, cache_last_time, cache_last_channel_len,]
@@ -394,7 +394,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         self.setup_streaming_params()
         self.export_cache_support = False
-        self.export_streaming_support = False
 
         self.layer_drop_probs = compute_stochastic_depth_drop_probs(
             len(self.layers), stochastic_depth_drop_prob, stochastic_depth_mode, stochastic_depth_start_layer
@@ -721,11 +720,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         self.streaming_cfg = streaming_cfg
 
-    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
+    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None, random_init=False):
         if device is None:
             device = next(self.parameters()).device
+        if random_init:
+            create_tensor = torch.randn
+        else:
+            create_tensor = torch.zeros
         last_time_cache_size = self.conv_context_size[0]
-        cache_last_channel = torch.zeros(
+        cache_last_channel = create_tensor(
             (
                 batch_size,
                 self.streaming_cfg.last_channel_num,
@@ -735,12 +738,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             device=device,
             dtype=dtype,
         )
-        cache_last_time = torch.zeros(
+        cache_last_time = create_tensor(
             (batch_size, self.streaming_cfg.last_time_num, self.d_model, last_time_cache_size),
             device=device,
             dtype=dtype,
         )
-        cache_last_channel_len = torch.zeros((batch_size,), device=device, dtype=torch.int64)
+        if random_init:
+            cache_last_channel_len = torch.randint(
+                0, self.streaming_cfg.last_channel_cache_size, (batch_size,), device=device, dtype=torch.int64
+            )
+        else:
+            cache_last_channel_len = torch.zeros((batch_size,), device=device, dtype=torch.int64)
 
         return cache_last_channel, cache_last_time, cache_last_channel_len
 
