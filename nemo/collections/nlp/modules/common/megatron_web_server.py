@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import gradio as gr
+import numpy as np
+import time
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
     convert_retrieved_to_md,
     request_data,
-    text_generation,
+    request_post_data,
+    convert_qa_evidence_to_md,
 )
-
-__all__ = ['RetroDemoWebApp', 'get_demo']
 
 
 def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, port=5555):
@@ -36,7 +37,7 @@ def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_
         "repetition_penalty": repetition,
         "min_tokens_to_generate": int(min_tokens),
     }
-    sentences = text_generation(data, port=port)['sentences']
+    sentences = request_data(data, port=port, path='generate')['sentences']
     return sentences[0]
 
 
@@ -104,7 +105,7 @@ class RetroDemoWebApp:
             "neighbors": int(neighbors),
         }
         self.update_weight(weight)
-        output_json = text_generation(data, self.text_service_ip, self.text_service_port)
+        output_json = request_data(data, self.text_service_ip, self.text_service_port, path='generate')
         sentences = output_json['sentences']
         retrieved = output_json['retrieved']
         return sentences[0], convert_retrieved_to_md(retrieved)
@@ -178,3 +179,48 @@ class RetroDemoWebApp:
                         outputs=[output_box, output_retrieval],
                     )
         demo.launch(share=share, server_port=port, server_name='0.0.0.0', auth=(username, password))
+
+
+class RetroQADemoWebApp(RetroDemoWebApp):
+    def __init__(self, text_service_ip, text_service_port, combo_service_ip, combo_service_port, qa_service_ip, qa_service_port):
+        super().__init__(text_service_ip, text_service_port, combo_service_ip, combo_service_port)
+        self.qa_service_ip = qa_service_ip
+        self.qa_service_port = qa_service_port
+
+    def get_retro_generation(
+        self, prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors, weight
+    ):
+        data = {
+            "sentences": [prompt],
+            "tokens_to_generate": int(token_to_gen),
+            "temperature": temp,
+            "add_BOS": add_BOS,
+            "top_k": top_k,
+            "top_p": top_p,
+            "greedy": greedy,
+            "all_probs": False,
+            "repetition_penalty": repetition,
+            "min_tokens_to_generate": int(min_tokens),
+            "neighbors": int(neighbors),
+        }
+        self.update_weight(weight)
+        output_json = request_data(data, self.text_service_ip, self.text_service_port, path='generate')
+        sentences = output_json['sentences']
+        retrieved = output_json['retrieved']
+        first_neighbor = ''.join([i['query'] for i in retrieved]).split('\nquestion:')[0]
+        knowledges = [first_neighbor] + retrieved[0]['neighbors']
+        answer = sentences[0].split('answer: ')[1]
+        while True:
+            try:
+                better_answer = request_post_data({'question': prompt, 'answer': answer}, ip=self.qa_service_ip, port=self.qa_service_port, path='decontext')['text'].strip()
+                break
+            except:
+                time.sleep(5)
+        qscore = request_post_data({'response': better_answer, 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='qsquare')
+        # nli_scores = request_post_data({'responses': [better_answer] * len(knowledges), 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='nli')
+        # selection = np.array(nli_scores).argmax(axis=1)
+        # nli_labels = ['contradiction', 'entailment', 'neutral']
+        # nli = [nli_labels[s] for s in selection]
+        if max(qscore['scores']) < 0.5:
+            sentences[0] = sentences[0] + ' (*WARNING* the answer is not based on the retrieved documents)'
+        return sentences[0], convert_qa_evidence_to_md(knowledges, qscore['scores'])

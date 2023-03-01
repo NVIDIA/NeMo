@@ -3,6 +3,8 @@ text_service_ip: '0.0.0.0'
 text_service_port: 5555
 combo_service_ip: '0.0.0.0'
 combo_service_port: 17181
+qa_service_ip: '10.110.40.237'
+qa_service_port: '1313'
 
 share: False  # whether create a public URL
 username: test # user name for web client

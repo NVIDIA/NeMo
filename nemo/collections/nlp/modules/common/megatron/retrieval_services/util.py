@@ -21,16 +21,16 @@ headers = {"Content-Type": "application/json"}
 
 lock = threading.Lock()
 
-__all__ = ["request_data", "lock"]
+__all__ = ["request_data", "lock", "request_post_data"]
 
 
-def request_data(data, ip='localhost', port=None):
-    resp = requests.put(f'http://{ip}:{port}/knn', data=json.dumps(data), headers=headers)
+def request_data(data, ip='localhost', port=None, path='knn'):
+    resp = requests.put(f'http://{ip}:{port}/{path}', data=json.dumps(data), headers=headers)
     return resp.json()
 
 
-def text_generation(data, ip='localhost', port=None):
-    resp = requests.put(f'http://{ip}:{port}/generate', data=json.dumps(data), headers=headers)
+def request_post_data(data, ip='localhost', port=None, path='knn'):
+    resp = requests.post(f'http://{ip}:{port}/{path}', data=json.dumps(data), headers=headers)
     return resp.json()
 
 
@@ -43,5 +43,13 @@ def convert_retrieved_to_md(retrieved):
                 output_str += f"<td>{neighbor}</td></tr>"
             else:
                 output_str += f"<tr><td>{neighbor}</td></tr>"
+    output_str += '</table>'
+    return output_str
+
+
+def convert_qa_evidence_to_md(retrieved, q_squared_scores):
+    output_str = '<table><tr><th style="width:10%">Q-Squared</th><th style="width:90%">Evidence</th></tr>'
+    for item, q_square_score in zip(retrieved, q_squared_scores):
+        output_str += f"<tr><td>{q_square_score:.2f}</td><td>{item}</td></tr>"
     output_str += '</table>'
     return output_str
