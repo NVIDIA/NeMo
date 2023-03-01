@@ -363,7 +363,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                tokens_type=self.cfg.beam.get('tokens_type', 'subword'),
             )
 
         else:
@@ -1060,6 +1059,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
         super(RNNTDecoding, self).__init__(
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
         )
+
+        if isinstance(self.decoding, beam_decode.BeamRNNTInfer):
+            self.decoding.set_decoding_type('char')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
