@@ -20,8 +20,8 @@ import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec

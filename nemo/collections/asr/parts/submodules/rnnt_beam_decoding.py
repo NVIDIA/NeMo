@@ -325,7 +325,6 @@ class BeamRNNTInfer(Typing):
                 )
         else:
             self.ngram_lm = None
-        
 
     @typecheck()
     def __call__(
