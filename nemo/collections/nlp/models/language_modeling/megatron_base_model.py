@@ -242,7 +242,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._get_parameters()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
+        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -326,8 +326,9 @@ class MegatronBaseModel(NLPModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate grads since we are storing between microbatches
+            # Allocate contiguous buffers to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_param_buffer'] = True
 
             if self.megatron_amp_o2:
                 # Match param allgather with model dtype
@@ -398,12 +399,27 @@ class MegatronBaseModel(NLPModel):
         # Configure distributed optimizer
         if self.with_distributed_adam:
 
-            # Initialize params so that main grads are available
+            # Initialize param buckets if explicitly provided
+            if hasattr(self, 'distributed_adam_buckets'):
+                for bucket in self.distributed_adam_buckets:
+                    self._optimizer.init_params_bucket(bucket)
+                del self.distributed_adam_buckets
+
+            # Make sure all params are initialized so main grads are
+            # available
             # Note: Consolidate grads without overlap
-            self._optimizer.init_params(
-                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
-            )
-            self._optimizer.init_params(self.parameters())
+            overlap_params = []
+            no_overlap_params = []
+            for p in self.parameters():
+                if getattr(p, '_disable_overlap_grad_sync', False):
+                    no_overlap_params.append(p)
+                else:
+                    overlap_params.append(p)
+            self._optimizer.init_params(reversed(overlap_params))
+            self._optimizer.init_params(reversed(no_overlap_params))
+
+            # Initialize contiguous parameter buffer
+            self._optimizer.init_param_buffer()
 
         if self._scheduler is None:
             return self._optimizer
@@ -428,7 +444,7 @@ class MegatronBaseModel(NLPModel):
         return init_consumed_samples
 
     def _validate_and_override_config(self):
-        """ Certain configurations might be incompatible or discouraged. 
+        """ Certain configurations might be incompatible or discouraged.
             We can check for them here and override if necessary.
         """
         app_state = AppState()
