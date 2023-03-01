@@ -16,16 +16,16 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.01-py3
 
-# torchaudio: temporary not required by default
-ARG REQUIRE_TORCHAUDIO=false
-
-# k2: not required by default
-ARG REQUIRE_K2=false
-
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
 # image (by specifying build target as `nemo-deps`)
 FROM ${BASE_IMAGE} as nemo-deps
+
+# dependency flags; should be declared after FROM
+# torchaudio: not required by default
+ARG REQUIRE_TORCHAUDIO=false
+# k2: not required by default
+ARG REQUIRE_K2=false
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
