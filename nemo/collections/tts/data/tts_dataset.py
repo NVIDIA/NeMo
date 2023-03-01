@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
 )
-from nemo.collections.tts.torch.helpers import (
+from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
     general_padding,
