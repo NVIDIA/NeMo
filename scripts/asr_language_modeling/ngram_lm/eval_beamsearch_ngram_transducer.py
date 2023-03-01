@@ -114,14 +114,6 @@ def main():
     parser.add_argument(
         "--kenlm_model_file", required=False, default=None, type=str, help="The path of the KenLM binary model file"
     )
-    parser.add_argument(
-        "--tokens_type",
-        required=False,
-        choices=['subword', 'char'],
-        default='subword',
-        type=str,
-        help="Type of tokens (need for ngram LM fusion)",
-    )
     parser.add_argument("--input_manifest", required=True, type=str, help="The manifest file of the evaluation set")
     parser.add_argument(
         "--preds_output_folder", default=None, type=str, help="The optional folder where the predictions are stored"
@@ -207,7 +199,6 @@ def main():
         rnnt_cfg.beam.beam_size = args.beam_width
         rnnt_cfg.beam.ngram_lm_model = args.kenlm_model_file
         rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha  # 0.2, 0.3
-        rnnt_cfg.beam.tokens_type = args.tokens_type
         rnnt_cfg.compute_hypothesis_token_set = False
         rnnt_cfg.beam.return_best_hypothesis = False
         rnnt_cfg.beam.maes_prefix_alpha = args.maes_prefix_alpha
