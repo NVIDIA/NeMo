@@ -389,12 +389,11 @@ class NLPModel(ModelPT, Exportable):
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
 
-    def custom_on_save_checkpoint(
+    def custom_save_nemo(
         self,
         save_path,
         trainer,
         checkpoint,
-        always_save_nemo,
         save_best_model,
         best_model_path,
         last_saved_path,
@@ -402,49 +401,45 @@ class NLPModel(ModelPT, Exportable):
         last_global_step_saved,
         monitor,
     ):
-        output = None
-        if not always_save_nemo:
-            return output
-        else:
+        # Load the best model and then re-save it
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
+        # since we are creating tarfile artifacts we need to update .nemo path
+        app_state.model_restore_path = os.path.abspath(os.path.expanduser(os.path.join(save_path)))
+        if save_best_model:
+            injected_best_model_path = inject_model_parallel_rank(best_model_path)
+            if not os.path.exists(injected_best_model_path):
+                return
+
+            if best_model_path == self.previous_best_path:
+                return
+
+            self.previous_best_path = best_model_path
+            old_state_dict = deepcopy(self.state_dict())
             # Load the best model and then re-save it
-            app_state = AppState()
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
-            # since we are creating tarfile artifacts we need to update .nemo path
-            app_state.model_restore_path = os.path.abspath(os.path.expanduser(os.path.join(save_path)))
-            if save_best_model:
-                injected_best_model_path = inject_model_parallel_rank(best_model_path)
-                if not os.path.exists(injected_best_model_path):
-                    return output
-
-                if best_model_path == self.previous_best_path:
-                    return output
-
-                self.previous_best_path = best_model_path
-                old_state_dict = deepcopy(self.state_dict())
-                # Load the best model and then re-save it
-                checkpoint = torch.load(injected_best_model_path, map_location='cpu')
-                if 'state_dict' in checkpoint:
-                    checkpoint_weights_only = checkpoint['state_dict']
-                # get a new instanace of the model
-                self.load_state_dict(checkpoint_weights_only, strict=True)
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-                with open_dict(self.cfg):
-                    self.cfg.val_monitor_score = best_model_score
-                    self.cfg.val_monitor = monitor
-                    self.cfg.global_steps = last_global_step_saved
-                self.save_to(save_path=app_state.model_restore_path)
-                logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
-                self.load_state_dict(old_state_dict, strict=True)
-            else:
-                last_loss = last_saved_path.split(monitor + '=')[1].split('-')[0]
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-                with open_dict(self.cfg):
-                    self.cfg.val_monitor_score = float(last_loss)
-                    self.cfg.val_monitor = monitor
-                    self.cfg.global_steps = last_global_step_saved
-                self.save_to(save_path=app_state.model_restore_path)
-                logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
-            return output
+            checkpoint = torch.load(injected_best_model_path, map_location='cpu')
+            if 'state_dict' in checkpoint:
+                checkpoint_weights_only = checkpoint['state_dict']
+            # get a new instanace of the model
+            self.load_state_dict(checkpoint_weights_only, strict=True)
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            with open_dict(self.cfg):
+                self.cfg.val_monitor_score = best_model_score
+                self.cfg.val_monitor = monitor
+                self.cfg.global_steps = last_global_step_saved
+            self.save_to(save_path=app_state.model_restore_path)
+            logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
+            self.load_state_dict(old_state_dict, strict=True)
+        else:
+            last_loss = last_saved_path.split(monitor + '=')[1].split('-')[0]
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            with open_dict(self.cfg):
+                self.cfg.val_monitor_score = float(last_loss)
+                self.cfg.val_monitor = monitor
+                self.cfg.global_steps = last_global_step_saved
+            self.save_to(save_path=app_state.model_restore_path)
+            logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
+        return
