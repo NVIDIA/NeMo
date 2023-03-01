@@ -20,7 +20,7 @@ import torch
 import torch.nn.functional as F
 from functools import partial
 
-from nemo.collections.vision.modules.common.megatron.transformer import ParallelVisionTransformer
+from nemo.collections.vision.modules.common.megatron.vision_transformer import ParallelVisionTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,

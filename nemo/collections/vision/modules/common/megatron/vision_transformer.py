@@ -15,35 +15,13 @@
 
 
 """Transformer."""
-import math
-from contextlib import nullcontext
 
 import torch
-import torch.nn.functional as F
-from einops import rearrange, repeat
 
-from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
-    bias_dropout_add,
-    bias_dropout_add_fused_inference,
-    bias_dropout_add_fused_train,
-    dropout_add,
-)
-from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelMLP, ParallelAttention
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer_, ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.transformer import get_dropout_add, get_bias_dropout_add
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
-from nemo.core import adapter_mixins
-from nemo.utils import logging
-
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -61,7 +39,6 @@ except (ImportError, ModuleNotFoundError):
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
-
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
@@ -76,6 +53,7 @@ except (ImportError, ModuleNotFoundError):
     tensor of the same size. We use the following arguments:
         hyperparameters: transformer hyperparameters
 """
+
 
 class DropPath(MegatronModule):
     """Drop paths (Stochastic Depth) per sample
@@ -94,7 +72,7 @@ class DropPath(MegatronModule):
         # hidden_state: [s, b, h]
         shape = (1,) + (hidden_state.shape[1],) + (1,) * (hidden_state.ndim - 2)
         random_tensor = keep_prob + \
-            torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
+                        torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
         random_tensor.floor_()  # binarize
         output = hidden_state.div(keep_prob) * random_tensor
         return output
@@ -108,42 +86,42 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
     """
 
     def __init__(
-        self,
-        init_method,
-        output_layer_init_method,
-        layer_number,
-        hidden_size,
-        ffn_hidden_size,
-        num_attention_heads,
-        layer_type=LayerType.encoder,
-        self_attn_mask_type=AttnMaskType.padding,
-        fp32_residual_connection=False,
-        precision=16,
-        apply_query_key_layer_scaling=True,
-        kv_channels=None,
-        layernorm_epsilon=1e-5,
-        hidden_dropout=0.1,
-        bias_dropout_add_fusion=True,
-        persist_layer_norm=False,
-        use_cpu_initialization=False,
-        bias_activation_fusion=True,
-        openai_gelu=False,
-        onnx_safe=False,
-        masked_softmax_fusion=True,
-        attention_dropout=0.1,
-        ffn_dropout=0.0,
-        drop_path_rate=0.0,
-        activation='gelu',
-        megatron_legacy=False,
-        bias=True,
-        chunk_size=64,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
-        headscale=False,
-        activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
-        normalize_attention_scores=True,
+            self,
+            init_method,
+            output_layer_init_method,
+            layer_number,
+            hidden_size,
+            ffn_hidden_size,
+            num_attention_heads,
+            layer_type=LayerType.encoder,
+            self_attn_mask_type=AttnMaskType.padding,
+            fp32_residual_connection=False,
+            precision=16,
+            apply_query_key_layer_scaling=True,
+            kv_channels=None,
+            layernorm_epsilon=1e-5,
+            hidden_dropout=0.1,
+            bias_dropout_add_fusion=True,
+            persist_layer_norm=False,
+            use_cpu_initialization=False,
+            bias_activation_fusion=True,
+            openai_gelu=False,
+            onnx_safe=False,
+            masked_softmax_fusion=True,
+            attention_dropout=0.1,
+            ffn_dropout=0.0,
+            drop_path_rate=0.0,
+            activation='gelu',
+            megatron_legacy=False,
+            bias=True,
+            chunk_size=64,
+            normalization='layernorm',
+            transformer_block_type='pre_ln',
+            headscale=False,
+            activations_checkpoint_granularity=None,
+            sequence_parallel=False,
+            gradient_accumulation_fusion=False,
+            normalize_attention_scores=True,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -154,19 +132,20 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0.0 else None
 
     def forward(
-        self,
-        hidden_states,
-        attention_mask,
-        encoder_output=None,
-        enc_dec_attn_mask=None,
-        layer_past=None,
-        get_key_value=False,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
-        rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
-        self_attention_relative_position_bias=None,
-        cross_attention_relative_position_bias=None,
-        checkpoint_core_attention=False,
+            self,
+            hidden_states,
+            attention_mask,
+            encoder_output=None,
+            enc_dec_attn_mask=None,
+            layer_past=None,
+            get_key_value=False,
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=None,
+            rotary_pos_emb=None,
+            # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
+            self_attention_relative_position_bias=None,
+            cross_attention_relative_position_bias=None,
+            checkpoint_core_attention=False,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -248,14 +227,14 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             return layernorm_input, normalization_output
 
         if (
-            self.layer_type == LayerType.decoder
-            or self.layer_type == LayerType.retrieval_decoder
-            or self.layer_type == LayerType.retrieval_encoder
-            or self.layer_type == LayerType.retrieval_decoder_after_self_attn
+                self.layer_type == LayerType.decoder
+                or self.layer_type == LayerType.retrieval_decoder
+                or self.layer_type == LayerType.retrieval_encoder
+                or self.layer_type == LayerType.retrieval_decoder_after_self_attn
         ):
             if (
-                self.layer_type == LayerType.retrieval_decoder
-                or self.layer_type == LayerType.retrieval_decoder_after_self_attn
+                    self.layer_type == LayerType.retrieval_decoder
+                    or self.layer_type == LayerType.retrieval_decoder_after_self_attn
             ):
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
@@ -339,19 +318,19 @@ class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
             raise ValueError(f"Cannot recognize precision {precision}")
 
     def forward(
-        self,
-        hidden_states,
-        attention_mask,
-        encoder_output=None,
-        enc_dec_attn_mask=None,
-        rotary_pos_emb=None,
-        layer_past=None,
-        get_key_value=False,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
-        self_attention_relative_position_bias=None,
-        cross_attention_relative_position_bias=None,
-        checkpoint_core_attention=False,
+            self,
+            hidden_states,
+            attention_mask,
+            encoder_output=None,
+            enc_dec_attn_mask=None,
+            rotary_pos_emb=None,
+            layer_past=None,
+            get_key_value=False,
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=None,
+            self_attention_relative_position_bias=None,
+            cross_attention_relative_position_bias=None,
+            checkpoint_core_attention=False,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -370,48 +349,48 @@ class ParallelVisionTransformer(ParallelTransformer):
     """Transformer class."""
 
     def __init__(
-        self,
-        init_method,
-        output_layer_init_method,
-        num_layers,
-        hidden_size,
-        ffn_hidden_size,
-        num_attention_heads,
-        apply_query_key_layer_scaling=True,
-        kv_channels=None,
-        layer_type=LayerType.encoder,  # it can be a list of types or single type
-        self_attn_mask_type=AttnMaskType.padding,
-        pre_process=True,
-        post_process=True,
-        precision=16,
-        fp32_residual_connection=False,
-        activations_checkpoint_method=None,
-        activations_checkpoint_num_layers=None,
-        layernorm_epsilon=1e-5,
-        hidden_dropout=0.1,
-        attention_dropout=0.1,
-        ffn_dropout=0.0,
-        drop_path_rate=0.0,
-        use_cpu_initialization=False,
-        bias_activation_fusion=True,
-        bias_dropout_add_fusion=True,
-        masked_softmax_fusion=True,
-        persist_layer_norm=False,
-        openai_gelu=False,
-        onnx_safe=False,
-        activation='gelu',
-        model_type=ModelType.encoder_or_decoder,
-        megatron_legacy=False,
-        bias=True,
-        chunk_size=64,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
-        headscale=False,
-        layer_number_offset=0,  # this is use only for attention norm_factor scaling
-        activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
-        normalize_attention_scores=True,
+            self,
+            init_method,
+            output_layer_init_method,
+            num_layers,
+            hidden_size,
+            ffn_hidden_size,
+            num_attention_heads,
+            apply_query_key_layer_scaling=True,
+            kv_channels=None,
+            layer_type=LayerType.encoder,  # it can be a list of types or single type
+            self_attn_mask_type=AttnMaskType.padding,
+            pre_process=True,
+            post_process=True,
+            precision=16,
+            fp32_residual_connection=False,
+            activations_checkpoint_method=None,
+            activations_checkpoint_num_layers=None,
+            layernorm_epsilon=1e-5,
+            hidden_dropout=0.1,
+            attention_dropout=0.1,
+            ffn_dropout=0.0,
+            drop_path_rate=0.0,
+            use_cpu_initialization=False,
+            bias_activation_fusion=True,
+            bias_dropout_add_fusion=True,
+            masked_softmax_fusion=True,
+            persist_layer_norm=False,
+            openai_gelu=False,
+            onnx_safe=False,
+            activation='gelu',
+            model_type=ModelType.encoder_or_decoder,
+            megatron_legacy=False,
+            bias=True,
+            chunk_size=64,
+            normalization='layernorm',
+            transformer_block_type='pre_ln',
+            headscale=False,
+            layer_number_offset=0,  # this is use only for attention norm_factor scaling
+            activations_checkpoint_granularity=None,
+            sequence_parallel=False,
+            gradient_accumulation_fusion=False,
+            normalize_attention_scores=True,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -423,7 +402,8 @@ class ParallelVisionTransformer(ParallelTransformer):
 
         self.drop_path_rates = [
             rate.item() for rate in
-            torch.linspace(0, self.drop_path_rate, self.num_layers * parallel_state.get_pipeline_model_parallel_world_size())
+            torch.linspace(0, self.drop_path_rate,
+                           self.num_layers * parallel_state.get_pipeline_model_parallel_world_size())
         ]
 
         # Rebuild with vision transformer layers.
@@ -490,13 +470,13 @@ class ParallelVisionTransformer(ParallelTransformer):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
             offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
-                num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                    num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
             ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
             if (
-                self.model_type == ModelType.encoder_and_decoder
-                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+                    self.model_type == ModelType.encoder_and_decoder
+                    and parallel_state.get_pipeline_model_parallel_world_size() > 1
             ):
                 pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
                 if layer_type == LayerType.encoder:
@@ -508,4 +488,3 @@ class ParallelVisionTransformer(ParallelTransformer):
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
-
