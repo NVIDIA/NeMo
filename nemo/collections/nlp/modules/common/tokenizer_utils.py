@@ -171,8 +171,10 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
-    if (library != 'byte-level') and (library != 'tts') and (
-        model_name is None and (tokenizer_model is None or not os.path.isfile(tokenizer_model))
+    if (
+        (library != 'byte-level')
+        and (library != 'tts')
+        and (model_name is None and (tokenizer_model is None or not os.path.isfile(tokenizer_model)))
     ):
         raise ValueError("No Tokenizer path provided or file does not exist!")
 

@@ -144,6 +144,9 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     if item['feature_file'] is not None:
         item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
+    if 'is_valid' in item:
+        item['is_valid'] = item.pop('is_valid')
+
     item = dict(
         audio_file=item['audio_file'],
         duration=item['duration'],
@@ -155,6 +158,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         orig_sr=item.get('orig_sample_rate', None),
         token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
+        is_valid=item.get('is_valid', None),
     )
     return item
 

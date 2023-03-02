@@ -217,16 +217,35 @@ class ASRAudioText(AudioText):
             [],
         )
         speakers, orig_srs, token_labels, langs = [], [], [], []
+        non_valid = 0
         for item in manifest.item_iter(manifests_files):
-            ids.append(item['id'])
-            audio_files.append(item['audio_file'])
-            durations.append(item['duration'])
-            texts.append(item['text'])
-            offsets.append(item['offset'])
-            speakers.append(item['speaker'])
-            orig_srs.append(item['orig_sr'])
-            token_labels.append(item['token_labels'])
-            langs.append(item['lang'])
+            if item['is_valid'] == 0:
+                non_valid += 1
+            else:
+                ids.append(item['id'])
+                audio_files.append(item['audio_file'])
+                durations.append(item['duration'])
+                texts.append(item['text'])
+                offsets.append(item['offset'])
+                speakers.append(item['speaker'])
+                orig_srs.append(item['orig_sr'])
+                token_labels.append(item['token_labels'])
+                langs.append(item['lang'])
+
+        # randomly sample the number of non_valid elements from valid once
+        import random
+
+        selected = random.choices(range(len(ids)), k=non_valid)
+        for idx in selected:
+            ids.append(ids[idx])
+            audio_files.append(audio_files[idx])
+            durations.append(durations[idx])
+            texts.append(texts[idx])
+            speakers.append(speakers[idx])
+            orig_srs.append(orig_srs[idx])
+            token_labels.append(token_labels[idx])
+            langs.append(langs[idx])
+        logging.info(f"Added: {len(selected)} items")
         super().__init__(
             ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )

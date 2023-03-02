@@ -575,6 +575,9 @@ class ASRTarredDatasetBuilder:
                 'shard_id': shard_id,  # Keep shard ID for recordkeeping
             }
 
+            if 'is_valid' in entry:
+                new_entry['is_valid'] = entry['is_valid']
+
             if 'label' in entry:
                 new_entry['label'] = entry['label']
 

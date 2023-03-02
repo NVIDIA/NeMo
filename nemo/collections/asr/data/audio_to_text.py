@@ -751,6 +751,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        return_is_valid (bool): whether to return the is_valid as a part of each sample
     """
 
     def __init__(
@@ -772,6 +773,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        return_is_valid: bool = False,
     ):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
@@ -794,6 +796,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.bos_id = bos_id
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
+        self.return_is_valid = return_is_valid
 
         audio_tar_filepaths = expand_audio_filepaths(
             audio_tar_filepaths=audio_tar_filepaths,
@@ -916,7 +919,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         if self.eos_id is not None:
             t = t + [self.eos_id]
             tl += 1
-
         if self.return_sample_id:
             return f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), manifest_idx
         else:
