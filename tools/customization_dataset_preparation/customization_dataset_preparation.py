@@ -87,24 +87,25 @@ def recommend_hyperparameters(df, model=None):
     for potential_bs in potential_batch_sizes:
         if 0.002 * len(df) > potential_bs:
             bs = potential_bs
-    
+
     message = f"TODO: A batch_size={bs} is recommended for training."
 
     if len(df) < 128:
         max_bs = 2
         for potential_bs in potential_batch_sizes:
-            if potential_bs < len(df)*0.9:
+            if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
         additional_msg_for_small_df = f" Please have a maximum batch_size of {max_bs}."
         message += additional_msg_for_small_df
 
     return message
 
+
 def estimating_customization_job_time(df, recommend_hyperparameters_message):
     recommended_batch_size = int(recommend_hyperparameters_message.split("=")[1].split()[0])
 
     size = df.memory_usage(index=True, deep=True).sum()
-    time_in_seconds_per_epoch = size/recommended_batch_size * 0.0025
+    time_in_seconds_per_epoch = size / recommended_batch_size * 0.0025
 
     if time_in_seconds_per_epoch < 60:
         time_per_epoch = f"{round(time_in_seconds_per_epoch, 2)} seconds"
@@ -393,7 +394,7 @@ if __name__ == "__main__":
     df, message = warn_and_drop_long_samples(df, MAX_TOTAL_CHAR_LENGTH)
     messages.append(message)
 
-    recommend_hyperparameters_message =recommend_hyperparameters(df)
+    recommend_hyperparameters_message = recommend_hyperparameters(df)
 
     messages.append(recommend_hyperparameters_message)
 
