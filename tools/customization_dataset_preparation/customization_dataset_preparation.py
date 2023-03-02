@@ -110,7 +110,7 @@ def estimating_customization_job_time(df, recommend_hyperparameters_message):
         time_per_epoch = f"{round(time_in_seconds_per_epoch, 2)} seconds"
     elif time_in_seconds_per_epoch < 3600:
         time_per_epoch = f"{round(time_in_seconds_per_epoch/60, 2)} minutes"
-    elif time_in_seconds_per_epoch < 86400:
+    else:
         time_per_epoch = f"{round(time_in_seconds_per_epoch/3600, 2)} hours"
 
     message = f"TODO: Training will take around {time_per_epoch} for each epoch for gpt20b model and around half of that for gpt5b. Please set no. of epochs accordingly to ensure that the limit of 8h total is not exceeded."
