@@ -909,12 +909,16 @@ class VocoderDataset(Dataset):
             manifest_filepath = [manifest_filepath]
         self.manifest_filepath = manifest_filepath
 
+        index_cap = None
+        if (cap := os.getenv('DATA_CAP')) is not None:
+            index_cap = int(cap)
+
         data = []
         total_duration = 0
         for manifest_file in self.manifest_filepath:
             with open(Path(manifest_file).expanduser(), 'r') as f:
                 logging.info(f"Loading dataset from {manifest_file}.")
-                for line in tqdm(f):
+                for line in tqdm(f.readlines()[:index_cap]):
                     item = json.loads(line)
 
                     if "mel_filepath" not in item and load_precomputed_mel:

@@ -12,6 +12,7 @@ from hydra.utils import instantiate
 from pytorch_lightning import Trainer
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.collections.tts.losses.fastpitchloss import MelLoss
+import os
 from nemo.core.classes import Loss
 import torch
 import logging
@@ -32,6 +33,7 @@ from nemo.collections.tts.modules.transformer import FFTransformerDecoder, BiMod
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len, quantize_durations
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from mel_cepstral_distance import get_metrics_mels
+from nemo.core.optim import prepare_lr_scheduler
 
 
 import torch
@@ -42,6 +44,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.nn import Linear, MSELoss
 import matplotlib.pyplot as plt
+from nemo.utils.app_state import AppState
+
 
 from nemo.collections.tts.modules.transformer import (
     BiModalTransformerEncoder,
@@ -57,6 +61,7 @@ from nemo.core.classes import (
 from nemo.core.neural_types.elements import (
     LossType,
     MelSpectrogramType,
+    LogitsType
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss, EnergyLoss
@@ -102,7 +107,7 @@ class BaselineModule(NeuralModule):
         energy_emb,
         decoder,
     ):
-        """TODO"""
+        """Module used for inpainting"""
         super().__init__()
         self.token_encoder = token_encoder
 
@@ -144,8 +149,21 @@ class BaselineModule(NeuralModule):
         token_durations,
         pitch=None,
         energy=None,
+        slice_indices=None
     ):
-        """TODO"""
+        """Forward pass of the model
+
+        Args:
+            input_mels: mel spectrograms with blank sections to inpaint
+            input_mels_len: lengths of the mels
+            tokens: tokens for the whole transcription of the audio
+            token_durations: the number of mel buckets each token takes
+            pitch: the fundamental pitch of each token
+            slice_indices: optional argument which outlines where to truncate
+                input_mels for each example in the batch (ensures no accidental
+                memory overflow)
+
+        """
         spectrogram_projections = self.spectrogram_projection(input_mels)
         spectrogram_encodings, mask = self.spectrogram_encoder(
             input=spectrogram_projections, seq_lens=input_mels_len)
@@ -199,16 +217,22 @@ class BaselineModule(NeuralModule):
         aligned_token_encodings, _ = regulate_len(
             token_durations, conditioned_token_encodings, pace=1.0)
 
+        # During training we slice the spectrograms to remove chance of
+        # memory overflow
+        if slice_indices is not None:
+            aligned_token_encodings = gather_slices(
+                aligned_token_encodings, slice_indices)
+
         assert input_mels.shape[1] == aligned_token_encodings.shape[1]
 
         both_encodings = torch.concatenate(
-            (spectrogram_projections, aligned_token_encodings), axis=-1)
+            (spectrogram_encodings, aligned_token_encodings), axis=-1)
 
         output_decodings, _ = self.decoder(
             input=both_encodings,
             seq_lens=input_mels_len
         )
-        spec_encoding_size = spectrogram_projections.shape[-1]
+        spec_encoding_size = spectrogram_encodings.shape[-1]
         output_decodings_trimmed = output_decodings[:, :, :spec_encoding_size]
 
         spectrogram_preds = self.spectrogram_projection.reverse(
@@ -274,7 +298,7 @@ class InpaintingMSELoss(Loss):
     @property
     def output_types(self):
         return {
-            "loss": NeuralType(elements_type=LossType()),
+            "loss": NeuralType(elements_type=LogitsType()),
         }
 
     @typecheck()
@@ -298,13 +322,53 @@ class InpaintingMSELoss(Loss):
         return avg_pixel_loss
 
 
+class DiscriminatorHingeLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "logits_gen": NeuralType(('B'), MelSpectrogramType()),
+            "logits_real": NeuralType(('B'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    def forward(self, logits_gen, logits_real):
+        zero = torch.zeros(
+            len(logits_gen),
+            dtype=logits_real.dtype, device=logits_real.device
+        )
+        loss_real = torch.mean(torch.maximum(zero, 1 - logits_real))
+        loss_gen = torch.mean(torch.maximum(zero, 1 + logits_gen))
+        return loss_gen, loss_real
+
+
+class FeatureMatchingLoss(Loss):
+
+    def forward(self, activations_real, activations_gen):
+        loss_per_layer = []
+        for activation_real_layer, activation_gen_layer in zip(
+            activations_real, activations_gen
+        ):
+            loss_per_layer += [F.l1_loss(
+                activation_real_layer,
+                activation_gen_layer,
+                reduction='mean'
+            )]
+
+        return sum(loss_per_layer) / len(loss_per_layer)
+
+
 class InpainterModel(ModelPT, Exportable):
-    """TODO"""
+    """Model for inpainting dictation audio"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         aligner = AlignerModel.from_pretrained("tts_en_radtts_aligner")
+        self.inference = os.getenv('DATA_CAP') == '0'
 
-        # self.normalizer = self._setup_normalizer(cfg)
         self.normalizer = aligner.normalizer
 
         self.text_normalizer_call = self.normalizer.normalize
@@ -312,7 +376,6 @@ class InpainterModel(ModelPT, Exportable):
             self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
         self.vocab = aligner.tokenizer
-
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.preprocessor = aligner.preprocessor
@@ -362,6 +425,10 @@ class InpainterModel(ModelPT, Exportable):
         reconstruction_loss = loss_lookup[cfg.loss]
         self.gap_loss_scale = cfg.gap_loss_scale
 
+        self.min_mask_duration = cfg.min_mask_duration
+        self.max_mask_duration = cfg.max_mask_duration
+        self.max_mel_len_for_train = 1500
+
         # According to config, both are using L1 loss
         self.gap_loss = InpaintingMSELoss(reconstruction_loss)
         self.mse_loss = MelLoss(reconstruction_loss)
@@ -375,44 +442,66 @@ class InpainterModel(ModelPT, Exportable):
         self.audio_sample_rate = spectrogrammer.sample_rate
         self.spectrogram_sample_stride = spectrogrammer.hop_length
 
-    def _setup_normalizer(self, cfg):
-        if "text_normalizer" in cfg:
-            normalizer_kwargs = {}
+        self.discriminator = None
+        if 'discriminator' in cfg:
+            self.discriminator = ConvDiscriminator(spectrogrammer.nfilt)
+            self.discriminator_loss = DiscriminatorHingeLoss()
+            self.feature_matching_loss = FeatureMatchingLoss()
 
-            if "whitelist" in cfg.text_normalizer:
-                normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
-                )
+            self.discriminator_warmup_steps = cfg.discriminator.warmup_steps
+            self.discriminator_rampup_steps = cfg.discriminator.rampup_steps
+            self.discriminator_batch_size = cfg.discriminator.batch_size
 
-            try:
-                normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-            except Exception as e:
-                logging.error(e)
-                raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
-                )
+    def configure_optimizers(self):
+        if self.discriminator is None:
+            return super().configure_optimizers()
 
-            return normalizer
+        optim_config = self.cfg.optim.copy()
 
-    def _setup_tokenizer(self, cfg):
-        text_tokenizer_kwargs = {}
+        # Adding some fields needed to init a scheduler properly
+        OmegaConf.set_struct(optim_config, False)
+        scheduler_config = optim_config.pop("sched", None)
+        scheduler_config['t_max_epochs'] = self.trainer.max_epochs
+        scheduler_config['t_accumulate_grad_batches'] = (
+            self.trainer.accumulate_grad_batches)
+        scheduler_config['t_limit_train_batches'] = (
+            self.trainer.limit_train_batches)
 
-        if "g2p" in cfg.text_tokenizer:
-            g2p_kwargs = {}
+        # copied from ModelPT
+        app_state = AppState()
+        if app_state.data_parallel_size is not None:
+            scheduler_config['t_num_workers'] = app_state.data_parallel_size
+        elif app_state.model_parallel_size is None:
+            scheduler_config['t_num_workers'] = (
+                self.trainer.num_devices * self.trainer.num_nodes)
+        else:
+            scheduler_config['t_num_workers'] = (
+                self.trainer.num_devices * self.trainer.num_nodes
+            ) / app_state.model_parallel_size
 
-            if "phoneme_dict" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
-                )
+        OmegaConf.set_struct(optim_config, True)
 
-            if "heteronyms" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
-                )
+        optim_g = instantiate(optim_config, params=self.module.parameters(),)
+        optim_d = instantiate(
+            optim_config, params=self.discriminator.parameters())
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+        sched_g = prepare_lr_scheduler(
+            optimizer=optim_g,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl
+        )
+        # sched_d = prepare_lr_scheduler(
+        #     optimizer=optim_d,
+        #     scheduler_config=scheduler_config,
+        #     train_dataloader=self._train_dl
+        # )
+        # basically a scheduler that does nothing
+        sched_d = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=optim_d,
+            lr_lambda=lambda x: 1
+        )
 
-        return instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+        return [optim_g, optim_d], [sched_g, sched_d]
 
     def forward(self, *args, **kwargs):
         spectrogram_preds, pitch_predicted, energy_predicted, log_durs_pred = (
@@ -596,13 +685,22 @@ class InpainterModel(ModelPT, Exportable):
 
         return full_replacement, partial_replacement
 
-    def regnerate_audio(self, spectrogram, replacement_phrase):
-        """TODO"""
+    def regenerate_audio(self, spectrogram, replacement_phrase):
+        """Re-fill in a given part of some input audio.
+
+        Args:
+            spectrogram: mel spectrogram of the original audio
+            replacement_phrase: original transcript with one square bracketed
+                span showing which area to blank out e.g. "So [monday] at 8pm
+                for 5 people?"
+
+
+        """
         # TODO more input sanitization
         start_of_middle_span = replacement_phrase.find('[')
         end_of_middle_span = replacement_phrase.find(']')
 
-        assert start_of_middle_span > 0
+        assert start_of_middle_span >= 0
         assert end_of_middle_span > start_of_middle_span
 
         left_phrase = replacement_phrase[:start_of_middle_span]
@@ -614,9 +712,11 @@ class InpainterModel(ModelPT, Exportable):
             text_normalized = self.normalize_text(text)
             return torch.tensor(self.vocab(text_normalized))
 
-        left_tokens = tokenize(left_phrase)
-        middle_tokens = tokenize(middle_phrase)
-        right_tokens = tokenize(right_phrase)
+        # tokenizer puts 0 tokens on left and right of each phrase
+        # we need to trim this
+        left_tokens = tokenize(left_phrase)[:-1]
+        middle_tokens = tokenize(middle_phrase)[1:-1]
+        right_tokens = tokenize(right_phrase)[1:]
 
         tokens = torch.concatenate((left_tokens, middle_tokens, right_tokens))
 
@@ -642,7 +742,7 @@ class InpainterModel(ModelPT, Exportable):
         else:
             blank_start = 0
 
-        blank_end = token_end_indices[len(left_tokens) + len(right_tokens) - 1]
+        blank_end = token_end_indices[len(left_tokens) + len(middle_tokens) - 1]
 
         blanked_spectrogram = torch.clone(spectrogram)
         blanked_spectrogram[blank_start:blank_end, :] = 0.
@@ -672,6 +772,16 @@ class InpainterModel(ModelPT, Exportable):
             take_log=False
         )
 
+        # import matplotlib.pyplot as plt
+        # f, axarr = plt.subplots(5)
+        # f.suptitle(replacement_phrase)
+        # axarr[0].imshow(spectrogram.cpu().numpy().T)
+        # axarr[1].imshow(blanked_spectrogram.cpu().numpy().T)
+        # axarr[2].imshow(attn_hard[0].cpu().detach().numpy().T)
+        # axarr[3].imshow(full_replacement.cpu().detach().numpy().T)
+        # axarr[4].imshow(partial_replacement.cpu().detach().numpy().T)
+        # plt.show()
+
         return full_replacement, partial_replacement, mcd_full, mcd_partial
 
     def forward_pass(self, batch, batch_idx, training=True):
@@ -686,16 +796,6 @@ class InpainterModel(ModelPT, Exportable):
         mels, spec_len = self.preprocessor(
             input_signal=audio, length=audio_lens)
         mels = mels.transpose(2, 1)  # B x T x E
-
-        # mask the spectrogram rather than audio to avoid artifacts
-        # at the edge of the spectrogram
-        mel_masks = self.make_spectrogram_mask(mels, spec_len)
-        mels_masked = mels * mel_masks
-
-        # below code to make the blank spectrogram "quiet" instead of 0
-        # intensity which is essentially max volume for a mel spectrogram
-        # negative_mask = -14 * (1 - mel_masks)
-        # mels_masked += negative_mask
 
         # run the pretrained aligner
         attn_soft, attn_logprob = self.aligner(
@@ -719,6 +819,20 @@ class InpainterModel(ModelPT, Exportable):
             energy = average_features(energy.unsqueeze(1), token_durations).squeeze(1)
             energy = torch.log(1.0 + energy)
 
+        # slice the mels to make sure they dont flow over a given size
+        mels, spec_len, slice_indices = random_slice_if_longer_than(
+            mels, spec_len, self.max_mel_len_for_train)
+
+        # mask the spectrogram rather than audio to avoid artifacts
+        # at the edge of the spectrogram
+        mel_masks = self.make_spectrogram_mask(mels, spec_len)
+        mels_masked = mels * mel_masks
+
+        # below code to make the blank spectrogram "quiet" instead of 0
+        # intensity which is essentially max volume for a mel spectrogram
+        # negative_mask = -14 * (1 - mel_masks)
+        # mels_masked += negative_mask
+
         (
             spectrogram_preds,
             pitch_predicted,
@@ -731,6 +845,7 @@ class InpainterModel(ModelPT, Exportable):
             token_durations=token_durations,
             pitch=pitch if training else None,
             energy=energy if training else None,
+            slice_indices=slice_indices
         )
 
         gap_loss = self.gap_loss(
@@ -739,7 +854,7 @@ class InpainterModel(ModelPT, Exportable):
         )
         mse_loss = self.mse_loss(
             spect_predicted=spectrogram_preds, spect_tgt=mels)
-        # TODO make this a parameter
+
         reconstruction_loss = (self.gap_loss_scale * gap_loss) + mse_loss
 
         dur_loss = self.duration_loss_fn(
@@ -768,8 +883,15 @@ class InpainterModel(ModelPT, Exportable):
 
         return losses, outputs
 
-    def training_step(self, batch, batch_idx):
-        losses, specs = self.forward_pass(batch, batch_idx)
+    def training_step(self, batch, batch_idx, optimizer_idx=None):
+        if self.discriminator is None:
+            return self.training_step_simple(batch, batch_idx)
+
+        return self.training_step_with_discriminator(
+            batch, batch_idx, optimizer_idx)
+
+    def training_step_simple(self, batch, batch_idx):
+        losses, specs = self.forward_pass(batch, batch_idx, training=True)
 
         reconstruction_loss, dur_loss, pitch_loss, energy_loss = losses
 
@@ -809,6 +931,111 @@ class InpainterModel(ModelPT, Exportable):
             self.log_train_spectrograms = False
 
         return train_loss
+
+    def training_step_with_discriminator(
+        self, batch, batch_idx, optimizer_idx
+    ):
+        losses, specs = self.forward_pass(batch, batch_idx, training=True)
+
+        reconstruction_loss, dur_loss, pitch_loss, energy_loss = losses
+        (
+            text, text_lens,
+            mels, mels_masked,
+            spectrograms_pred, specs_len,
+            attn_hard
+        ) = specs
+
+        # chop the spectrograms and predicted spectrograms into chunks of the
+        # right size for the discriminator
+        spec_windows_real = []
+        spec_windows_gen = []
+        for spec, spec_pred, spec_len in zip(
+            mels, spectrograms_pred, specs_len
+        ):
+            window_size = self.discriminator.input_width
+            num_windows = spec_len // window_size
+            spec_windows_real += spec.split(window_size)[:num_windows]
+            spec_windows_gen += spec_pred.split(window_size)[:num_windows]
+
+        spec_windows_real = torch.stack(spec_windows_real)
+        spec_windows_gen = torch.stack(spec_windows_gen)
+
+        batch_size = min(len(spec_windows_gen), self.discriminator_batch_size)
+        shuffle_indices = torch.randperm(
+            batch_size, device=spectrograms_pred.device)
+
+        batch_real = spec_windows_real[shuffle_indices]
+        batch_gen = spec_windows_gen[shuffle_indices]
+
+        training_inpainter = optimizer_idx % 2 == 0
+        # Train Discriminator
+        if not training_inpainter:
+            if self.global_step < (self.discriminator_warmup_steps - 1000):
+                return
+            logits_real, _ = self.discriminator(batch_real.detach())
+            logits_gen, _ = self.discriminator(batch_gen.detach())
+
+            loss_gen, loss_real = self.discriminator_loss(
+                logits_gen=logits_gen, logits_real=logits_real)
+            loss = loss_gen + loss_real
+            self.log("discriminator_loss", loss)
+            self.log("disc_loss_real", loss_real)
+            self.log("disc_loss_gen", loss_gen)
+
+        # Train Inpainter
+        if training_inpainter:
+            supervised_losses = reconstruction_loss + dur_loss + pitch_loss + energy_loss
+
+            _, activations_real = self.discriminator(batch_real)
+            _, activations_gen = self.discriminator(batch_gen)
+
+            feature_matching_loss = self.feature_matching_loss(
+                activations_real=activations_real,
+                activations_gen=activations_gen,
+            )
+
+            adversarial_amount = linear_rampup_with_warmup(
+                self.global_step,
+                warmup_steps=self.discriminator_warmup_steps,
+                rampup_steps=self.discriminator_rampup_steps
+            )
+            feature_matching_loss_scaled = feature_matching_loss * adversarial_amount
+            loss_inpainter = supervised_losses + feature_matching_loss_scaled
+            loss = loss_inpainter
+
+            self.log("inpainter_loss", loss)
+            self.log("reconstruction_loss", reconstruction_loss)
+            self.log("dur_loss", dur_loss)
+            self.log("pitch_loss", pitch_loss)
+            self.log("energy_loss", energy_loss)
+            self.log("adversarial_amount", adversarial_amount)
+            self.log("feature_matching_loss_scaled", feature_matching_loss_scaled)
+            self.log("feature_matching_loss", feature_matching_loss)
+
+        if self.log_train_spectrograms:
+            mcds = []
+            for mel, mel_pred in zip(mels, spectrograms_pred):
+                mel_cepstral_distance, _, _ = get_metrics_mels(
+                    mel.cpu().detach().numpy(),
+                    mel_pred.cpu().detach().numpy(),
+                    take_log=False
+                )
+                mcds += [mel_cepstral_distance]
+
+            self.log('train_mcd', sum(mcds) / len(mcds))
+
+            self._log_spectrograms(
+                specs_len[:3],
+                text_lens[:3],
+                mels[:3],
+                mels_masked[:3],
+                spectrograms_pred[:3],
+                attn_hard[:3],
+                'train'
+            )
+            self.log_train_spectrograms = False
+
+        return loss
 
     def validation_step(self, batch, batch_idx):
         losses, specs = self.forward_pass(batch, batch_idx, training=False)
@@ -906,9 +1133,13 @@ class InpainterModel(ModelPT, Exportable):
                 f'{name_prefix}_{i+1}', f, global_step=self.global_step)
 
     def setup_training_data(self, cfg):
+        if self.inference:
+            return
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
+        if self.inference:
+            return
         self._validation_dl = self.__setup_dataloader_from_config(
             cfg, shuffle_should_be=False, name="val")
 
@@ -964,9 +1195,8 @@ class InpainterModel(ModelPT, Exportable):
 
         ffts_per_sec = self.audio_sample_rate / self.spectrogram_sample_stride
 
-        # TODO - have these as parameters in the future
-        min_duration_frames = int(ffts_per_sec * 0.5)
-        max_duration_frames = int(ffts_per_sec * 1)
+        min_duration_frames = int(ffts_per_sec * self.min_mask_duration)
+        max_duration_frames = int(ffts_per_sec * self.max_mask_duration)
 
         for i, spec_len in enumerate(mel_lens):
             start = random.randint(
@@ -991,17 +1221,69 @@ class InpainterModel(ModelPT, Exportable):
 
 
 class ConvDiscriminator(NeuralModule):
-    def __init__(self, num_mels, window_size):
+    """See SpeechPainter paper for this"""
+    input_width = 32
 
-        pass
+    def __init__(self, num_mels):
+        super().__init__()
+        input_width = self.input_width
+        starting_filters = 2 ** 5
+        # starting_filters = 2
+
+        self.layers = [
+            torch.nn.Conv2d(
+                in_channels=1,
+                out_channels=starting_filters,
+                kernel_size=(3, 3),
+                padding='same'
+            ),
+            ConvUnit(
+                (starting_filters, input_width, num_mels),
+                starting_filters, 1, 1
+            ),
+            ConvUnit(
+                (starting_filters * 2, input_width, num_mels),
+                starting_filters * 2, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 4, input_width // 2, num_mels // 2),
+                starting_filters * 4, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 8, input_width // 4, num_mels // 4),
+                starting_filters * 8, 2, 2
+            ),
+            ConvUnit(
+                (starting_filters * 16, input_width // 8, num_mels // 8),
+                starting_filters * 16, 2, 2
+            ),
+            torch.nn.Conv2d(
+                in_channels=starting_filters * 32,
+                out_channels=1,
+                kernel_size=(2, num_mels // 16),
+            )
+        ]
+        # pytorch checks through named fields of a class to register the
+        # modules as parameters of the model
+        for i, layer in enumerate(self.layers):
+            setattr(self, f'layer_{i}', layer)
+
+    def forward(self, spectrogram_slices):
+        activations = []
+        h = spectrogram_slices.unsqueeze(1)
+        for layer in self.layers:
+            h = layer(h)
+            activations += [h]
+
+        return h, activations
 
 
 class ConvUnit(NeuralModule):
     def __init__(self, input_dims, c, s_t, s_f):
-        """TODO"""
+        """See SpeechPainter Paper"""
+        super().__init__()
         in_channels, input_width, input_height = input_dims
         # first part:
-        super().__init__()
         self.elu = torch.nn.ELU()
         self.conv_1_1 = torch.nn.Conv2d(
             in_channels=in_channels,
@@ -1020,7 +1302,7 @@ class ConvUnit(NeuralModule):
             padding=(1, 1)
         )
         self.norm_1_2 = torch.nn.LayerNorm(
-            (c * 2, input_width // 2, input_height // 2))
+            (c * 2, input_width // s_t, input_height // s_f))
 
         # second part
         self.pooling = torch.nn.AvgPool2d(
@@ -1033,7 +1315,7 @@ class ConvUnit(NeuralModule):
             padding='same'
         )
         self.norm_2 = torch.nn.LayerNorm(
-            (c * 2, input_width // 2, input_height // 2))
+            (c * 2, input_width // s_t, input_height // s_f))
 
     def forward(self, x):
         # part 1
@@ -1043,3 +1325,72 @@ class ConvUnit(NeuralModule):
         # part 2
         part_2 = self.norm_2(self.conv_2(self.pooling(x)))
         return part_1 + part_2
+
+
+def linear_rampup_with_warmup(step_nuber, warmup_steps, rampup_steps):
+    adjusted_step_number = max(0, (step_nuber - warmup_steps))
+
+    multiplier = min(1., adjusted_step_number / rampup_steps)
+    return multiplier
+
+
+def random_slice_if_longer_than(
+    mels,
+    spec_len,
+    max_mel_len_for_train,
+):
+    """Randomly trucate examples if they are too long
+
+    example:
+        imagine a batch with examples of length:
+        [5, 25, 4]
+        and we want to make sure no batch is longer than 10 samples
+
+        This function will random truncate the 2nd element in the batch to be
+        of length 10
+
+
+    the slice_indices return value represents the indices used for each element
+    in the batch. You can use gather_slices to truncate similarly sized
+
+    """
+    # if there's no need to slice
+    if mels.shape[1] <= max_mel_len_for_train:
+        return mels, spec_len, None
+
+    device = mels.device
+    wiggle_room = torch.maximum(
+        spec_len - max_mel_len_for_train,
+        torch.zeros_like(spec_len, device=device),
+    ).float()
+    # add an eps to values where wiggle_room is 0 so uniform distribution
+    # doesn't break
+    mask = torch.eq(wiggle_room, 0).float()
+    wiggle_room += (mask * 1e-5)
+
+    dist = torch.distributions.uniform.Uniform(
+        low=torch.zeros_like(wiggle_room),
+        high=wiggle_room
+    )
+    start_indices = dist.sample().int()
+
+    slice_indices = torch.arange(
+        max_mel_len_for_train,
+        device=device
+    ).repeat(len(mels), 1)
+    slice_indices += start_indices.unsqueeze(1)
+
+    mels = gather_slices(mels, slice_indices)
+
+    spec_len = torch.minimum(
+        spec_len,
+        torch.ones_like(spec_len, device=device) * max_mel_len_for_train
+    )
+
+    return mels, spec_len, slice_indices
+
+
+def gather_slices(x, slice_indices):
+    if slice_indices is None:
+        return x
+    return torch.stack([elem[si] for elem, si in zip(x, slice_indices)])

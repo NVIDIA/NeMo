@@ -1,6 +1,6 @@
 import torch
 
-from nemo.collections.tts.models.inpainting import InpaintingMSELoss, ConvUnit
+from nemo.collections.tts.models.inpainting import InpaintingMSELoss, ConvUnit, random_slice_if_longer_than
 from pytest import approx
 import pytest
 import numpy as np
@@ -64,7 +64,7 @@ class TestInpainting:
         c = 16
 
         example_input = torch.tensor(
-            np.random.normal(size=(1, 1, num_buckets, mel_height)),
+            np.random.normal(size=(1, num_buckets, mel_height)),
             dtype=torch.float32
         )
 
@@ -72,4 +72,17 @@ class TestInpainting:
 
         output = module(example_input)
         assert output.shape == torch.Size(
-            [1, c * 2, num_buckets // 2, mel_height // 2])
+            [c * 2, num_buckets // 2, mel_height // 2])
+
+    @pytest.mark.unit
+    def test_slicing(self):
+        a = torch.randint(4, size=(3, 15, 5))
+        lens = torch.tensor([9, 15, 13])
+        max_len = 10
+        mels, spec_len, slice_indices = random_slice_if_longer_than(
+            a, lens, max_len)
+
+        assert mels.shape == torch.Size([3, 10, 5])
+        assert spec_len.equal(torch.tensor([9, 10, 10]))
+
+        assert slice_indices[0].equal(torch.arange(10))

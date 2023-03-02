@@ -1,6 +1,10 @@
 # This config contains the default values for training HiFi-GAN model on LJSpeech dataset.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
+# example invocation
+# python examples/tts/hifigan.py train_dataset=data/ltts_vctk_nicky/combined_train.json validation_datasets=data/ltts_vctk_nicky/combined_val.json
+# latest model at gs://poly-data-nl/speech/HifiGan_models/HifiGan_20230224
+
 
 name: "HifiGan"
 

@@ -3,7 +3,7 @@
 # Most dataset-specific arguments are in the head of the config file, see below.
 # example invocation
 # python examples/tts/inpainting.py.py train_dataset=data/ltts_vctk_nicky/combined_train.json validation_datasets=data/ltts_vctk_nicky/combined_val.json
-# latest model at gs://poly-data-nl/speech/inpainter_models/inpainter_20230223
+# latest model at: gs://poly-data-nl/speech/inpainter_models/inpainter_20230223
 
 name: Inpainter
 
