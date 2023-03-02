@@ -59,7 +59,7 @@ from nemo.core.neural_types.elements import (
     MelSpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss
+from nemo.collections.tts.losses.fastpitchloss import MelLoss, DurationLoss, PitchLoss, EnergyLoss
 
 
 class BidirectionalLinear(Linear):
@@ -98,6 +98,8 @@ class BaselineModule(NeuralModule):
         duration_predictor,
         pitch_predictor,
         pitch_emb,
+        energy_predictor,
+        energy_emb,
         decoder,
     ):
         """TODO"""
@@ -109,6 +111,8 @@ class BaselineModule(NeuralModule):
         self.pitch_predictor = pitch_predictor
         self.pitch_emb = pitch_emb
         self.decoder = decoder
+        self.energy_predictor = energy_predictor
+        self.energy_emb = energy_emb
 
         self.spectrogram_projection = BidirectionalLinear(
             num_mels, self.spectrogram_encoder.d_model)
@@ -138,7 +142,8 @@ class BaselineModule(NeuralModule):
         self,
         input_mels, input_mels_len, tokens,
         token_durations,
-        pitch=None
+        pitch=None,
+        energy=None,
     ):
         """TODO"""
         spectrogram_projections = self.spectrogram_projection(input_mels)
@@ -174,12 +179,25 @@ class BaselineModule(NeuralModule):
 
         speaker_pitch_token_encodings = speakerized_token_encodings + pitch_emb
 
+        # predict energy
+        energy_predicted = self.energy_predictor(
+            speakerized_token_encodings, tokens_mask
+        )
+
+        if energy is not None:
+            energy_emb = self.energy_emb(energy.unsqueeze(1))
+        else:
+            energy_emb = self.energy_emb(energy_predicted.unsqueeze(1))
+
+        energy_emb = energy_emb.transpose(1, 2)
+        conditioned_token_encodings = speaker_pitch_token_encodings + energy_emb
+
         # predict duration
         log_durs_pred = self.duration_predictor(
-            speaker_pitch_token_encodings, tokens_mask)
+            conditioned_token_encodings, tokens_mask)
 
         aligned_token_encodings, _ = regulate_len(
-            token_durations, speaker_pitch_token_encodings, pace=1.0)
+            token_durations, conditioned_token_encodings, pace=1.0)
 
         assert input_mels.shape[1] == aligned_token_encodings.shape[1]
 
@@ -196,7 +214,7 @@ class BaselineModule(NeuralModule):
         spectrogram_preds = self.spectrogram_projection.reverse(
             output_decodings_trimmed)
 
-        return spectrogram_preds, pitch_predicted, log_durs_pred
+        return spectrogram_preds, pitch_predicted, energy_predicted, log_durs_pred
 
     def predict_token_durations(
         self, tokens, tokens_len, input_mels, input_mels_len
@@ -269,7 +287,12 @@ class InpaintingMSELoss(Loss):
         gap_target = spect_tgt * gap_mask
         gap_predicted = spect_predicted * gap_mask
 
-        mse_loss = self.loss_fn(gap_predicted, gap_target, reduction='none')
+        if self.loss_fn == "l1_and_l2":
+            l1_loss = F.l1_loss(gap_predicted, gap_target, reduction='none')
+            l2_loss = F.mse_loss(gap_predicted, gap_target, reduction='none')
+            mse_loss = l1_loss + (0.5 * l2_loss)
+        else:
+            mse_loss = self.loss_fn(gap_predicted, gap_target, reduction='none')
 
         avg_pixel_loss = mse_loss.sum() / gap_mask.sum()
         return avg_pixel_loss
@@ -310,6 +333,13 @@ class InpainterModel(ModelPT, Exportable):
             kernel_size=cfg.pitch_predictor.kernel_size,
             padding=int((cfg.pitch_predictor.kernel_size - 1) / 2),
         )
+        energy_predictor = instantiate(cfg.energy_predictor)
+        energy_emb = torch.nn.Conv1d(
+            1,
+            cfg.symbols_embedding_dim,
+            kernel_size=cfg.energy_predictor.kernel_size,
+            padding=int((cfg.energy_predictor.kernel_size - 1) / 2),
+        )
 
         self.module = BaselineModule(
             num_mels=cfg.n_mel_channels,
@@ -318,21 +348,26 @@ class InpainterModel(ModelPT, Exportable):
             duration_predictor=duration_predictor,
             pitch_predictor=pitch_predictor,
             pitch_emb=pitch_emb,
+            energy_predictor=energy_predictor,
+            energy_emb=energy_emb,
             decoder=decoder,
         )
         self.postnet = instantiate(cfg.postnet) if 'postnet' in cfg else None
 
         loss_lookup = {
             'l1': F.l1_loss,
-            'mse': F.mse_loss
+            'mse': F.mse_loss,
+            'l1_and_l2': 'l1_and_l2',
         }
         reconstruction_loss = loss_lookup[cfg.loss]
         self.gap_loss_scale = cfg.gap_loss_scale
 
+        # According to config, both are using L1 loss
         self.gap_loss = InpaintingMSELoss(reconstruction_loss)
         self.mse_loss = MelLoss(reconstruction_loss)
         self.duration_loss_fn = DurationLoss()
         self.pitch_loss_fn = PitchLoss()
+        self.energy_loss_fn = EnergyLoss()
 
         self.aligner = aligner
         spectrogrammer = self.preprocessor.featurizer
@@ -380,15 +415,15 @@ class InpainterModel(ModelPT, Exportable):
         return instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def forward(self, *args, **kwargs):
-        spectrogram_preds, spectrogram_projections, token_embeddings = (
-            self.module(*args, **kwargs))
+        spectrogram_preds, pitch_predicted, energy_predicted, log_durs_pred = (
+            self.module(*args, **kwargs))  # calls L 141
 
         if self.postnet is not None:
             spectrogram_preds = self.postnet(
                 mel_spec=spectrogram_preds.transpose(1, 2))
             spectrogram_preds = spectrogram_preds.transpose(1, 2)
 
-        return spectrogram_preds, spectrogram_projections, token_embeddings
+        return spectrogram_preds, pitch_predicted, energy_predicted, log_durs_pred
 
     def normalize_text(self, text):
         return self.text_normalizer_call(
@@ -451,7 +486,7 @@ class InpainterModel(ModelPT, Exportable):
         full_spectrogram = torch.concatenate(concatenate_tuple, axis=0)
         full_spectrogram = full_spectrogram.type(torch.float32)
 
-        (predicted_spectrogram,), _ = self(
+        (predicted_spectrogram,), *_ = self(
             transcripts=torch.tensor([tokens]),
             transcripts_len=torch.tensor([len(tokens)]),
             input_mels=full_spectrogram.unsqueeze(0),
@@ -548,7 +583,7 @@ class InpainterModel(ModelPT, Exportable):
         concat_tokens = torch.concatenate((tokens_left, tokens_middle, tokens_right))
         assert torch.equal(concat_tokens, new_tokens)
 
-        mels_pred, _, _ = self(
+        mels_pred, *_ = self(
             input_mels=blanked_spectrogram.unsqueeze(0),
             input_mels_len=torch.tensor([len(blanked_spectrogram)]),
             tokens=new_tokens.unsqueeze(0),
@@ -612,7 +647,7 @@ class InpainterModel(ModelPT, Exportable):
         blanked_spectrogram = torch.clone(spectrogram)
         blanked_spectrogram[blank_start:blank_end, :] = 0.
 
-        mels_pred, _, _ = self(
+        mels_pred, *_ = self(
             input_mels=blanked_spectrogram.unsqueeze(0),
             input_mels_len=torch.tensor([len(blanked_spectrogram)]),
             tokens=tokens.unsqueeze(0),
@@ -644,7 +679,8 @@ class InpainterModel(ModelPT, Exportable):
             audio, audio_lens,
             text, text_lens,
             align_prior_matrix,
-            pitch, pitch_lens
+            pitch, pitch_lens,
+            energy, energy_lens,
         ) = batch
 
         mels, spec_len = self.preprocessor(
@@ -678,12 +714,23 @@ class InpainterModel(ModelPT, Exportable):
             # but during inference, it should be per character
             pitch = average_features(pitch.unsqueeze(1), token_durations).squeeze(1)
 
-        spectrogram_preds, pitch_predicted, log_durs_pred = self(
+        if energy is not None:
+            # energy during training is per spectrogram frame,
+            energy = average_features(energy.unsqueeze(1), token_durations).squeeze(1)
+            energy = torch.log(1.0 + energy)
+
+        (
+            spectrogram_preds,
+            pitch_predicted,
+            energy_pred,
+            log_durs_pred,
+        ) = self(
             input_mels=mels_masked,
             input_mels_len=spec_len,
             tokens=text,
             token_durations=token_durations,
-            pitch=pitch if training else None
+            pitch=pitch if training else None,
+            energy=energy if training else None,
         )
 
         gap_loss = self.gap_loss(
@@ -702,6 +749,8 @@ class InpainterModel(ModelPT, Exportable):
         )
         pitch_loss = self.pitch_loss_fn(
             pitch_predicted=pitch_predicted, pitch_tgt=pitch, len=text_lens)
+        energy_loss = self.energy_loss_fn(
+            energy_predicted=energy_pred, energy_tgt=energy, length=text_lens)
 
         outputs = (
             text, text_lens,
@@ -714,20 +763,22 @@ class InpainterModel(ModelPT, Exportable):
             reconstruction_loss,
             dur_loss,
             pitch_loss,
+            energy_loss
         )
 
         return losses, outputs
 
     def training_step(self, batch, batch_idx):
-        losses, specs = self.forward_pass(batch, batch_idx, training=False)
+        losses, specs = self.forward_pass(batch, batch_idx)
 
-        reconstruction_loss, dur_loss, pitch_loss = losses
+        reconstruction_loss, dur_loss, pitch_loss, energy_loss = losses
 
-        train_loss = reconstruction_loss + dur_loss + pitch_loss
+        train_loss = reconstruction_loss + dur_loss + pitch_loss + energy_loss
         self.log("train_loss", train_loss)
         self.log("reconstruction_loss", reconstruction_loss)
         self.log("dur_loss", dur_loss)
         self.log("pitch_loss", pitch_loss)
+        self.log("energy_loss", energy_loss)
 
         if self.log_train_spectrograms:
             (
@@ -760,19 +811,20 @@ class InpainterModel(ModelPT, Exportable):
         return train_loss
 
     def validation_step(self, batch, batch_idx):
-        losses, specs = self.forward_pass(batch, batch_idx)
+        losses, specs = self.forward_pass(batch, batch_idx, training=False)
         (
             texts, text_lens,
             mels, mels_masked, mels_pred, mels_len,
             attn_hard
         ) = specs
-        reconstruction_loss, dur_loss, pitch_loss = losses
+        reconstruction_loss, dur_loss, pitch_loss, energy_loss = losses
 
-        validation_loss = reconstruction_loss + dur_loss + pitch_loss
+        validation_loss = reconstruction_loss + dur_loss + pitch_loss + energy_loss
         self.log("validation_loss", validation_loss)
         self.log("reconstruction_loss_val", reconstruction_loss)
         self.log("dur_loss_val", dur_loss)
         self.log("pitch_loss_val", pitch_loss)
+        self.log("energy_loss_val", energy_loss)
 
         mcds = []
         for mel, mel_pred in zip(mels, mels_pred):

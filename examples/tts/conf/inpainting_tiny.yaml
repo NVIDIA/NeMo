@@ -9,7 +9,7 @@ train_dataset:  data/LibriTTS/train_clean_360_tiny.json
 validation_datasets: data/LibriTTS/dev_clean_tiny.json
 
 sup_data_path: data/LibriTTS/data_cache
-sup_data_types: [ "align_prior_matrix", "pitch" ]
+sup_data_types: [ "align_prior_matrix", "pitch", "energy" ]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -220,6 +220,14 @@ model:
     n_layers: 2
 
   pitch_predictor:
+    _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
+    input_size: ${model.symbols_embedding_dim}
+    kernel_size: 3
+    filter_size: 24
+    dropout: 0.1
+    n_layers: 2
+
+  energy_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
     input_size: ${model.symbols_embedding_dim}
     kernel_size: 3
