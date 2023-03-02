@@ -165,9 +165,6 @@ class BaselineModule(NeuralModule):
 
         # pitch is only given in training
         if pitch is not None:
-            # Pitch during training is per spectrogram frame,
-            # but during inference, it should be per character
-            pitch = average_features(pitch.unsqueeze(1), token_durations).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -674,13 +671,18 @@ class InpainterModel(ModelPT, Exportable):
 
         attn_hard = binarize_attention_parallel(
             attn_soft, text_lens, spec_len)
-        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+        token_durations = attn_hard.sum(2)[:, 0, :]
+
+        if pitch is not None:
+            # Pitch during training is per spectrogram frame,
+            # but during inference, it should be per character
+            pitch = average_features(pitch.unsqueeze(1), token_durations).squeeze(1)
 
         spectrogram_preds, pitch_predicted, log_durs_pred = self(
             input_mels=mels_masked,
             input_mels_len=spec_len,
             tokens=text,
-            token_durations=attn_hard_dur,
+            token_durations=token_durations,
             pitch=pitch if training else None
         )
 
@@ -695,7 +697,7 @@ class InpainterModel(ModelPT, Exportable):
 
         dur_loss = self.duration_loss_fn(
             log_durs_predicted=log_durs_pred,
-            durs_tgt=attn_hard_dur,
+            durs_tgt=token_durations,
             len=text_lens
         )
         pitch_loss = self.pitch_loss_fn(
