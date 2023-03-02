@@ -14,22 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.12-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.01-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
 # image (by specifying build target as `nemo-deps`)
 FROM ${BASE_IMAGE} as nemo-deps
 
+# dependency flags; should be declared after FROM
+# torchaudio: not required by default
+ARG REQUIRE_TORCHAUDIO=false
+# k2: not required by default
+ARG REQUIRE_K2=false
+
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
+# libavdevice-dev rerquired for latest torchaudio
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y \
     libsndfile1 sox \
     libfreetype6 \
     swig \
-    ffmpeg && \
+    ffmpeg \
+    libavdevice-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
@@ -38,7 +46,7 @@ WORKDIR /tmp/
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 75f401e088ef88e7c85a57ecf70fb232235f0334 && \
+    git checkout c0a0b0f69d2d5a98bd141be12ee8e5eebd3ec7ca && \
     pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
@@ -47,20 +55,30 @@ RUN pip3 uninstall -y sacrebleu torchtext
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
 COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
-RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh
+RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh); INSTALL_CODE=$?; \
+    echo ${INSTALL_MSG}; \
+    if [ ${INSTALL_CODE} -ne 0 ]; then \
+      echo "torchaudio installation failed";  \
+      if [ "${REQUIRE_TORCHAUDIO}" = true ]; then \
+        exit ${INSTALL_CODE};  \
+      else echo "Skipping failed torchaudio installation"; fi \
+    else echo "torchaudio installed successfully"; fi
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install pynini
-COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
-RUN /bin/bash /tmp/nemo/install_pynini.sh
-
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
-RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh || exit 0
+RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); INSTALL_CODE=$?; \
+    echo ${INSTALL_MSG}; \
+    if [ ${INSTALL_CODE} -ne 0 ]; then \
+      echo "k2 installation failed";  \
+      if [ "${REQUIRE_K2}" = true ]; then \
+        exit ${INSTALL_CODE};  \
+      else echo "Skipping failed k2 installation"; fi \
+    else echo "k2 installed successfully"; fi
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -68,7 +86,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.15.0
+ARG NEMO_VERSION=1.16.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -81,8 +99,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
-    python -c "import nemo.collections.tts as nemo_tts" && \
-    python -c "import nemo_text_processing.text_normalization as text_normalization"
+    python -c "import nemo.collections.tts as nemo_tts"
 
 # TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
 # install pinned numba version
