@@ -136,6 +136,11 @@ model:
     extreme_ngram_span_length_distribution: 'truncated_normal'
     prefix_lm_pivot_mean: 0.25
     mean_ngram_size: 3
+    r_masking_prob: 0.33
+    s_masking_prob: 0.33
+    x_masking_longspan_smallprob: 0.11
+    x_masking_longspan_largeprob: 0.11
+    x_masking_shortspan_largeprob: 0.11
     permutation: False
     whole_word_masking: True
     favor_longer_ngrams: False

@@ -14,6 +14,7 @@
 
 """UL2 Style dataset from https://arxiv.org/abs/2205.05131"""
 import torch
+import math
 import numpy as np
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -47,7 +48,7 @@ class UL2Dataset(T5Dataset):
         masked_lm_prob=0.15,
         extreme_masked_lm_prob=0.5,
         short_seq_prob=0.0,
-        min_ngram_size=2,
+        min_ngram_size=1,
         max_ngram_size=10,
         mean_ngram_size=3,
         extreme_max_ngram_size=128,
@@ -116,7 +117,7 @@ class UL2Dataset(T5Dataset):
             masked_lm_prob=masked_lm_prob,
             short_seq_prob=short_seq_prob,
             max_ngram_size=max_ngram_size,
-            mean_ngram_size=None,  # TODO: Determin if we want to actually pass mean ngram as an override to max here.
+            mean_ngram_size=None,  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
             geometric_dist=ngram_span_length_distribution == LengthDistribution.geometric,
             permutation=permutation,
             whole_word_masking=whole_word_masking,
@@ -143,6 +144,9 @@ class UL2Dataset(T5Dataset):
             sampling_probabilities['x-masking-longspan-largeprob'],
             sampling_probabilities['x-masking-shortspan-largeprob'],
         ])
+        self.x_masking_longspan_smallprob = sampling_probabilities['x-masking-longspan-smallprob']
+        self.x_masking_longspan_largeprob = sampling_probabilities['x-masking-longspan-largeprob']
+        self.x_masking_shortspan_largeprob = sampling_probabilities['x-masking-shortspan-largeprob']
 
     def _normalize_sampling_probabilities(self):
         """ Normalize the sampling probabilities to sum to 1. """
@@ -275,7 +279,22 @@ class UL2Dataset(T5Dataset):
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_x>')
         return sample
 
-    def __getitem__(self, idx):
+    def _get_worst_case_seq_length(self, masking_prob, min_span_length, seq_length):
+        """Returns the worst case sequence length for the given masking probability and minimum span length.
+        
+        Args:
+        masking_prob: The masking probability.
+        min_span_length: The minimum span length.
+        seq_length: The sequence length.
+        
+        Returns:
+        The worst case sequence length.
+        """
+        worst_case_added_tokens = int(math.ceil((seq_length * masking_prob) / (min_span_length)))
+        worst_case_added_tokens *= 2 # The same sentinel token is added once in the input and once again in the completion.
+        return seq_length - worst_case_added_tokens
+
+    def __getitem__(self, idx, decoder_only=False):
         """Returns a training sample for the given index.
         
         Returns:
@@ -292,15 +311,22 @@ class UL2Dataset(T5Dataset):
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
         masking_type = np_rng.choice(
-            list(self.sampling_probabilities.keys()), p=[self.r_masking_prob, self.x_masking_prob, self.s_masking_prob]
-        )  # 0: short span masking, 1: extreme masking, 2: prefix-LM
+            ['r-masking', 's-masking', 'x-masking-longspan-smallprob', 'x-masking-longspan-largeprob', 'x-masking-shortspan-largeprob'],
+            p=[self.r_masking_prob, self.s_masking_prob, self.x_masking_longspan_smallprob, self.x_masking_longspan_largeprob, self.x_masking_shortspan_largeprob]
+        )  # r: short span masking, x: extreme masking, s: prefix-LM
         if masking_type == 'r-masking':
             # Call T5's build training sample for regular short span masking.
-            return UL2Dataset.get_r_masking_training_sample(
+            # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
+            target_seq_length = self._get_worst_case_seq_length(
+                masking_prob=self.masked_lm_prob,
+                min_span_length=1,
+                seq_length=seq_length
+            ) if decoder_only else seq_length
+            example = UL2Dataset.get_r_masking_training_sample(
                 sample=sample,
                 tokenizer=self.tokenizer,
                 np_rng=np_rng,
-                target_seq_length=seq_length,
+                target_seq_length=target_seq_length,
                 max_seq_length=self.max_seq_length,
                 max_seq_length_dec=self.max_seq_length_dec,
                 masked_lm_prob=self.masked_lm_prob,
@@ -314,10 +340,11 @@ class UL2Dataset(T5Dataset):
                 geometric_dist=self.geometric_dist,
                 tokenizer_type=self.tokenizer_type,
                 sentinel_tokens=self.sentinel_tokens,
-                skip_masking_id=None,
+                skip_masking_id=self.skip_masking_id,
             )
+            return example
         elif masking_type == 's-masking':
-            return UL2Dataset.get_s_masking_training_sample(
+            example = UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
                 np_rng=np_rng,
                 max_seq_length_encoder=self.max_seq_length,
@@ -326,12 +353,22 @@ class UL2Dataset(T5Dataset):
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
             )
+            return example
         else:
-            return UL2Dataset.get_x_masking_training_sample(
+            # Try to minimize the amount of padding based on the masking type for GPT models.
+            if masking_type == 'x-masking-longspan-smallprob':
+                target_seq_length = self._get_worst_case_seq_length(self.masked_lm_prob, self.extreme_min_ngram_size, seq_length) if decoder_only else seq_length
+            elif masking_type == 'x-masking-shortspan-largeprob':
+                target_seq_length = self._get_worst_case_seq_length(self.extreme_masked_lm_prob, self.min_ngram_size, seq_length) if decoder_only else seq_length
+            elif masking_type == 'x-masking-longspan-largeprob':
+                target_seq_length = self._get_worst_case_seq_length(self.extreme_masked_lm_prob, self.extreme_min_ngram_size, seq_length) if decoder_only else seq_length
+
+            # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
+            example = UL2Dataset.get_x_masking_training_sample(
                 sample=sample,
                 tokenizer=self.tokenizer,
                 np_rng=np_rng,
-                target_seq_length=seq_length,
+                target_seq_length=target_seq_length,
                 max_seq_length=self.max_seq_length,
                 max_seq_length_dec=self.max_seq_length_dec,
                 masked_lm_prob=self.masked_lm_prob,
@@ -344,9 +381,10 @@ class UL2Dataset(T5Dataset):
                 extreme_mean_ngram_size=self.extreme_mean_ngram_size,
                 extreme_ngram_span_length_distribution=self.extreme_ngram_span_length_distribution,
                 sentinel_tokens=self.sentinel_tokens,
-                skip_masking_id=None,
+                skip_masking_id=self.skip_masking_id,
                 masking_type=masking_type,
             )
+            return example
     @classmethod
     def _prepend_mask_type_token(cls, tokenizer, sample, token):
         token_id = tokenizer.text_to_ids(token)
@@ -450,7 +488,7 @@ class UL2Dataset(T5Dataset):
                 extreme_masked_lm_prob,
             )
         else:
-            raise ValueError(f'Invalid masking type {masking_type}. Must be one of [longspan-smallprob, shortspan-largeprob, longspan-largeprob]')
+            raise ValueError(f'Invalid masking type {masking_type}. Must be one of [x-masking-longspan-smallprob, x-masking-shortspan-largeprob, x-masking-longspan-largeprob]')
 
         # Masking.
         max_predictions_per_seq = masked_lm_prob * max_num_tokens
@@ -523,7 +561,7 @@ class UGPTDataset(UL2Dataset):
         masked_lm_prob=0.15,
         extreme_masked_lm_prob=0.5,
         short_seq_prob=0.0,
-        min_ngram_size=2,
+        min_ngram_size=3, # Set it to 3 here so that we don't end up padding a lot in extreme masking with short spans and large probs.
         max_ngram_size=10,
         mean_ngram_size=3,
         extreme_max_ngram_size=128,
@@ -535,7 +573,7 @@ class UGPTDataset(UL2Dataset):
         permutation=False,
         whole_word_masking=True,
         favor_long_ngrams=False,
-        respect_document_boundaries=True,
+        respect_document_boundaries=False,
         documents=None,
         skip_masking_id=None,
         sampling_probabilities={
@@ -588,14 +626,13 @@ class UGPTDataset(UL2Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - 1,  # -1 to account for the added mask type token
+            max_seq_length=max_seq_length + 1,  # +2 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
             short_seq_prob=short_seq_prob,
             max_ngram_size=max_ngram_size,
-            mean_ngram_size=None,  # TODO: Determin if we want to actually pass mean ngram as an override to max here.
-            geometric_dist=ngram_span_length_distribution == LengthDistribution.geometric,
+            mean_ngram_size=None,  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
@@ -603,29 +640,38 @@ class UGPTDataset(UL2Dataset):
             documents=documents,
             extreme_masked_lm_prob=extreme_masked_lm_prob,
             min_ngram_size=min_ngram_size,
-            mean_ngram_size=mean_ngram_size,
             extreme_max_ngram_size=extreme_max_ngram_size,
             extreme_min_ngram_size=extreme_min_ngram_size,
             extreme_mean_ngram_size=extreme_mean_ngram_size,
             prefix_lm_pivot_mean=prefix_lm_pivot_mean,
+            ngram_span_length_distribution=ngram_span_length_distribution,
             extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,
             skip_masking_id=tokenizer.eos_id if skip_masking_id is None else skip_masking_id,
             sampling_probabilities=sampling_probabilities,
         )
         self.use_prefix_noncausal_mask = use_prefix_noncausal_mask
-    
+
     def __getitem__(self, idx):
-        example = super().__getitem__(idx)
+        example = super().__getitem__(idx, decoder_only=True)
+        assert (example['text_enc'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in encoder input.'
+        assert (example['text_dec'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in decoder input.'
+        assert (example['labels'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in labels.'
         # Adapt the example to the UGPT format.
-        tokens = np.concatenate([example['tokens_enc'], example['labels']])
-        loss_mask = [0] * len(example['tokens_enc']) + [1] * len(example['labels']) - 1
+        tokens = np.concatenate([example['text_enc'], example['labels']])
+        assert len(tokens) <= self.max_seq_length, f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length}'
+        inputs = tokens[:-1]
+        labels = tokens[1:]
+        if len(tokens) < self.max_seq_length:
+            inputs = np.concatenate([inputs, [self.tokenizer.pad_id] * (self.max_seq_length - len(inputs))])
+            labels = np.concatenate([labels, [self.tokenizer.pad_id] * (self.max_seq_length - len(labels))])
+        loss_mask = [0] * len(example['text_enc']) + [1] * (len(example['labels']) - 1) + [0] * (self.max_seq_length - len(example['text_enc']) - len(example['labels']) + 1)
         attention_mask = torch.tril(torch.ones((len(tokens), len(tokens))))
         if self.use_prefix_noncausal_mask:
-            attention_mask[:, :len(example['tokens_enc'])] = 1.0
+            attention_mask[:, :len(example['text_enc'])] = 1.0
         attention_mask = attention_mask < 0.5
         return {
-            'tokens': torch.LongTensor(tokens[:-1]),
-            'labels': torch.LongTensor(tokens[1:]),
+            'tokens': torch.LongTensor(inputs),
+            'labels': torch.LongTensor(labels),
             'attention_mask': attention_mask,
             'loss_mask': torch.FloatTensor(loss_mask),
             'position_ids': np.arange(len(tokens) - 1),

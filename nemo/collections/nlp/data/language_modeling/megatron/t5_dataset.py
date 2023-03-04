@@ -209,6 +209,7 @@ class T5Dataset(Dataset):
             eos_id=self.eos_id,
             pad_id=self.pad_id,
             skip_masking_id=self.skip_masking_id,
+            decoder_only_mode=False,
         )
         return training_sample
 
@@ -283,6 +284,7 @@ class T5Dataset(Dataset):
             whole_word_masking: Always masks entire words instead of individual sub-word tokens.
             favor_long_ngrams: Favor longer ngrams over shorter ones.
             skip_masking_id: An id that will not be masked. TODO: Add supported for a list of IDs.
+            decoder_only_mode: If True, will return keeping in mind that the tensors are going to be used by a decoder-only model. For example: tokens_enc will not have trailing padding so that it can be concat with labels.
         """
         assert target_seq_length <= max_seq_length
 
@@ -315,7 +317,6 @@ class T5Dataset(Dataset):
             tokenizer_type=tokenizer_type,
             skip_masking_id=skip_masking_id,
         )
-
         if masked_lm_prob == 0:
             (output_tokens, masked_positions, masked_labels, _) = lm_pred
             masked_spans = None
@@ -395,7 +396,8 @@ class T5Dataset(Dataset):
 
         # Encoder-side padding mask.
         num_tokens = len(t5_input)
-        padding_length = max_seq_length - num_tokens
+        # TODO: Checking max_seq_length_dec is a hack. Fix this later by potentially passing an explicit flag if you want to get the batch for decoder-only training.
+        padding_length = 0 if max_seq_length_dec is None else max_seq_length - num_tokens
         assert padding_length >= 0, padding_length
         assert len(masked_positions) == len(masked_labels)
 
@@ -405,7 +407,8 @@ class T5Dataset(Dataset):
 
         # Decoder-side padding mask.
         num_tokens_dec = len(t5_decoder_in)
-        padding_length_dec = max_seq_length_dec - num_tokens_dec
+        # TODO: Checking max_seq_length_dec is a hack. Fix this later by potentially passing an explicit flag if you want to get the batch for decoder-only training.
+        padding_length_dec = 0 if max_seq_length_dec is None else max_seq_length_dec - num_tokens_dec
         assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
         filler_dec = [pad_id] * padding_length_dec
         tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)

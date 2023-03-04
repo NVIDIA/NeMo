@@ -88,28 +88,44 @@ class T5LMAdaptedDataset(GPTDataset):
             raise ValueError(f"Invalid pivot_distribution: {pivot_distribution}")
 
         # Encoder inputs get truncated based on the split indx
-        tokens_enc = np.concatenate(
-            [sample[:split_idx], [tokenizer.pad_id] * (max_seq_length_encoder - split_idx)]
-        ).astype(np.int64)
-
+        # TODO: Fix the max_seq_length_decoder check for GPT
+        if max_seq_length_decoder is not None:
+            tokens_enc = np.concatenate(
+                [sample[:split_idx], [tokenizer.pad_id] * (max_seq_length_encoder - split_idx)]
+            ).astype(np.int64)
+        else:
+            tokens_enc = np.array(sample[:split_idx]).astype(np.int64)
         # The decoder sequence is never truncated and is always of max decoder length.
+        # TODO: Fix the max_seq_length_decoder check for GPT
         offset = 1 if add_eos else 0
-        tokens_dec = sample[split_idx : split_idx + max_seq_length_decoder - offset]
+        if max_seq_length_decoder is not None:
+            tokens_dec = sample[split_idx : split_idx + max_seq_length_decoder - offset]
+        else:
+            tokens_dec = sample[split_idx:]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
-        example = np.concatenate([[tokenizer.bos_id], tokens_dec])
-        if add_eos:
-            example = np.concatenate([example, [tokenizer.eos_id]])
+        if max_seq_length_decoder is not None:
+            example = np.concatenate([[tokenizer.bos_id], tokens_dec])
+            if add_eos:
+                example = np.concatenate([example, [tokenizer.eos_id]])
 
         # Example can be + 1 over sequence length at this point since we'll be shifting by 1 to create the inputs and outputs to the decoder.
-        assert len(example) <= max_seq_length_decoder + 1
-        tokens_dec = np.concatenate(
-            [example, [tokenizer.pad_id] * (max_seq_length_decoder - len(example) + 1)]
-        ).astype(np.int64)
+        # TODO: Fix the max_seq_length_decoder check for GPT
+        if max_seq_length_decoder is not None:
+            assert len(example) <= max_seq_length_decoder + 1
+            tokens_dec = np.concatenate(
+                [example, [tokenizer.pad_id] * (max_seq_length_decoder - len(example) + 1)]
+            ).astype(np.int64)
+        else:
+            tokens_dec = np.array(tokens_dec).astype(np.int64)
 
         # Shift sequences for teacher forcing
-        tokens_dec_in = tokens_dec[:-1]
-        labels = tokens_dec[1:]
+        if max_seq_length_decoder is not None:
+            tokens_dec_in = tokens_dec[:-1]
+            labels = tokens_dec[1:]
+        else:
+            # No need to shift the sequences here for decoder-only training.
+            tokens_dec_in, labels = tokens_dec, tokens_dec
 
         # Create attention masks
         enc_mask = (tokens_enc != tokenizer.pad_id).astype(np.int64)
