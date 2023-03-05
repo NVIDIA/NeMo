@@ -172,6 +172,9 @@ def main(cfg) -> None:
 
     if hasattr(cfg.model.data.train_ds, 'file_names'):
         if cfg.model.restore_from_path:
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
             gpt_cfg = MegatronGPTSFTModel.restore_from(
                 restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
