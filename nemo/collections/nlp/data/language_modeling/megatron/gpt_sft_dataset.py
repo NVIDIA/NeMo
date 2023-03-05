@@ -42,6 +42,7 @@ class GPTSFTDataset(Dataset):
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
         pad_to_max_length: bool = True,
+        index_mapping_dir: str = None
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -61,6 +62,7 @@ class GPTSFTDataset(Dataset):
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -78,6 +80,7 @@ class GPTSFTDataset(Dataset):
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
         self.pad_to_max_length = pad_to_max_length
+        self.index_mapping_dir = index_mapping_dir
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -98,6 +101,7 @@ class GPTSFTDataset(Dataset):
                 seed=self.seed,
                 name=self.file_path.split('/')[-1],
                 binary_head=False,
+                index_mapping_dir=self.index_mapping_dir,
             )
         else:
             self.samples_mapping = None

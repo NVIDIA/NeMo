@@ -230,6 +230,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 ),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 truncation_field=data_cfg.get('truncation_field', 'context'),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
             )
             datasets.append(dataset)
 
