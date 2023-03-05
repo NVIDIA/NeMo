@@ -744,9 +744,9 @@ def get_dataset(
             sampling_probabilities={
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
-                'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob_prob", 0.11),
-                'x-masking-longspan-largeprob': cfg.data.get("x_masking_longspan_largeprob_prob", 0.11),
-                'x-masking-shortspan-largeprob': cfg.data.get("x_masking_shortspan_smallprob_prob", 0.11),
+                'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob", 0.11),
+                'x-masking-longspan-largeprob': cfg.data.get("x_masking_longspan_largeprob", 0.11),
+                'x-masking-shortspan-largeprob': cfg.data.get("x_masking_shortspan_largeprob", 0.11),
             },
             respect_document_boundaries=respect_document_boundaries,
             documents=documents,
@@ -797,13 +797,13 @@ def get_dataset(
             sampling_probabilities={
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
-                'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob_prob", 0.11),
-                'x-masking-longspan-largeprob': cfg.data.get("x_masking_longspan_largeprob_prob", 0.11),
-                'x-masking-shortspan-largeprob': cfg.data.get("x_masking_shortspan_smallprob_prob", 0.11),
+                'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob", 0.11),
+                'x-masking-longspan-largeprob': cfg.data.get("x_masking_longspan_largeprob", 0.11),
+                'x-masking-shortspan-largeprob': cfg.data.get("x_masking_shortspan_largeprob", 0.11),
             },
             respect_document_boundaries=False,
             documents=documents,
-            use_prefix_noncausal_mask=cfg.data.get("use_prefix_noncausal_mask", False),
+            use_prefix_noncausal_mask=cfg.data.get("attn_mask_type", "padding") == "padding",
             **kwargs,
         )
     else:
@@ -1185,7 +1185,7 @@ def _build_train_valid_test_datasets(
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, UGPTDataset
 
         dataset = None
         if splits[index + 1] > splits[index]:

@@ -661,18 +661,18 @@ class UGPTDataset(UL2Dataset):
         assert len(tokens) <= self.max_seq_length, f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length}'
         inputs = tokens[:-1]
         labels = tokens[1:]
-        if len(tokens) < self.max_seq_length:
+        if len(inputs) < self.max_seq_length:
             inputs = np.concatenate([inputs, [self.tokenizer.pad_id] * (self.max_seq_length - len(inputs))])
             labels = np.concatenate([labels, [self.tokenizer.pad_id] * (self.max_seq_length - len(labels))])
         loss_mask = [0] * len(example['text_enc']) + [1] * (len(example['labels']) - 1) + [0] * (self.max_seq_length - len(example['text_enc']) - len(example['labels']) + 1)
-        attention_mask = torch.tril(torch.ones((len(tokens), len(tokens))))
+        attention_mask = torch.tril(torch.ones((1, len(inputs), len(inputs))))
         if self.use_prefix_noncausal_mask:
-            attention_mask[:, :len(example['text_enc'])] = 1.0
+            attention_mask[:, :, :len(example['text_enc'])] = 1.0
         attention_mask = attention_mask < 0.5
         return {
             'tokens': torch.LongTensor(inputs),
             'labels': torch.LongTensor(labels),
             'attention_mask': attention_mask,
             'loss_mask': torch.FloatTensor(loss_mask),
-            'position_ids': np.arange(len(tokens) - 1),
+            'position_ids': np.arange(len(inputs)),
         }
