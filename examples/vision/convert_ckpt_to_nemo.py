@@ -97,8 +97,9 @@ def convert(local_rank, rank, world_size, args):
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
-    # Auto set split rank for T5, BART, NMT if split rank is None.
-    if args.pipeline_model_parallel_size > 1 and args.model_type in ['t5', 'bart', 'nmt']:
+
+    # no use atm, use to split ranks in encoder/decoder models.
+    if args.pipeline_model_parallel_size > 1 and args.model_type in []:
         if args.pipeline_model_parallel_split_rank is not None:
             app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_split_rank
         else:

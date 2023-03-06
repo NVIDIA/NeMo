@@ -17,7 +17,7 @@ import os
 
 import torch
 from PIL import Image
-from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames
+from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
