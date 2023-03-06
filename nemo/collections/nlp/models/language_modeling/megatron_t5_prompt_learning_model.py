@@ -415,10 +415,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 for metric, val in val_metric_dict.items():
                     logging.info(f'Validation {metric}: {val}')
                 val_metric = list(val_metric_dict.items())[0][1]
+                metric_name = list(val_metric_dict.items())[0][0]
             else:
                 val_metric = torch.tensor(0.0).cuda()
 
-            self.log('val_metric', val_metric, prog_bar=True, rank_zero_only=True)
+            self.log(f'Validation {metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
