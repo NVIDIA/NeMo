@@ -152,8 +152,7 @@ class GPTSFTDataset(Dataset):
             context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
         
         text_ids = self.tokenizer.text_to_ids(context)
-        prepend_str = "" if self.assist_prompt is None else " "
-        answer_ids = self.tokenizer.text_to_ids(prepend_str + example[self.label_key])
+        answer_ids = self.tokenizer.text_to_ids(example[self.label_key])
 
         total_ids = len(text_ids) + len(answer_ids)
         if self.add_bos:
