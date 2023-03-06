@@ -157,9 +157,20 @@ class TextMemMapDataset(Dataset):
 
         # fetch sample from memmap
 
-        sample = self._fetch_sample_from_memmap(mdata, i, j)
+        try:
+            sample = self._fetch_sample_from_memmap(mdata, i, j)
+        except Exception as e:
+            logging.error(f"Error while fetching sample from memmap: {e}")
+            logging.error(f"file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
+            raise e
+
         # parse raw text (e.g., tokenize)
-        data = self._build_data_from_text(sample)
+        try:
+            data = self._build_data_from_text(sample)
+        except Exception as e:
+            logging.error(f"Error while building data from text, possible issue with sample expected format (see offending sample below): {e}")
+            logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
+            raise e
 
         return data
 
