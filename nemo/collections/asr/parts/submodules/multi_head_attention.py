@@ -157,12 +157,12 @@ class MultiHeadAttention(nn.Module):
     def update_cache(self, key, value, query, cache, cache_next):
         if cache is not None:
             cache_id = self._cache_id
-            key = value = torch.cat((cache[cache_id], key), dim=1)
-            if cache_next is not None:
-                # query.shape[1] is constant, should save it at init()
-                q_keep_size = query.shape[1] - self.cache_drop_size
-                cache_next[cache_id, :, :-q_keep_size, :] = cache[cache_id, :, q_keep_size:, :]
-                cache_next[cache_id, :, -q_keep_size:, :] = query[:, :q_keep_size, :]
+            cache = cache[cache_id]
+            key = value = torch.cat([cache, key], dim=1)
+            # query.shape[1] is constant, should save it at init()
+            q_keep_size = query.shape[1] - self.cache_drop_size
+            print(self._max_cache_len, query.shape[1], q_keep_size, cache.size())
+            cache_next[cache_id] = torch.cat([cache[:, q_keep_size:, :], query[:, :q_keep_size, :]], dim=1)
         return key, value, query
 
 
