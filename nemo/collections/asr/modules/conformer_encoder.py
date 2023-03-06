@@ -499,7 +499,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if self.self_attention_model == 'abs_pos':
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
         else:
-            # TODO determin if cache_len need to be a tensor for pos_enc (I don't think so)
             audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
         # Create the self-attention and padding masks
@@ -541,15 +540,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 # and cause an increase in the WER
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, offset, audio_signal.device)
-            # uncomment to profile just one conformer layer
-            # break
-        if False:  # constant size
-            if self.streaming_cfg.last_channel_cache_size > 0:
-                cache_last_channel_next = cache_last_channel_next[
-                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
-                ]
-            else:  # is that real case ???
-                cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
 
         if cache_last_channel is not None:
             cache_last_channel_len = torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len)
@@ -575,10 +565,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
-
-        if False:  # constant len # self.streaming_cfg.valid_out_len > 0:
-            audio_signal = audio_signal[:, :, : self.streaming_cfg.valid_out_len]
-            length.clamp_(max=self.streaming_cfg.valid_out_len)
 
         if cache_last_channel_next is not None:
             return (
@@ -607,14 +593,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if self.att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-            pad_mask_for_att_mask = pad_mask_for_att_mask.logical_and(pad_mask_for_att_mask.transpose(1, 2))
+            # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
+            pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             att_mask = pad_mask_for_att_mask.logical_and(att_mask)
-            att_mask = ~(att_mask.to(torch.bool))
+            att_mask = ~att_mask
         else:
             att_mask = None
 
-        pad_mask = ~(pad_mask.to(torch.bool))
+        pad_mask = ~pad_mask
 
         return pad_mask, att_mask
 
