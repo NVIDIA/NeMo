@@ -168,7 +168,9 @@ class TextMemMapDataset(Dataset):
         try:
             data = self._build_data_from_text(sample)
         except Exception as e:
-            logging.error(f"Error while building data from text, possible issue with sample expected format (see offending sample below): {e}")
+            logging.error(
+                f"Error while building data from text, possible issue with sample expected format (see offending sample below): {e}"
+            )
             logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
             raise e
 
