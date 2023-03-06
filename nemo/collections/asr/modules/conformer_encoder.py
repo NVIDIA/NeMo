@@ -452,37 +452,30 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        max_audio_length = audio_signal.size(-1)
         audio_signal = torch.transpose(audio_signal, 1, 2)
-
-        if length is None or isinstance(self.pre_encode, nn.Linear):
-            audio_signal = self.pre_encode(audio_signal)
-        else:
-            audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
-
-        # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
-        if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
-            audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
-            if length is not None:
-                length = length - self.streaming_cfg.drop_extra_pre_encoded
-                length.clamp_(min=0)
-
-        max_audio_length = audio_signal.size(1)
-
-        # TODO: extend fixed length, no-pad optimization for streaming
         if length is None:
             length = audio_signal.new_full(
                 (audio_signal.size(0),), max_audio_length, dtype=torch.int32, device=audio_signal.device
             )
 
-        if cache_last_time is not None:
-            cache_last_time = cache_last_time.transpose(0, 1)
-            cache_last_time_next = torch.zeros_like(cache_last_time)
+        if isinstance(self.pre_encode, nn.Linear):
+            audio_signal = self.pre_encode(audio_signal)
         else:
-            cache_last_time_next = None
+            audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
+            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
+            if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
+                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
+                length = length - self.streaming_cfg.drop_extra_pre_encoded
+                length.clamp_(min=0)
+
+        max_audio_length = audio_signal.size(1)
+
+        if self.reduction_position is not None and cache_last_channel is not None:
+            raise ValueError("Caching with reduction feature is not supported yet!")
 
         if cache_last_channel is not None:
-            if self.reduction_position is not None:
-                raise ValueError("Caching with reduction feature is not supported yet!")
+            # todo
             cache_last_channel = cache_last_channel.transpose(0, 1)
             cache_len = self.streaming_cfg.last_channel_cache_size
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
@@ -495,6 +488,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel_next = None
             cache_len = 0
             offset = None
+
+        if cache_last_time is not None:
+            # todo
+            cache_last_time = cache_last_time.transpose(0, 1)
+            cache_last_time_next = torch.zeros_like(cache_last_time)
+        else:
+            cache_last_time_next = None
 
         if self.self_attention_model == 'abs_pos':
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
