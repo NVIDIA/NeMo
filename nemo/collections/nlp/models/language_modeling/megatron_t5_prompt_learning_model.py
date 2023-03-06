@@ -418,6 +418,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 metric_name = list(val_metric_dict.items())[0][0]
             else:
                 val_metric = torch.tensor(0.0).cuda()
+                metric_name = 'Metric'
 
             self.log(f'Validation {metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
 
