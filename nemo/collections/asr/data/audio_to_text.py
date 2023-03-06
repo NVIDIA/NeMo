@@ -49,7 +49,7 @@ __all__ = [
 ]
 
 
-def _speech_collate_fn(batch, pad_id):
+def _speech_collate_fn(batch, pad_id, add_valid=False):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -58,13 +58,23 @@ def _speech_collate_fn(batch, pad_id):
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
     packed_batch = list(zip(*batch))
-    if len(packed_batch) == 5:
-        _, audio_lengths, _, tokens_lengths, sample_ids = packed_batch
-    elif len(packed_batch) == 4:
-        sample_ids = None
-        _, audio_lengths, _, tokens_lengths = packed_batch
+    if add_valid:
+        if len(packed_batch) == 6:
+            _, audio_lengths, _, tokens_lengths, sample_ids, valid_ids = packed_batch
+        elif len(packed_batch) == 5:
+            sample_ids = None
+            _, audio_lengths, _, tokens_lengths, valid_ids = packed_batch
+        else:
+            raise ValueError("Expects 5 or 6 tensors in the batch!")
     else:
-        raise ValueError("Expects 4 or 5 tensors in the batch!")
+        if len(packed_batch) == 5:
+            _, audio_lengths, _, tokens_lengths, sample_ids = packed_batch
+        elif len(packed_batch) == 4:
+            sample_ids = None
+            _, audio_lengths, _, tokens_lengths = packed_batch
+        else:
+            raise ValueError("Expects 4 or 5 tensors in the batch!")
+
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -72,11 +82,20 @@ def _speech_collate_fn(batch, pad_id):
     max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
+
+    valids = [] if add_valid else None
     for b in batch:
-        if len(b) == 5:
-            sig, sig_len, tokens_i, tokens_i_len, _ = b
+        if add_valid:
+            if len(b) == 6:
+                sig, sig_len, tokens_i, tokens_i_len, _, valid = b
+            else:
+                sig, sig_len, tokens_i, tokens_i_len, valid = b
+            valids.append(valid)
         else:
-            sig, sig_len, tokens_i, tokens_i_len = b
+            if len(b) == 5:
+                sig, sig_len, tokens_i, tokens_i_len, _ = b
+            else:
+                sig, sig_len, tokens_i, tokens_i_len = b
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -96,11 +115,15 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
-    if sample_ids is None:
-        return audio_signal, audio_lengths, tokens, tokens_lengths
-    else:
+
+    output = [audio_signal, audio_lengths, tokens, tokens_lengths]
+    if sample_ids is not None:
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
-        return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
+        output.append(sample_ids)
+    if add_valid:
+        valid_ids = torch.tensor(valids, dtype=torch.int32)
+        output.append(valid_ids)
+    return output
 
 
 class ASRManifestProcessor:
@@ -878,7 +901,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return TarredAudioLoopOffsets(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, self.pad_id)
+        return _speech_collate_fn(batch, self.pad_id, add_valid=self.return_is_valid)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
@@ -919,10 +942,14 @@ class _TarredAudioToTextDataset(IterableDataset):
         if self.eos_id is not None:
             t = t + [self.eos_id]
             tl += 1
+
+        output = [f, fl, torch.tensor(t).long(), torch.tensor(tl).long()]
         if self.return_sample_id:
-            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), manifest_idx
-        else:
-            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+            output.append(manifest_idx)
+
+        if self.return_is_valid:
+            output.append(manifest_entry.valid)
+        return output
 
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
@@ -1172,6 +1199,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        return_is_valid: bool = False,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -1224,6 +1252,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
+            return_is_valid=return_is_valid,
         )
 
 

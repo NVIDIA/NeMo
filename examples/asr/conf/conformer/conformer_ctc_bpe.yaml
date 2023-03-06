@@ -50,6 +50,7 @@ model:
     # bucketing params
     bucketing_strategy: "synced_randomized"
     bucketing_batch_size: null
+    return_is_valid: true
 
   validation_ds:
     manifest_filepath: ???

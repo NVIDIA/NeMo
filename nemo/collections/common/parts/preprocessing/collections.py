@@ -93,7 +93,7 @@ class AudioText(_Collection):
 
     OUTPUT_TYPE = collections.namedtuple(
         typename='AudioTextEntity',
-        field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang',
+        field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang valid',
     )
 
     def __init__(
@@ -107,6 +107,7 @@ class AudioText(_Collection):
         orig_sampling_rates: List[Optional[int]],
         token_labels: List[Optional[int]],
         langs: List[Optional[str]],
+        valids: List[Optional[int]],
         parser: parsers.CharParser,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -138,8 +139,8 @@ class AudioText(_Collection):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, audio_file, duration, offset, text, speaker, orig_sr, token_labels, lang in zip(
-            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs
+        for id_, audio_file, duration, offset, text, speaker, orig_sr, token_labels, lang, valid in zip(
+            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs, valids
         ):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -173,7 +174,9 @@ class AudioText(_Collection):
 
             total_duration += duration
 
-            data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
+            data.append(
+                output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang, valid)
+            )
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
@@ -209,7 +212,8 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, audio_files, durations, texts, offsets, = (
+        ids, audio_files, durations, texts, offsets, valids = (
+            [],
             [],
             [],
             [],
@@ -217,11 +221,41 @@ class ASRAudioText(AudioText):
             [],
         )
         speakers, orig_srs, token_labels, langs = [], [], [], []
-        non_valid = 0
-        for item in manifest.item_iter(manifests_files):
-            if item['is_valid'] == 0:
-                non_valid += 1
-            else:
+
+        sample_valid = False
+
+        if sample_valid:
+            non_valid = 0
+            for item in manifest.item_iter(manifests_files):
+                if item['is_valid'] == 0:
+                    non_valid += 1
+                else:
+                    ids.append(item['id'])
+                    audio_files.append(item['audio_file'])
+                    durations.append(item['duration'])
+                    texts.append(item['text'])
+                    offsets.append(item['offset'])
+                    speakers.append(item['speaker'])
+                    orig_srs.append(item['orig_sr'])
+                    token_labels.append(item['token_labels'])
+                    langs.append(item['lang'])
+
+            # randomly sample the number of non_valid elements from valid once
+            import random
+
+            selected = random.choices(range(len(ids)), k=non_valid)
+            for idx in selected:
+                ids.append(ids[idx])
+                audio_files.append(audio_files[idx])
+                durations.append(durations[idx])
+                texts.append(texts[idx])
+                speakers.append(speakers[idx])
+                orig_srs.append(orig_srs[idx])
+                token_labels.append(token_labels[idx])
+                langs.append(langs[idx])
+            logging.info(f"Added: {len(selected)} items")
+        else:
+            for item in manifest.item_iter(manifests_files):
                 ids.append(item['id'])
                 audio_files.append(item['audio_file'])
                 durations.append(item['duration'])
@@ -231,23 +265,21 @@ class ASRAudioText(AudioText):
                 orig_srs.append(item['orig_sr'])
                 token_labels.append(item['token_labels'])
                 langs.append(item['lang'])
+                valids.append(item['is_valid'])
 
-        # randomly sample the number of non_valid elements from valid once
-        import random
-
-        selected = random.choices(range(len(ids)), k=non_valid)
-        for idx in selected:
-            ids.append(ids[idx])
-            audio_files.append(audio_files[idx])
-            durations.append(durations[idx])
-            texts.append(texts[idx])
-            speakers.append(speakers[idx])
-            orig_srs.append(orig_srs[idx])
-            token_labels.append(token_labels[idx])
-            langs.append(langs[idx])
-        logging.info(f"Added: {len(selected)} items")
         super().__init__(
-            ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
+            ids,
+            audio_files,
+            durations,
+            texts,
+            offsets,
+            speakers,
+            orig_srs,
+            token_labels,
+            langs,
+            valids,
+            *args,
+            **kwargs,
         )
 
 

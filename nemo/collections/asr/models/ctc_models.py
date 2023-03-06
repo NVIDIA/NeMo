@@ -536,13 +536,35 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        signal, signal_len, transcript, transcript_len = batch
+        return_is_valid = self._cfg.train_ds.get('return_is_valid', False)
+
+        if return_is_valid:
+            signal, signal_len, transcript, transcript_len, valid = batch
+            # print(f"----> num non-valid samples: {sum(valid == 0)}")
+        else:
+            signal, signal_len, transcript, transcript_len = batch
+
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
                 processed_signal=signal, processed_signal_length=signal_len
             )
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+
+        # print("---> BEFORE", self.loss(log_probs=log_probs, targets=transcript,
+        #                                input_lengths=encoded_len,
+        #                                target_lengths=transcript_len))
+
+        if return_is_valid:
+            mask_log_probs = valid.unsqueeze(1).unsqueeze(2).expand_as(log_probs) == 1
+            mask_transcript = valid.unsqueeze(1).expand_as(transcript) == 1
+            masked_valid = valid == 1
+            num_valid = sum(masked_valid)
+            log_probs_shape = log_probs.shape
+            log_probs = torch.masked_select(log_probs, mask_log_probs).view(num_valid, log_probs_shape[1], log_probs_shape[2])
+            transcript = torch.masked_select(transcript, mask_transcript).view(num_valid, transcript.shape[1])
+            encoded_len = torch.masked_select(encoded_len, masked_valid)
+            transcript_len = torch.masked_select(transcript_len, masked_valid)
 
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
