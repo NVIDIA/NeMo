@@ -142,7 +142,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
             input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
             cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
-                batch_size=max_batch, device=dev, random_init=True
+                batch_size=max_batch, device=dev, max_dim=max_dim
             )
             all_input_example = tuple(
                 [input_example, input_example_length, cache_last_channel, cache_last_time, cache_last_channel_len,]
@@ -543,13 +543,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, offset, audio_signal.device)
             # uncomment to profile just one conformer layer
             # break
-        if cache_last_channel is not None:
+        if False:  # constant size
             if self.streaming_cfg.last_channel_cache_size > 0:
                 cache_last_channel_next = cache_last_channel_next[
                     :, :, -self.streaming_cfg.last_channel_cache_size :, :
                 ]
-            else:
+            else:  # is that real case ???
                 cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
+
+        if cache_last_channel is not None:
             cache_last_channel_len = torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len)
             # saving tensors if required for interctc loss
             if self.is_access_enabled():
@@ -574,7 +576,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if self.streaming_cfg.valid_out_len > 0:
+        if False:  # constant len # self.streaming_cfg.valid_out_len > 0:
             audio_signal = audio_signal[:, :, : self.streaming_cfg.valid_out_len]
             length.clamp_(max=self.streaming_cfg.valid_out_len)
 
@@ -720,10 +722,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         self.streaming_cfg = streaming_cfg
 
-    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None, random_init=False):
+    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None, max_dim=0):
         if device is None:
             device = next(self.parameters()).device
-        if random_init:
+        if max_dim > 0:
             create_tensor = torch.randn
         else:
             create_tensor = torch.zeros
@@ -743,13 +745,22 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             device=device,
             dtype=dtype,
         )
-        if random_init:
+        if max_dim > 0:
             cache_last_channel_len = torch.randint(
-                0, self.streaming_cfg.last_channel_cache_size, (batch_size,), device=device, dtype=torch.int64
+                0,
+                min(max_dim, self.streaming_cfg.last_channel_cache_size),
+                (batch_size,),
+                device=device,
+                dtype=torch.int64,
             )
+            for i in range(batch_size):
+                cache_last_channel[i, cache_last_channel_len[i] :] = 0
+                # what is the right rule to zero out cache_last_time?
+                if cache_last_channel_len[i] == 0:
+                    cache_last_time[i, :, :, :] = 0
         else:
-            cache_last_channel_len = torch.zeros((batch_size,), device=device, dtype=torch.int64)
-
+            cache_last_channel_len = torch.zeros(batch_size, device=device, dtype=torch.int64)
+        # print (cache_last_channel.size(), cache_last_time.size())
         return cache_last_channel, cache_last_time, cache_last_channel_len
 
     def change_attention_model(
