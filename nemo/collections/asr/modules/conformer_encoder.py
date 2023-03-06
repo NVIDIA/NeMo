@@ -420,8 +420,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         Pre-calculates internal seq_range mask.
         """
         self.max_audio_length = max_audio_length
-        # device = next(self.parameters()).device
-        device = torch.device("cuda")
+        device = next(self.parameters()).device
         self.pos_enc.extend_pe(max_audio_length, device)
 
         if self.self_attention_model != "rel_pos_local_attn":
@@ -447,20 +446,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             self.att_mask = None
 
-    @typecheck()
     def forward_for_export(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         if cache_last_channel is not None:
             cache_last_channel = cache_last_channel.transpose(0, 1)
             cache_last_time = cache_last_time.transpose(0, 1)
-        (
-            audio_signal,
-            length,
-            cache_last_channel_next,
-            cache_last_time_next,
-            cache_last_channel_len,
-        ) = self.forward_internal(
+
+        rets = self.forward_internal(
             audio_signal,
             length,
             cache_last_channel=cache_last_channel,
@@ -468,9 +461,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel_len=cache_last_channel_len,
         )
         if cache_last_channel is not None:
-            cache_last_channel = cache_last_channel.transpose(0, 1)
-            cache_last_time = cache_last_time.transpose(0, 1)
-        return audio_signal, length, cache_last_channel_next, cache_last_time_next, cache_last_channel_len
+            rets = (rets[0], rets[1], rets[2].transpose(0, 1), rets[3].transpose(0, 1), rets[4])
+        return rets
 
     @typecheck()
     def forward(
@@ -484,7 +476,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel_len=cache_last_channel_len,
         )
 
-    @typecheck()
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
@@ -576,8 +567,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(max_audio_length, length, offset, audio_signal.device)
 
-        if cache_last_channel is not None:
-            cache_last_channel_len = torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len)
             # saving tensors if required for interctc loss
             if self.is_access_enabled():
                 if self.interctc_capture_at_layers is None:
@@ -607,7 +596,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 length,
                 cache_last_channel_next,
                 cache_last_time_next,
-                cache_last_channel_len,
+                torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len),
             )
         else:
             return audio_signal, length
@@ -628,11 +617,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if self.att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-            # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
             pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
+            # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
             att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
-            att_mask = pad_mask_for_att_mask.logical_and(att_mask)
+            att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
+
             att_mask = ~att_mask
         else:
             att_mask = None

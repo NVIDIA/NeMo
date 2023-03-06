@@ -161,7 +161,6 @@ class MultiHeadAttention(nn.Module):
             key = value = torch.cat([cache, key], dim=1)
             # query.shape[1] is constant, should save it at init()
             q_keep_size = query.shape[1] - self.cache_drop_size
-            print(self._max_cache_len, query.shape[1], q_keep_size, cache.size())
             cache_next[cache_id] = torch.cat([cache[:, q_keep_size:, :], query[:, :q_keep_size, :]], dim=1)
         return key, value, query
 

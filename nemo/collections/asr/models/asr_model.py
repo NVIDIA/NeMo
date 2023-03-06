@@ -157,16 +157,6 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    @property
-    def output_names(self):
-        if hasattr(self.input_module, 'export_cache_support') and self.input_module.export_cache_support:
-            out_types = self.output_module.output_types
-            in_types = self.input_module.output_types
-            otypes = {n: t for (n, t) in list(out_types.items())[:1]}
-            for (n, t) in list(in_types.items())[1:]:
-                otypes[n] = t
-            return get_io_names(otypes, self.disabled_deployment_output_names)
-
     def forward_for_export(
         self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
