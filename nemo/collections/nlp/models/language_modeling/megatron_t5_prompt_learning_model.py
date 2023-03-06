@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 from nemo.utils import AppState, logging
 
 try:
@@ -73,6 +74,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+
+        # define validation metric
+        if self.cfg.get('report_validation_metric', False):
+            if self.cfg.get('validation_metric', 'accuracy') == 'accuracy':
+                self.validation_metric = AccuracyScore()
+            elif self.cfg.get('validation_metric', 'bleu') == 'bleu':
+                self.validation_metric = BLEUScore()
+            elif self.cfg.get('validation_metric', 'rouge') == 'rouge':
+                self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -304,7 +314,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-    def compute_accuracy(self, input_ids, enc_mask, encoder_input, labels):
+    def get_predictions(self, input_ids, enc_mask, encoder_input, labels):
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
             enc_mask=enc_mask,
@@ -347,8 +357,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             encoder_input = None
 
-        if self.cfg.get("report_validation_accuracy", False):
-            metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
+        if self.cfg.get("report_validation_metric", False):
+            metrics = self.get_predictions(input_ids, enc_mask, encoder_input, labels)
             metrics['loss'] = loss_mean
         else:
             metrics = {'loss': loss_mean}
@@ -376,7 +386,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
-        if self.cfg.get("report_validation_accuracy", False):
+        if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
             all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
@@ -398,19 +408,17 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
-                correct = 0
-                for (input, pred, label) in gather_results_dedup:
-                    if pred == label:
-                        correct += 1
+                val_metric_dict = self.validation_metric.get_score(
+                    [i[2] for i in gather_results_dedup], [i[1] for i in gather_results_dedup],
+                )
 
-                val_acc = correct / len(gather_results_dedup)
-                val_acc = torch.tensor(val_acc).cuda()
-
-                logging.info(f'Validation accuracy: {val_acc}')
+                for metric, val in val_metric_dict.items():
+                    logging.info(f'Validation {metric}: {val}')
+                val_metric = list(val_metric_dict.items())[0][1]
             else:
-                val_acc = torch.tensor(0.0).cuda()
+                val_metric = torch.tensor(0.0).cuda()
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+            self.log('val_metric', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size

@@ -17,6 +17,7 @@ import re
 import itertools
 from functools import partial
 from typing import Any, List, Optional, Union
+from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -189,9 +190,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         # default inference related params -> for evaluation metrics
         self.length_params: LengthParam = {
-                "max_length": 30,
-                "min_length": 0,
-            }
+            "max_length": 30,
+            "min_length": 0,
+        }
 
         self.sampling_params: SamplingParam = {
             "use_greedy": True,
@@ -203,6 +204,15 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             "all_probs": False,
             "compute_logprob": False,
         }
+
+        # define validation metric
+        if self.cfg.get('report_validation_metric', False):
+            if self.cfg.get('validation_metric', 'accuracy') == 'accuracy':
+                self.validation_metric = AccuracyScore()
+            elif self.cfg.get('validation_metric', 'bleu') == 'bleu':
+                self.validation_metric = BLEUScore()
+            elif self.cfg.get('validation_metric', 'rouge') == 'rouge':
+                self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
@@ -363,20 +373,27 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        if self.cfg.get('report_validation_accuracy', False):
+        if self.cfg.get('report_validation_metric', False):
             preds_text, labels_text = [], []
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch            
-            input_lenghts = torch.cuda.LongTensor([input.shape[0] - self.length_params['max_length'] for input in input_ids])
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            input_lenghts = torch.cuda.LongTensor(
+                [input.shape[0] - self.length_params['max_length'] for input in input_ids]
+            )
 
             res = megatron_gpt_generate(
-                self.cuda(), (input_ids, torch.cuda.LongTensor(input_lenghts)), self.tokenizer, self.length_params, self.sampling_params, task_ids=taskname_ids
+                self.cuda(),
+                (input_ids, torch.cuda.LongTensor(input_lenghts)),
+                self.tokenizer,
+                self.length_params,
+                self.sampling_params,
+                task_ids=taskname_ids,
             )
 
             for pred, label in zip(res['token_ids'], labels):
                 additional_special_tokens_ids = []
                 if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
                     additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
-                
+
                 pred = [id for id in pred if id not in additional_special_tokens_ids]
                 label = [id for id in label if id not in additional_special_tokens_ids]
                 pred = self.tokenizer.ids_to_text(pred)
@@ -384,11 +401,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 preds_text.append(pred)
                 labels_text.append(label)
 
-        return {
-            'loss': loss_mean,
-            'preds': preds_text,
-            'labels': labels_text,
-        }
+            return {
+                'loss': loss_mean,
+                'preds': preds_text,
+                'labels': labels_text,
+            }
+        return {'loss': loss_mean}
 
     def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
         app_state = AppState()
@@ -425,7 +443,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         logging.info(f'val_loss: {averaged_loss}')
 
-        if self.cfg.get("report_validation_accuracy", False):
+        if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
             all_preds = list(itertools.chain(*[item['preds'] for item in outputs]))
@@ -445,19 +463,17 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
-                correct = 0
-                for (pred, label) in gather_results_dedup:
-                    if pred == label:
-                        correct += 1
+                val_metric_dict = self.validation_metric.get_score(
+                    [i[1] for i in gather_results_dedup], [i[0] for i in gather_results_dedup],
+                )
 
-                val_acc = correct / len(gather_results_dedup)
-                val_acc = torch.tensor(val_acc).cuda()
-
-                logging.info(f'Validation accuracy: {val_acc}')
+                for metric, val in val_metric_dict.items():
+                    logging.info(f'Validation {metric}: {val}')
+                val_metric = list(val_metric_dict.items())[0][1]
             else:
-                val_acc = torch.tensor(0.0).cuda()
+                val_metric = torch.tensor(0.0).cuda()
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+            self.log('val_metric', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
