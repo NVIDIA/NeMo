@@ -26,6 +26,7 @@ def get_pitch_stats(pitch_list):
     pitch_min, pitch_max = pitch_tensor.min().item(), pitch_tensor.max().item()
     print(f"PITCH_MEAN={pitch_mean}, PITCH_STD={pitch_std}")
     print(f"PITCH_MIN={pitch_min}, PITCH_MAX={pitch_max}")
+    return pitch_mean, pitch_std
 
 
 def preprocess_ds_for_fastpitch_align(dataloader):
@@ -35,7 +36,7 @@ def preprocess_ds_for_fastpitch_align(dataloader):
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
 
-    get_pitch_stats(pitch_list)
+    return get_pitch_stats(pitch_list)
 
 
 def preprocess_ds_for_mixer_tts_x(dataloader):
@@ -55,7 +56,7 @@ def preprocess_ds_for_mixer_tts_x(dataloader):
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
 
-    get_pitch_stats(pitch_list)
+    return get_pitch_stats(pitch_list)
 
 
 CFG_NAME2FUNC = {
@@ -76,7 +77,7 @@ def main(cfg):
     )
 
     print(f"Processing {cfg.manifest_filepath}:")
-    CFG_NAME2FUNC[cfg.name](dataloader)
+    return CFG_NAME2FUNC[cfg.name](dataloader)
 
 
 if __name__ == '__main__':

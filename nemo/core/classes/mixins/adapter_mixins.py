@@ -728,10 +728,13 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                         # a common name. This can occur when the adapter is common to a module which has multiple
                         # layers and blocks, all of which require an adapter.
                         state_dict = module.state_dict()
+                        print(list(state_dict.keys()))
                         output_dict[key].append(state_dict)
 
         # Preserve the binary OmegaConf dictionary of the model's adapter config
         output_dict['__cfg__'] = self.cfg.adapters
+        print("saving adapters")
+        print(list(output_dict.keys()))
 
         # Finally, save the adapter state dict(s).
         torch.save(output_dict, filepath)
