@@ -39,14 +39,13 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-
     from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
         _forward_backward_pipelining_with_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
     )
 
     HAVE_APEX = True
@@ -768,6 +767,8 @@ class MegatronBertModel(MegatronBaseModel):
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs
+            # Note: Params with disabled overlapping are put in the
+            # last param bucket
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
@@ -794,7 +795,7 @@ class MegatronBertModel(MegatronBaseModel):
             used_params = set()
             for bucket in buckets:
                 used_params.update(bucket)
-            buckets.append([p for p in self.parameters() if p not in used_params])
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()

@@ -15,6 +15,7 @@
 import json
 
 import torch
+import copy
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -33,7 +34,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -76,6 +77,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             if not hasattr(data_cfg.metric, "name"):
                 raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name == "loss":
+                return None, "loss"
             if data_cfg.metric.name not in MetricStringToTorchMetric:
                 raise KeyError(
                     f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
@@ -254,22 +257,35 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
-
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        # Call parent validation step to get the loss.
-        loss = super().validation_step(batch, batch_idx)
+    def _collate_inference_batch(self, dataloader_iter):
+        batch = []
+        for _ in range(get_num_microbatches()):
+            batch.append(next(dataloader_iter))
+        global_batch = {}
+        for key in batch[0]:
+            global_batch[key] = torch.cat([b[key] for b in batch], dim=0)
+        return global_batch
 
+    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        # Call parent validation step to get the loss.
+        # iter_copy = copy.deepcopy(dataloader_iter)
+        loss = super().validation_step(dataloader_iter, batch_idx)
+        return loss
+        # Get the global batch from the copy of the iterator.
+        '''
+        batch = self._collate_inference_batch(iter_copy)
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
@@ -330,9 +346,34 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'labels': labels_text,
             'inputs': input_text,
         }
+        '''
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
+        if not outputs:
+            return
+
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
         # Parent class will handle logging of the loss.
+        averaged_loss = []
+
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            loss = super().validation_epoch_end(output)
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            self.log(loss_log_key, loss, batch_size=1)
+            averaged_loss.append(loss)
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss, batch_size=1)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss, batch_size=1)
+
+        return averaged_loss
+        '''
         if not outputs:
             return
 
@@ -433,6 +474,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.log(f"test_{self.test_metric_name}", averaged_metric)
 
         return averaged_loss, averaged_metric
+        '''
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
