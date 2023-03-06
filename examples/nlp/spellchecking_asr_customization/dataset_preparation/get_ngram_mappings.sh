@@ -35,4 +35,3 @@ python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/dataset_prepara
   --out_filename=""
 
 awk 'BEGIN {FS="\t"}($3 / $4 > 0.005){print $0}' < replacement_vocab_full.txt > replacement_vocab_filt.txt
-awk '($1 == "good:"){print $0}' < ${ALIGNMENT_DIR}/align2.out | sort > custom_dict.txt

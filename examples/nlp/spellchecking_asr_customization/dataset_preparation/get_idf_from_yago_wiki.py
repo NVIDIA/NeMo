@@ -25,11 +25,7 @@ import tarfile
 from collections import defaultdict
 from typing import Set
 
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import load_yago_entities, get_paragraphs_from_json
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_paragraphs_from_json
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_paragraphs_from_json
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -51,15 +47,14 @@ args = parser.parse_args()
 
 
 def get_idf(input_folder: str, exclude_titles: Set[str], yago_entities: Set[str]):
-    """Parse Giza++ direct and reverse alignment results and represent them as an alignment matrix
-
+    """
     Args:
         input_folder: Input folder with tar.gz files each containing wikipedia articles in json format
         exclude_titles: Set of titles that should be skipped (e.g. test articles)
         yago_entities: Set of phrases that we want to find in texts
 
     Returns:
-        idf: a dictionary where the key is yago entity, value is its inverse document frequency
+        idf: a dictionary where the key is a phrase, value is its inverse document frequency
     """
     
     n_documents = 0
