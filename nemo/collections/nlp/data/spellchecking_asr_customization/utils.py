@@ -34,17 +34,6 @@ CHARS_TO_IGNORE_REGEX = re.compile(r"[\.\,\?\:!;()«»…\]\[/\*–‽+&_\\½√
 OOV_REGEX = "[^ '\-aiuenrbomkygwthszdcjfvplxq]"
 
 
-DUMMY_CANDIDATES = [
-    "a g k t t r k n a p r t f",
-    "v w w x y x u r t g p w q",
-    "n t r y t q q r u p t l n t",
-    "p b r t u r e t f v w x u p z",
-    "p p o j j k l n b f q t",
-    "j k y u i t d s e w s r e j h i p p",
-    "q w r e s f c t d r q g g y",
-]
-
-
 def replace_diacritics(text):
     text = re.sub(r"[éèëēêęěė]", "e", text)
     text = re.sub(r"[ãâāáäăâàąåạả]", "a", text)
@@ -587,7 +576,6 @@ def get_candidates(
     letters: List[str],
     max_candidates: int=10,
     min_real_coverage: float=0.8,
-    add_dummy_candidates: bool=False,
     match_whole_input: bool=False
 ) -> List[str]:
     phrases2positions, position2ngrams = search_in_index(ngram2phrases, phrases, letters)
@@ -626,9 +614,5 @@ def get_candidates(
         candidates.append(phrases[idx])
         if len(candidates) >= max_candidates:
             break
-
-    if add_dummy_candidates:
-        while len(candidates) < max_candidates:
-            candidates.append(random.choice(DUMMY_CANDIDATES))
     
     return candidates

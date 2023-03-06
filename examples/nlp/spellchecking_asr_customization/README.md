@@ -19,7 +19,7 @@ The pipeline consists of multiple steps:
           train_g2p.sh(training),
           run_infer.sh(inference)
 
-1. Download and preprocess Yago corpus
+1. Download and preprocess Yago corpus and instruction on how to download full Wikipedia articles
    `dataset_preparation/preprocess_yago.sh`
 
 2. Feed Yago data to G2P to get phonemes.

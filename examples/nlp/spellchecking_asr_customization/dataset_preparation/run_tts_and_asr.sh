@@ -1,11 +1,11 @@
 NEMO_PATH=/home/aleksandraa/nemo
 
 ## tts_input.txt is just all entries from Yago corpus passed through a G2P model.
-## tts_input.txt should have the following format (space is also a phoneme)
-##aadityana       AA0,AA2,D,AH0,T,Y,AE1,N,AH0
-##aadivaram aadavallaku selavu    AA2,D,IH1,V,ER0,AE2,M, ,AA2,AA0,D,AH0,V,AA1,L,AA1,K,UW2, ,S,EH1,L,AH0,V,UW0
-##aa divasam      EY1,EY1, ,D,IH0,V,AH0,S,AA1,M
-##aadi velli      AA1,D,IY0, ,V,EH1,L,IY0
+## It should have the following format (space is also a phoneme)
+## aadityana       AA0,AA2,D,AH0,T,Y,AE1,N,AH0
+## aadivaram aadavallaku selavu    AA2,D,IH1,V,ER0,AE2,M, ,AA2,AA0,D,AH0,V,AA1,L,AA1,K,UW2, ,S,EH1,L,AH0,V,UW0
+## aa divasam      EY1,EY1, ,D,IH0,V,AH0,S,AA1,M
+## aadi velli      AA1,D,IY0, ,V,EH1,L,IY0
 
 mkdir tts
 mkdir tts_resample
@@ -25,6 +25,13 @@ do
 done
 
 cat pred_ctc.x*.json > pred_ctc.all.json
+
+## Our final output file pred_ctc.all.json is a NeMo manifest, where each line is a json,
+## containing fields
+##  "text" - reference text
+##  "pred_text" - predicted text
+## For example:
+## {... "text": "zyxomma elgneri", "pred_text": "six summer alnery"}
 
 python ${NEMO_PATH}/examples/asr/speech_to_text_eval.py \
   dataset_manifest=pred_ctc.all.json \

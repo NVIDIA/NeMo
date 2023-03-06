@@ -2,7 +2,7 @@
 
 NEMO_PATH=/home/aleksandraa/nemo
 
-PRETRAINED_MODEL=../g2p/nemo_experiments/training.nemo
+PRETRAINED_MODEL=g2p_tagging.nemo
 
 export TOKENIZERS_PARALLELISM=false
 
