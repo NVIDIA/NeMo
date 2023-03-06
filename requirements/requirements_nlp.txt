@@ -18,3 +18,4 @@ pangu
 rapidfuzz
 sacrebleu[ja]
 sentence_transformers
+rouge_score
