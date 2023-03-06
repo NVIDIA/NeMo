@@ -1255,11 +1255,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 predicted_log_probs = torch.zeros(
                     (predicted_log_probs.shape[0], predicted_log_probs.shape[1]), dtype=self.autocast_dtype
-                ).to(device)
+                ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
-                ).to(device)
+                ).cuda()
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # Broadcast from the last pipeline stage to all other model-parallel ranks.
