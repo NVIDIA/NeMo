@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sacrebleu import BLEU
-from rouge_score import rouge_scorer
 import numpy as np
 import torch
+from rouge_score import rouge_scorer
+from sacrebleu import BLEU
 
 
 class AccuracyScore(object):
