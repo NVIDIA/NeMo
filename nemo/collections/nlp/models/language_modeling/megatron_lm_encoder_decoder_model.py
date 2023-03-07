@@ -1241,7 +1241,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
-                        dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                        dim=-1, index=torch.tensor(ignore_ids, device=output_tensor.device), value=-float('Inf')
                     )
 
                 log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
@@ -1251,7 +1251,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 predicted_tokens_dec = torch.cat(
                     [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
                 )
-                predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
+                predicted_log_probs = torch.cat([predicted_log_probs.to(log_probs.device), log_probs.unsqueeze(1)], dim=1)
             else:
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
