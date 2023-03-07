@@ -54,7 +54,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
-from nemo.utils.model_utils import inject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 # this enums code is copied from Megatron_LM
 enum_code = '''
@@ -353,6 +353,28 @@ def load_from_checkpoint(
     return checkpoint, consumed, steps, check_point_version
 
 
+def megatron_lm_inject_model_parallel_rank(filepath):
+    """
+    Injects tensor/pipeline model parallel ranks into the filepath.
+    Does nothing if not using model parallelism.
+    """
+    # first make sure filepath does not have rank
+    filepath = uninject_model_parallel_rank(filepath)
+
+    app_state = AppState()
+    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+        # filepath needs to be updated to include mp_rank
+        dirname = os.path.dirname(filepath)
+        basename = os.path.basename(filepath)
+        if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
+            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+        else:
+            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
+        return filepath
+    else:
+        return filepath
+
+
 def convert(local_rank, rank, world_size, args):
 
     app_state = AppState()
@@ -375,7 +397,7 @@ def convert(local_rank, rank, world_size, args):
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
     trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
-    checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+    checkpoint_path = megatron_lm_inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
     logging.info(f"loading checkpoint {checkpoint_path}")
 
     if args.model_type == 'gpt':
