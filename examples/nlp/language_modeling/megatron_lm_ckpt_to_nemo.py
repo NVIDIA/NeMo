@@ -386,8 +386,8 @@ def convert(local_rank, rank, world_size, args):
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=None,
         pipeline_model_parallel_split_rank=0,
-        micro_batch_size=1,
-        global_batch_size=1,
+        micro_batch_size=None,
+        global_batch_size=None,
         seed=1234,
         apex_transformer_log_level=30,
     )
