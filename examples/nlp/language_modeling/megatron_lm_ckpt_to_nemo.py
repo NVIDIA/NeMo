@@ -53,6 +53,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
+from pytorch_lightning.plugins.environments import LightningEnvironment 
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
@@ -396,7 +397,7 @@ def convert(local_rank, rank, world_size, args):
     num_nodes = world_size // args.gpus_per_node
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes, plugins=[LightningEnvironment()]) 
     checkpoint_path = megatron_lm_inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
     logging.info(f"loading checkpoint {checkpoint_path}")
 
