@@ -57,6 +57,7 @@ model:
       trim_silence: false
       batch_size: 4
       upsampling_rate: 5 # how many times the audio dataset is upsampled
+      return_is_valid: true
     num_workers: 8
 
   validation_ds:

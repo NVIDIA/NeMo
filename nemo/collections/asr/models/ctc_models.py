@@ -540,7 +540,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         if return_is_valid:
             signal, signal_len, transcript, transcript_len, valid = batch
-            # print(f"----> num non-valid samples: {sum(valid == 0)}")
+            logging.info(f"----> num non-valid samples: {sum(valid == 0)}")
         else:
             signal, signal_len, transcript, transcript_len = batch
 
