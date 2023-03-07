@@ -943,47 +943,40 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-        if hasattr(pl_module, "custom_save_nemo"):
-            pl_module.custom_save_nemo(
-                os.path.join(self.dirpath, self.prefix + self.postfix),
-                trainer,
-                checkpoint,
-                save_best_model=self.save_best_model,
-                best_model_path=self.best_model_path,
-                last_saved_path=self.last_model_path,
-                best_model_score=self.best_model_score.item(),
-                last_global_step_saved=self._last_global_step_saved,
-                monitor=self.monitor,
-            )
-            return output
+        # Load the best model and then re-save it
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
+        # since we are creating tarfile artifacts we need to update .nemo path
+        app_state.model_restore_path = os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+        )
+        injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
+        if self.save_best_model:
+            if not os.path.exists(injected_best_model_path):
+                return
+
+            if self.best_model_path == self.previous_best_path:
+                return output
+
+            self.previous_model_path = self.best_model_path
+            old_state_dict = deepcopy(pl_module.state_dict())
+            checkpoint = torch.load(injected_best_model_path, map_location='cpu')
+            if 'state_dict' in checkpoint:
+                checkpoint = checkpoint['state_dict']
+            # get a new instanace of the model
+            pl_module.load_state_dict(checkpoint, strict=True)
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            pl_module.save_to(save_path=app_state.model_restore_path)
+            logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
+            pl_module.load_state_dict(old_state_dict, strict=True)
         else:
-            # Load the best model and then re-save it
-            app_state = AppState()
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                raise ValueError(f'always_save_nemo is not implemented for model parallel models.')
-            # since we are creating tarfile artifacts we need to update .nemo path
-            app_state.model_restore_path = os.path.abspath(
-                os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-            )
-            if self.save_best_model:
-                if not os.path.exists(self.best_model_path):
-                    return output
-
-                if self.best_model_path == self.previous_best_path:
-                    return output
-
-                self.previous_model_path = self.best_model_path
-                old_state_dict = deepcopy(pl_module.state_dict())
-                checkpoint = torch.load(self.best_model_path, map_location='cpu')
-                if 'state_dict' in checkpoint:
-                    checkpoint = checkpoint['state_dict']
-                # get a new instanace of the model
-                pl_module.load_state_dict(checkpoint, strict=True)
-                pl_module.save_to(save_path=app_state.model_restore_path)
-                pl_module.load_state_dict(old_state_dict, strict=True)
-            else:
-                pl_module.save_to(save_path=app_state.model_restore_path)
-            return output
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            pl_module.save_to(save_path=app_state.model_restore_path)
+            logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
+        return output
 
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
