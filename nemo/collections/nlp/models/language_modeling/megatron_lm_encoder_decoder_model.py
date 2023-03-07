@@ -1253,12 +1253,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
                 predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
             else:
-                predicted_log_probs = torch.zeros(
-                    (predicted_log_probs.shape[0], predicted_log_probs.shape[1]), dtype=self.autocast_dtype
-                ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
+                ).cuda()
+                predicted_log_probs = torch.zeros(
+                    (predicted_log_probs.shape[0], predicted_log_probs.shape[1] + 1), dtype=self.autocast_dtype
                 ).cuda()
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
