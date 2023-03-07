@@ -414,11 +414,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return speech, text
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-
-        text_config = train_data_config['text']
         audio_config = train_data_config['audio']
-
         if self.use_text_data:
+            text_config = train_data_config['text']
             # create text dataset
             text_ds = MTEncDecModel._setup_dataset_from_config(
                 cfg=text_config,
@@ -669,7 +667,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if batch is None:
             return 0, 0
 
-        signal, signal_len, transcript, transcript_len = batch
+        return_is_valid = self._cfg.train_ds.get('return_is_valid', False)
+        if return_is_valid:
+            signal, signal_len, transcript, transcript_len, valid = batch
+            logging.info(f"----> num non-valid samples: {sum(valid == 0)}")
+            signal = signal[valid == 1]
+            signal_len = signal_len[valid == 1]
+            transcript = transcript[valid == 1]
+            transcript_len = transcript_len[valid == 1]
+        else:
+            signal, signal_len, transcript, transcript_len = batch
+
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
         batch_size = signal.shape[0]
 
