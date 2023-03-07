@@ -131,20 +131,16 @@ class CausalConv1D(nn.Conv1d):
 
     def update_cache(self, x, cache=None, cache_next=None):
         if cache is None:
-            x = F.pad(x, pad=(self._left_padding, self._right_padding))
+            new_x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
-            input_x = x
-            cache_id = self._cache_id
-            needed_cache = cache[cache_id]  # , :, :, -self._max_cache_len :]
-            x = F.pad(x, pad=(0, self._right_padding))
-            x = torch.cat([needed_cache, x], dim=-1)
+            new_x = F.pad(x, pad=(0, self._right_padding))
+            new_x = torch.cat([cache[self._cache_id], new_x], dim=-1)
             # todo: we should know input_x.size(-1) at config time
-            cache_keep_size = input_x.size(-1) - self.cache_drop_size
-            if self.cache_drop_size > 0:
-                input_x = input_x[:, :, :cache_keep_size]
-            # print("self._max_cache_len:", self._max_cache_len, "cache: size", cache.size(), "input_x:", input_x.size(), ", cache_keep_size:", cache_keep_size)
-            cache_next[cache_id] = torch.cat([needed_cache[:, :, cache_keep_size:], input_x], dim=-1)
-        return x
+            cache_keep_size = x.size(-1) - self.cache_drop_size
+            cache_next[self._cache_id, :, :, :-cache_keep_size] = cache[self._cache_id, :, :, cache_keep_size:]
+            # print("self._max_cache_len:", self._max_cache_len, "cache: size", cache.size(), "x:", x.size(), " new_x:", new_x.size(), ", cache_keep_size:", cache_keep_size)
+            cache_next[self._cache_id, :, :, -cache_keep_size:] = x[:, :, :cache_keep_size]
+        return new_x
 
     def forward(self, x, cache=None, cache_next=None):
         x = self.update_cache(x, cache=cache, cache_next=cache_next)

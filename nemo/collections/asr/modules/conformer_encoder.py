@@ -500,8 +500,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
             if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
-                length = length - self.streaming_cfg.drop_extra_pre_encoded
-                length.clamp_(min=0)
+                length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
 
         max_audio_length = audio_signal.size(1)
 
