@@ -140,7 +140,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
                 window_size = chunk_size + pre_encode_cache_size
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
-            input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int32)
+            input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int64)
             cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
                 batch_size=max_batch, device=dev, max_dim=max_dim
             )
@@ -149,7 +149,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         else:
             input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
-            input_example_length = torch.randint(max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int32)
+            input_example_length = torch.randint(max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int64)
             all_input_example = tuple([input_example, input_example_length])
 
         return all_input_example
@@ -409,7 +409,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             # Update across all ranks in the distributed system
             torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
 
-            seq_length = global_max_len.to(torch.int32).item()
+            seq_length = global_max_len.to(torch.int64).item()
 
         if seq_length > self.max_audio_length:
             self.set_max_audio_length(seq_length)
@@ -431,7 +431,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 if self.att_context_size[1] >= 0:
                     att_mask = att_mask.tril(diagonal=self.att_context_size[1])
             else:
-                chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+                chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int64, device=att_mask.device)
                 chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
                 diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
                 chunked_limited_mask = torch.logical_and(
@@ -484,7 +484,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if length is None:
             length = audio_signal.new_full(
-                (audio_signal.size(0),), max_audio_length, dtype=torch.int32, device=audio_signal.device
+                (audio_signal.size(0),), max_audio_length, dtype=torch.int64, device=audio_signal.device
             )
 
         if cache_last_time is not None:
