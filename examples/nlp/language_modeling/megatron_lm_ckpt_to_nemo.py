@@ -42,7 +42,6 @@ from collections import OrderedDict
 from typing import Any, Optional
 
 import torch
-from apex.transformer import parallel_state
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
@@ -51,6 +50,7 @@ from pytorch_lightning.utilities.migration import pl_legacy_patch
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
@@ -356,43 +356,30 @@ def load_from_checkpoint(
 def convert(local_rank, rank, world_size, args):
 
     app_state = AppState()
-    app_state.data_parallel_rank = 0
-    tensor_model_parallel_size = args.tensor_model_parallel_size
-    num_nodes = world_size // args.gpus_per_node
-    pipeline_model_parallel_size = world_size // args.tensor_model_parallel_size
-    assert args.pipeline_model_parallel_size == pipeline_model_parallel_size
-
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
-
-    app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
-    app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
-    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
-
-    parallel_state.initialize_model_parallel(
-        tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-        pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+    initialize_model_parallel_for_nemo(
+        world_size=world_size,
+        global_rank=rank,
+        local_rank=local_rank,
+        tensor_model_parallel_size=args.tensor_model_parallel_size,
+        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+        virtual_pipeline_model_parallel_size=None,
+        pipeline_model_parallel_split_rank=0,
+        micro_batch_size=1,
+        global_batch_size=1,
+        seed=1234,
+        apex_transformer_log_level=30,
     )
 
-    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+    # tensor_model_parallel_size = args.tensor_model_parallel_size
+    num_nodes = world_size // args.gpus_per_node
+    assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
-    pipeline_rank = rank // tensor_model_parallel_size
-    tensor_rank = app_state.tensor_model_parallel_rank
-    assert pipeline_rank == app_state.pipeline_model_parallel_rank
-
-    if tensor_model_parallel_size is not None and tensor_model_parallel_size > 1 and pipeline_model_parallel_size == 1:
-        # inject model parallel rank
-        checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{tensor_rank:02d}', args.checkpoint_name)
-    elif tensor_model_parallel_size is not None and pipeline_model_parallel_size > 1:
-        checkpoint_path = os.path.join(
-            args.checkpoint_folder, f'mp_rank_{tensor_rank:02d}_{pipeline_rank:03d}', args.checkpoint_name
-        )
-    else:
-        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
+    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
     logging.info(f"loading checkpoint {checkpoint_path}")
 
     if args.model_type == 'gpt':
-        ## this dictionary is used to rename the model parameters
+        # this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
         name_translate['.attention.'] = '.self_attention.'
@@ -407,7 +394,7 @@ def convert(local_rank, rank, world_size, args):
             strict=False,
         )
     elif args.model_type == 'bert':
-        ## this dictionary is used to rename the model parameters
+        # this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
         name_translate['.attention.'] = '.self_attention.'
@@ -456,10 +443,10 @@ def convert(local_rank, rank, world_size, args):
 
         # verify tensor parallel rank id and pipeline parallel rank id matches
         assert app_state.data_parallel_size == 1
-        assert app_state.tensor_model_parallel_size == tensor_model_parallel_size
-        assert app_state.tensor_model_parallel_rank == tensor_rank
-        assert app_state.pipeline_model_parallel_size == pipeline_model_parallel_size
-        assert app_state.pipeline_model_parallel_rank == pipeline_rank
+        # assert app_state.tensor_model_parallel_size == tensor_model_parallel_size
+        # assert app_state.tensor_model_parallel_rank == tensor_rank
+        # assert app_state.pipeline_model_parallel_size == pipeline_model_parallel_size
+        # assert app_state.pipeline_model_parallel_rank == pipeline_rank
         model._save_restore_connector = NLPSaveRestoreConnector()
         model.save_to(args.nemo_file_path)
         logging.info(f'NeMo model saved to: {args.nemo_file_path}')
