@@ -61,6 +61,10 @@ model:
   answer_only_loss: False # not used right now
   gradient_as_bucket_view: False
 
+  hidden_dropout: 0.0
+  attention_dropout: 0.0
+  ffn_dropout: 0.0
+
   data:
     train_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data.
