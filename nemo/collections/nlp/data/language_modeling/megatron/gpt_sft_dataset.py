@@ -181,7 +181,7 @@ class GPTSFTDataset(Dataset):
             if self.truncation_field == "answer":
                 answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
             elif self.truncation_field == "context":
-                text_ids = text_ids[: -min(truncation_length, len(text_ids))]
+                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
         if len(context_ids) > self.max_seq_length:
             context_ids = context_ids[: self.max_seq_length]
