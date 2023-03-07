@@ -132,7 +132,8 @@ def main(cfg) -> None:
             class_names += [imagenet_classnames[x] for x in class_indices]
 
     if is_global_rank_zero:
-        print(f"Predicted classes: ", list(enumerate(class_names)))
+        filenames = [os.path.basename(f) for f in test_data.image_paths]
+        print(f"Predicted classes: ", list(zip(filenames, class_names)))
 
 
 if __name__ == '__main__':
