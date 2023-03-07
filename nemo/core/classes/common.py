@@ -938,14 +938,19 @@ class Model(Typing, Serialization, FileIO):
             -   The path to the NeMo model (.nemo file) in some cached directory (managed by HF Hub).
         """
         # Resolve the model name without origin for filename
-        resolved_model_filename = model_name.split("/")[-1] + '.nemo'
+        if model_name.endswith('.nemo'):
+            resolved_model_filename = model_name.split("/")[-1]
+            repo_id = "/".join(model_name.replace("/blob/main", "").split("/")[:-1])
+        else:
+            resolved_model_filename = model_name.split("/")[-1] + '.nemo'
+            repo_id = model_name
 
         # Check if api token exists, use if it does
         is_token_available = HfFolder.get_token() is not None
 
         # Try to load the model from the Huggingface Hub
         path = hf_hub_download(
-            repo_id=model_name,
+            repo_id=repo_id,
             filename=resolved_model_filename,
             library_name="nemo",
             library_version=nemo.__version__,
