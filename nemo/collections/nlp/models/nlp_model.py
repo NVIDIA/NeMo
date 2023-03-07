@@ -60,7 +60,6 @@ class NLPModel(ModelPT, Exportable):
         nemo_file = None
         config_dict = None
         config_file = None
-        self.previous_best_path = None
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
