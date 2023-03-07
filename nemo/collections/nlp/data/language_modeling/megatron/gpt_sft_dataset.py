@@ -27,12 +27,12 @@ User: """
 
 LONG_ASSIST_PROMPT = """Assistant: I am Assistant, a large language model trained by NVIDIA.
 I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
-Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input.Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
 User: """
 
 LONG_ASSIST_PROMPT_NV = """Assistant: I am NVLM, a large language model trained by NVIDIA.
 I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
-Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input.Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
 User: """
 
 class GPTSFTDataset(Dataset):
@@ -55,7 +55,7 @@ class GPTSFTDataset(Dataset):
         truncation_field: str = "answer",
         pad_to_max_length: bool = True,
         index_mapping_dir: str = None,
-        assist_prompt: str = None
+        assistant_prompt: str = None
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -76,7 +76,7 @@ class GPTSFTDataset(Dataset):
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
-        assist_promot: Prompt to use for the assistant. If None, will use the default prompt.
+        assistant_prompt: Prompt to use for the assistant. If None, will use the default prompt.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -95,7 +95,7 @@ class GPTSFTDataset(Dataset):
         self.truncation_field = truncation_field
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
-        self.assist_prompt = assist_prompt
+        self.assistant_prompt = assistant_prompt
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -150,25 +150,25 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
 
-        if self.assist_prompt == 'short':
+        if self.assistant_prompt == 'short':
             context = SHORT_ASSIST_PROMPT + context + "\n\nAssistant:"
-        elif self.assist_prompt == 'long':
+        elif self.assistant_prompt == 'long':
             context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
-        elif self.assist_prompt == 'long_nv':
+        elif self.assistant_prompt == 'long_nv':
             context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
 
-        if self.separate_prompt_and_response_with_newline and self.assist_prompt is None:
+        if self.separate_prompt_and_response_with_newline and self.assistant_prompt is None:
             text = context + '\n' + label
-        elif not self.separate_prompt_and_response_with_newline and self.assist_prompt is None:
+        elif not self.separate_prompt_and_response_with_newline and self.assistant_prompt is None:
             text = context + ' ' + label
-        elif self.assist_prompt is not None:
+        elif self.assistant_prompt is not None:
             text = context + ' ' + label.lstrip()
 
         tokenized_text = self.tokenizer.text_to_ids(text)
-        text_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context):]
-
-        total_ids = len(text_ids) + len(answer_ids)
+        context_ids = self.tokenizer.text_to_ids(context)
+        answer_ids = tokenized_text[len(context_ids):]
+        import ipdb; ipdb.set_trace()
+        total_ids = len(context_ids) + len(answer_ids)
         if self.add_bos:
             total_ids += 1
         if self.add_sep:
@@ -184,13 +184,13 @@ class GPTSFTDataset(Dataset):
             elif self.truncation_field == "context":
                 text_ids = text_ids[: -min(truncation_length, len(text_ids))]
 
-        if len(text_ids) > self.max_seq_length:
-            text_ids = text_ids[: self.max_seq_length]
+        if len(context_ids) > self.max_seq_length:
+            context_ids = context_ids[: self.max_seq_length]
 
-        assert len(text_ids) <= self.max_seq_length
-        input_ids = text_ids
+        assert len(context_ids) <= self.max_seq_length
+        input_ids = context_ids
 
-        answer_start_idx = len(input_ids) - 1
+        answer_start_idx = len(input_ids)
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             input_ids = input_ids + [self.sep_id]
@@ -214,8 +214,8 @@ class GPTSFTDataset(Dataset):
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
-            'context_ids': text_ids,
-            'context_length': len(text_ids),
+            'context_ids': context_ids,
+            'context_length': len(context_ids),
         }
 
         return processed_example
