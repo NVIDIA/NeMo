@@ -124,7 +124,18 @@ def main(cfg) -> None:
         trainer.strategy.launcher.launch(dummy, trainer=trainer)
     trainer.strategy.setup_environment()
 
-    with torch.no_grad():
+    # get autocast_dtype
+    if trainer.precision == 'bf16':
+        autocast_dtype = torch.bfloat16
+    elif int(trainer.precision) == 32:
+        autocast_dtype = torch.float
+    elif int(trainer.precision) == 16:
+        autocast_dtype = torch.half
+    else:
+        raise ValueError('precision must be in [32, 16, "bf16"]')
+
+    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
+                                                  dtype=autocast_dtype, ):
         class_names = []
         for tokens in test_loader:
             logits = model(tokens.cuda())
