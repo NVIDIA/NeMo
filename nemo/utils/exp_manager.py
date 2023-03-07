@@ -868,7 +868,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
-        self.last_saved_path = ""
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -1045,7 +1044,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
         else:
-            self.last_saved_path = filepath
             super()._save_checkpoint(trainer, filepath)
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
