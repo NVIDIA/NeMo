@@ -268,6 +268,38 @@ def build_train_valid_test_datasets(
             knn_map_path[0],
         )
 
+    if len(data_prefix) == 2:
+        train_ds, _, _ = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            data_prefix[0],
+            data_impl,
+            splits_string,
+            train_valid_test_num_samples,
+            seq_length,
+            seed,
+            skip_warmup,
+            tokenizer,
+            retrieval_prefix,
+            knn_map_path[0],
+        )
+        _, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            data_prefix[1],
+            data_impl,
+            splits_string,
+            train_valid_test_num_samples,
+            seq_length,
+            seed,
+            skip_warmup,
+            tokenizer,
+            retrieval_prefix,
+            knn_map_path[1],
+        )
+        return train_ds, valid_ds, test_ds
+
+
     # Blending dataset.
     # Parse the values.
     output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)

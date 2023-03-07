@@ -120,7 +120,7 @@ model:
   
   optim:
     name: fused_adam
-    lr: 1e1
+    lr: 1e-1
     weight_decay: 0.01 
     betas: 
     - 0.9
@@ -134,16 +134,16 @@ model:
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 4
+    adapter_dim: 20
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
 
-    pre_decoder: False
+    pre_decoder: True
     post_decoder: True
-    encoder : False
+    encoder : True
 
   hidden_size: 2304
   ffn_hidden_size: 9216

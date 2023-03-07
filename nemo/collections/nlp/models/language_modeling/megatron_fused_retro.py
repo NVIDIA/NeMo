@@ -83,94 +83,95 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-        if cfg.get("eval") is True or cfg.get("eval") is False:
-            save_restore_connector = NLPSaveRestoreConnector()
-            if os.path.isdir(cfg.get('restore_from_path')):
-                save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.get('restore_from_path')):
+            save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
 
-            frozen_model_cfg = MegatronRetrievalModel.restore_from(
-                cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+        frozen_model_cfg = MegatronRetrievalModel.restore_from(
+            cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+        )
+
+        with open_dict(frozen_model_cfg):
+            # work around for the fused softmax bug
+            frozen_model_cfg.masked_softmax_fusion = False
+            frozen_model_cfg.precision = trainer.precision
+
+
+        # Need to overwrite some params in frozen model's config before restoring
+        with open_dict(frozen_model_cfg):
+            frozen_model_cfg.megatron_amp_O2 = False
+            frozen_model_cfg.optim.name = "fused_adam"
+            frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+            # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+            frozen_model_cfg.precision = trainer.precision
+            frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+            frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+                "activations_checkpoint_granularity", None
+            )
+            frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+                "activations_checkpoint_num_layers", None
+            )
+            frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+
+        self.model = MegatronRetrievalModel.restore_from(
+            cfg.get('restore_from_path'),
+            trainer=trainer,
+            save_restore_connector=save_restore_connector,
+            override_config_path=frozen_model_cfg,
+        ).to(dtype=self.autocast_dtype)
+
+        for _, layer in self.model.named_modules():
+            if hasattr(layer, 'activations_checkpoint_method'):
+                layer.activations_checkpoint_method = (
+                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                )
+        
+        logging.info(f'Before adding adapters:\n{self.model.summarize()}')
+
+        if cfg.adapter_tuning.type == "parallel_adapter":
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.adapter_dim,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
+        else:
+            adapter_cfg = LinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.adapter_dim,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                dropout=cfg.adapter_tuning.adapter_dropout,
             )
 
-            with open_dict(frozen_model_cfg):
-                # work around for the fused softmax bug
-                frozen_model_cfg.masked_softmax_fusion = False
-                frozen_model_cfg.precision = trainer.precision
+        self.model.freeze()
+        if cfg.adapter_tuning.pre_decoder is True:
+            for _, module in self.model.model.pre_decoder.named_modules():
+                logging.info(f'Named modules:\n{module}')
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    self.add_adapters_init(module, adapter_cfg)
+        if cfg.adapter_tuning.post_decoder is True:
+            for _, module in self.model.model.post_decoder.named_modules():
+                logging.info(f'Named modules:\n{module}')
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    self.add_adapters_init(module, adapter_cfg)
+        if cfg.adapter_tuning.encoder is True:
+            for _, module in self.model.model.encoder.named_modules():
+                logging.info(f'Named modules:\n{module}')
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    self.add_adapters_init(module, adapter_cfg)
 
+        logging.info(f'After adding adapters:\n{self.model.summarize()}')
 
-            # Need to overwrite some params in frozen model's config before restoring
-            with open_dict(frozen_model_cfg):
-                frozen_model_cfg.megatron_amp_O2 = False
-                frozen_model_cfg.optim.name = "fused_adam"
-                frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-                # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
-                frozen_model_cfg.precision = trainer.precision
-                frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-                frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
-                    "activations_checkpoint_granularity", None
-                )
-                frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
-                    "activations_checkpoint_num_layers", None
-                )
-                frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
-
-            self.model = MegatronRetrievalModel.restore_from(
-                cfg.get('restore_from_path'),
-                trainer=trainer,
-                save_restore_connector=save_restore_connector,
-                override_config_path=frozen_model_cfg,
-            ).to(dtype=self.autocast_dtype)
-
-            for _, layer in self.model.named_modules():
-                if hasattr(layer, 'activations_checkpoint_method'):
-                    layer.activations_checkpoint_method = (
-                        None  # (@adithyare) adapter learning does not support activations checkpointing atm.
-                    )
-            
-            logging.info(f'Before adding adapters:\n{self.model.summarize()}')
-
-            if cfg.adapter_tuning.type == "parallel_adapter":
-                adapter_cfg = ParallelLinearAdapterConfig(
-                    in_features=frozen_model_cfg.hidden_size,
-                    dim=cfg.adapter_tuning.adapter_dim,
-                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                    norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
-                    column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
-                    row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
-                    dropout=cfg.adapter_tuning.adapter_dropout,
-                )
-            else:
-                adapter_cfg = LinearAdapterConfig(
-                    in_features=frozen_model_cfg.hidden_size,
-                    dim=cfg.adapter_tuning.adapter_dim,
-                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                    dropout=cfg.adapter_tuning.adapter_dropout,
-                )
-
-            self.model.freeze()
-            if cfg.adapter_tuning.pre_decoder is True:
-                for _, module in self.model.model.pre_decoder.named_modules():
-                    logging.info(f'Named modules:\n{module}')
-                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                        self.add_adapters_init(module, adapter_cfg)
-            if cfg.adapter_tuning.post_decoder is True:
-                for _, module in self.model.model.post_decoder.named_modules():
-                    logging.info(f'Named modules:\n{module}')
-                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                        self.add_adapters_init(module, adapter_cfg)
-            if cfg.adapter_tuning.encoder is True:
-                for _, module in self.model.model.encoder.named_modules():
-                    logging.info(f'Named modules:\n{module}')
-                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                        self.add_adapters_init(module, adapter_cfg)
-
-            logging.info(f'After adding adapters:\n{self.model.summarize()}')
-
-            for name, module in self.model.named_modules():
-                logging.info(f'Module name:\n{name}{module}')
+        for name, module in self.model.named_modules():
+            logging.info(f'Module name:\n{name}{module}')
 
         logging.info("Done")
         # self.model = self.frozen_model
+
+        self.load_adapters(strict=False)
 
     def add_adapters_init(self, module, adapter_cfg):
         for adapter_key in self.adapter_name_keys:
@@ -201,6 +202,42 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
             position_ids=position_ids,
         )
         return output_tensor
+
+
+    def create_state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Creates a state_dict using only the adapter parameters.
+        This ensures that this wrapper class will only checkpoint the adapter
+        weights and not the rest of the base GPT Model.
+        """
+        state_dict_ = {}
+        for name, module in self.model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.get_adapter_module(adapter_key)
+                    if adapter_module:
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
+
+                module.set_enabled_adapters(enabled=True)
+        return state_dict_
+
+    def load_adapters(self, strict: bool = True):
+        """
+        Loads a state_dict expecting the state_dict to contain key,values 
+        only for the adapter parameters.
+        """
+        state_dict = self.create_state_dict()
+        for name, module in self.model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.get_adapter_module(adapter_key)
+                    if adapter_module:
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                module.set_enabled_adapters(enabled=True)
+
+
     # def load_model_state_dict(self, checkpoint) -> None:
     #     self.load_state_dict(state_dict())
 

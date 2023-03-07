@@ -633,7 +633,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             extra_arg['neighbors'] = neighbors[0].item()
             extra_arg['position_ids'] = position_ids
-
             output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
 
             def id_func(output_tensor):
