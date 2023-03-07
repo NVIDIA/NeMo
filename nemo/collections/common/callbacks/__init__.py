@@ -14,3 +14,4 @@
 
 from nemo.collections.common.callbacks.callbacks import LogEpochTimeCallback
 from nemo.collections.common.callbacks.ema import EMA
+from nemo.collections.common.callbacks.nemomodelcheckpoint import NeMoModelCheckpoint
