@@ -72,11 +72,14 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
 def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
     gpt_cfg = modify_confg_fn(gpt_cfg, cfg, add_cfg_to_tree=False)
+    save_restore_connector = NLPSaveRestoreConnector()
+    if os.path.isdir(cfg.model.restore_from_path):
+        save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
     model = cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=gpt_cfg,
-        save_restore_connector=NLPSaveRestoreConnector(),
+        save_restore_connector=save_restore_connector,
     )
     return model
 
@@ -169,8 +172,12 @@ def main(cfg) -> None:
 
     if hasattr(cfg.model.data.train_ds, 'file_names'):
         if cfg.model.restore_from_path:
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
             gpt_cfg = MegatronGPTSFTModel.restore_from(
-                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+                save_restore_connector=save_restore_connector,
             )
             model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
         else:
