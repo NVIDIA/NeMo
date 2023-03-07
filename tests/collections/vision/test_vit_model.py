@@ -19,13 +19,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
-from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
-from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomBatchSampler
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.utils.exp_manager import exp_manager
-from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
+from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -34,7 +32,6 @@ if torch.cuda.is_available():
 
 @pytest.fixture()
 def model_cfg():
-
     model_cfg_string = """
       precision: 16
       micro_batch_size: 2 # limited by GPU memory
@@ -99,7 +96,7 @@ def model_cfg():
       gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
       gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism.
       openai_gelu: False
-      bias_gelu_fusion: False
+      bias_activation_fusion: False
       megatron_legacy: False
     
       ## Activation Checkpointing
@@ -158,7 +155,6 @@ def model_cfg():
 
 @pytest.fixture()
 def trainer_cfg():
-
     trainer_cfg_string = """
         devices: 1
         num_nodes: 1
@@ -185,7 +181,6 @@ def trainer_cfg():
 
 @pytest.fixture()
 def exp_manager_cfg():
-
     exp_manager_cfg_string = """
         explicit_log_dir: null
         exp_dir: null
@@ -231,6 +226,7 @@ def vit_classification_trainer_and_model(model_cfg, trainer_cfg, precision):
 
     return trainer, model
 
+
 def build_datasets(cfg, test_data_dir):
     data_path = [
         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
@@ -241,6 +237,7 @@ def build_datasets(cfg, test_data_dir):
         data_path=data_path,
         image_size=(cfg.img_h, cfg.img_w),
     )
+
 
 @pytest.mark.run_only_on('GPU')
 class TestMegatronVitClassificationModel:
@@ -269,7 +266,6 @@ class TestMegatronVitClassificationModel:
         assert train_ds[0][0].shape == torch.Size([3, 224, 224])
         assert validation_ds[0][0].shape == torch.Size([3, 224, 224])
 
-
     @pytest.mark.parametrize(
         "precision",
         [
@@ -284,7 +280,6 @@ class TestMegatronVitClassificationModel:
             ),
         ],
     )
-
     @pytest.mark.unit
     def test_forward(self, vit_classification_trainer_and_model, test_data_dir):
         trainer, vit_classification_model = vit_classification_trainer_and_model
