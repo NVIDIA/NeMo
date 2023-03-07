@@ -40,7 +40,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 __all__ = ['NLPModel']
 
