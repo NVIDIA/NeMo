@@ -1,5 +1,5 @@
 
-|status| |documentation| |license| |lgtm_grade| |lgtm_alerts| |black|
+|status| |documentation| |codeql| |license| |pypi| |pyversion| |downloads| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -13,13 +13,21 @@
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
   :alt: NeMo core license and license for collections in this repo
 
-.. |lgtm_grade| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
-  :alt: Language grade: Python
+.. |pypi| image:: https://badge.fury.io/py/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Release version
 
-.. |lgtm_alerts| image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
-  :alt: Total alerts
+.. |pyversion| image:: https://img.shields.io/pypi/pyversions/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Python version
+
+.. |downloads| image:: https://static.pepy.tech/personalized-badge/nemo-toolkit?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=downloads
+  :target: https://pepy.tech/project/nemo-toolkit
+  :alt: PyPi total downloads
+
+.. |codeql| image:: https://github.com/nvidia/nemo/actions/workflows/codeql.yml/badge.svg?branch=main&event=push
+  :target: https://github.com/nvidia/nemo/actions/workflows/codeql.yml
+  :alt: CodeQL
 
 .. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
   :target: https://github.com/psf/black
@@ -285,18 +293,6 @@ Publications
 ------------
 
 We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/tree/stable/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
-
-Citation
---------
-
-.. code-block:: bash
-
-  @article{kuchaiev2019nemo,
-    title={Nemo: a toolkit for building ai applications using neural modules},
-    author={Kuchaiev, Oleksii and Li, Jason and Nguyen, Huyen and Hrinchuk, Oleksii and Leary, Ryan and Ginsburg, Boris and Kriman, Samuel and Beliaev, Stanislav and Lavrukhin, Vitaly and Cook, Jack and others},
-    journal={arXiv preprint arXiv:1909.09577},
-    year={2019}
-  }
 
 License
 -------

@@ -20,10 +20,10 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
-from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
@@ -381,13 +381,24 @@ class HifiGanModel(Vocoder, Exportable):
         )
         list_of_models.append(model)
 
-        # de-DE, single speaker, 22050 Hz, OpenSLR Neutral German Dataset.
+        # de-DE, single male speaker, 22050 Hz, Thorsten Müller’s German Neutral-TTS Dataset, 21.02
         model = PretrainedModelInfo(
-            pretrained_model_name="tts_de_slr_hifigan_ft_fastpitch_singlespeaker",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.10.0/files/tts_de_hifigan.nemo",
-            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_hifigan` "
-            "by the mel-spectrograms generated from the FastPitch checkpoint `tts_de_fastpitch_singlespeaker`. This model "
-            "has been tested on generating male German voices.",
+            pretrained_model_name="tts_de_hifigan_singleSpeaker_thorstenNeutral_2102",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.15.0/files/tts_de_hifigan_thorstens2102.nemo",
+            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_en_lj_hifigan_ft_mixerttsx`"
+            " by the mel-spectrograms generated from the FastPitch checkpoint `tts_de_fastpitch_singleSpeaker_thorstenNeutral_2102`."
+            " This model has been tested on generating male German neutral voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, single male speaker, 22050 Hz, Thorsten Müller’s German Neutral-TTS Dataset, 22.10
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_hifigan_singleSpeaker_thorstenNeutral_2210",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.15.0/files/tts_de_hifigan_thorstens2210.nemo",
+            description="This model is finetuned from the HiFiGAN pretrained checkpoint `tts_en_lj_hifigan_ft_mixerttsx`"
+            " by the mel-spectrograms generated from the FastPitch checkpoint `tts_de_fastpitch_singleSpeaker_thorstenNeutral_2210`."
+            " This model has been tested on generating male German neutral voices.",
             class_=cls,
         )
         list_of_models.append(model)
