@@ -167,7 +167,6 @@ class GPTSFTDataset(Dataset):
         tokenized_text = self.tokenizer.text_to_ids(text)
         context_ids = self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids):]
-        import ipdb; ipdb.set_trace()
         total_ids = len(context_ids) + len(answer_ids)
         if self.add_bos:
             total_ids += 1
