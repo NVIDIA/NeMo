@@ -25,6 +25,7 @@ class ValMetric(ABC):
     def get_score(self, ground_truth, predicted_text):
         pass
 
+
 class AccuracyScore(ValMetric):
     def get_score(self, ground_truth, predicted_text):
         corrects = 0
@@ -42,9 +43,7 @@ class BLEUScore(ValMetric):
 
     def get_score(self, ground_truth, predicted_text):
         return {
-            'bleu_score': torch.tensor(
-                self.scorer.corpus_score(predicted_text, [[i] for i in ground_truth],).score
-            )
+            'bleu_score': torch.tensor(self.scorer.corpus_score(predicted_text, [[i] for i in ground_truth],).score)
         }
 
 
