@@ -147,7 +147,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 batch_size=max_batch, device=dev, max_dim=max_dim
             )
             all_input_example = tuple(
-                [input_example, input_example_length, cache_last_channel, cache_last_time, cache_last_channel_len,]
+                [
+                    input_example,
+                    input_example_length,
+                    cache_last_channel.transpose(0, 1),
+                    cache_last_time.transpose(0, 1),
+                    cache_last_channel_len,
+                ]
             )
         else:
             input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
@@ -462,20 +468,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
         )
-        (
-            encoded,
-            encoded_len,
-            cache_last_channel_next,
-            cache_last_time_next,
-            cache_last_channel_next_len,
-        ) = self.streaming_post_process(rets, keep_all_outputs=False)
-        return (
-            encoded,
-            encoded_len,
-            cache_last_channel_next.transpose(0, 1),
-            cache_last_time_next.transpose(0, 1),
-            cache_last_channel_next_len,
-        )
+        rets = self.streaming_post_process(rets, keep_all_outputs=False)
+        if len(rets) == 2:
+            return rets
+        else:
+            return (
+                rets[0],
+                rets[1],
+                rets[2].transpose(0, 1),
+                rets[3].transpose(0, 1),
+                rets[4],
+            )
 
     def streaming_post_process(self, rets, keep_all_outputs=True):
         if len(rets) == 2:
