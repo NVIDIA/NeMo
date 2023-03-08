@@ -53,7 +53,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
-from pytorch_lightning.plugins.environments import LightningEnvironment 
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
@@ -392,13 +391,17 @@ def convert(local_rank, rank, world_size, args):
         seed=1234,
         apex_transformer_log_level=30,
     )
+    # hard set the data parallel rank to 0, otherwiaze it is default to None
+    app_state.data_parallel_rank = 0
 
     # tensor_model_parallel_size = args.tensor_model_parallel_size
     num_nodes = world_size // args.gpus_per_node
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes, plugins=[LightningEnvironment()]) 
-    checkpoint_path = megatron_lm_inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    checkpoint_path = megatron_lm_inject_model_parallel_rank(
+        os.path.join(args.checkpoint_folder, args.checkpoint_name)
+    )
     logging.info(f"loading checkpoint {checkpoint_path}")
 
     if args.model_type == 'gpt':
@@ -466,10 +469,6 @@ def convert(local_rank, rank, world_size, args):
 
         # verify tensor parallel rank id and pipeline parallel rank id matches
         assert app_state.data_parallel_size == 1
-        # assert app_state.tensor_model_parallel_size == tensor_model_parallel_size
-        # assert app_state.tensor_model_parallel_rank == tensor_rank
-        # assert app_state.pipeline_model_parallel_size == pipeline_model_parallel_size
-        # assert app_state.pipeline_model_parallel_rank == pipeline_rank
         model._save_restore_connector = NLPSaveRestoreConnector()
         model.save_to(args.nemo_file_path)
         logging.info(f'NeMo model saved to: {args.nemo_file_path}')
@@ -491,3 +490,4 @@ if __name__ == '__main__':
 
     torch.distributed.barrier()
     convert(local_rank, rank, world_size, args)
+    torch.distributed.barrier()
