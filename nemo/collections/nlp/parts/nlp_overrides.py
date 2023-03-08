@@ -400,6 +400,13 @@ class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -433,6 +440,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
         self._hysteresis_tracker = self.hysteresis
+
+    def __call__(self, outputs):
+        return self.scale(outputs)
 
     def _unscale_grads_(self, optimizer, *args):
         if getattr(optimizer, "_custom_amp_unscale_grads", False):
@@ -600,6 +610,13 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     def optimizer_step(
         self,
