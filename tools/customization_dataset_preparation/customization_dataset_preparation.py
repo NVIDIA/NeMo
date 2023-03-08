@@ -107,6 +107,7 @@ def estimating_customization_job_time(df, recommend_hyperparameters_message):
 
     size = df.memory_usage(index=True, deep=True).sum()
     time_in_seconds_per_epoch = size / recommended_batch_size * 0.0025
+
     if time_in_seconds_per_epoch < 60:
         time_per_epoch = f"{round(time_in_seconds_per_epoch, 2)} seconds"
     elif time_in_seconds_per_epoch < 3600:
