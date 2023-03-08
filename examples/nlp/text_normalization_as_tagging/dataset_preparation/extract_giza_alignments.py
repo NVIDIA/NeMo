@@ -19,7 +19,7 @@ This script can be used after GIZA++ alignment to extract final alignments for e
 
 import re
 from argparse import ArgumentParser
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import (
     fill_alignment_matrix, check_monotonicity, get_targets, get_targets_from_back
 )
 
