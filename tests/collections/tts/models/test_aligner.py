@@ -32,7 +32,7 @@ def pretrained_model(request):
     return model, model_name
 
 
-@pytest.mark.unit
+@pytest.mark.nightly
 @pytest.mark.run_only_on('GPU')
 def test_inference(pretrained_model, audio_text_pair_example_english):
     model, model_name = pretrained_model

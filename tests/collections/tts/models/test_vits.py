@@ -31,7 +31,7 @@ def pretrained_model(request):
     return model, model_name
 
 
-@pytest.mark.unit
+@pytest.mark.nightly
 @pytest.mark.run_only_on('GPU')
 def test_inference(pretrained_model, language_specific_text_example):
     model, model_name = pretrained_model
