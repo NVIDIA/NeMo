@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import Tuple
 
-from nemo.collections.tts.inference.pipeline import AudioProcessor
+import torch
+
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
-from nemo.core.classes.common import typecheck, Typing
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    LengthsType,
-    MelSpectrogramType,
-)
+from nemo.collections.tts.inference.inference_modules import AudioProcessor
+from nemo.core.classes.common import Typing, typecheck
+from nemo.core.neural_types.elements import AudioSignal, LengthsType, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 
 
 class MelSpectrogramProcessor(AudioProcessor, Typing):
-
     def __init__(self, preprocessor: AudioToMelSpectrogramPreprocessor):
         self.preprocessor = preprocessor
 

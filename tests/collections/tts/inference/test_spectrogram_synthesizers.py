@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
-import pytest
 import unittest
 
+import pytest
 import torch
 
 from nemo.collections.tts.inference.spectrogram_synthesizers import FastPitchSpectrogramSynthesizer
@@ -40,7 +40,8 @@ class TestSpectrogramSynthesizers(unittest.TestCase):
         tokens = torch.zeros([batch_size, text_length], dtype=torch.int32).to("cpu")
         speaker = torch.randint(low=0, high=10, size=[batch_size], dtype=torch.int32).to("cpu")
         pitch = torch.rand([batch_size, text_length]).to("cpu")
-        spec = self.spec_synthesizer.synthesize_spectrogram(tokens=tokens, speaker=speaker, pitch=pitch)
+        pace = torch.FloatTensor(1).uniform_(0.5, 1.5).to("cpu")
+        spec = self.spec_synthesizer.synthesize_spectrogram(tokens=tokens, speaker=speaker, pitch=pitch, pace=pace)
 
         assert len(spec.shape) == 3
         assert spec.shape[0] == batch_size

@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import unittest
-import torch
+
 import numpy as np
+import pytest
+import torch
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.tts.inference.audio_processors import MelSpectrogramProcessor
 
 
 class TestAudioProcessors(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         super(TestAudioProcessors, cls).setUpClass()
@@ -38,7 +38,7 @@ class TestAudioProcessors(unittest.TestCase):
             n_fft=2048,
             lowfreq=0,
             highfreq=None,
-            pad_to=0
+            pad_to=0,
         )
         cls.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
 
@@ -59,5 +59,4 @@ class TestAudioProcessors(unittest.TestCase):
         assert spec.shape[1] == self.spec_dim
         assert spec.shape[2] == spec_len[1]
         # Validate padded outputs are 0
-        np.testing.assert_array_almost_equal(spec[0][:, spec_len[0]:], 0.0)
-
+        np.testing.assert_array_almost_equal(spec[0][:, spec_len[0] :], 0.0)

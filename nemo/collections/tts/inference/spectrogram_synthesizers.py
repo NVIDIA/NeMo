@@ -14,15 +14,10 @@
 
 from torch import Tensor
 
-from nemo.collections.tts.inference.pipeline import SpectrogramSynthesizer
+from nemo.collections.tts.inference.inference_modules import SpectrogramSynthesizer
 from nemo.collections.tts.models import FastPitchModel
-from nemo.core.classes.common import typecheck, Typing
-from nemo.core.neural_types.elements import (
-    Index,
-    MelSpectrogramType,
-    RegressionValuesType,
-    TokenIndex,
-)
+from nemo.core.classes.common import Typing, typecheck
+from nemo.core.neural_types.elements import FloatType, Index, MelSpectrogramType, RegressionValuesType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 
 
@@ -39,9 +34,10 @@ class FastPitchSpectrogramSynthesizer(SpectrogramSynthesizer, Typing):
             "tokens": NeuralType(('B', 'T_text'), TokenIndex()),
             "speaker": NeuralType(('B'), Index(), optional=True),
             "pitch": NeuralType(('B', 'T_text'), RegressionValuesType(), optional=True),
+            "pace": NeuralType(None, FloatType(), optional=True),
         },
         output_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
     )
-    def synthesize_spectrogram(self, tokens: Tensor, speaker: Tensor, pitch: Tensor) -> Tensor:
-        spec, *_ = self.model.fastpitch.infer(text=tokens, speaker=speaker, pitch=pitch)
+    def synthesize_spectrogram(self, tokens: Tensor, speaker: Tensor, pitch: Tensor, pace: Tensor) -> Tensor:
+        spec, *_ = self.model.fastpitch.infer(text=tokens, speaker=speaker, pitch=pitch, pace=pace)
         return spec

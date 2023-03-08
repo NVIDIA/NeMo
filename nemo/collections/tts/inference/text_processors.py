@@ -14,9 +14,10 @@
 
 from typing import List
 
-from nemo.collections.tts.inference.pipeline import TextProcessor, TextTokenizer, GraphemeToPhoneme
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPATokenizer
 from nemo_text_processing.text_normalization.normalize import Normalizer
+
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPATokenizer
+from nemo.collections.tts.inference.inference_modules import GraphemeToPhoneme, TextProcessor, TextTokenizer
 
 
 class BaseTextProcessor(TextProcessor):

@@ -13,19 +13,18 @@
 # limitations under the License.
 
 import os
-import pytest
 import unittest
+
+import pytest
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPATokenizer
 from nemo.collections.tts.g2p.modules import IPAG2P
-from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo.collections.tts.inference.text_processors import BaseTextProcessor, IPATextTokenizer
-
 from nemo.collections.tts.inference.pipeline import TTSPipeline
 from nemo.collections.tts.inference.spectrogram_synthesizers import FastPitchSpectrogramSynthesizer
+from nemo.collections.tts.inference.text_processors import BaseTextProcessor, IPATextTokenizer
 from nemo.collections.tts.inference.vocoders import HifiGanVocoder
-from nemo.collections.tts.models import FastPitchModel
-from nemo.collections.tts.models import HifiGanModel
+from nemo.collections.tts.models import FastPitchModel, HifiGanModel
 
 
 class TestTTSPipeline(unittest.TestCase):
@@ -100,8 +99,9 @@ class TestTTSPipeline(unittest.TestCase):
         input_text = "Hello world"
         speaker = 1
         pitch = 0.1
+        pace = 1.5
 
-        audio = self.tts_pipeline.text_to_speech(text=input_text, speaker=speaker, pitch=pitch)
+        audio = self.tts_pipeline.text_to_speech(text=input_text, speaker=speaker, pitch=pitch, pace=pace)
 
         assert len(audio.shape) == 1
         assert audio.shape[0] > len(input_text)

@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
-import pytest
 import unittest
 
+import pytest
 import torch
 
 from nemo.collections.tts.inference.vocoders import HifiGanVocoder
