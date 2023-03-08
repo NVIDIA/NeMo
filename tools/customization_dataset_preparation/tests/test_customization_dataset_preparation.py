@@ -325,7 +325,6 @@ def test_get_prepared_filename():
     assert get_prepared_filename(csv_filename) == prepared_filename
 
 
-
 def test_split_into_train_validation():
     df = pd.DataFrame({'prompt': ['a'] * 10, 'completion': ['b'] * 10})
     df_train, df_val = split_into_train_validation(df, val_proportion=0.1)
