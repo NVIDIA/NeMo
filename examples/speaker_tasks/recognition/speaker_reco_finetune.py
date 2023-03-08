@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
@@ -21,7 +23,6 @@ from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-import os
 
 seed_everything(42)
 
@@ -35,7 +36,7 @@ def main(cfg):
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     speaker_model.maybe_init_from_pretrained_checkpoint(cfg)
 
-        # save labels to file
+    # save labels to file
     if log_dir is not None:
         with open(os.path.join(log_dir, 'labels.txt'), 'w') as f:
             if speaker_model.labels is not None:
