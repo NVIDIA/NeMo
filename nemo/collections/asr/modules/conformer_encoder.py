@@ -140,7 +140,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
                 window_size = chunk_size + pre_encode_cache_size
             input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
-            input_example_length = torch.full((max_batch,), window_size, device=dev, dtype=torch.int64)
+            input_example_length = torch.randint(
+                window_size // 4, window_size, (max_batch,), device=dev, dtype=torch.int64
+            )
             cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
                 batch_size=max_batch, device=dev, max_dim=max_dim
             )
@@ -161,8 +163,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
             }
         )
@@ -174,8 +176,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel_next": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time_next": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
             }
         )
@@ -460,9 +462,38 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
         )
-        if cache_last_channel is not None:
-            rets = (rets[0], rets[1], rets[2].transpose(0, 1), rets[3].transpose(0, 1), rets[4])
-        return rets
+        (
+            encoded,
+            encoded_len,
+            cache_last_channel_next,
+            cache_last_time_next,
+            cache_last_channel_next_len,
+        ) = self.streaming_post_process(rets, keep_all_outputs=False)
+        return (
+            encoded,
+            encoded_len,
+            cache_last_channel_next.transpose(0, 1),
+            cache_last_time_next.transpose(0, 1),
+            cache_last_channel_next_len,
+        )
+
+    def streaming_post_process(self, rets, keep_all_outputs=True):
+        if len(rets) == 2:
+            return rets
+
+        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len) = rets
+
+        if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
+            if self.streaming_cfg.last_channel_cache_size > 0:
+                cache_last_channel_next = cache_last_channel_next[
+                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
+                ]
+
+        if self.streaming_cfg.valid_out_len > 0 and (not keep_all_outputs or self.att_context_style == "regular"):
+            encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
+
+        return (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len)
 
     @typecheck()
     def forward(
@@ -588,6 +619,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
+        length = length.to(dtype=torch.int64)
 
         if cache_last_channel is not None:
             return (
@@ -744,8 +776,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         last_time_cache_size = self.conv_context_size[0]
         cache_last_channel = create_tensor(
             (
-                batch_size,
                 self.streaming_cfg.last_channel_num,
+                batch_size,
                 self.streaming_cfg.last_channel_cache_size,
                 self.d_model,
             ),
@@ -753,7 +785,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             dtype=dtype,
         )
         cache_last_time = create_tensor(
-            (batch_size, self.streaming_cfg.last_time_num, self.d_model, last_time_cache_size),
+            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size),
             device=device,
             dtype=dtype,
         )
@@ -766,13 +798,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 dtype=torch.int64,
             )
             for i in range(batch_size):
-                cache_last_channel[i, cache_last_channel_len[i] :] = 0
+                cache_last_channel[:, i, cache_last_channel_len[i] :, :] = 0
                 # what is the right rule to zero out cache_last_time?
                 if cache_last_channel_len[i] == 0:
-                    cache_last_time[i, :, :, :] = 0
+                    cache_last_time[:, i, :, :] = 0
         else:
             cache_last_channel_len = torch.zeros(batch_size, device=device, dtype=torch.int64)
-        # print (cache_last_channel.size(), cache_last_time.size())
         return cache_last_channel, cache_last_time, cache_last_channel_len
 
     def change_attention_model(

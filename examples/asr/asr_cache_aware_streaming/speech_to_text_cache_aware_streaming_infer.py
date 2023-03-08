@@ -100,15 +100,17 @@ def extract_transcriptions(hyps):
     return transcriptions
 
 
-def calc_drop_extra_pre_encoded(asr_model, step_num):
+def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
     # for the first step there is no need to drop any tokens after the downsampling as no caching is being used
-    if step_num == 0:
+    if step_num == 0 and not pad_and_drop_preencoded:
         return 0
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
 
-def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
+def perform_streaming(
+    asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
+):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
@@ -160,8 +162,12 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                         cache_last_channel=cache_last_channel,
                         cache_last_time=cache_last_time,
                         cache_last_channel_len=cache_last_channel_len,
+                        keep_all_outputs=streaming_buffer.is_buffer_empty(),
                         previous_hypotheses=previous_hypotheses,
                         previous_pred_out=pred_out_stream,
+                        drop_extra_pre_encoded=calc_drop_extra_pre_encoded(
+                            asr_model, step_num, pad_and_drop_preencoded
+                        ),
                         return_transcription=True,
                     )
 
@@ -245,6 +251,9 @@ def main():
     parser.add_argument(
         "--output_path", type=str, help="path to output file when manifest is used as input", default=None
     )
+    parser.add_argument(
+        "--pad-and-drop-preencoded", action="store_true", help="pad first audio chunk and always drop preencoded"
+    )
 
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
@@ -314,14 +323,21 @@ def main():
     else:
         online_normalization = False
 
-    streaming_buffer = CacheAwareStreamingAudioBuffer(model=asr_model, online_normalization=online_normalization)
+    streaming_buffer = CacheAwareStreamingAudioBuffer(
+        model=asr_model,
+        online_normalization=online_normalization,
+        pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+    )
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
         )
         perform_streaming(
-            asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
+            asr_model=asr_model,
+            streaming_buffer=streaming_buffer,
+            compare_vs_offline=args.compare_vs_offline,
+            pad_and_drop_preencoded=args.pad_and_drop_preencoded,
         )
     else:
         # stream audio files in a manifest file in batched mode
@@ -353,6 +369,7 @@ def main():
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
+                    pad_and_drop_preencoded=args.pad_and_drop_preencoded,
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:

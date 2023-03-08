@@ -435,8 +435,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         cache_last_channel: torch.Tensor = None,
         cache_last_time: torch.Tensor = None,
         cache_last_channel_len: torch.Tensor = None,
+        keep_all_outputs: bool = True,
         previous_hypotheses: List[Hypothesis] = None,
         previous_pred_out: torch.Tensor = None,
+        drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
     ):
         """
@@ -446,10 +448,12 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             processed_signal: the input audio signals
             processed_signal_length: the length of the audios
             cache_last_channel: the cache tensor for last channel layers like MHA
+            cache_last_channel_len: engths for cache_last_channel
             cache_last_time: the cache tensor for last time layers like convolutions
-            cache_last_channel_len: lengths for cache_last_channel
+            keep_all_outputs: if set to True, would not drop the extra outputs specified by encoder.streaming_cfg.valid_out_len
             previous_hypotheses: the hypotheses from the previous step for RNNT models
             previous_pred_out: the predicted outputs from the previous step for CTC models
+            drop_extra_pre_encoded: number of steps to drop from the beginning of the outputs after the downsampling module. This can be used if extra paddings are added on the left side of the input.
             return_transcription: whether to decode and return the transcriptions. It can not get disabled for Transducer models.
 
         Returns:
@@ -457,7 +461,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             all_hyp_or_transcribed_texts: the decoder hypotheses for Transducer models and the transcriptions for CTC models
             cache_last_channel_next: the updated tensor cache for last channel layers to be used for next streaming step
             cache_last_time_next: the updated tensor cache for last time layers to be used for next streaming step
-            cache_last_channel_len: the updated lengths for cache_last_channel
+            cache_last_channel_next_len: the updated lengths for cache_last_channel
             best_hyp: the best hypotheses for the Transducer models
         """
         if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel):
@@ -476,13 +480,15 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             encoded_len,
             cache_last_channel_next,
             cache_last_time_next,
-            cache_last_channel_len,
-        ) = self.encoder.forward(
-            audio_signal=processed_signal,
-            length=processed_signal_length,
+            cache_last_channel_next_len,
+        ) = self.encoder.cache_aware_stream_step(
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
+            keep_all_outputs=keep_all_outputs,
+            drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 
         if isinstance(self, asr_models.EncDecCTCModel):
@@ -535,7 +541,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             all_hyp_or_transcribed_texts,
             cache_last_channel_next,
             cache_last_time_next,
-            cache_last_channel_len,
+            cache_last_channel_next_len,
             best_hyp,
         )
 
