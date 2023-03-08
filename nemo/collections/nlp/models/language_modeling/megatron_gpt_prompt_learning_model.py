@@ -189,29 +189,33 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.prompt_encoder = None
 
         # default inference related params -> for evaluation metrics
-        self.length_params: LengthParam = {
-            "max_length": 30,
-            "min_length": 0,
-        }
+        if hasattr(self.cfg, 'inference') and self.cfg.get("report_validation_metric", False):
+            self.length_params: LengthParam = {
+                "max_length": self.cfg.inference.get('tokens_to_generate', 30),
+                "min_length": self.cfg.inference.get('min_tokens_to_generate', 0),
+            }
 
-        self.sampling_params: SamplingParam = {
-            "use_greedy": True,
-            "temperature": 1.0,
-            "top_k": 0,
-            "top_p": 0.9,
-            "repetition_penalty": 1.2,
-            "add_BOS": True,
-            "all_probs": False,
-            "compute_logprob": False,
-        }
+            self.sampling_params: SamplingParam = {
+                "use_greedy": self.cfg.inference.get('greedy', False),
+                "temperature": self.cfg.inference.get('temperature', 1.0),
+                "top_k": self.cfg.inference.get('tok_k', 0),
+                "top_p": self.cfg.inference.get('top_p', 0.9),
+                "repetition_penalty": self.cfg.inference.get('repetition_penalty', 1.2),
+                "add_BOS": True,
+                "all_probs": False,
+                "compute_logprob": False,
+            }
+        elif self.cfg.get("report_validation_metric", False) and not hasattr(self.cfg, 'inference'):
+            raise ValueError("Must provide inference parameters for reporting validation metric!")
 
         # define validation metric
         if self.cfg.get('report_validation_metric', False):
-            if self.cfg.get('validation_metric', 'accuracy') == 'accuracy':
+            validation_metric = self.cfg.get('validation_metric', 'accuracy')
+            if validation_metric == 'accuracy':
                 self.validation_metric = AccuracyScore()
-            elif self.cfg.get('validation_metric', 'bleu') == 'bleu':
+            elif validation_metric == 'bleu':
                 self.validation_metric = BLEUScore()
-            elif self.cfg.get('validation_metric', 'rouge') == 'rouge':
+            elif validation_metric == 'rouge':
                 self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
@@ -390,12 +394,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
 
             for pred, label in zip(res['token_ids'], labels):
-                additional_special_tokens_ids = []
-                if hasattr(self.tokenizer.tokenizer, "additional_special_tokens_ids"):
-                    additional_special_tokens_ids = self.tokenizer.tokenizer.additional_special_tokens_ids
-
-                pred = [id for id in pred if id not in additional_special_tokens_ids]
-                label = [id for id in label if id not in additional_special_tokens_ids]
                 pred = self.tokenizer.ids_to_text(pred)
                 label = self.tokenizer.ids_to_text(label)
                 preds_text.append(pred)
@@ -473,9 +471,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 metric_name = list(val_metric_dict.items())[0][0]
             else:
                 val_metric = torch.tensor(0.0).cuda()
-                metric_name = 'Metric'
+                metric_name = ''
 
-            self.log(f'Validation {metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
+            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size

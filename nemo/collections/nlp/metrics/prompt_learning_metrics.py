@@ -13,13 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 import numpy as np
 import torch
 from rouge_score import rouge_scorer
 from sacrebleu import BLEU
 
 
-class AccuracyScore(object):
+class ValMetric(ABC):
+    @abstractmethod
+    def get_score(self, ground_truth, predicted_text):
+        pass
+
+class AccuracyScore(ValMetric):
     def get_score(self, ground_truth, predicted_text):
         corrects = 0
         for (pred, label) in zip(predicted_text, ground_truth):
@@ -27,11 +33,10 @@ class AccuracyScore(object):
                 corrects += 1
 
         val_acc = corrects / len(ground_truth)
-        val_acc = torch.tensor(val_acc).cuda()
-        return {'accuracy': torch.tensor(val_acc).cuda()}
+        return {'accuracy': torch.tensor(val_acc)}
 
 
-class BLEUScore(object):
+class BLEUScore(ValMetric):
     def __init__(self):
         self.scorer = BLEU()
 
@@ -39,13 +44,13 @@ class BLEUScore(object):
         return {
             'bleu_score': torch.tensor(
                 self.scorer.corpus_score(predicted_text, [[i] for i in ground_truth],).score
-            ).cuda()
+            )
         }
 
 
-class ROUGEScores(object):
-    def __init__(self, use_stemmer=True):
-        self.rscorers = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rouge3', 'rougeL'], use_stemmer=use_stemmer)
+class ROUGEScores(ValMetric):
+    def __init__(self):
+        self.rscorers = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rouge3', 'rougeL'], use_stemmer=True)
 
     def get_score(self, ground_truth, predicted_text):
         all_rouges = []
@@ -63,8 +68,8 @@ class ROUGEScores(object):
         all_rouges = np.mean(np.array(all_rouges), axis=0).tolist()
 
         return {
-            'rouge_1_score': torch.tensor(all_rouges[0]).cuda(),
-            'rouge_2_score': torch.tensor(all_rouges[1]).cuda(),
-            'rouge_3_score': torch.tensor(all_rouges[2]).cuda(),
-            'rouge_L_score': torch.tensor(all_rouges[3]).cuda(),
+            'rouge_1_score': torch.tensor(all_rouges[0]),
+            'rouge_2_score': torch.tensor(all_rouges[1]),
+            'rouge_3_score': torch.tensor(all_rouges[2]),
+            'rouge_L_score': torch.tensor(all_rouges[3]),
         }

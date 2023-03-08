@@ -22,7 +22,6 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
-from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -74,15 +73,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-
-        # define validation metric
-        if self.cfg.get('report_validation_metric', False):
-            if self.cfg.get('validation_metric', 'accuracy') == 'accuracy':
-                self.validation_metric = AccuracyScore()
-            elif self.cfg.get('validation_metric', 'bleu') == 'bleu':
-                self.validation_metric = BLEUScore()
-            elif self.cfg.get('validation_metric', 'rouge') == 'rouge':
-                self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -418,9 +408,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 metric_name = list(val_metric_dict.items())[0][0]
             else:
                 val_metric = torch.tensor(0.0).cuda()
-                metric_name = 'Metric'
+                metric_name = ''
 
-            self.log(f'Validation {metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
+            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
