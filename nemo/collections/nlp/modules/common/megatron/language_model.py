@@ -620,14 +620,14 @@ class TransformerLanguageModel(MegatronModule):
                 self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=sequence_parallel)
                 self._pooler_key = 'pooler'
 
-        if not self.share_embeddings_and_output_weights:
-            self.output_layer = tensor_parallel.ColumnParallelLinear(
-                self.hidden_size,
-                self.vocab_size,
-                bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
-                init_method=self.init_method,
-            )
-            self._output_layer_key = 'output_layer'
+            if not self.share_embeddings_and_output_weights:
+                self.output_layer = tensor_parallel.ColumnParallelLinear(
+                    self.hidden_size,
+                    self.vocab_size,
+                    bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                    init_method=self.init_method,
+                )
+                self._output_layer_key = 'output_layer'
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
