@@ -19,7 +19,6 @@ This script can be used after GIZA++ alignment to extract final alignments for e
 
 import re
 from argparse import ArgumentParser
-from typing import List, Tuple
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
     fill_alignment_matrix, check_monotonicity, get_targets, get_targets_from_back
 )
@@ -34,111 +33,6 @@ parser.add_argument(
 parser.add_argument('--out_filename', type=str, required=True, help='Output file')
 parser.add_argument('--lang', type=str, required=True, help="Language")
 args = parser.parse_args()
-
-
-def get_targets(matrix: np.ndarray, dsttokens: List[str], delimiter: str) -> List[str]:
-    """Join some of the destination tokens, so that their number becomes the same as the number of input words.
-    Unaligned tokens tend to join to the left aligned token.
-
-    Args:
-        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
-         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
-         words were aligned only in one direction, 0 - no alignment.
-        dsttokens: e.g. ["_2", "0", "1", "4_"]
-    Returns:
-        targets: list of string tokens, with one-to-one correspondence to matrix.shape[0]
-
-    Example:
-        If we get
-            matrix=[[3, 0, 0, 0]
-                    [0, 2, 2, 3]]
-            dsttokens=["_2", "0", "1", "4_"]
-        it gives
-            targets = ["_201", "4_"]
-        Actually, this is a mistake instead of ["_20", "14_"]. That will be further corrected by regular expressions.
-    """
-    targets = []
-    last_covered_dst_id = -1
-    for i in range(len(matrix)):
-        dstlist = []
-        for j in range(last_covered_dst_id + 1, len(dsttokens)):
-            # matrix[i][j] == 3: safe alignment point
-            if matrix[i][j] == 3 or (
-                j == last_covered_dst_id + 1
-                and np.all(matrix[i, :] == 0)  # if the whole line does not have safe points
-                and np.all(matrix[:, j] == 0)  # and the whole column does not have safe points, match them
-            ):
-                if len(targets) == 0:  # if this is first safe point, attach left unaligned columns to it, if any
-                    for k in range(0, j):
-                        if np.all(matrix[:, k] == 0):  # if column k does not have safe points
-                            dstlist.append(dsttokens[k])
-                        else:
-                            break
-                dstlist.append(dsttokens[j])
-                last_covered_dst_id = j
-                for k in range(j + 1, len(dsttokens)):
-                    if np.all(matrix[:, k] == 0):  # if column k does not have safe points
-                        dstlist.append(dsttokens[k])
-                        last_covered_dst_id = k
-                    else:
-                        break
-
-        if len(dstlist) > 0:
-            targets.append(delimiter.join(dstlist))
-        else:
-            targets.append("<DELETE>")
-    return targets
-
-
-def get_targets_from_back(matrix: np.ndarray, dsttokens: List[str], delimiter: str) -> List[str]:
-    """Join some of the destination tokens, so that their number becomes the same as the number of input words.
-    Unaligned tokens tend to join to the right aligned token.
-
-    Args:
-        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
-         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
-         words were aligned only in one direction, 0 - no alignment.
-        dsttokens: e.g. ["_2", "0", "1", "4_"]
-    Returns:
-        targets: list of string tokens, with one-to-one correspondence to matrix.shape[0]
-
-    Example:
-        If we get
-            matrix=[[3, 0, 0, 0]
-                    [0, 2, 2, 3]]
-            dsttokens=["_2", "0", "1", "4_"]
-        it gives
-            targets = ["_2", "014_"]
-        Actually, this is a mistake instead of ["_20", "14_"]. That will be further corrected by regular expressions.
-    """
-
-    targets = []
-    last_covered_dst_id = len(dsttokens)
-    for i in range(len(matrix) - 1, -1, -1):
-        dstlist = []
-        for j in range(last_covered_dst_id - 1, -1, -1):
-            if matrix[i][j] == 3 or (
-                j == last_covered_dst_id - 1 and np.all(matrix[i, :] == 0) and np.all(matrix[:, j] == 0)
-            ):
-                if len(targets) == 0:
-                    for k in range(len(dsttokens) - 1, j, -1):
-                        if np.all(matrix[:, k] == 0):
-                            dstlist.append(dsttokens[k])
-                        else:
-                            break
-                dstlist.append(dsttokens[j])
-                last_covered_dst_id = j
-                for k in range(j - 1, -1, -1):
-                    if np.all(matrix[:, k] == 0):
-                        dstlist.append(dsttokens[k])
-                        last_covered_dst_id = k
-                    else:
-                        break
-        if len(dstlist) > 0:
-            targets.append(delimiter.join(list(reversed(dstlist))))
-        else:
-            targets.append("<DELETE>")
-    return list(reversed(targets))
 
 
 def main() -> None:
