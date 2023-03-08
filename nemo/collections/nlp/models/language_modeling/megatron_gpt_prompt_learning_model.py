@@ -186,7 +186,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.prompt_encoder = None
 
     def first_stage_of_pipeline(self):
-        return self.frozen_model.model.pre_process
+        if self.megatron_amp_o2:
+            return self.frozen_model.model.module.pre_process
+        else:
+            return self.frozen_model.model.pre_process
 
     def forward(
         self,
