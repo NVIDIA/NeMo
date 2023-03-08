@@ -399,17 +399,19 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         )
 
     def _text_and_speech_collate_fn(self, batch):
+        import numpy
+        return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
         text_batches, speech_batches = [], []
         for i, b in enumerate(batch):
 
             if all([isinstance(b_i, tuple) for b_i in b]):
                 speech_batches.extend(b)
-            elif len(b) == 4:
-                speech_batches.append(b)
-            else:
+            elif len(b) == 5 and all([isinstance(b_i, numpy.ndarray) for b_i in b]):
                 text_batches.append(b)
+            else:
+                speech_batches.append(b)
 
-        speech = _speech_collate_fn(speech_batches, self.tokenizer.pad_id)
+        speech = _speech_collate_fn(speech_batches, self.tokenizer.pad_id, add_valid=return_is_valid)
         text = bitext_collate_fn(text_batches, self.encoder_tokenizer.pad_id, self.decoder_tokenizer.pad_id,)
         return speech, text
 
@@ -667,7 +669,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if batch is None:
             return 0, 0
 
-        return_is_valid = self._cfg.train_ds.get('return_is_valid', False)
+        return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
         if return_is_valid:
             signal, signal_len, transcript, transcript_len, valid = batch
             logging.info(f"----> num non-valid samples: {sum(valid == 0)}")
