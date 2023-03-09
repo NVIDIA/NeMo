@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nemo_containers:23.01_apex_c3d575f2478cd379b3c2d81f41edde39791b5d92'
+          image 'nvcr.io/nvidia/pytorch:23.02-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -57,13 +57,6 @@ pipeline {
       }
     }
 
-    // TODO: remove this when PTL updates their torchtext import logic
-    // stage('Remove torchtext from PTL Imports') {
-    //   steps {
-    //     sh "sed -i 's/_module_available(\"torchtext\")/False/g' /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
-    //     sh "cat /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py"
-    //   }
-    // }
 
     stage('PyTorch Lightning version') {
       steps {
