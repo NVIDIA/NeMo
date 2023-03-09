@@ -26,21 +26,18 @@ available_models = [model.pretrained_model_name for model in AlignerModel.list_a
 
 @pytest.fixture(params=available_models, ids=available_models)
 @pytest.mark.run_only_on('GPU')
-def pretrained_model(request):
+def pretrained_model(request, get_language_id_from_pretrained_model_name):
     model_name = request.param
+    language_id = get_language_id_from_pretrained_model_name(model_name)
     model = AlignerModel.from_pretrained(model_name=model_name)
-    return model, model_name
+    return model, language_id
 
 
 @pytest.mark.nightly
 @pytest.mark.run_only_on('GPU')
 def test_inference(pretrained_model, audio_text_pair_example_english):
-    model, model_name = pretrained_model
-    language_id = model_name.split("_")[1]
-    if language_id not in ["en", "de", "es", "zh"]:
-        pytest.fail(f"The name of model {model_name} does not follow the format, `tts_language_model_*`.")
-    else:
-        audio, audio_len, text_raw = audio_text_pair_example_english
+    model, _ = pretrained_model
+    audio, audio_len, text_raw = audio_text_pair_example_english
 
     # Generate mel-spectrogram
     spec, spec_len = model.preprocessor(input_signal=audio, length=audio_len)

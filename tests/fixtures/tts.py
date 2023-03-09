@@ -37,6 +37,26 @@ def language_specific_text_example():
 
 
 @pytest.fixture()
+def supported_languages(language_specific_text_example):
+    return sorted(language_specific_text_example.keys())
+
+
+@pytest.fixture()
+def get_language_id_from_pretrained_model_name(supported_languages):
+    def _validate(pretrained_model_name):
+        language_id = pretrained_model_name.split("_")[1]
+        if language_id not in supported_languages:
+            pytest.fail(
+                f"`PretrainedModelInfo.pretrained_model_name={pretrained_model_name}` does not follow the naming "
+                f"convention as `tts_languageID_model_*`, or `languageID` is not supported in {supported_languages}."
+            )
+        else:
+            return language_id
+
+    return _validate
+
+
+@pytest.fixture()
 def melSpec_example(set_device):
     # specify a value range of mel-spectrogram close to ones generated in practice. But we can also mock the values
     # by `torch.randn` for testing purpose.
