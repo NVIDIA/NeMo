@@ -39,6 +39,7 @@ def create_gen_function(port=5555):
         }
         sentences = text_generation(data, port=port)['sentences']
         return sentences[0]
+
     return get_generation
 
 
