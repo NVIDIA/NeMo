@@ -669,7 +669,7 @@ class TransformerLanguageModel(MegatronModule):
         # enc_attn_mask: [1, 1, s, s]
 
         if self.position_embedding_type == 'rope':
-            if not set_inference_key_value_memory and inference_max_sequence_len is not None:
+            if inference_max_sequence_len is not None:
                 rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
             elif self.encoder.input_tensor is not None:
                 rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
