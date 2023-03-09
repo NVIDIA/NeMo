@@ -34,6 +34,7 @@ class ConcatDataset(IterableDataset):
         sampling_temperature (int): Temperature value for sampling. Only used when sampling_technique = 'temperature'.
             Defaults to 5.
         sampling_probabilities (list): Probability values for sampling. Only used when sampling_technique = 'random'.
+        seed: Optional value to seed the numpy RNG.
         global_rank (int): Worker rank, used for partitioning map style datasets. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning map style datasets. Defaults to 1.
     """
@@ -45,6 +46,7 @@ class ConcatDataset(IterableDataset):
         sampling_technique: str = 'temperature',
         sampling_temperature: int = 5,
         sampling_probabilities: List[float] = None,
+        seed: Optional[int] = None,
         global_rank: int = 0,
         world_size: int = 1,
     ):
@@ -57,6 +59,7 @@ class ConcatDataset(IterableDataset):
         self.global_rank = global_rank
         self.world_size = world_size
         self.sampling_kwargs = {}
+        self.np_rng = np.random.RandomState(seed)
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
             self.sampling_kwargs['temperature'] = sampling_temperature
@@ -153,7 +156,7 @@ class ConcatDataset(IterableDataset):
         p = p / np.sum(p)
 
         while True:
-            ind = np.random.choice(np.arange(num), p=p)
+            ind = self.np_rng.choice(np.arange(num), p=p)
             yield ind
 
     @staticmethod
@@ -174,7 +177,7 @@ class ConcatDataset(IterableDataset):
             raise ValueError("Length of probabilities list must be equal to the number of datasets.")
 
         while True:
-            ind = np.random.choice(np.arange(num), p=p)
+            ind = self.np_rng.choice(np.arange(num), p=p)
             yield ind
 
 
