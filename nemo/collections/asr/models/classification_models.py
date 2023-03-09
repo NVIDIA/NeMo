@@ -250,9 +250,13 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             shuffle = False
             batch_size = config['batch_size']
             if hasattr(dataset, 'collate_fn'):
-                collate_func = dataset.collate_fn
+                collate_fn = dataset.collate_fn
+            elif hasattr(dataset.datasets[0], 'collate_fn'):
+                # support datasets that are lists of entries
+                collate_fn = dataset.datasets[0].collate_fn
             else:
-                collate_func = dataset.datasets[0].collate_fn
+                # support datasets that are lists of lists
+                collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
