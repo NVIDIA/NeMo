@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import contextlib
 from typing import List, Optional
 
@@ -18,7 +19,6 @@ import numpy as np
 import omegaconf
 import torch
 import transformers
-import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -55,6 +55,13 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 
 class MixerTTSModel(SpectrogramGenerator, Exportable):
@@ -560,42 +567,84 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         }
         self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
-        if batch_idx == 0 and self.current_epoch % 5 == 0 and isinstance(self.logger, WandbLogger):
-            specs = []
-            pitches = []
-            for i in range(min(3, spect.shape[0])):
-                specs += [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(spect[i, :, : spect_len[i]].data.cpu().numpy()),
-                        caption=f"gt mel {i}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(pred_spect.transpose(1, 2)[i, :, : spect_len[i]].data.cpu().numpy()),
-                        caption=f"pred mel {i}",
-                    ),
-                ]
+        for logger in self.loggers:
+            if batch_idx == 0 and self.current_epoch % 5 == 0:
+                if isinstance(logger, WandbLogger) and HAVE_WANDB:
+                    specs = []
+                    pitches = []
+                    for i in range(min(3, spect.shape[0])):
+                        specs += [
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(spect[i, :, : spect_len[i]].data.cpu().numpy()),
+                                caption=f"gt mel {i}",
+                            ),
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(
+                                    pred_spect.transpose(1, 2)[i, :, : spect_len[i]].data.cpu().numpy()
+                                ),
+                                caption=f"pred mel {i}",
+                            ),
+                        ]
 
-                pitches += [
-                    wandb.Image(
-                        plot_pitch_to_numpy(
+                        pitches += [
+                            wandb.Image(
+                                plot_pitch_to_numpy(
+                                    average_features(pitch.unsqueeze(1), attn_hard_dur)
+                                    .squeeze(1)[i, : text_len[i]]
+                                    .data.cpu()
+                                    .numpy(),
+                                    ylim_range=[-2.5, 2.5],
+                                ),
+                                caption=f"gt pitch {i}",
+                            ),
+                            wandb.Image(
+                                plot_pitch_to_numpy(
+                                    pred_pitch[i, : text_len[i]].data.cpu().numpy(), ylim_range=[-2.5, 2.5]
+                                ),
+                                caption=f"pred pitch {i}",
+                            ),
+                        ]
+
+                    logger.experiment.log({"specs": specs, "pitches": pitches})
+
+                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                    # Mels:
+                    logger.clearml_task.logger.report_image(
+                        image=plot_spectrogram_to_numpy(spect[i, :, : spect_len[i]].data.cpu().numpy()),
+                        series=f"gt mel {i}",
+                        title="mel",
+                        iteration=self.global_step,
+                    )
+                    logger.clearml_task.logger.report_image(
+                        image=plot_spectrogram_to_numpy(
+                            pred_spect.transpose(1, 2)[i, :, : spect_len[i]].data.cpu().numpy()
+                        ),
+                        series=f"pred mel {i}",
+                        title="mel",
+                        iteration=self.global_step,
+                    )
+
+                    # Pitch:
+                    logger.clearml_task.logger.report_image(
+                        image=plot_pitch_to_numpy(
                             average_features(pitch.unsqueeze(1), attn_hard_dur)
                             .squeeze(1)[i, : text_len[i]]
                             .data.cpu()
                             .numpy(),
                             ylim_range=[-2.5, 2.5],
                         ),
-                        caption=f"gt pitch {i}",
-                    ),
-                ]
-
-                pitches += [
-                    wandb.Image(
-                        plot_pitch_to_numpy(pred_pitch[i, : text_len[i]].data.cpu().numpy(), ylim_range=[-2.5, 2.5]),
-                        caption=f"pred pitch {i}",
-                    ),
-                ]
-
-            self.logger.experiment.log({"specs": specs, "pitches": pitches})
+                        series=f"gt pitch {i}",
+                        title="pitch",
+                        iteration=self.global_step,
+                    )
+                    logger.clearml_task.logger.report_image(
+                        image=plot_pitch_to_numpy(
+                            pred_pitch[i, : text_len[i]].data.cpu().numpy(), ylim_range=[-2.5, 2.5]
+                        ),
+                        series=f"pred pitch {i}",
+                        title="pitch",
+                        iteration=self.global_step,
+                    )
 
     @typecheck(
         input_types={

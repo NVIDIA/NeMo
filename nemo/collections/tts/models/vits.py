@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import contextlib
+import io
 
 import omegaconf
 import torch
@@ -41,6 +41,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators.experimental import experimental
+from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
 
 HAVE_WANDB = True
 try:
@@ -317,36 +318,73 @@ class VitsModel(TextToWaveform):
         audio_pred_mel, audio_pred_mel_len = self.audio_to_melspec_processor(audio_pred, audio_pred_len)
 
         # plot audio once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
-            logger = self.logger.experiment
+        for logger in self.loggers:
+            if batch_idx == 0:
+                if isinstance(logger, WandbLogger) and HAVE_WANDB:
+                    logger = self.logger.experiment
 
-            specs = []
-            audios = []
-            specs += [
-                wandb.Image(
-                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
-                    caption=f"val_mel_target",
-                ),
-                wandb.Image(
-                    plot_spectrogram_to_numpy(audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()),
-                    caption=f"val_mel_predicted",
-                ),
-            ]
+                    specs = []
+                    audios = []
+                    specs += [
+                        wandb.Image(
+                            plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
+                            caption=f"val_mel_target",
+                        ),
+                        wandb.Image(
+                            plot_spectrogram_to_numpy(
+                                audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()
+                            ),
+                            caption=f"val_mel_predicted",
+                        ),
+                    ]
 
-            audios += [
-                wandb.Audio(
-                    audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy(),
-                    caption=f"val_wav_target",
-                    sample_rate=self._cfg.sample_rate,
-                ),
-                wandb.Audio(
-                    audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy(),
-                    caption=f"val_wav_predicted",
-                    sample_rate=self._cfg.sample_rate,
-                ),
-            ]
+                    audios += [
+                        wandb.Audio(
+                            audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy(),
+                            caption=f"val_wav_target",
+                            sample_rate=self._cfg.sample_rate,
+                        ),
+                        wandb.Audio(
+                            audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy(),
+                            caption=f"val_wav_predicted",
+                            sample_rate=self._cfg.sample_rate,
+                        ),
+                    ]
 
-            logger.log({"specs": specs, "audios": audios})
+                    logger.log({"specs": specs, "audios": audios})
+
+                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                    # Audio:
+                    logger.clearml_task.logger.report_media(
+                        stream=io.BytesIO(audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy().tobytes()),
+                        title=f"val_wav_target",
+                        file_extension="wav",
+                        iteration=self.global_step,
+                    )
+                    logger.clearml_task.logger.report_media(
+                        stream=io.BytesIO(
+                            audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy().tobytes()
+                        ),
+                        title=f"val_wav_predicted",
+                        file_extension="wav",
+                        iteration=self.global_step,
+                    )
+
+                    # Mels:
+                    logger.clearml_task.logger.report_image(
+                        image=plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
+                        series=f"val_mel_target",
+                        title="mel",
+                        iteration=self.global_step,
+                    )
+                    logger.clearml_task.logger.report_image(
+                        image=plot_spectrogram_to_numpy(
+                            audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()
+                        ),
+                        series=f"val_mel_predicted",
+                        title="mel",
+                        iteration=self.global_step,
+                    )
 
     def _loader(self, cfg):
         try:

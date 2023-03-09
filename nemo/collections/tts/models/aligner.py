@@ -33,6 +33,7 @@ from nemo.collections.tts.parts.utils.helpers import (
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
+from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
 
 HAVE_WANDB = True
 try:
@@ -189,31 +190,60 @@ class AlignerModel(ModelPT):
         loss, forward_sum_loss, bin_loss, attn_hard = self._metrics(attn_soft, attn_logprob, spec_len, text_len)
 
         # plot once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
-            if attn_hard is None:
-                attn_hard = binarize_attention(attn_soft, text_len, spec_len)
+        for logger in self.loggers:
+            if batch_idx == 0:
+                if isinstance(self.logger, WandbLogger) and HAVE_WANDB:
+                    if attn_hard is None:
+                        attn_hard = binarize_attention(attn_soft, text_len, spec_len)
 
-            attn_matrices = []
-            for i in range(min(5, audio.shape[0])):
-                attn_matrices.append(
-                    wandb.Image(
-                        plot_alignment_to_numpy(
-                            np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
-                        ),
-                        caption=f"attn soft",
-                    ),
-                )
+                    attn_matrices = []
+                    for i in range(min(5, audio.shape[0])):
+                        attn_matrices.append(
+                            wandb.Image(
+                                plot_alignment_to_numpy(
+                                    np.fliplr(
+                                        np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy())
+                                    )
+                                ),
+                                caption=f"attn soft",
+                            ),
+                        )
 
-                attn_matrices.append(
-                    wandb.Image(
-                        plot_alignment_to_numpy(
-                            np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
-                        ),
-                        caption=f"attn hard",
-                    )
-                )
+                        attn_matrices.append(
+                            wandb.Image(
+                                plot_alignment_to_numpy(
+                                    np.fliplr(
+                                        np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy())
+                                    )
+                                ),
+                                caption=f"attn hard",
+                            )
+                        )
 
-            self.logger.experiment.log({"attn_matrices": attn_matrices})
+                    self.logger.experiment.log({"attn_matrices": attn_matrices})
+
+                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                    if attn_hard is None:
+                        attn_hard = binarize_attention(attn_soft, text_len, spec_len)
+
+                    # Attentions:
+                    for i in range(min(5, audio.shape[0])):
+                        logger.clearml_task.logger.report_image(
+                            image=plot_alignment_to_numpy(
+                                np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                            ),
+                            series=f"attn soft {i}",
+                            title="attn_matrices",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_image(
+                            image=plot_alignment_to_numpy(
+                                np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                            ),
+                            series=f"attn hard {i}",
+                            title="attn_matrices",
+                            iteration=self.global_step,
+                        )
 
         val_log = {
             'val_loss': loss,

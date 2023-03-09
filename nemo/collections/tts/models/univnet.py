@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
 from typing import Dict
 
@@ -32,6 +33,7 @@ from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
 
 HAVE_WANDB = True
 try:
@@ -240,50 +242,109 @@ class UnivNetModel(Vocoder, Exportable):
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
 
         # Plot audio once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
-            clips = []
-            specs = []
-            for i in range(min(5, audio.shape[0])):
-                clips += [
-                    wandb.Audio(
-                        audio[i, : audio_len[i]].data.cpu().numpy(),
-                        caption=f"real audio {i}",
-                        sample_rate=self.sample_rate,
-                    ),
-                    wandb.Audio(
-                        audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
-                        caption=f"generated audio {i}",
-                        sample_rate=self.sample_rate,
-                    ),
-                    wandb.Audio(
-                        pred_denoised[i, : audio_len[i]].data.cpu().numpy(),
-                        caption=f"denoised audio {i}",
-                        sample_rate=self.sample_rate,
-                    ),
-                ]
-                specs += [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"input mel {i}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"output mel {i}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"denoised mel {i}",
-                    ),
-                ]
-                if self.input_as_mel:
-                    specs += [
-                        wandb.Image(
-                            plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                            caption=f"gt mel {i}",
-                        ),
-                    ]
+        for logger in self.loggers:
+            if batch_idx == 0:
+                if isinstance(logger, WandbLogger) and HAVE_WANDB:
+                    clips = []
+                    specs = []
+                    for i in range(min(5, audio.shape[0])):
+                        clips += [
+                            wandb.Audio(
+                                audio[i, : audio_len[i]].data.cpu().numpy(),
+                                caption=f"real audio {i}",
+                                sample_rate=self.sample_rate,
+                            ),
+                            wandb.Audio(
+                                audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
+                                caption=f"generated audio {i}",
+                                sample_rate=self.sample_rate,
+                            ),
+                            wandb.Audio(
+                                pred_denoised[i, : audio_len[i]].data.cpu().numpy(),
+                                caption=f"denoised audio {i}",
+                                sample_rate=self.sample_rate,
+                            ),
+                        ]
+                        specs += [
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                                caption=f"input mel {i}",
+                            ),
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                                caption=f"output mel {i}",
+                            ),
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(
+                                    pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                                ),
+                                caption=f"denoised mel {i}",
+                            ),
+                        ]
+                        if self.input_as_mel:
+                            specs += [
+                                wandb.Image(
+                                    plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                                    caption=f"gt mel {i}",
+                                ),
+                            ]
 
-            self.logger.experiment.log({"audio": clips, "specs": specs})
+                    logger.experiment.log({"audio": clips, "specs": specs})
+
+                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                    for i in range(min(5, audio.shape[0])):
+                        # Audio:
+                        logger.clearml_task.logger.report_media(
+                            stream=io.BytesIO(audio[i, : audio_len[i]].data.cpu().numpy().tobytes()),
+                            title=f"real audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_media(
+                            stream=io.BytesIO(
+                                audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32').tobytes()
+                            ),
+                            title=f"generated audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_media(
+                            stream=io.BytesIO(pred_denoised[i, : audio_len[i]].data.cpu().numpy().tobytes()),
+                            title=f"denoised audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+
+                        # Mels:
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                            series=f"input mel {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(
+                                audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                            ),
+                            series=f"output mel {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(
+                                pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                            ),
+                            series=f"denoised mel {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+                        if self.input_as_mel:
+                            logger.clearml_task.logger.report_image(
+                                image=plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                                series=f"gt mel {i}",
+                                title="mel",
+                                iteration=self.global_step,
+                            )
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
