@@ -23,21 +23,23 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
 
-def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, port=5555):
-    data = {
-        "sentences": [prompt],
-        "tokens_to_generate": int(token_to_gen),
-        "temperature": temp,
-        "add_BOS": add_BOS,
-        "top_k": top_k,
-        "top_p": top_p,
-        "greedy": greedy,
-        "all_probs": False,
-        "repetition_penalty": repetition,
-        "min_tokens_to_generate": int(min_tokens),
-    }
-    sentences = text_generation(data, port=port)['sentences']
-    return sentences[0]
+def create_gen_function(port=5555):
+    def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition):
+        data = {
+            "sentences": [prompt],
+            "tokens_to_generate": int(token_to_gen),
+            "temperature": temp,
+            "add_BOS": add_BOS,
+            "top_k": top_k,
+            "top_p": top_p,
+            "greedy": greedy,
+            "all_probs": False,
+            "repetition_penalty": repetition,
+            "min_tokens_to_generate": int(min_tokens),
+        }
+        sentences = text_generation(data, port=port)['sentences']
+        return sentences[0]
+    return get_generation
 
 
 def get_demo(share, username, password, server_port=5555):
@@ -63,7 +65,7 @@ def get_demo(share, username, password, server_port=5555):
                 output_box = gr.Textbox(value="", label="Output")
                 btn = gr.Button(value="Submit")
                 btn.click(
-                    get_generation,
+                    create_gen_function(server_port),
                     inputs=[
                         input_prompt,
                         greedy_flag,
@@ -74,7 +76,6 @@ def get_demo(share, username, password, server_port=5555):
                         top_p,
                         top_k,
                         repetition_penality,
-                        server_port,
                     ],
                     outputs=[output_box],
                 )
