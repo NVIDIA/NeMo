@@ -19,7 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
@@ -47,6 +47,13 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 
 @dataclass
@@ -497,18 +504,49 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
-        if isinstance(self.logger, TensorBoardLogger):
-            self.tb_logger.add_image(
-                "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-            spec_predict = spec_predict[0].data.cpu().float().numpy()
-            self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-            )
-            self.log_train_images = True
+        for logger in self.loggers:
+            if isinstance(logger, TensorBoardLogger):
+                self.tb_logger.add_image(
+                    "val_mel_target",
+                    plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
+                    self.global_step,
+                    dataformats="HWC",
+                )
+                self.tb_logger.add_image(
+                    "val_mel_predicted",
+                    plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
+                    self.global_step,
+                    dataformats="HWC",
+                )
+                self.log_train_images = True
+
+            elif isinstance(logger, WandbLogger) and HAVE_WANDB:
+                specs = [
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
+                        caption=f"val_mel_target {self.global_step}",
+                    ),
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
+                        caption=f"val_mel_predicted {self.global_step}",
+                    ),
+                ]
+                logger.experiment.log({"specs": specs})
+
+            elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                # Mels:
+                logger.clearml_task.logger.report_image(
+                    image=plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
+                    series=f"val_mel_target",
+                    title="mel",
+                    iteration=self.global_step,
+                )
+                logger.clearml_task.logger.report_image(
+                    image=plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
+                    series=f"val_mel_predicted",
+                    title="mel",
+                    iteration=self.global_step,
+                )
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
