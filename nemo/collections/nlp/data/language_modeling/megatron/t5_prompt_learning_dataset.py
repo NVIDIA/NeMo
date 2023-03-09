@@ -152,9 +152,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
                 if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                     taskname_id = self.tokenizer.text_to_ids(taskname)
-
-                elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
-                    taskname_id = self.task_templates[taskname]["task_id_num"]
                 elif (
                     self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
                 ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
@@ -183,13 +180,12 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             # just remove that field from the template, leaving the space blank
             if field == answer_field or field not in doc.keys():
                 input_example = input_example.replace('{' + field + '}', "")
-                input_example = input_example.strip()
 
             else:
                 field_text = doc[field]
                 input_example = input_example.replace('{' + field + '}', field_text)
 
-        return input_example
+        return input_example.strip(" ")
 
     def collate_fn(self, batch):
         """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """

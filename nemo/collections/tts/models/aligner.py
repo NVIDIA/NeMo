@@ -23,8 +23,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
-from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.parts.utils.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
@@ -82,11 +82,13 @@ class AlignerModel(ModelPT):
                 )
 
             try:
+                import nemo_text_processing
+
                 self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             except Exception as e:
                 logging.error(e)
                 raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
 
             self.text_normalizer_call = self.normalizer.normalize
@@ -96,6 +98,13 @@ class AlignerModel(ModelPT):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
