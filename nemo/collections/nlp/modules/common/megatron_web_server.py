@@ -40,7 +40,7 @@ def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_
     return sentences[0]
 
 
-def get_demo(share, username, password):
+def get_demo(share, username, password, server_port=5555):
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
@@ -74,6 +74,7 @@ def get_demo(share, username, password):
                         top_p,
                         top_k,
                         repetition_penality,
+                        server_port,
                     ],
                     outputs=[output_box],
                 )

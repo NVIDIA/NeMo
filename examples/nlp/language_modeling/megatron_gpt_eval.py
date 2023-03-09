@@ -177,6 +177,7 @@ def main(cfg) -> None:
             pretrained_cfg.sequence_parallel = False
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
+            pretrained_cfg.precision = trainer.precision
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -256,7 +257,9 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
-                thread = threading.Thread(target=get_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password))
+                thread = threading.Thread(
+                    target=get_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port)
+                )
                 thread.start()
             server = MegatronServer(model.cuda())
             server.run("0.0.0.0", port=cfg.port)
