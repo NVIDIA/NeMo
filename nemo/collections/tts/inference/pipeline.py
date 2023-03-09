@@ -49,19 +49,19 @@ class TTSPipeline:
         Compute spectrogram for input audio array.
 
         Args:
-            audio: [T_audio]
+            audio: [T_audio] float array containing [-1, 1] audio samples.
 
         Returns:
-            [spec_dim, T_spec] numpy array with spectrogram features
+            [spec_dim, T_spec] float array with spectrogram features
         """
 
-        assert self.audio_preprocessor is not None
-        assert len(audio.shape) == 2
+        assert self.audio_processor is not None
+        assert len(audio.shape) == 1
 
         # [1, T_audio]
         audio_tensor = torch.tensor([audio], dtype=torch.float32)
         # [1]
-        audio_len_tensor = torch.tensor([audio.shape[1]], dtype=torch.int32)
+        audio_len_tensor = torch.tensor([audio.shape[0]], dtype=torch.int32)
 
         # [1, spec_dim, T_spec]
         spec_tensor, _ = self.audio_processor.compute_spectrogram(audio=audio_tensor, audio_len=audio_len_tensor)
@@ -101,7 +101,7 @@ class TTSPipeline:
             pace:  optional float speaking rate adjustment for synthesized utterance, default speed 1.0.
 
         Returns:
-            [T_audio] numpy array containing synthesized audio samples.
+            [T_audio] float array containing synthesized audio samples.
         """
 
         assert self.spectrogram_synthesizer is not None

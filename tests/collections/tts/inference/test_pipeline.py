@@ -15,11 +15,14 @@
 import os
 import unittest
 
+import numpy as np
 import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
+from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPATokenizer
 from nemo.collections.tts.g2p.modules import IPAG2P
+from nemo.collections.tts.inference.audio_processors import MelSpectrogramProcessor
 from nemo.collections.tts.inference.pipeline import TTSPipeline
 from nemo.collections.tts.inference.spectrogram_synthesizers import FastPitchSpectrogramSynthesizer
 from nemo.collections.tts.inference.text_processors import BaseTextProcessor, IPATextTokenizer
@@ -43,6 +46,21 @@ class TestTTSPipeline(unittest.TestCase):
         cls.ipa_text_tokenizer = IPATextTokenizer(tokenizer=ipa_tokenizer)
         cls.g2p = cls.ipa_text_tokenizer
 
+        cls.spec_dim = 80
+        audio_mel_processor = AudioToMelSpectrogramPreprocessor(
+            sample_rate=22050,
+            features=cls.spec_dim,
+            n_window_size=1024,
+            n_window_stride=256,
+            window_size=False,
+            window_stride=False,
+            n_fft=1024,
+            lowfreq=0,
+            highfreq=None,
+            pad_to=0,
+        )
+        cls.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
+
         fastpitch_model = FastPitchModel.from_pretrained("tts_en_fastpitch_multispeaker").eval().to("cpu")
         cls.spec_synthesizer = FastPitchSpectrogramSynthesizer(model=fastpitch_model)
 
@@ -53,6 +71,7 @@ class TestTTSPipeline(unittest.TestCase):
             text_processor=cls.text_processor,
             g2p=cls.ipa_text_tokenizer,
             text_tokenizer=cls.ipa_text_tokenizer,
+            audio_processor=cls.audio_processor,
             spectrogram_synthesizer=cls.spec_synthesizer,
             vocoder=cls.vocoder,
         )
@@ -105,3 +124,15 @@ class TestTTSPipeline(unittest.TestCase):
 
         assert len(audio.shape) == 1
         assert audio.shape[0] > len(input_text)
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_get_spectrogram(self):
+        audio_len = 10000
+        input_audio = np.random.uniform(size=[audio_len])
+        spec = self.tts_pipeline.get_spectrogram(audio=input_audio)
+
+        assert len(spec.shape) == 2
+        assert spec.shape[0] == self.spec_dim
+        assert spec.shape[1] < audio_len
