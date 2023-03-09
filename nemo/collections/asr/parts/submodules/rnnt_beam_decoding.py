@@ -1404,8 +1404,8 @@ class BeamRNNTInfer(Typing):
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
-            from scripts.asr_language_modeling.ngram_lm.train_kenlm import TOKEN_OFFSET
-            self.token_offset = TOKEN_OFFSET
+            from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
+            self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
 @dataclass

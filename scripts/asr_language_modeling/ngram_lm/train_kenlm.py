@@ -44,6 +44,7 @@ import kenlm_utils
 import torch
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
 """
@@ -52,7 +53,7 @@ use a trick to encode the sub-word tokens of the training data as unicode charac
 TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
 the required memory significantly, and the LM and its binary blob format require less storage space.
 """
-TOKEN_OFFSET = 100
+TOKEN_OFFSET = DEFAULT_TOKEN_OFFSET
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
