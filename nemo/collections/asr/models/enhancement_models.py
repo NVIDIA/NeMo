@@ -210,7 +210,6 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
-
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
