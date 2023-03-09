@@ -86,7 +86,7 @@ class StatsPoolLayer(nn.Module):
         return pooled
 
 
-@torch.jit.script_if_tracing
+#@torch.jit..script_if_tracing
 def make_seq_mask_like(
     like: torch.Tensor, lengths: torch.Tensor, valid_ones: bool = True, time_dim: int = -1
 ) -> torch.Tensor:

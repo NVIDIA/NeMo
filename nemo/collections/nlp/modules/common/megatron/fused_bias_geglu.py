@@ -25,13 +25,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-@torch.jit.script
+#@torch.jit..script
 def bias_geglu(bias, y, bias_2, y_2):
     x_2 = bias_2 + y_2
     return bias_gelu(bias, y) * x_2
 
 
-@torch.jit.script
+#@torch.jit..script
 def bias_geglu_back(g, bias, y, bias_2, y_2):
     x_2 = bias_2 + y_2
     return bias_gelu_back(g, bias, y) * x_2, bias_gelu(bias, y) * g

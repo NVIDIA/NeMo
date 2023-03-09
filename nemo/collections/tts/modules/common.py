@@ -32,7 +32,7 @@ from nemo.collections.tts.parts.utils.splines import (
 )
 
 
-@torch.jit.script
+#@torch.jit..script
 def fused_add_tanh_sigmoid_multiply(input_a, input_b):
     t_act = torch.tanh(input_a)
     s_act = torch.sigmoid(input_b)

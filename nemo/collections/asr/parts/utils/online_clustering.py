@@ -161,7 +161,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor, with_history
     return matched_output
 
 
-@torch.jit.script
+#@torch.jit..script
 def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count: int, num_clus: int) -> torch.Tensor:
     """
     Calculate removable counts based on the arguments and calculate how many counts should be
@@ -242,7 +242,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     return removable_counts_mat
 
 
-@torch.jit.script
+#@torch.jit..script
 def get_merge_quantity(
     num_to_be_removed: int, pre_clus_labels: torch.Tensor, min_count_per_cluster: int,
 ) -> torch.Tensor:
@@ -307,7 +307,7 @@ def get_merge_quantity(
     return removable_counts_mat
 
 
-@torch.jit.script
+#@torch.jit..script
 def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor):
     """
     Merge feature (embedding) vectors estimated to be the same cluster label.
@@ -349,7 +349,7 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
     return merged_vecs, merged_clus_labels
 
 
-@torch.jit.script
+#@torch.jit..script
 def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the indices of the embedding vectors we want to merge.
@@ -396,7 +396,7 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
     return idx_aff_sum, rest_inds
 
 
-@torch.jit.script
+#@torch.jit..script
 def run_reducer(
     pre_embs: torch.Tensor, target_spk_idx: int, merge_quantity: int, pre_clus_labels: torch.Tensor,
 ):
@@ -478,7 +478,7 @@ def run_reducer(
     return merged_embs, merged_clus_labels, index_mapping
 
 
-@torch.jit.script
+#@torch.jit..script
 def get_first_arg_index(mat: torch.Tensor, label: int) -> int:
     """
     Get the index of the first element are specified by `index` variable.

@@ -261,7 +261,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         return loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss
 
-    @torch.jit.unused
+    #@torch.jit..unused
     def run_aligner(self, text, text_len, text_mask, spect, spect_len, attn_prior):
         text_emb = self.symbol_emb(text)
         attn_soft, attn_logprob = self.aligner(

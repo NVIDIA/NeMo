@@ -708,7 +708,7 @@ def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
     return tensor * mask
 
 
-@torch.jit.script
+#@torch.jit..script
 def batch_from_ragged(
     text: torch.Tensor,
     pitch: torch.Tensor,

@@ -49,7 +49,7 @@ __all__ = [
 ]
 
 
-@torch.jit.script
+#@torch.jit..script
 def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, keep_size: torch.Tensor, cache_id: int):
     # Current ONNX does not support a Tensor with a dimension of zero
     # Needed to use Torch script to skip this part when this case happens

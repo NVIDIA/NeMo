@@ -127,7 +127,7 @@ def splice_frames(x, frame_splicing):
     return torch.cat(seq, dim=1)
 
 
-@torch.jit.script_if_tracing
+#@torch.jit..script_if_tracing
 def make_seq_mask_like(
     lengths: torch.Tensor, like: torch.Tensor, time_dim: int = -1, valid_ones: bool = True
 ) -> torch.Tensor:

@@ -165,7 +165,7 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
     return (left_context, right_context)
 
 
-@torch.jit.script
+#@torch.jit..script
 def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch.Tensor):
     """
     Calculates the masked average over padded limited context segment during inference mode.
@@ -194,7 +194,7 @@ def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch
     return y
 
 
-@torch.jit.script
+#@torch.jit..script
 def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch.Tensor):
     """
     Calculates the masked average over padded limited context segment during training mode.
@@ -224,7 +224,7 @@ def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch
     return y
 
 
-@torch.jit.script
+#@torch.jit..script
 def _masked_conv_init_lens(lens: torch.Tensor, current_maxlen: int, original_maxlen: torch.Tensor):
     if current_maxlen > original_maxlen:
         new_lens = torch.arange(current_maxlen)

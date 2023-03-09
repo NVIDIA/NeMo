@@ -32,7 +32,7 @@ from nemo.core.neural_types.elements import Index, LengthsType, MelSpectrogramTy
 from nemo.core.neural_types.neural_type import NeuralType
 
 
-@torch.jit.script
+#@torch.jit..script
 def pad_dur(dur, txt_enc):
     if dur.shape[-1] < txt_enc.shape[-1]:
         to_pad = txt_enc.shape[-1] - dur.shape[-1]
@@ -40,7 +40,7 @@ def pad_dur(dur, txt_enc):
     return dur
 
 
-@torch.jit.script
+#@torch.jit..script
 def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
     to_pad = int(max_out_len - energy_avg.shape[1])
     if to_pad > 0:

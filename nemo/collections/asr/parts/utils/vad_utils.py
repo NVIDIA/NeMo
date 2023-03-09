@@ -301,7 +301,7 @@ def generate_overlap_vad_seq_per_file_star(args):
     return generate_overlap_vad_seq_per_file(*args)
 
 
-@torch.jit.script
+#@torch.jit..script
 def generate_overlap_vad_seq_per_tensor(
     frame: torch.Tensor, per_args: Dict[str, float], smoothing_method: str
 ) -> torch.Tensor:
@@ -397,7 +397,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: dict) -> st
     return overlap_filepath
 
 
-@torch.jit.script
+#@torch.jit..script
 def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
     """
     Merged the given overlapped segments.
@@ -421,7 +421,7 @@ def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
     return merged
 
 
-@torch.jit.script
+#@torch.jit..script
 def filter_short_segments(segments: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Remove segments which duration is smaller than a threshold.
@@ -462,7 +462,7 @@ def cal_vad_onset_offset(
     return float(onset), float(offset)
 
 
-@torch.jit.script
+#@torch.jit..script
 def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
     """
     Binarize predictions to speech and non-speech
@@ -527,7 +527,7 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
     return speech_segments
 
 
-@torch.jit.script
+#@torch.jit..script
 def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: torch.Tensor) -> torch.Tensor:
     """
     Remove speech segments list in to_be_removed_segments from original_segments.
@@ -541,7 +541,7 @@ def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: tor
     return original_segments
 
 
-@torch.jit.script
+#@torch.jit..script
 def get_gap_segments(segments: torch.Tensor) -> torch.Tensor:
     """
     Get the gap segments. 
@@ -552,7 +552,7 @@ def get_gap_segments(segments: torch.Tensor) -> torch.Tensor:
     return torch.column_stack((segments[:-1, 1], segments[1:, 0]))
 
 
-@torch.jit.script
+#@torch.jit..script
 def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
 
     """
@@ -640,7 +640,7 @@ def prepare_gen_segment_table(sequence: torch.Tensor, per_args: dict) -> Tuple[s
     return out_dir, per_args_float
 
 
-@torch.jit.script
+#@torch.jit..script
 def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
     """
     See description in generate_overlap_vad_seq.
