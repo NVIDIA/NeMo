@@ -25,7 +25,6 @@ import librosa
 import numpy as np
 import torch
 from einops import rearrange
-from nemo_text_processing.g2p.data.data_utils import set_grapheme_case
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -35,6 +34,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
 )
+from nemo.collections.tts.parts.utils.g2p_utils import set_grapheme_case
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
