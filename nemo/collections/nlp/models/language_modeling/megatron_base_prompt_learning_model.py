@@ -252,16 +252,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             the token embedding for the LM model.
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
-        discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
-
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-
-        # If there are no virtual tokens, just return discrete token embeds
-        if not virtual_token_locations.any():
-            return discrete_token_embeds
+        input_embeds = self.word_embeddings(input_ids)
 
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             # taskname_embeddings = self.word_embeddings(taskname_ids)
@@ -270,21 +261,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError("invalid VirtualPromptSource.")
 
-        # Create index template specifying where virtual token embeddings should be placed
-        batch_size, _, embedding_size = discrete_token_embeds.shape
-        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(
-            batch_size, self.total_new_task_virtual_tokens, embedding_size
-        )
-
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
-        input_embeds = discrete_token_embeds
-
-        return input_embeds
+        return virtual_token_embeds, input_embeds
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training

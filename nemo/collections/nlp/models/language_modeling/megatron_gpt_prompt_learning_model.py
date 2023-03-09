@@ -206,7 +206,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
+            virtual_token_embeds, input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
             if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
                     position_ids
@@ -214,6 +214,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 encoder_input = input_embeds + position_embeddings
             else:
                 encoder_input = input_embeds
+            encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
