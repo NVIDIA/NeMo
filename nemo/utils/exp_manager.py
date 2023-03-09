@@ -954,7 +954,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             maybe_injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
         else:
             maybe_injected_best_model_path = self.best_model_path
-            
+
         if self.save_best_model:
             if not os.path.exists(maybe_injected_best_model_path):
                 return
