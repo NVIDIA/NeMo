@@ -1405,6 +1405,7 @@ class BeamRNNTInfer(Typing):
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
+
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 

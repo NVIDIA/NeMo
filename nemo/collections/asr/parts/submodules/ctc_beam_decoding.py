@@ -567,6 +567,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if self.decoding_type == 'subword':
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+
 @dataclass
 class PyCTCDecodeConfig:
     # These arguments cannot be imported from pyctcdecode (optional dependency)
