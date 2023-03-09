@@ -950,9 +950,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state.model_restore_path = os.path.abspath(
             os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
         )
-        injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            maybe_injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
+        else:
+            maybe_injected_best_model_path = self.best_model_path
+            
         if self.save_best_model:
-            if not os.path.exists(injected_best_model_path):
+            if not os.path.exists(maybe_injected_best_model_path):
                 return
 
             if self.best_model_path == self.previous_best_path:
@@ -960,7 +964,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             self.previous_model_path = self.best_model_path
             old_state_dict = deepcopy(pl_module.state_dict())
-            checkpoint = torch.load(injected_best_model_path, map_location='cpu')
+            checkpoint = torch.load(maybe_injected_best_model_path, map_location='cpu')
             if 'state_dict' in checkpoint:
                 checkpoint = checkpoint['state_dict']
             # get a new instanace of the model
