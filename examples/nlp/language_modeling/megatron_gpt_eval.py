@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 import threading
 
@@ -257,8 +258,11 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
+                loop = asyncio.new_event_loop()
                 thread = threading.Thread(
-                    target=get_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port)
+                    target=get_demo,
+                    daemon=True,
+                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
                 )
                 thread.start()
             server = MegatronServer(model.cuda())

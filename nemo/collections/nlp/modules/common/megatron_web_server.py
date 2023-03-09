@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import gradio as gr
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
@@ -39,10 +41,12 @@ def create_gen_function(port=5555):
         }
         sentences = text_generation(data, port=port)['sentences']
         return sentences[0]
+
     return get_generation
 
 
-def get_demo(share, username, password, server_port=5555):
+def get_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
+    asyncio.set_event_loop(loop)
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
@@ -79,7 +83,7 @@ def get_demo(share, username, password, server_port=5555):
                     ],
                     outputs=[output_box],
                 )
-    demo.launch(share=share, server_port=13570, server_name='0.0.0.0', auth=(username, password))
+    demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
 
 
 class RetroDemoWebApp:
