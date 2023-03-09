@@ -50,8 +50,7 @@ def get_language_id_from_pretrained_model_name(supported_languages):
                 f"`PretrainedModelInfo.pretrained_model_name={pretrained_model_name}` does not follow the naming "
                 f"convention as `tts_languageID_model_*`, or `languageID` is not supported in {supported_languages}."
             )
-        else:
-            return language_id
+        return language_id
 
     return _validate
 
