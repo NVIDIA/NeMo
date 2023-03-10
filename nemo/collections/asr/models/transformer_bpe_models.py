@@ -126,6 +126,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         )
         self.encoder_tokenizer, self.decoder_tokenizer = encoder_tokenizer, decoder_tokenizer
 
+        if not os.path.exists(cfg.tokenizer["dir"]) and cfg.tokenizer["dir"] == '/dev_data/tokenizers':
+            cfg.tokenizer["dir"] = '/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers'
+            cfg.tokenizer["model_path"] = "/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers/de_16k.yttm"
+
         # Setup the tokenizer
         self._setup_tokenizer(cfg.tokenizer)
 
@@ -153,9 +157,13 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.preprocessor = EncDecTransfModelBPE.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecTransfModelBPE.from_config_dict(self._cfg.encoder)
 
+        if self._is_model_being_restored():
+            self.speakers = None
+            self._cfg.tts_model.model_path = "/media/ebakhturina/DATA/nmt/DEPENDENCY/models/tts/FastPitch16k.nemo"
+        else:
+            with open(self._cfg.tts_model.speakers_path, "r") as f:
+                self.speakers = sorted(map(int, f.read().split()))
         self.tts_model = FastPitchModel.restore_from(self._cfg.tts_model.model_path, map_location="cpu").eval()
-        with open(self._cfg.tts_model.speakers_path, "r") as f:
-            self.speakers = sorted(map(int, f.read().split()))
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.ctc_decoder or (
@@ -669,7 +677,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if batch is None:
             return 0, 0
 
-        if "audio" not in self._cfg.train_ds:
+        if "audio" in self._cfg.train_ds:
             return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
         else:
             return_is_valid = self._cfg.train_ds.get('return_is_valid', False)

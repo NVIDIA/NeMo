@@ -67,13 +67,13 @@ def main(cfg):
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
-    # Initialize encoder with the weights from pre-trained ASR encoder
-    enc_weights = OrderedDict()
-    weights = torch.load("/train_data/models/asr/rnnt_bn_fast.ckpt")
-    for key in weights.keys():
-        if key[:7]=="encoder":
-            enc_weights[key[8:]]=weights[key]
-    asr_model.encoder.load_state_dict(enc_weights)
+    # # Initialize encoder with the weights from pre-trained ASR encoder
+    # enc_weights = OrderedDict()
+    # weights = torch.load("/train_data/models/asr/rnnt_bn_fast.ckpt")
+    # for key in weights.keys():
+    #     if key[:7]=="encoder":
+    #         enc_weights[key[8:]]=weights[key]
+    # asr_model.encoder.load_state_dict(enc_weights)
 
     trainer.fit(asr_model)
 
