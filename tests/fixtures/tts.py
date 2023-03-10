@@ -56,7 +56,7 @@ def get_language_id_from_pretrained_model_name(supported_languages):
 
 
 @pytest.fixture()
-def melSpec_example(set_device):
+def mel_spec_example(set_device):
     # specify a value range of mel-spectrogram close to ones generated in practice. But we can also mock the values
     # by `torch.randn` for testing purpose.
     min_val = -11.0

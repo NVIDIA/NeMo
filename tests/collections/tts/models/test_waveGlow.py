@@ -35,6 +35,6 @@ def pretrained_model(request, get_language_id_from_pretrained_model_name):
 
 @pytest.mark.nightly
 @pytest.mark.run_only_on('GPU')
-def test_inference(pretrained_model, melSpec_example):
+def test_inference(pretrained_model, mel_spec_example):
     model, _ = pretrained_model
-    _ = model.convert_spectrogram_to_audio(spec=melSpec_example)
+    _ = model.convert_spectrogram_to_audio(spec=mel_spec_example)
