@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import functools
-import json
 import os
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import torch

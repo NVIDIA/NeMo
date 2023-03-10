@@ -16,7 +16,8 @@ import json
 import os
 from collections import Counter
 from collections import OrderedDict as od
-from typing import Dict, List
+from typing import Dict, List, Union
+from pathlib import Path
 
 import librosa
 import numpy as np
@@ -362,16 +363,16 @@ def create_manifest(
     write_file(manifest_filepath, lines, range(len(lines)))
 
 
-def read_manifest(manifest: str) -> List[dict]:
+def read_manifest(manifest: Union[Path, str]) -> List[dict]:
     """
     Read manifest file
 
     Args:
-        manifest (str): Path to manifest file
+        manifest (str or Path): Path to manifest file
     Returns:
         data (list): List of JSON items
     """
-    manifest = DataStoreObject(manifest)
+    manifest = DataStoreObject(str(manifest))
 
     data = []
     try:
@@ -385,12 +386,12 @@ def read_manifest(manifest: str) -> List[dict]:
     return data
 
 
-def write_manifest(output_path: str, target_manifest: List[dict], ensure_ascii: bool = True):
+def write_manifest(output_path: Union[Path, str], target_manifest: List[dict], ensure_ascii: bool = True):
     """
     Write to manifest file
 
     Args:
-        output_path (str): Path to output manifest file
+        output_path (str or Path): Path to output manifest file
         target_manifest (list): List of manifest file entries
         ensure_ascii (bool): default is True, meaning the output is guaranteed to have all incoming non-ASCII characters escaped. If ensure_ascii is false, these characters will be output as-is.
     """

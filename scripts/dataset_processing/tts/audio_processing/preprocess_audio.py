@@ -115,8 +115,8 @@ def main(cfg):
     config = instantiate(cfg.config)
     logging.info(f"Running audio preprocessing with config: {config}")
 
-    input_manifest_path = str(config.input_manifest)
-    output_manifest_path = str(config.output_manifest)
+    input_manifest_path = config.input_manifest
+    output_manifest_path = config.output_manifest
     output_dir = Path(config.output_dir)
     num_workers = config.num_workers
     max_entries = config.max_entries

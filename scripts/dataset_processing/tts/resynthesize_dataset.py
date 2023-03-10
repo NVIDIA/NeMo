@@ -164,7 +164,7 @@ def prepare_paired_mel_spectrograms(
     model._cfg.train_ds = OmegaConf.merge(model._cfg.train_ds, DictConfig(dataset_config_overrides))
     resynthesizer = TTSDatasetResynthesizer(model, device)
 
-    input_manifest = read_manifest(str(input_json_manifest))
+    input_manifest = read_manifest(input_json_manifest)
 
     output_manifest = []
     output_json_manifest = output_folder / f"{input_json_manifest.stem}_mel{input_json_manifest.suffix}"
@@ -198,7 +198,7 @@ def prepare_paired_mel_spectrograms(
             }
             output_manifest.append(new_manifest_entry)
 
-    write_manifest(str(output_json_manifest), output_manifest, ensure_ascii=False)
+    write_manifest(output_json_manifest, output_manifest, ensure_ascii=False)
 
 
 def argument_parser() -> argparse.ArgumentParser:

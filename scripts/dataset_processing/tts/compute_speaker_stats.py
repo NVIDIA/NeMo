@@ -45,7 +45,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
     )
     parser.add_argument(
-        "--manifest_path", required=True, type=str, help="Path to training manifest.",
+        "--manifest_path", required=True, type=Path, help="Path to training manifest.",
     )
     parser.add_argument(
         "--sup_data_path", default=Path("sup_data"), type=Path, help="Path to base directory with supplementary data.",
