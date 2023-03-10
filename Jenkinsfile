@@ -3420,6 +3420,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
       failFast true
+      // updated this test to use distributed_fused_adam until fix in apex is merged for fused_adam
       parallel{
         stage('GPT Prompt Learning TP=1 PP=2') {
           steps {
@@ -3430,6 +3431,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_steps=1 \
                 trainer.val_check_interval=1 \
                 trainer.max_epochs=null \
+                model.optim.name=distributed_fused_adam \
                 model.data.num_workers=1 \
                 model.pipeline_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
