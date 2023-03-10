@@ -42,12 +42,14 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import io
 from enum import Enum
 from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
+import soundfile
 import torch
 from einops import rearrange
 from numba import jit, prange
@@ -275,6 +277,27 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
         complex_spec = magnitudes * phase
         signal = librosa.istft(complex_spec)
     return signal
+
+
+def tensor_to_wav(audio_tensor, sample_rate: int):
+    if type(audio_tensor) != np.ndarray:
+        audio_tensor = audio_tensor.data.cpu().numpy()
+    temp_file = io.BytesIO()
+    soundfile.write(
+        file=temp_file, samplerate=sample_rate, data=audio_tensor, format="wav",
+    )
+    return io.BytesIO(temp_file.getvalue())
+
+
+def mel_to_audio(
+    mel, sr=22050, n_fft=1024, n_mels=80, fmax=8000, griffin_lim_mag_scale=1024, griffin_lim_power=1.2,
+):
+    filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+    log_mel = mel.data.cpu().numpy().T
+    mel = np.exp(log_mel)
+    magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+    audio_pred = griffin_lim(magnitude.T ** griffin_lim_power)
+    return audio_pred / max(np.abs(audio_pred))
 
 
 @rank_zero_only

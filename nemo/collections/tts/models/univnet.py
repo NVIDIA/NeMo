@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import io
 import itertools
 from typing import Dict
 
@@ -26,7 +25,12 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Genera
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
+from nemo.collections.tts.parts.utils.helpers import (
+    get_batch_size,
+    get_num_workers,
+    plot_spectrogram_to_numpy,
+    tensor_to_wav,
+)
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
@@ -295,22 +299,23 @@ class UnivNetModel(Vocoder, Exportable):
                     for i in range(min(5, audio.shape[0])):
                         # Audio:
                         logger.clearml_task.logger.report_media(
-                            stream=io.BytesIO(audio[i, : audio_len[i]].data.cpu().numpy().tobytes()),
-                            title=f"real audio {i}",
+                            stream=tensor_to_wav(audio[i, : audio_len[i]], self.sample_rate),
+                            title="audio",
+                            series=f"real audio {i}",
                             file_extension="wav",
                             iteration=self.global_step,
                         )
                         logger.clearml_task.logger.report_media(
-                            stream=io.BytesIO(
-                                audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32').tobytes()
-                            ),
-                            title=f"generated audio {i}",
+                            stream=tensor_to_wav(audio_pred[i, 0, : audio_len[i]], self.sample_rate),
+                            title="audio",
+                            series=f"generated audio {i}",
                             file_extension="wav",
                             iteration=self.global_step,
                         )
                         logger.clearml_task.logger.report_media(
-                            stream=io.BytesIO(pred_denoised[i, : audio_len[i]].data.cpu().numpy().tobytes()),
-                            title=f"denoised audio {i}",
+                            stream=tensor_to_wav(pred_denoised[i, : audio_len[i]], self.sample_rate),
+                            title="audio",
+                            series=f"denoised audio {i}",
                             file_extension="wav",
                             iteration=self.global_step,
                         )

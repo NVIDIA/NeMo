@@ -33,6 +33,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     g2p_backward_compatible_support,
     plot_spectrogram_to_numpy,
     slice_segments,
+    tensor_to_wav,
 )
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -325,66 +326,69 @@ class VitsModel(TextToWaveform):
 
                     specs = []
                     audios = []
-                    specs += [
-                        wandb.Image(
-                            plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
-                            caption=f"val_mel_target",
-                        ),
-                        wandb.Image(
-                            plot_spectrogram_to_numpy(
-                                audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()
-                            ),
-                            caption=f"val_mel_predicted",
-                        ),
-                    ]
 
-                    audios += [
-                        wandb.Audio(
-                            audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy(),
-                            caption=f"val_wav_target",
-                            sample_rate=self._cfg.sample_rate,
-                        ),
-                        wandb.Audio(
-                            audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy(),
-                            caption=f"val_wav_predicted",
-                            sample_rate=self._cfg.sample_rate,
-                        ),
-                    ]
+                    for i in range(min(5, audio.shape[0])):
+                        specs += [
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].data.cpu().numpy()),
+                                caption=f"val_mel_target {i}",
+                            ),
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(
+                                    audio_pred_mel[i, :, : audio_pred_mel_len[i]].data.cpu().numpy()
+                                ),
+                                caption=f"val_mel_predicted {i}",
+                            ),
+                        ]
+
+                        audios += [
+                            wandb.Audio(
+                                audio[i, : audio_len[i]].data.cpu().to(torch.float).numpy(),
+                                caption=f"val_wav_target {i}",
+                                sample_rate=self._cfg.sample_rate,
+                            ),
+                            wandb.Audio(
+                                audio_pred[i, : audio_pred_len[i]].data.cpu().to(torch.float).numpy(),
+                                caption=f"val_wav_predicted {i}",
+                                sample_rate=self._cfg.sample_rate,
+                            ),
+                        ]
 
                     logger.log({"specs": specs, "audios": audios})
 
                 elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                    # Audio:
-                    logger.clearml_task.logger.report_media(
-                        stream=io.BytesIO(audio[0, : audio_len[0]].data.cpu().to(torch.float).numpy().tobytes()),
-                        title=f"val_wav_target",
-                        file_extension="wav",
-                        iteration=self.global_step,
-                    )
-                    logger.clearml_task.logger.report_media(
-                        stream=io.BytesIO(
-                            audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy().tobytes()
-                        ),
-                        title=f"val_wav_predicted",
-                        file_extension="wav",
-                        iteration=self.global_step,
-                    )
+                    for i in range(min(5, audio.shape[0])):
+                        # Audio:
+                        logger.clearml_task.logger.report_media(
+                            stream=tensor_to_wav(audio[i, : audio_len[i]], self._cfg.sample_rate),
+                            title="audio",
+                            series=f"val_wav_target {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_media(
+                            stream=tensor_to_wav(audio_pred[i, : audio_pred_len[i]], self._cfg.sample_rate),
+                            title="audio",
+                            series=f"val_wav_predicted {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
 
-                    # Mels:
-                    logger.clearml_task.logger.report_image(
-                        image=plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
-                        series=f"val_mel_target",
-                        title="mel",
-                        iteration=self.global_step,
-                    )
-                    logger.clearml_task.logger.report_image(
-                        image=plot_spectrogram_to_numpy(
-                            audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()
-                        ),
-                        series=f"val_mel_predicted",
-                        title="mel",
-                        iteration=self.global_step,
-                    )
+                        # Mels:
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].data.cpu().numpy()),
+                            series=f"val_mel_target {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(
+                                audio_pred_mel[i, :, : audio_pred_mel_len[i]].data.cpu().numpy()
+                            ),
+                            series=f"val_mel_predicted {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
 
     def _loader(self, cfg):
         try:
