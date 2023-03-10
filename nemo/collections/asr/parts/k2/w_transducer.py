@@ -23,7 +23,7 @@ from nemo.core.utils.k2_guard import k2
 from nemo.utils.enum import PrettyStrEnum
 
 
-class WRnntLoss(GraphRnntLoss):
+class GraphWRnntLoss(GraphRnntLoss):
     class LastBlankMode(PrettyStrEnum):
         ALLOW_IGNORE = "allow_ignore"
         FORCE_LAST = "force_last"

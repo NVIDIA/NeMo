@@ -54,6 +54,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     NUMBA_RNNT_AVAILABLE = False
 
+try:
+    from nemo.core.utils.k2_guard import k2
+
+    K2_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    K2_AVAILABLE = False
 
 WARP_RNNT_INSTALLATION_MESSAGE = (
     "Could not import `warprnnt_pytorch`.\n"
@@ -109,6 +115,8 @@ RNNT_LOSS_RESOLVER = {
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
     ),
+    "graph_wrnnt": RNNTLossConfig(loss_name="graph_wrnnt", lib_name="k2", is_available=K2_AVAILABLE,),
+    "graph_rnnt": RNNTLossConfig(loss_name="graph_rnnt", lib_name="k2", is_available=K2_AVAILABLE,),
 }
 
 RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
@@ -213,7 +221,14 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
             blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', sigma=sigma
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+    elif loss_name == "graph_rnnt":
+        from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss
 
+        loss_func = GraphRnntLoss(blank=blank_idx, **loss_kwargs)
+    elif loss_name == "graph_wrnnt":
+        from nemo.collections.asr.parts.k2.w_transducer import GraphWRnntLoss
+
+        loss_func = GraphWRnntLoss(blank=blank_idx, **loss_kwargs)
     else:
         raise ValueError(
             f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
