@@ -18,13 +18,14 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -46,6 +47,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -53,13 +55,13 @@ from nemo.utils import logging
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
         _forward_backward_pipelining_with_interleaving,
     )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -125,12 +127,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
 
-        if self.trainer.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.trainer.precision == 'bf16':
+        if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.trainer.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -138,6 +140,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # configuration used for inference
         self._inference_config = None
+
+        # Convert the global-batch-based profile index to micro-batch index
+        if hasattr(self, '_nsys_profile_enabled'):
+            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // mp_size
+            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
+            self._nsys_profile_start_step *= grad_accum_steps
+            self._nsys_profile_end_step *= grad_accum_steps
+
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', False)
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -165,6 +177,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+            attention_dropout=self.cfg.get('attention_dropout', 0.1),
+            ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
@@ -176,8 +190,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             normalization=self.cfg.get('normalization', 'layernorm'),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
+            bias=self.cfg.get('bias', True),
             bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+            activation=self.cfg.get('activation', 'gelu'),
+            headscale=self.cfg.get('headscale', False),
+            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
+            openai_gelu=self.cfg.get('openai_gelu', False),
+            normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
+            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+            rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
+            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+            attention_type=self.cfg.get('attention_type', 'multihead'),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
@@ -190,6 +214,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8_interval=self.cfg.get('fp8_interval', 1),
             fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
             fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
+            reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
         )
 
@@ -239,6 +264,38 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_greedy_grad_copy = not self.megatron_amp_o2
                     param._disable_overlap_grad_sync = True
 
+            # Initialize parameter buckets for overlapped grad and param syncs
+            # Note: Params with disabled overlapping are put in the
+            # last param bucket
+            buckets = []
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                # Initialize a bucket for each virtual pipeline stage
+                for module in self.model:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    stage_bucket = []
+                    for layer in module.language_model.encoder.layers:
+                        stage_bucket.extend(
+                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                        )
+                    buckets.append(stage_bucket)
+            else:
+                # Initialize a bucket for each Transformer layer
+                modules = self.model if isinstance(self.model, list) else [self.model]
+                for module in modules:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    for layer in module.language_model.encoder.layers:
+                        buckets.append(
+                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                        )
+            buckets.reverse()
+            used_params = set()
+            for bucket in buckets:
+                used_params.update(bucket)
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            self.distributed_adam_buckets = buckets
+
         return super().configure_optimizers()
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
@@ -256,28 +313,33 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fwd_bwd_function = forward_backward_no_pipelining
         return fwd_bwd_function
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, dataloader_iter, batch_idx):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            We pass the dataloader iterator function to the micro-batch scheduler.
+            The input batch to each micro-batch is fetched using the dataloader function
+            in the micro-batch fwd function.
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
-            # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = self.process_global_batch(batch)
-        else:
-            # The intermediate pipeline stages do not need any inputs from data loader
-            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
-            batch_for_pipeline = None
+        if self.with_distributed_adam:
+            # hack to enable overlapping param sync and forward compute
+            # note: the distributed optimizer monkey-patches each
+            # parameter's __getattribute__ function so that it can
+            # launch parameter all-gathers the first time the
+            # parameter is accessed after the optimizer step. However,
+            # PyTorch directly passes embedding parameters into a C++,
+            # bypassing this process. A quick-and-dirty hack is to
+            # manually interact with the parameter.
+            modules = self.model if isinstance(self.model, list) else [self.model]
+            for module in modules:
+                if isinstance(module, Float16Module):
+                    module = module.module
+                module = module.language_model
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
+                        param.data_ptr()
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
@@ -305,7 +367,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
+            batch=dataloader_iter,
             model=self.model,
             forward_only=False,
             tensor_shape=tensor_shape,
@@ -334,8 +396,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
@@ -346,7 +410,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
+            'share_embeddings_and_output_weights', True
+        ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
 
@@ -358,18 +424,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log(
+            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
+        )
+
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
+            batch_size=1,
         )
 
         return loss_mean
@@ -451,54 +521,78 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def get_forward_output_and_loss_func(self, validation_step=False):
-        def fwd_output_and_loss_func(batch, model, checkpoint_activations_all_layers=None):
+        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+            batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = [x.cuda(non_blocking=True) for x in batch]
-                tokens, labels, loss_mask, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
+                for k in batch.keys():
+                    if self.get_attention_mask_from_fusion:
+                        batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
+                    else:
+                        batch[k] = batch[k].cuda(non_blocking=True)
             else:
-                # GPT3 uses only causal mask, which doesn't need attention mask
                 if parallel_state.is_pipeline_first_stage():
-                    # Fist pipeline stage needs only the tokens and position_ids
-                    tokens = batch[0].cuda(non_blocking=True)
-                    position_ids = batch[4].cuda(non_blocking=True)
-                    labels, loss_mask, attention_mask = None, None, None
+                    # First pipeline stage needs tokens, position_ids, and attention_mask
+                    for k in batch.keys():
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['tokens', 'position_ids', 'attention_mask']
+                                else None
+                            )
                 elif parallel_state.is_pipeline_last_stage():
-                    # Last pipeline stage needs only the labels and loss_mask
-                    labels = batch[1].cuda(non_blocking=True)
-                    loss_mask = batch[2].cuda(non_blocking=True)
-                    tokens, attention_mask, position_ids = None, None, None
+                    # Last pipeline stage needs the labels, loss_mask, and attention_mask
+                    for k in batch.keys():
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['labels', 'loss_mask', 'attention_mask']
+                                else None
+                            )
                 else:
-                    # Intermediate pipeline stage doesn't need any inputs
-                    tokens, labels, loss_mask, attention_mask, position_ids = None, None, None, None, None
+                    # Intermediate pipeline stage only needs attention_mask
+                    if self.get_attention_mask_from_fusion:
+                        batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
+                    else:
+                        for k in batch.keys():
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['attention_mask'] else None
 
             output_tensor = model(
-                tokens,
-                position_ids,
-                attention_mask,
-                labels,
+                batch['tokens'],
+                batch['position_ids'],
+                batch['attention_mask'],
+                batch['labels'],
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
 
             def loss_func(output_tensor):
-                loss_for_mb = self.loss_func(loss_mask, output_tensor)
+                # Loss for a micro-batch (ub)
+                loss_for_ub = self.loss_func(batch['loss_mask'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_samples_in_mb = int(loss_mask.sum() / loss_mask.numel() * loss_mask.shape[0])
-                    loss_sum_for_mb = num_valid_samples_in_mb * loss_for_mb
-                    loss_sum_and_mb_size_all_gpu = torch.cat(
+                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                    if loss_for_ub.isnan():
+                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
+                    else:
+                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+
+                    loss_sum_and_ub_size_all_gpu = torch.cat(
                         [
-                            loss_sum_for_mb.clone().detach().view(1),
-                            torch.tensor([num_valid_samples_in_mb]).cuda().clone().detach(),
+                            loss_sum_for_ub.clone().detach().view(1),
+                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
                         ]
                     )
                     # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
                     torch.distributed.all_reduce(
-                        loss_sum_and_mb_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_mb, {'loss_sum_and_mb_size': loss_sum_and_mb_size_all_gpu}
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_mb])
-                    return loss_for_mb, {'avg': reduced_loss}
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -534,7 +628,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -542,7 +636,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
@@ -551,7 +644,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
-            batch=batch_for_pipeline,
+            batch=dataloader_iter,
             model=self.model,
             forward_only=True,
             tensor_shape=tensor_shape,
@@ -569,9 +662,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_mb_size']
+                    loss_sum['loss_sum_and_ub_size']
                     for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_mb_size'][1] > 0
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
                 ]
                 loss_sum = (
                     torch.vstack(loss_sum_tensors_list).sum(axis=0)
@@ -599,7 +692,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -614,18 +707,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
-
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        return [
-            global_batch["tokens"],
-            global_batch["labels"],
-            global_batch["loss_mask"],
-            global_batch["attention_mask"],
-            global_batch["position_ids"],
-        ]
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
@@ -678,26 +759,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingBatchSampler(
+                batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self.cfg.micro_batch_size,
-                    global_batch_size=self.cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
+                    global_batch_size=self.cfg.global_batch_size,
                     pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self.cfg.micro_batch_size,
-                    global_batch_size=self.cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
-                    pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             else:
                 raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
@@ -715,33 +794,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-
-        # log number of parameters
-        if isinstance(self.model, list):
-            num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
-            )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last virtual stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
-                num_parameters_on_device -= num_word_embedding_parameters
-        else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
-
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
-
-                num_parameters_on_device -= num_word_embedding_parameters
-
-        # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
-
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
+            self.model
+        )
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -773,10 +828,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-                self.model.sync_initial_word_embeddings()
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    self.model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
@@ -958,3 +1015,41 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
+
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler_cfg in scheduler_cfgs:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
+
+                    # Removing the line below because it messes up train_valid_test_num_samples calculation.
+                    # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None

@@ -11,10 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ##########################################################################
-
-
 import contextlib
 
 import torch
@@ -24,12 +20,23 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.parts.utils.helpers import (
+    batch_from_ragged,
+    plot_alignment_to_numpy,
+    regulate_len,
+    sample_tts_input,
+)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex
+from nemo.core.neural_types.elements import (
+    Index,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
@@ -78,6 +85,12 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
+        self.export_config = {
+            "emb_range": (0, self.model.embedding.num_embeddings),
+            "enable_volume": True,
+            "enable_ragged_batches": False,
+            "num_speakers": self.model_config.n_speakers,
+        }
         # print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
@@ -323,6 +336,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -360,7 +380,16 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                     'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
 
-            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            try:
+                import nemo_text_processing
+
+                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+                self.text_normalizer_call = self.normalizer.normalize
+            except Exception as e:
+                logging.error(e)
+                raise ImportError(
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
+                )
             self.text_normalizer_call = self.normalizer.normalize
             if "text_normalizer_call_kwargs" in cfg:
                 self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
@@ -395,13 +424,113 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             self._tb_logger = tb_logger
         return self._tb_logger
 
+    def load_state_dict(self, state_dict, strict=True):
+        # Override load_state_dict to be backward-compatible with old checkpoints
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            k = k.replace("projection_fn.weight", "projection_fn.conv.weight")
+            k = k.replace("projection_fn.bias", "projection_fn.conv.bias")
+            new_state_dict[k] = v
+        super().load_state_dict(new_state_dict, strict=strict)
+
+    # Methods for model exportability
     @property
-    def input_module(self):
-        return self.model
+    def input_types(self):
+        return self._input_types
 
     @property
-    def output_module(self):
-        return self.model
+    def output_types(self):
+        return self._output_types
 
-    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
-        return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
+    def _prepare_for_export(self, **kwargs):
+        self.model.remove_norms()
+        super()._prepare_for_export(**kwargs)
+
+        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
+
+        # Define input_types and output_types as required by export()
+        self._input_types = {
+            "text": NeuralType(tensor_shape, TokenIndex()),
+            "batch_lengths": NeuralType(('B')),
+            "speaker_id": NeuralType(('B'), Index()),
+            "speaker_id_text": NeuralType(('B'), Index()),
+            "speaker_id_attributes": NeuralType(('B'), Index()),
+            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
+            "pace": NeuralType(tensor_shape),
+        }
+        self._output_types = {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+        }
+        if self.export_config["enable_volume"]:
+            self._input_types["volume"] = NeuralType(tensor_shape, optional=True)
+            self._output_types["volume_aligned"] = NeuralType(('B', 'T_spec'), RegressionValuesType())
+
+    def input_example(self, max_batch=1, max_dim=400):
+        par = next(self.model.parameters())
+        inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
+        speaker = inputs.pop("speaker")
+        inp = inputs['text']
+        pad_id = self.tokenizer.pad
+        inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
+
+        inputs.update(
+            {'speaker_id': speaker, 'speaker_id_text': speaker, 'speaker_id_attributes': speaker,}
+        )
+        new_inputs = {
+            'text': inp,
+            'batch_lengths': inputs['batch_lengths'],
+            'speaker_id': speaker,
+            'speaker_id_text': speaker,
+            'speaker_id_attributes': speaker,
+            'pitch': inputs['pitch'],
+            'pace': inputs['pace'],
+            'volume': inputs['volume'],
+        }
+
+        return (new_inputs,)
+
+    def forward_for_export(
+        self, text, batch_lengths, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
+    ):
+        if self.export_config["enable_ragged_batches"]:
+            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
+                text, pitch, pace, batch_lengths=batch_lengths, padding_idx=self.tokenizer_pad, volume=volume,
+            )
+            if volume is not None:
+                volume = volume_tensor
+        else:
+            lens = batch_lengths.to(dtype=torch.int64)
+
+        (mel, n_frames, dur, _, _) = self.model.infer(
+            speaker_id,
+            text,
+            speaker_id_text=speaker_id_text,
+            speaker_id_attributes=speaker_id_attributes,
+            sigma=0.7,
+            sigma_txt=0.7,
+            sigma_f0=1.0,
+            sigma_energy=1.0,
+            f0_mean=0.0,
+            f0_std=0.0,
+            in_lens=lens,
+            pitch_shift=pitch,
+            pace=pace,
+        ).values()
+        ret_values = (mel.float(), n_frames, dur.float())
+
+        if volume is not None:
+            # Need to reshape as in infer patch
+            durs_predicted = dur.float()
+            truncated_length = torch.max(lens)
+            volume_extended, _ = regulate_len(
+                durs_predicted,
+                volume[:, :truncated_length].unsqueeze(-1),
+                pace[:, :truncated_length],
+                group_size=self.model.n_group_size,
+                dur_lens=lens,
+            )
+            volume_extended = volume_extended.squeeze(2).float()
+            ret_values = ret_values + (volume_extended,)
+        return ret_values

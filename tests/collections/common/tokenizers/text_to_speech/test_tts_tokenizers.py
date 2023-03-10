@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytest
-from nemo_text_processing.g2p.modules import IPAG2P
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
@@ -21,6 +20,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     IPATokenizer,
     SpanishCharsTokenizer,
 )
+from nemo.collections.tts.g2p.modules import IPAG2P
 
 
 class TestTTSTokenizers:
@@ -81,7 +81,7 @@ class TestTTSTokenizers:
     @pytest.mark.unit
     def test_german_chars_tokenizer(self):
         input_text = "Was ist dein Lieblingsgetränk?"
-        expected_output = "was ist dein lieblingsgetränk?"
+        expected_output = "Was ist dein Lieblingsgetränk?"
 
         tokenizer = GermanCharsTokenizer()
         chars, tokens = self._parse_text(tokenizer, input_text)

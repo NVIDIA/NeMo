@@ -242,7 +242,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._get_parameters()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
+        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -326,8 +326,9 @@ class MegatronBaseModel(NLPModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate grads since we are storing between microbatches
+            # Allocate contiguous buffers to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_param_buffer'] = True
 
             if self.megatron_amp_o2:
                 # Match param allgather with model dtype
@@ -398,12 +399,27 @@ class MegatronBaseModel(NLPModel):
         # Configure distributed optimizer
         if self.with_distributed_adam:
 
-            # Initialize params so that main grads are available
+            # Initialize param buckets if explicitly provided
+            if hasattr(self, 'distributed_adam_buckets'):
+                for bucket in self.distributed_adam_buckets:
+                    self._optimizer.init_params_bucket(bucket)
+                del self.distributed_adam_buckets
+
+            # Make sure all params are initialized so main grads are
+            # available
             # Note: Consolidate grads without overlap
-            self._optimizer.init_params(
-                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
-            )
-            self._optimizer.init_params(self.parameters())
+            overlap_params = []
+            no_overlap_params = []
+            for p in self.parameters():
+                if getattr(p, '_disable_overlap_grad_sync', False):
+                    no_overlap_params.append(p)
+                else:
+                    overlap_params.append(p)
+            self._optimizer.init_params(reversed(overlap_params))
+            self._optimizer.init_params(reversed(no_overlap_params))
+
+            # Initialize contiguous parameter buffer
+            self._optimizer.init_param_buffer()
 
         if self._scheduler is None:
             return self._optimizer
@@ -428,7 +444,7 @@ class MegatronBaseModel(NLPModel):
         return init_consumed_samples
 
     def _validate_and_override_config(self):
-        """ Certain configurations might be incompatible or discouraged. 
+        """ Certain configurations might be incompatible or discouraged.
             We can check for them here and override if necessary.
         """
         app_state = AppState()
@@ -484,3 +500,86 @@ class MegatronBaseModel(NLPModel):
                 return True
             else:
                 return False
+
+    def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
+        """Returns the total number of parameters across all model parallel groups."""
+        # log number of parameters
+        if isinstance(model, list):
+            num_parameters_on_device = sum(
+                [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
+            )
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and self.cfg.get('share_embeddings_and_output_weights', True)
+            ):
+                # substract the embedding weights on the last virtual stage
+                num_word_embedding_parameters = sum([p.nelement() for p in model[-1].word_embeddings_weight()])
+                num_parameters_on_device -= num_word_embedding_parameters
+        else:
+            num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and self.cfg.get('share_embeddings_and_output_weights', True)
+            ):
+                # substract the embedding weights on the last stage
+                num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
+                num_parameters_on_device -= num_word_embedding_parameters
+
+        # to be summed across data parallel group
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
+
+        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+
+        return num_parameters_on_device, total_num_parameters
+
+    def _get_total_params_across_model_parallel_groups_enc_dec(self, model):
+        """Returns the total number of parameters across all model parallel groups."""
+        # log number of parameters
+        # TODO: If/when we add interleaved model parallelism, we will need to add another if/else here.
+        num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
+
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.get_pipeline_model_parallel_rank() == self.cfg.get('pipeline_model_parallel_split_rank', 0)
+            or parallel_state.is_pipeline_last_stage()
+        ):
+            # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer), subtract those weights since it is already accounted for in the encoder first stage.
+            # TODO: If we support embedding untying with PP > 1, we will need to update this.
+            num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
+            num_parameters_on_device -= num_word_embedding_parameters
+
+            # Subtract decoder position embedding params that are shared with encoder.
+            if (
+                parallel_state.is_pipeline_stage_at_split()
+                and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+            ):
+                num_position_embedding_parameters = sum([p.nelement() for p in model.position_embeddings_weight()])
+                num_parameters_on_device -= num_position_embedding_parameters
+
+        # Check and remove RPE embeddings from the encoder that are replicated.
+        if (
+            parallel_state.get_pipeline_model_parallel_world_size() > 1
+            and parallel_state.is_pipeline_stage_before_split()
+            and not parallel_state.is_pipeline_first_stage()
+            and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "relative"
+        ):
+            # substract the RPE params on intermediate pipeline stages.
+            num_rpe_params = sum([p.nelement() for p in model.encoder_relative_position_embeddings_weight()])
+            num_parameters_on_device -= num_rpe_params
+
+        # Check and remove RPE embeddings from the decoder that are replicated.
+        if (
+            parallel_state.get_pipeline_model_parallel_world_size() > 1
+            and parallel_state.is_pipeline_stage_after_split()
+            and not parallel_state.is_pipeline_stage_at_split()
+            and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "relative"
+        ):
+            # substract the RPE params on intermediate pipeline stages.
+            num_rpe_params = sum([p.nelement() for p in model.decoder_relative_position_embeddings_weight()])
+            num_parameters_on_device -= num_rpe_params
+
+        # to be summed across data parallel group
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
+        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        return num_parameters_on_device, total_num_parameters

@@ -23,6 +23,8 @@ from shutil import rmtree
 
 import pytest
 
+from tests.fixtures.tts import *
+
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
 __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
@@ -56,13 +58,9 @@ def pytest_addoption(parser):
         "without cuda compatibility matrix check",
     )
     parser.addoption(
-        '--tn_cache_dir',
-        type=str,
-        default=None,
-        help="path to a directory with .far grammars for CPU TN/ITN tests, (DEFAULT: None, i.e. no cache)",
-    )
-    parser.addoption(
-        '--run_audio_based', action='store_true', help="pass this argument to run audio-based TN tests",
+        "--nightly",
+        action="store_true",
+        help="pass this argument to activate tests which have been marked as nightly for nightly quality assurance.",
     )
 
 
@@ -92,6 +90,15 @@ def downloads_weights(request, device):
 
 
 @pytest.fixture(autouse=True)
+def run_nightly_test_for_qa(request, device):
+    if request.node.get_closest_marker('nightly'):
+        if not request.config.getoption("--nightly"):
+            pytest.skip(
+                'To run this test, pass --nightly option. It will run any tests marked with "nightly". Currently, These tests are mostly used for QA.'
+            )
+
+
+@pytest.fixture(autouse=True)
 def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
     assert not Path("./lightning_logs").exists()
@@ -108,9 +115,12 @@ def cleanup_local_folder():
         rmtree('./nemo_experiments', ignore_errors=True)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_dir():
-    """ Fixture returns test_data_dir. """
+    """
+    Fixture returns test_data_dir.
+    Use the highest fixture scope `session` to allow other fixtures with any other scope to use it.
+    """
     # Test dir.
     test_data_dir_ = join(dirname(__file__), __TEST_DATA_SUBDIR)
     return test_data_dir_
@@ -158,6 +168,9 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "with_downloads: runs the test using data present in tests/.data",
+    )
+    config.addinivalue_line(
+        "markers", "nightly: runs the nightly test for QA.",
     )
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
@@ -228,9 +241,3 @@ def pytest_configure(config):
 
         print("Setting numba compat :", config.option.relax_numba_compat)
         numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)
-
-    # Set cache directory for TN/ITN tests
-    from .nemo_text_processing.utils import set_cache_dir, set_audio_based_tests
-
-    set_cache_dir(config.option.tn_cache_dir)
-    set_audio_based_tests(config.option.run_audio_based)

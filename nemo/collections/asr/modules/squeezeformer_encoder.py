@@ -14,25 +14,27 @@
 
 import math
 from collections import OrderedDict
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import torch
 import torch.distributed
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling, TimeReductionModule
+from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ['SqueezeformerEncoder']
 
 
-class SqueezeformerEncoder(NeuralModule, Exportable):
+class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
     """
     The encoder for ASR model of Squeezeformer.
     Based on this paper:
@@ -270,6 +272,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
+        # will be set in self.forward() if defined in AccessMixin config
+        self.interctc_capture_at_layers = None
+
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
@@ -358,6 +363,20 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
 
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
+            # saving tensors if required for interctc loss
+            if self.is_access_enabled():
+                if self.interctc_capture_at_layers is None:
+                    self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
+                if lth in self.interctc_capture_at_layers:
+                    lth_audio_signal = audio_signal
+                    if self.out_proj is not None:
+                        lth_audio_signal = self.out_proj(audio_signal)
+                    # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
+                    self.register_accessible_tensor(
+                        name=f'interctc/layer_output_{lth}', tensor=torch.transpose(lth_audio_signal, 1, 2)
+                    )
+                    self.register_accessible_tensor(name=f'interctc/layer_length_{lth}', tensor=length)
+
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
@@ -393,6 +412,7 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.add_adapter(name, cfg)
 
@@ -410,6 +430,24 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
 
         names = sorted(list(names))
         return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
+
+    def get_accepted_adapter_types(self,) -> Set[type]:
+        types = super().get_accepted_adapter_types()
+
+        if len(types) == 0:
+            self.set_accepted_adapter_types(
+                [
+                    adapter_utils.LINEAR_ADAPTER_CLASSPATH,
+                    adapter_utils.MHA_ADAPTER_CLASSPATH,
+                    adapter_utils.RELMHA_ADAPTER_CLASSPATH,
+                ]
+            )
+            types = self.get_accepted_adapter_types()
+        return types
 
 
 """

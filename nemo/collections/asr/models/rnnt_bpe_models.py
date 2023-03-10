@@ -14,7 +14,6 @@
 
 import copy
 import os
-from math import isclose
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -22,11 +21,11 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
@@ -240,6 +239,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_eo_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_eo_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_eo_conformer_transducer_large/versions/1.14.0/files/stt_eo_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -448,80 +454,25 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
-        else:
-            augmentor = None
+        dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
+            config=config,
+            local_rank=self.local_rank,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
+            tokenizer=self.tokenizer,
+            preprocessor_cfg=self.cfg.get("preprocessor", None),
+        )
+
+        if dataset is None:
+            return None
+
+        if isinstance(dataset, AudioToBPEDALIDataset):
+            # DALI Dataset implements dataloader interface
+            return dataset
 
         shuffle = config['shuffle']
-
-        is_concat = config.get('is_concat', False)
-        if is_concat:
-            if 'concat_sampling' in config and config['concat_sampling'] is None:
-                logging.warning(
-                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
-                )
-                return None
-
-            if not 'concat_probabilities' in config:
-                logging.warning(
-                    f"Concat dataset requires `contact_probabilities` list but it was not provided. Config: {config}"
-                )
-                return None
-            else:
-                if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
-                    logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
-                    return None
-
-        # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
-            ):
-                logging.warning(
-                    "Could not load dataset as `manifest_filepath` was None or "
-                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
-                )
-                return None
-
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-
-            if is_concat:
-                dataset = audio_to_text_dataset.get_concat_tarred_dataset(
-                    config=config,
-                    tokenizer=self.tokenizer,
-                    shuffle_n=shuffle_n,
-                    global_rank=self.global_rank,
-                    world_size=self.world_size,
-                    augmentor=augmentor,
-                )
-            else:
-                dataset = audio_to_text_dataset.get_tarred_dataset(
-                    config=config,
-                    tokenizer=self.tokenizer,
-                    shuffle_n=shuffle_n,
-                    global_rank=self.global_rank,
-                    world_size=self.world_size,
-                    augmentor=augmentor,
-                )
             shuffle = False
-        else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
-                return None
-
-            if is_concat:
-                dataset = audio_to_text_dataset.get_concat_bpe_dataset(
-                    config=config,
-                    tokenizer=self.tokenizer,
-                    global_rank=self.global_rank,
-                    world_size=self.world_size,
-                    augmentor=augmentor,
-                )
-            else:
-                dataset = audio_to_text_dataset.get_bpe_dataset(
-                    config=config, tokenizer=self.tokenizer, augmentor=augmentor
-                )
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -571,6 +522,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             'channel_selector': config.get('channel_selector', None),
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
+
+        if config.get("augmentor"):
+            dl_config['augmentor'] = config.get("augmentor")
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer

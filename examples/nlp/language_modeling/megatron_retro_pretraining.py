@@ -12,18 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+import os
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_config")
@@ -65,16 +72,24 @@ def main(cfg) -> None:
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-    # Override timer callback to a stateless one
-    for idx, callback in enumerate(trainer.callbacks):
-        if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-
-    model = MegatronRetrievalModel(cfg.model, trainer)
+    # load existing nemo retro model
+    if cfg.get("restore_from_path", None) is not None:
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.restore_from_path
+        model = MegatronRetrievalModel.restore_from(
+            restore_path=cfg.restore_from_path,
+            trainer=trainer,
+            override_config_path=cfg.model,
+            save_restore_connector=save_restore_connector,
+            strict=False,
+        )
+    else:
+        model = MegatronRetrievalModel(cfg.model, trainer)
 
     trainer.fit(model)
 

@@ -15,7 +15,7 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil, isclose
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -24,12 +24,11 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -39,7 +38,7 @@ from nemo.utils import logging
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -104,6 +103,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
+        # setting up interCTC loss (from InterCTCMixin)
+        self.setup_interctc()
+
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
 
@@ -116,8 +118,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
+        augmentor: DictConfig = None,
     ) -> List[str]:
         """
+        If modify this function, please remember update transcribe_partial_audio() in
+        nemo/collections/asr/parts/utils/trancribe_utils.py
+
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
@@ -131,7 +137,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
-
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
@@ -182,6 +188,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     'channel_selector': channel_selector,
                 }
 
+                if augmentor:
+                    config['augmentor'] = augmentor
+
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     logits, logits_len, greedy_predictions = self.forward(
@@ -204,13 +213,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                                 if current_hypotheses[idx].alignments is None:
                                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
-                        hypotheses += current_hypotheses
-
-                        # Keep following for beam search integration
-                        # if all_hyp is not None:
-                        #     all_hypotheses += all_hyp
-                        # else:
-                        #     all_hypotheses += current_hypotheses
+                        if all_hyp is None:
+                            hypotheses += current_hypotheses
+                        else:
+                            hypotheses += all_hyp
 
                     del greedy_predictions
                     del logits
@@ -330,85 +336,27 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
-        else:
-            augmentor = None
-
-        is_concat = config.get('is_concat', False)
-        if is_concat:
-            if 'concat_sampling' in config and config['concat_sampling'] is None:
-                logging.warning(
-                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
-                )
-                return None
-            if not 'concat_probabilities' in config:
-                logging.warning(
-                    f"Concat dataset requires `contact_probabilities` list but it was not provided. Config: {config}"
-                )
-                return None
-            else:
-                if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
-                    logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
-                    return None
-
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
+        dataset = audio_to_text_dataset.get_audio_to_text_char_dataset_from_config(
+            config=config,
+            local_rank=self.local_rank,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
+            preprocessor_cfg=self._cfg.get("preprocessor", None),
+        )
 
-        shuffle = config['shuffle']
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
-        if config.get('use_dali', False):
-            device_id = self.local_rank if device == 'gpu' else None
-            dataset = audio_to_text_dataset.get_dali_char_dataset(
-                config=config,
-                shuffle=shuffle,
-                device_id=device_id,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                preprocessor_cfg=self._cfg.preprocessor,
-            )
+        if dataset is None:
+            return None
+
+        if isinstance(dataset, AudioToCharDALIDataset):
+            # DALI Dataset implements dataloader interface
             return dataset
 
-        # Instantiate tarred dataset loader or normal dataset loader
+        shuffle = config['shuffle']
         if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
-            ):
-                logging.warning(
-                    "Could not load dataset as `manifest_filepath` was None or "
-                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
-                )
-                return None
-
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            if is_concat:
-                dataset = audio_to_text_dataset.get_concat_tarred_dataset(
-                    config=config,
-                    shuffle_n=shuffle_n,
-                    global_rank=self.global_rank,
-                    world_size=self.world_size,
-                    augmentor=augmentor,
-                )
-            else:
-                dataset = audio_to_text_dataset.get_tarred_dataset(
-                    config=config,
-                    shuffle_n=shuffle_n,
-                    global_rank=self.global_rank,
-                    world_size=self.world_size,
-                    augmentor=augmentor,
-                )
             shuffle = False
-        else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
-                return None
-            if is_concat:
-                dataset = audio_to_text_dataset.get_concat_char_dataset(
-                    config=config, global_rank=self.global_rank, world_size=self.world_size, augmentor=augmentor
-                )
-            else:
-                dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -574,11 +522,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+
         return (
             log_probs,
             encoded_len,
@@ -591,6 +540,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
+        if self.is_interctc_enabled():
+            AccessMixin.set_access_enabled(access_enabled=True)
+
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
@@ -599,27 +551,33 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            log_every_n_steps = self._trainer.log_every_n_steps
+        else:
+            log_every_n_steps = 1
+
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
         # Add auxiliary losses, if registered
         loss_value = self.add_auxiliary_losses(loss_value)
+        # only computing WER when requested in the logs (same as done for final-layer WER below)
+        loss_value, tensorboard_logs = self.add_interctc_losses(
+            loss_value, transcript, transcript_len, compute_wer=((batch_nb + 1) % log_every_n_steps == 0)
+        )
 
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
-        }
-
-        if hasattr(self, '_trainer') and self._trainer is not None:
-            log_every_n_steps = self._trainer.log_every_n_steps
-        else:
-            log_every_n_steps = 1
+        tensorboard_logs.update(
+            {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
+        )
 
         if (batch_nb + 1) % log_every_n_steps == 0:
             self._wer.update(
@@ -651,6 +609,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         return list(zip(sample_id, transcribed_texts))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        if self.is_interctc_enabled():
+            AccessMixin.set_access_enabled(access_enabled=True)
+
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
@@ -662,29 +623,38 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
+        loss_value, metrics = self.add_interctc_losses(
+            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
+        )
+
         self._wer.update(
             predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
+        metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
-        return {
-            'val_loss': loss_value,
-            'val_wer_num': wer_num,
-            'val_wer_denom': wer_denom,
-            'val_wer': wer,
-        }
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
+        return metrics
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        metrics = super().multi_validation_epoch_end(outputs, dataloader_idx)
+        self.finalize_interctc_metrics(metrics, outputs, prefix="val_")
+        return metrics
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        metrics = super().multi_test_epoch_end(outputs, dataloader_idx)
+        self.finalize_interctc_metrics(metrics, outputs, prefix="test_")
+        return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {
-            'test_loss': logs['val_loss'],
-            'test_wer_num': logs['val_wer_num'],
-            'test_wer_denom': logs['val_wer_denom'],
-            'test_wer': logs['val_wer'],
-        }
+        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
         return test_logs
 
     def test_dataloader(self):
@@ -727,6 +697,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             'pin_memory': True,
             'channel_selector': config.get('channel_selector', None),
         }
+        if config.get("augmentor"):
+            dl_config['augmentor'] = config.get("augmentor")
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer

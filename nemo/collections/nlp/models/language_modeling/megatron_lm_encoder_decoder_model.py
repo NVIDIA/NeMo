@@ -36,22 +36,22 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import ModelType
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.utils import (
-        get_num_microbatches,
         _reconfigure_microbatch_calculator,
         get_micro_batch_size,
+        get_num_microbatches,
     )
 
     HAVE_APEX = True
@@ -108,12 +108,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
 
-        if self.cfg.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        if self.cfg.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.cfg.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.cfg.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -369,8 +369,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             loss_mean = torch.tensor(0.0).cuda()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -686,7 +688,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return logits_tensor
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
@@ -909,7 +911,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_enc_dec(
+            self.enc_dec_model
+        )
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
+            f'Total number of model parameters: {total_num_parameters:.2e}\n'
+        )
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -936,8 +955,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
             if (
-                self.cfg.encoder.get('position_embedding_type') != 'relative'
-                and self.cfg.decoder.get('position_embedding_type') != 'relative'
+                self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+                and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
             ):
                 self.enc_dec_model.sync_initial_position_embeddings()
             # Synchronize RPE embeddings across pipeline parallel ranks.
@@ -1104,7 +1123,22 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+        sample_token_fn=sample_token_greedy,
+        predicted_tokens_dec=None,
     ):
+        """
+        tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
+        enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
+        num_tokens_to_generate - the max number of tokens to generate.
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
+        tokenizer - a tokenizer object.
+        enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
+        enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
+        ignore_ids - a list of token ids to ignore when sampling.
+        bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
+        sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
+        predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
+        """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1149,7 +1183,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
         # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
         bos_id = tokenizer.bos_id if bos_id is None else bos_id
-        predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # initial prompt can be given
+        if predicted_tokens_dec is None:
+            predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # collect log probs that were used in the sampling
+        predicted_log_probs = torch.zeros((global_batch_per_gpu, 0), dtype=self.autocast_dtype).to(device)
+
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
@@ -1202,21 +1241,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
-                        dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                        dim=-1, index=torch.tensor(ignore_ids, device=output_tensor.device), value=-float('Inf')
                     )
 
-                # TODO: do log_softmax in fp32?
-                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+                log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
+                # enforce valid range of token ids
+                token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
+                # collect all predicted tokens and log_probs
                 predicted_tokens_dec = torch.cat(
-                    [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
+                    [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
+                )
+                predicted_log_probs = torch.cat(
+                    [predicted_log_probs.to(log_probs.device), log_probs.unsqueeze(1)], dim=1
                 )
             else:
-                log_probs = torch.zeros(
-                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
-                ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
+                ).cuda()
+                predicted_log_probs = torch.zeros(
+                    (predicted_log_probs.shape[0], predicted_log_probs.shape[1] + 1), dtype=self.autocast_dtype
                 ).cuda()
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -1227,7 +1271,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
                 torch.distributed.broadcast(
-                    log_probs,
+                    predicted_log_probs,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
@@ -1240,7 +1284,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return predicted_tokens_dec, log_probs
+        return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """

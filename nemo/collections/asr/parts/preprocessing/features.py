@@ -95,6 +95,25 @@ def normalize_batch(x, seq_len, normalize_type):
         return x, x_mean, x_std
 
 
+def clean_spectrogram_batch(spectrogram: torch.Tensor, spectrogram_len: torch.Tensor, fill_value=0.0) -> torch.Tensor:
+    """
+    Fill spectrogram values outside the length with `fill_value`
+
+    Args:
+        spectrogram: Tensor with shape [B, C, L] containing batched spectrograms
+        spectrogram_len: Tensor with shape [B] containing the sequence length of each batch element
+        fill_value: value to fill with, 0.0 by default
+
+    Returns:
+        cleaned spectrogram, tensor with shape equal to `spectrogram`
+    """
+    device = spectrogram.device
+    batch_size, _, max_len = spectrogram.shape
+    mask = torch.arange(max_len, device=device)[None, :] >= spectrogram_len[:, None]
+    mask = mask.unsqueeze(1).expand_as(spectrogram)
+    return spectrogram.masked_fill(mask, fill_value)
+
+
 def splice_frames(x, frame_splicing):
     """ Stacks frames together across feature dim
 
@@ -290,7 +309,7 @@ class FilterbankFeatures(nn.Module):
             win_length=self.win_length,
             center=False if exact_pad else True,
             window=self.window.to(dtype=torch.float),
-            return_complex=False,
+            return_complex=True,
         )
 
         self.normalize = normalize
@@ -373,7 +392,7 @@ class FilterbankFeatures(nn.Module):
     def filter_banks(self):
         return self.fb
 
-    def forward(self, x, seq_len):
+    def forward(self, x, seq_len, linear_spec=False):
         seq_len = self.get_seq_len(seq_len.float())
 
         if self.stft_pad_amount is not None:
@@ -393,11 +412,10 @@ class FilterbankFeatures(nn.Module):
         with torch.cuda.amp.autocast(enabled=False):
             x = self.stft(x)
 
-        # torch returns real, imag; so convert to magnitude
+        # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude
         # guard is needed for sqrt if grads are passed through
         guard = 0 if not self.use_grads else CONSTANT
-        if x.dtype in [torch.cfloat, torch.cdouble]:
-            x = torch.view_as_real(x)
+        x = torch.view_as_real(x)
         x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         if self.training and self.nb_augmentation_prob > 0.0:
@@ -409,9 +427,12 @@ class FilterbankFeatures(nn.Module):
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
 
+        # return plain spectrogram if required
+        if linear_spec:
+            return x, seq_len
+
         # dot with filterbank energies
         x = torch.matmul(self.fb.to(x.dtype), x)
-
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
@@ -508,22 +529,22 @@ class FilterbankFeaturesTA(nn.Module):
         if window not in self.torch_windows:
             raise ValueError(f"Got window value '{window}' but expected a member of {self.torch_windows.keys()}")
 
-        self._win_length = n_window_size
-        self._hop_length = n_window_stride
+        self.win_length = n_window_size
+        self.hop_length = n_window_stride
         self._sample_rate = sample_rate
         self._normalize_strategy = normalize
         self._use_log = log
         self._preemphasis_value = preemph
-        self._log_zero_guard_type = log_zero_guard_type
-        self._log_zero_guard_value: Union[str, float] = log_zero_guard_value
-        self._dither_value = dither
-        self._pad_to = pad_to
-        self._pad_value = pad_value
-        self._num_fft = n_fft
+        self.log_zero_guard_type = log_zero_guard_type
+        self.log_zero_guard_value: Union[str, float] = log_zero_guard_value
+        self.dither = dither
+        self.pad_to = pad_to
+        self.pad_value = pad_value
+        self.n_fft = n_fft
         self._mel_spec_extractor: torchaudio.transforms.MelSpectrogram = torchaudio.transforms.MelSpectrogram(
             sample_rate=self._sample_rate,
-            win_length=self._win_length,
-            hop_length=self._hop_length,
+            win_length=self.win_length,
+            hop_length=self.hop_length,
             n_mels=nfilt,
             window_fn=self.torch_windows[window],
             mel_scale="slaney",
@@ -540,13 +561,13 @@ class FilterbankFeaturesTA(nn.Module):
         return self._mel_spec_extractor.mel_scale.fb
 
     def _resolve_log_zero_guard_value(self, dtype: torch.dtype) -> float:
-        if isinstance(self._log_zero_guard_value, float):
-            return self._log_zero_guard_value
-        return getattr(torch.finfo(dtype), self._log_zero_guard_value)
+        if isinstance(self.log_zero_guard_value, float):
+            return self.log_zero_guard_value
+        return getattr(torch.finfo(dtype), self.log_zero_guard_value)
 
     def _apply_dithering(self, signals: torch.Tensor) -> torch.Tensor:
-        if self.training and self._dither_value > 0.0:
-            noise = torch.randn_like(signals) * self._dither_value
+        if self.training and self.dither > 0.0:
+            noise = torch.randn_like(signals) * self.dither
             signals = signals + noise
         return signals
 
@@ -557,25 +578,25 @@ class FilterbankFeaturesTA(nn.Module):
         return signals
 
     def _compute_output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:
-        out_lengths = input_lengths.div(self._hop_length, rounding_mode="floor").add(1).long()
+        out_lengths = input_lengths.div(self.hop_length, rounding_mode="floor").add(1).long()
         return out_lengths
 
     def _apply_pad_to(self, features: torch.Tensor) -> torch.Tensor:
         # Only apply during training; else need to capture dynamic shape for exported models
-        if not self.training or self._pad_to == 0 or features.shape[-1] % self._pad_to == 0:
+        if not self.training or self.pad_to == 0 or features.shape[-1] % self.pad_to == 0:
             return features
-        pad_length = self._pad_to - (features.shape[-1] % self._pad_to)
-        return torch.nn.functional.pad(features, pad=(0, pad_length), value=self._pad_value)
+        pad_length = self.pad_to - (features.shape[-1] % self.pad_to)
+        return torch.nn.functional.pad(features, pad=(0, pad_length), value=self.pad_value)
 
     def _apply_log(self, features: torch.Tensor) -> torch.Tensor:
         if self._use_log:
             zero_guard = self._resolve_log_zero_guard_value(features.dtype)
-            if self._log_zero_guard_type == "add":
+            if self.log_zero_guard_type == "add":
                 features = features + zero_guard
-            elif self._log_zero_guard_type == "clamp":
+            elif self.log_zero_guard_type == "clamp":
                 features = features.clamp(min=zero_guard)
             else:
-                raise ValueError(f"Unsupported log zero guard type: '{self._log_zero_guard_type}'")
+                raise ValueError(f"Unsupported log zero guard type: '{self.log_zero_guard_type}'")
             features = features.log()
         return features
 
