@@ -24,8 +24,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate
@@ -257,31 +257,29 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
     def validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
+    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
-        loss = super().validation_step(batch, batch_idx)
-
+        loss = super().validation_step(dataloader_iter, batch_idx)
         # NOTE: This is a hack to to sidestep inference when the user wants to just monitor the loss only.
         # TODO (sandeepsub): This should be a better check.
-        if self.val_metric is None:
-            return {
-                'loss': loss,
-                'preds': None,
-                'labels': None,
-                'inputs': None,
-            }
+        return {
+            'loss': loss,
+            'preds': None,
+            'labels': None,
+            'inputs': None,
+        }
 
         length_params: LengthParam = {
             "min_length": 0,
@@ -558,7 +556,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             collate_fn = dataset.collate_fn
 
-        batch_sampler = MegatronPretrainingBatchSampler(
+        batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=data_cfg.micro_batch_size,
@@ -566,6 +564,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=True,
+            pad_samples_to_global_batch_size=False
         )
         return torch.utils.data.DataLoader(
             dataset,

@@ -60,8 +60,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
         gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
         gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-        gpt_cfg.hidden_dropout = cfg.model.hidden_dropout
-        gpt_cfg.attention_dropout = cfg.model.attention_dropout
+        gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
+        gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.

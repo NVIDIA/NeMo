@@ -22,19 +22,6 @@ from nemo.core.classes import Dataset
 
 __all__ = ['GPTSFTDataset']
 
-SHORT_ASSIST_PROMPT = """Assistant: The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
-User: """
-
-LONG_ASSIST_PROMPT = """Assistant: I am Assistant, a large language model trained by NVIDIA.
-I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
-Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
-User: """
-
-LONG_ASSIST_PROMPT_NV = """Assistant: I am NVLM, a large language model trained by NVIDIA.
-I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
-Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
-User: """
-
 class GPTSFTDataset(Dataset):
     def __init__(
         self,
@@ -150,12 +137,8 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
 
-        if self.assistant_prompt == 'short':
-            context = SHORT_ASSIST_PROMPT + context + "\n\nAssistant:"
-        elif self.assistant_prompt == 'long':
-            context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
-        elif self.assistant_prompt == 'long_nv':
-            context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
+        if self.assistant_prompt is not None:
+            context = self.assistant_prompt + context + "\n\nAssistant:"
 
         if self.separate_prompt_and_response_with_newline and self.assistant_prompt is None:
             text = context + '\n' + label
