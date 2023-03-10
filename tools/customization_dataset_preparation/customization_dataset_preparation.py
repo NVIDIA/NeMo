@@ -79,9 +79,17 @@ def load_file_into_df(filename):
     return df, message
 
 
+def recommend_hyperparameters_human_readable(recommended_hyperparameters):
+    message = 'TODO: Recommended hyperparameters\n'
+    for param, param_value in recommended_hyperparameters.items():
+        message += f'{param}: {param_value}\n'
+    return message
+
 def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
+    
+    All hyperparameters except batch_size and max_batch_size are hardcoded based on API defaults for now
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
     bs = 2
@@ -89,21 +97,24 @@ def recommend_hyperparameters(df, model=None):
         if 0.002 * len(df) > potential_bs:
             bs = potential_bs
 
-    message = f"TODO: A batch_size={bs} is recommended for training."
-
+    max_bs = 128
     if len(df) < 128:
         max_bs = 2
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
-        additional_msg_for_small_df = f" Please have a maximum batch_size of {max_bs}."
-        message += additional_msg_for_small_df
-
+    return {
+        'batch_size': bs,
+        'max batch_size': max_bs,
+        'num_virtual_tokens': 10,
+        'lr': 0.0001,
+        'epochs': 25
+    }
     return message
 
 
-def estimating_customization_job_time(df, recommend_hyperparameters_message):
-    recommended_batch_size = int(recommend_hyperparameters_message.split("=")[1].split()[0])
+def estimating_customization_job_time(df, recommended_hyperparameters):
+    recommended_batch_size = recommended_hyperparameters['batch_size']
 
     size = df.memory_usage(index=True, deep=True).sum()
     time_in_seconds_per_epoch = size / recommended_batch_size * 0.0025
@@ -304,7 +315,7 @@ def get_prepared_filename(filename, split_train_validation=False):
             message += f"File {new_filename} exists. Trying next available filename increment\n"
             retry += 1
             new_filename = filename.replace(file_extension, f"_prepared{retry}.jsonl")
-        return new_filename, message
+        return new_filename, message if message else None
     else:
         train_filename = filename.replace(file_extension, "_prepared_train.jsonl")
         val_filename = filename.replace(file_extension, "_prepared_val.jsonl")
@@ -397,11 +408,11 @@ if __name__ == "__main__":
     df, message = warn_and_drop_long_samples(df, MAX_TOTAL_CHAR_LENGTH)
     messages.append(message)
 
-    recommend_hyperparameters_message = recommend_hyperparameters(df)
-
+    recommended_hyperparameters = recommend_hyperparameters(df)
+    recommend_hyperparameters_message = recommend_hyperparameters_human_readable(recommended_hyperparameters)
     messages.append(recommend_hyperparameters_message)
 
-    messages.append(estimating_customization_job_time(df, recommend_hyperparameters_message))
+    messages.append(estimating_customization_job_time(df, recommended_hyperparameters))
 
     prepared_filename, message = get_prepared_filename(
         args.filename, split_train_validation=args.split_train_validation
