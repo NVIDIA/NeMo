@@ -1125,11 +1125,28 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
         sample_token_fn=sample_token_greedy,
         predicted_tokens_dec=None,
+        beam_size: Optional[int] = None,
+        beam_alpha: int = 0,
+        keep_only_best_tokens: bool = False,
+        return_scores: bool = False
     ):
         """
         sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
         predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
+        param beam_size: beam size parameter for beam search, specifies number of the best sequences at each decode
+                        iteration to be left per target
+        param beam_alpha: the parameter of length penalty applied to sequences predicted by the beam search
+        param keep_only_best_tokens: boolean flag if to output only best sequence of predicted tokens (True)
+                                    or beam_size predictions per target
+        param return_scores:  boolean flag if to return scores at the top of predictions and logits
         """
+        beam_search = beam_size is not None
+        if beam_search:
+            assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
+        else:
+            assert not keep_only_best_tokens and not return_scores, \
+                'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
+
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1179,7 +1196,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         # collect log probs that were used in the sampling
         predicted_log_probs = torch.zeros((global_batch_per_gpu, 0), dtype=self.autocast_dtype).to(device)
-
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
@@ -1228,7 +1244,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
-                output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
+                output_tensor[:, :, tokenizer.vocab_size:] = -float('Inf')
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
@@ -1238,11 +1254,78 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
-                # collect all predicted tokens and log_probs
-                predicted_tokens_dec = torch.cat(
-                    [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
-                )
-                predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
+
+                if i == 0 and beam_search:
+                    # resizing decoder inputs to match tensors augmented with beams
+                    log_probs, token_ids = log_probs.view(-1), token_ids.view(-1)
+                    scores = log_probs.unsqueeze(1).clone()
+
+                    batch_size, src_length, hidden_size = enc_output.size()
+                    enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
+                    enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
+
+                    # resize tensors that collect predicted tokens and logits per iteration to
+                    # match shape of tensors augmented with the beam size
+                    predicted_tokens_dec = predicted_tokens_dec.repeat(beam_size, 1)
+                    predicted_log_probs = predicted_log_probs.repeat(beam_size, 0)
+
+                    pad_profile = torch.zeros_like(scores).long()
+                    decoder_seq_lengths = torch.zeros_like(scores).fill_(predicted_tokens_dec.size(1) + 1)
+
+                    # reconfigure batch size for apex since the tensor have been augmented with beam size
+                    global_batch_per_gpu = token_ids.shape[0]
+                    tensor_shape[1] = global_batch_per_gpu
+                    _reconfigure_microbatch_calculator(
+                        rank=app_state.global_rank,
+                        rampup_batch_size=None,
+                        global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                        micro_batch_size=global_batch_per_gpu,
+                        data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    )
+
+                if i > 0 and beam_search:
+                    # mask all finished hypotheses to exclude them from beam
+                    pad_mask = pad_profile.repeat(1, beam_size)
+
+                    # for all prefixes ending with <eos> or <pad> replace generated
+                    # continuations with <pad>
+                    token_ids = tokenizer.pad_id * pad_mask + token_ids * (1 - pad_mask)
+
+                    # force all hypotheses but one generated from already finished
+                    # hypotheses to have extremely low score, so they will not be
+                    # considered during beam re-ranking
+                    pad_mask[:, 1:] = pad_mask[:, 1:] * -10000.0
+                    scores = scores + log_probs * (1 - pad_mask).to(scores.dtype)
+
+                    # choose top-k hypotheses with length penalty applied
+                    len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, beam_alpha)
+                    scores = scores / len_penalties
+                    scores, indices = sample_token_fn(scores.view(-1, beam_size ** 2), dim=1, log_softmax=False)
+                    scores = scores.view(-1, 1) * len_penalties
+
+                    # select predicted sequences which correspond to the chosen hypotheses
+                    predicted_tokens_dec = predicted_tokens_dec.unsqueeze(1).repeat(1, beam_size, 1)
+                    predicted_tokens_dec = torch.cat((predicted_tokens_dec, token_ids.unsqueeze(2)), dim=2)
+                    predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size ** 2, -1)
+                    p_len = predicted_tokens_dec.size(2)
+                    predicted_tokens_dec_ids = indices.unsqueeze(2).repeat(1, 1, p_len)
+                    predicted_tokens_dec = predicted_tokens_dec.gather(1, predicted_tokens_dec_ids).view(-1, p_len) # torch.Size([10, 3])
+
+                    # select logits which correspond to the chosen hypotheses
+                    predicted_log_probs = predicted_log_probs.unsqueeze(1).repeat(1, beam_size, 1) # torch.Size([10, 5, 1])
+                    predicted_log_probs = torch.cat((predicted_log_probs, log_probs.unsqueeze(2)), dim=2) # torch.Size([10, 5, 2])
+                    predicted_log_probs = predicted_log_probs.view(batch_size, beam_size ** 2, -1) # torch.Size([2, 25, 2])
+                    predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(-1, p_len -1) # torch.Size([10, 2])
+
+                    # update decoder_seq_length and pad_profile
+                    not_eos_pad = predicted_tokens_dec.ne(tokenizer.eos_id) & predicted_tokens_dec.ne(tokenizer.pad_id)
+                    decoder_seq_lengths = 1 + not_eos_pad.sum(dim=1, keepdim=True).to(scores.dtype)
+                    pad_profile = (~not_eos_pad[:, -1:]).long()
+
+                else:
+                    # collect all predicted tokens and log_probs
+                    predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1)
+                    predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
 
                 # # TODO: do log_softmax in fp32?
                 # log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
@@ -1279,7 +1362,27 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return predicted_tokens_dec, predicted_log_probs
+
+        if beam_search and beam_size > 1:
+            if keep_only_best_tokens:
+                len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, 0)
+                scores = scores / len_penalties
+                scores = scores.view(-1, beam_size)
+                best_ids = torch.argmax(scores, dim=1, keepdim=True)
+                scores = scores * len_penalties
+                scores = scores.gather(1, best_ids)
+                best_tokens = best_ids.repeat(1, predicted_tokens_dec.size(1)).unsqueeze(1)
+                predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size, -1).gather(1, best_tokens).squeeze(1)
+                predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1).gather(1, best_tokens[:, :, 1:]).squeeze(1)
+            else:
+                predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size, -1)
+                predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1)
+                scores = scores.view(-1, beam_size)
+
+        if beam_search and return_scores:
+            return predicted_tokens_dec, predicted_log_probs, scores
+        else:
+            return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """
@@ -1366,3 +1469,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def list_available_models(self):
         pass
+
+
+def compute_beam_search_len_penalty(lengths: torch.Tensor, alpha: int) -> torch.Tensor:
+    """
+    Length penalty used in the beam search
+
+    param lengths: lengths of decoded sequences
+    param alpha: params of the penalty
+    return: tensor with the penalty value
+    """
+    return ((5 + lengths) / 6).pow(alpha)
