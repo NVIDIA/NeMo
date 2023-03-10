@@ -303,7 +303,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
             )
 
         if batch[-2].all():
-            output_tensor[0]['logits'] = output_tensor[0]['logits'][:, self.vlen :]
+            output_tensor[0]['logits'] = output_tensor[0]['logits'][:, self.vlen :].contiguous()
         return output_tensor
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
@@ -337,16 +337,16 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         if step == 0:
             # Allocate memory for the entire context.
             set_inference_key_value_memory = True
-            tokens2use = tokens[:, :context_length]
-            positions2use = self.position_ids[:, :context_length]
+            tokens2use = tokens[:, :context_length].contiguous()
+            positions2use = self.position_ids[:, :context_length].contiguous()
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, :context_length]
         else:
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
-            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
-            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1).contiguous()
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1).contiguous()
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)

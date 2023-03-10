@@ -107,11 +107,25 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self._inference_config = None
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
-        if self.frozen_model.model.pre_process:
-            self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+        if self.pre_process:
+            self.word_embeddings = self.language_model.embedding.word_embeddings
         self._prompt_encoder_key = 'prompt_encoder'
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric)
+
+    @property
+    def pre_process(self):
+        if hasattr(self.frozen_model.model, 'module'):
+            return self.frozen_model.model.module.pre_process
+        else:
+            return self.frozen_model.model.pre_process
+    
+    @property
+    def language_model(self):
+        if hasattr(self.frozen_model.model, 'module'):
+            return self.frozen_model.model.module.language_model
+        else:
+            return self.frozen_model.model.language_model
 
     @property
     def _metrics_require_string2category_map(self):
@@ -213,7 +227,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
-            frozen_model_cfg.megatron_amp_O2 = False
+            frozen_model_cfg.megatron_amp_O2 = self.cfg.get("megatron_amp_O2", False)
             frozen_model_cfg.optim.name = "fused_adam"
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
@@ -242,7 +256,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         are only in state dict for intermediate checkpoints saved during training. Final
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
-        if self.frozen_model.model.pre_process:
+        if self.pre_process:
             state_dict_ = {}
             state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
             return state_dict_
@@ -256,7 +270,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self.frozen_model.model.pre_process and self._prompt_encoder_key in state_dict:
+        if self.pre_process and self._prompt_encoder_key in state_dict:
             state_dict_ = state_dict[self._prompt_encoder_key]
 
             if not hasattr(self, "prompt_encoder"):
@@ -272,7 +286,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         for param in self.frozen_model.parameters():
             param.requires_grad = False
 
-        if self.frozen_model.model.pre_process:
+        if self.pre_process:
             self.add_virtual_prompt_params_to_param_group()
         else:
             self._optimizer_param_groups = ({'params': []},)
@@ -296,7 +310,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         seq_length = discrete_token_ids.size(1)
         position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids).clone()
-        position_emb = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+        position_emb = self.language_model.embedding.position_embeddings(position_ids)
 
         # [b, s, d] -> [s, b, d]
         prompt_input_emb = (discrete_token_embeds + position_emb) .transpose(0, 1).contiguous()
@@ -357,7 +371,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        if self.frozen_model.model.pre_process:
+        if self.pre_process:
             if inference and set_inference_key_value_memory:
                 all_input_ids = input_ids[0]  # all the input tokens, used to compute virtual token emb
                 input_ids = input_ids[1]  # the input token ids so far to generate the next token id
@@ -371,7 +385,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             else:
                 virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
-            position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+            position_embeddings = self.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
             if virtual_token_emb is not None:
                 encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
@@ -550,7 +564,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         if stage == 'test' or stage == 'predict' or stage == 'validate':
             return
 
-        if self.frozen_model.model.pre_process:
+        if self.pre_process:
             self.init_prompt_encoder()
 
         self.setup_training_data()
