@@ -210,6 +210,7 @@ We used the following script
         manifest_dir = os.path.split(original_path)[0]
         filepath = os.path.join(manifest_dir, new_manifest_name)
         write_manifest(filepath, data)
+        print(f"Finished writing manifest: {filepath}")
         return filepath
 
 
