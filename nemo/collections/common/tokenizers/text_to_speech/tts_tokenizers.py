@@ -527,6 +527,7 @@ class IPATokenizer(BaseTokenizer):
                 Set only if overriding the default vocab generation process (reading from G2P dict).
                 If set, any dataset entries that have unincluded graphemes will be filtered out, and any words whose
                 pronunciations have unincluded phonemes will be treated as OOV.
+                Please make sure that the grapheme prefixes and cases are consistent with the G2P module's settings.
                 Defaults to None, which means default vocab generation is used.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).

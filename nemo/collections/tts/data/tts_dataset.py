@@ -221,6 +221,18 @@ class TTSDataset(Dataset):
         self.manifest_filepath = manifest_filepath
         self.lengths = []  # Needed for BucketSampling
 
+        # If filtering based on a user-set vocab and there's a grapheme prefix,
+        # remove all prefixes for comparison with the normalized text
+        if self.text_tokenizer.set_fixed_vocab and self.text_tokenizer.g2p.grapheme_prefix:
+            prefix = self.text_tokenizer.g2p.grapheme_prefix
+            # Have check for length of token in case the prefix is a valid symbol by itself
+            tokens_set = {
+                token if (token[0] != prefix or len(token) == 1) else token[1:]
+                for token in self.text_tokenizer.tokens_set
+            }
+        else:
+            tokens_set = self.text_tokenizer.tokens_set
+
         data = []
         total_duration = 0
         for manifest_file in self.manifest_filepath:
@@ -253,7 +265,7 @@ class TTSDataset(Dataset):
                         normalized_text = file_info["normalized_text"]
                         text_set = set(set_grapheme_case(normalized_text, self.text_tokenizer.g2p.grapheme_case))
                         # Skip if set difference between graphemes in text and valid tokens set is nonempty
-                        set_diff = text_set - self.text_tokenizer.tokens_set
+                        set_diff = text_set - tokens_set
                         if set_diff:
                             logging.warning(
                                 f"Skipping entry, found illegal grapheme(s) [{set_diff}] in text: [{normalized_text}]"
