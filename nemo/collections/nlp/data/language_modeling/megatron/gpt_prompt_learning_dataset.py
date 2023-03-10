@@ -163,6 +163,10 @@ class GPTPromptLearningDataset(Dataset):
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
             
+            # these will be lobbed during the collate_fn
+            temp_pads = [self.tokenizer.pad_id] * total_virtual_tokens
+            input_ids = temp_pads + input_ids
+            
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
                 input_ids = self._truncate_input(
@@ -189,7 +193,7 @@ class GPTPromptLearningDataset(Dataset):
                 if answer_only_loss and self.for_train:
                     answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
 
-                self.examples.append((taskname_id, input_ids, answer_start_idx))
+                self.examples.append((taskname_id, input_ids, answer_start_idx, total_virtual_tokens))
             else:
                 skipped += 1
 
@@ -329,20 +333,10 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        taskname_ids, input_ids, answer_starts = zip(*batch)
-
-        # Pad taskname_ids to be the same length for the prompt encoder
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            max_taskname_length = max(len(ids) for ids in taskname_ids)
-            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
-            taskname_ids = torch.tensor(taskname_ids)
-
-        # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
-            taskname_ids = torch.tensor(taskname_ids)
-
+        _, input_ids, answer_starts, num_virtual_tokens  = zip(*batch)
+        num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
         # Get max sequence length of batch
-        batch_max = max(len(ids) for ids in input_ids)
+        batch_max = max(len(i) for i in input_ids)
 
         if tp_workers > 1:
             # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
@@ -364,10 +358,14 @@ class GPTPromptLearningDataset(Dataset):
         attention_mask = torch.tril(torch.ones((batch_size, batch_max, batch_max))).view(
             batch_size, 1, batch_max, batch_max
         )
-
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
-        position_ids = build_position_ids(input_ids)
+
+        #lob off the space holder for virtual tokens
+        input_ids = input_ids[:, num_virtual_tokens:, :] 
+
+        position_ids = torch.arange(input_ids.shape[1], dtype=torch.long, device=input_ids.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 

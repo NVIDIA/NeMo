@@ -153,13 +153,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
-
-        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
-            VirtualPromptStyle.P_TUNING,
-        ]:
-
-            self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
-
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
@@ -206,7 +199,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.first_stage_of_pipeline():
-            virtual_token_embeds, input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
+            virtual_token_embeds = self.prompt_encoder(batch_size=input_ids.shape[0], use_cached_reps=inference)
+            input_embeds = self.frozen_model.model.language_model.embedding.word_embeddings(input_ids)
             if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
                     position_ids

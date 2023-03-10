@@ -182,13 +182,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             taskname=new_task,
         )
 
-    def freeze_existing_word_embeddings(self):
-        """Freeze params of existing virtual prompts that should not be tuned further
-        """
-        # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
-
     def state_dict(self):
         """
         Custom state dict that only contains prompt table and prompt encoder parameters. 
@@ -238,31 +231,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self._optimizer_param_groups = (virtual_prompt_params,)
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
-        """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
-        The virtual token placeholders have token_ids listed in
-        `self.pseudo_token_ids`.
-
-        params:
-            input_ids: the input token ids
-            taskname_ids: the NLP task tag token ids
-        returns:
-            the token embedding for the LM model.
-        """
-        # Replace virtual token ids with padding for forward pass through vocab embeddings
-        input_embeds = self.word_embeddings(input_ids)
-
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            # taskname_embeddings = self.word_embeddings(taskname_ids)
-            batch_size, _ = taskname_ids.size()
-            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
-        else:
-            raise ValueError("invalid VirtualPromptSource.")
-
-        return virtual_token_embeds, input_embeds
-
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
         self.save_to(save_path=self.cfg.nemo_path)
@@ -279,7 +247,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.init_prompt_encoder()
-            self.freeze_existing_word_embeddings()
 
         self.setup_training_data()
         self.setup_validation_data()
