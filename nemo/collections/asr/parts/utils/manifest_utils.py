@@ -16,8 +16,8 @@ import json
 import os
 from collections import Counter
 from collections import OrderedDict as od
-from typing import Dict, List, Union
 from pathlib import Path
+from typing import Dict, List, Union
 
 import librosa
 import numpy as np
