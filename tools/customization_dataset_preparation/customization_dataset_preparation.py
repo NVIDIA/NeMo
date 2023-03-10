@@ -85,6 +85,7 @@ def recommend_hyperparameters_human_readable(recommended_hyperparameters):
         message += f'{param}: {param_value}\n'
     return message
 
+
 def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
@@ -103,13 +104,7 @@ def recommend_hyperparameters(df, model=None):
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
-    return {
-        'batch_size': bs,
-        'max batch_size': max_bs,
-        'num_virtual_tokens': 10,
-        'lr': 0.0001,
-        'epochs': 25
-    }
+    return {'batch_size': bs, 'max batch_size': max_bs, 'num_virtual_tokens': 10, 'lr': 0.0001, 'epochs': 25}
     return message
 
 

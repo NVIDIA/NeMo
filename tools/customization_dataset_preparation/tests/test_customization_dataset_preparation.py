@@ -43,7 +43,7 @@ def test_recommend_hyperparameters():
         'max batch_size': 64,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
-        'epochs': 25
+        'epochs': 25,
     }
 
     df_1000 = pd.DataFrame({'prompt': ['prompt'] * 1000, 'completion': ['completion'] * 1000})
@@ -52,7 +52,7 @@ def test_recommend_hyperparameters():
         'max batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
-        'epochs': 25
+        'epochs': 25,
     }
     df_10000 = pd.DataFrame({'prompt': ['prompt'] * 10000, 'completion': ['completion'] * 10000})
     assert recommend_hyperparameters(df_10000) == {
@@ -60,7 +60,7 @@ def test_recommend_hyperparameters():
         'max batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
-        'epochs': 25
+        'epochs': 25,
     }
     df_100000 = pd.DataFrame({'prompt': ['prompt'] * 100000, 'completion': ['completion'] * 100000})
     assert recommend_hyperparameters(df_100000) == {
@@ -68,8 +68,9 @@ def test_recommend_hyperparameters():
         'max batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
-        'epochs': 25
+        'epochs': 25,
     }
+
 
 def test_warn_completion_is_not_empty():
 
@@ -335,14 +336,13 @@ def test_get_prepared_filename():
     prepared_train_filename = "tmp/sample_prepared_train.jsonl"
     prepared_val_filename = "tmp/sample_prepared_val.jsonl"
     assert get_prepared_filename(filename) == (prepared_filename, None)
-    assert get_prepared_filename(filename, split_train_validation=True) == ([
-        prepared_train_filename,
-        prepared_val_filename,
-    ], None)
+    assert get_prepared_filename(filename, split_train_validation=True) == (
+        [prepared_train_filename, prepared_val_filename,],
+        None,
+    )
     csv_filename = "tmp/sample.csv"
     prepared_filename = "tmp/sample_prepared.jsonl"
     assert get_prepared_filename(csv_filename) == (prepared_filename, None)
-
 
 
 def test_split_into_train_validation():
