@@ -927,3 +927,14 @@ def sample_token_topk_beam_search(logits: torch.Tensor, beam_size: int = 1, dim:
     log_probs, token_ids = torch.topk(log_probs, beam_size, dim=dim)
 
     return log_probs, token_ids
+
+
+def compute_beam_search_len_penalty(lengths: torch.Tensor, alpha: int) -> torch.Tensor:
+    """
+    Length penalty used in the beam search
+
+    param lengths: lengths of decoded sequences
+    param alpha: params of the penalty
+    return: tensor with the penalty value
+    """
+    return ((5 + lengths) / 6).pow(alpha)

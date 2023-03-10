@@ -36,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, compute_beam_search_len_penalty
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -1469,14 +1469,3 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def list_available_models(self):
         pass
-
-
-def compute_beam_search_len_penalty(lengths: torch.Tensor, alpha: int) -> torch.Tensor:
-    """
-    Length penalty used in the beam search
-
-    param lengths: lengths of decoded sequences
-    param alpha: params of the penalty
-    return: tensor with the penalty value
-    """
-    return ((5 + lengths) / 6).pow(alpha)
