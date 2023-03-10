@@ -164,7 +164,7 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = input_ids + [self.tokenizer.eos_id]
             
             # these will be lobbed during the collate_fn
-            temp_pads = [self.tokenizer.pad_id] * total_virtual_tokens
+            temp_pads = [self.tokenizer.bos_id] * total_virtual_tokens
             input_ids = temp_pads + input_ids
             
             # Try to truncate input text to fit into the max sequence length
@@ -362,12 +362,11 @@ class GPTPromptLearningDataset(Dataset):
         attention_mask = attention_mask < 0.5
 
         #lob off the space holder for virtual tokens
-        input_ids = input_ids[:, num_virtual_tokens:, :] 
+        input_ids = input_ids[:, num_virtual_tokens:] 
 
-        position_ids = torch.arange(input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-        position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+        position_ids = build_position_ids(input_ids)
 
-        return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
+        return input_ids, labels, loss_mask, position_ids, attention_mask
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
