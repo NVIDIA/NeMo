@@ -36,8 +36,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-
-from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, compute_beam_search_len_penalty
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    compute_beam_search_len_penalty,
+    sample_token_greedy,
+)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -1129,7 +1131,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         beam_size: Optional[int] = None,
         beam_alpha: int = 0,
         keep_only_best_tokens: bool = False,
-        return_scores: bool = False
+        return_scores: bool = False,
     ):
         """
         tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
@@ -1154,8 +1156,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if beam_search:
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
         else:
-            assert not keep_only_best_tokens and not return_scores, \
-                'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
+            assert (
+                not keep_only_best_tokens and not return_scores
+            ), 'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1254,7 +1257,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
-                output_tensor[:, :, tokenizer.vocab_size:] = -float('Inf')
+                output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
@@ -1264,7 +1267,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
-
 
                 if i == 0 and beam_search:
                     # resizing decoder inputs to match tensors augmented with beams
@@ -1326,7 +1328,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     predicted_log_probs = predicted_log_probs.unsqueeze(1).repeat(1, beam_size, 1)
                     predicted_log_probs = torch.cat((predicted_log_probs, log_probs.unsqueeze(2)), dim=2)
                     predicted_log_probs = predicted_log_probs.view(batch_size, beam_size ** 2, -1)
-                    predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(-1, p_len -1)
+                    predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(
+                        -1, p_len - 1
+                    )
 
                     # update decoder_seq_length and pad_profile
                     not_eos_pad = predicted_tokens_dec.ne(tokenizer.eos_id) & predicted_tokens_dec.ne(tokenizer.pad_id)
@@ -1336,9 +1340,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 else:
                     # collect all predicted tokens and log_probs
                     predicted_tokens_dec = torch.cat(
-                        [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1)
-                    predicted_log_probs = torch.cat(
-                        [predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
+                        [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
+                    )
+                    predicted_log_probs = torch.cat([predicted_log_probs, log_probs.unsqueeze(1)], dim=1)
 
             else:
                 predicted_tokens_dec = torch.zeros(
@@ -1380,8 +1384,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 scores = scores * len_penalties
                 scores = scores.gather(1, best_ids)
                 best_tokens = best_ids.repeat(1, predicted_tokens_dec.size(1)).unsqueeze(1)
-                predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size, -1).gather(1, best_tokens).squeeze(1)
-                predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1).gather(1, best_tokens[:, :, 1:]).squeeze(1)
+                predicted_tokens_dec = (
+                    predicted_tokens_dec.view(batch_size, beam_size, -1).gather(1, best_tokens).squeeze(1)
+                )
+                predicted_log_probs = (
+                    predicted_log_probs.view(batch_size, beam_size, -1).gather(1, best_tokens[:, :, 1:]).squeeze(1)
+                )
             else:
                 predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size, -1)
                 predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1)
