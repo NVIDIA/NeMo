@@ -1,0 +1,320 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import abc
+from contextlib import nullcontext
+
+import torch
+import torch.nn.functional as F
+
+from nemo.core.classes.loss import Loss
+from nemo.core.utils.k2_guard import k2
+
+
+def force_float32_context():
+    """ """
+    if torch.is_autocast_enabled():
+        return torch.cuda.amp.autocast(dtype=torch.float32)
+    return nullcontext()
+
+
+class GraphTransducerLossBase(Loss):
+    def __init__(self, connect: bool, double_scores: bool, optimized: bool, cast_to_float32=False):
+        super().__init__()
+        self._connect = connect
+        self._double_scores = double_scores
+        self._optimized = optimized
+        self._cast_to_float32 = cast_to_float32
+
+    @abc.abstractmethod
+    def get_text_graph(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+        pass
+
+    @abc.abstractmethod
+    def get_temporal_graph(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
+        pass
+
+    def get_rnnt_graph(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+        fsa_text = self.get_text_graph(text_tensor, num_labels)
+        fsa_temporal = self.get_temporal_graph(sequence_length, num_labels, text_tensor.device)
+        composed = k2.compose(fsa_text, fsa_temporal, treat_epsilons_specially=False)
+        if self._connect:
+            composed = k2.connect(composed)
+        return composed
+
+    def get_graphs_batched(
+        self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, num_labels: int
+    ) -> k2.Fsa:
+        batch_size = logits_lengths.shape[0]
+        with torch.no_grad():
+            if self._optimized:
+                return k2.create_fsa_vec(
+                    [
+                        self.get_rnnt_graph_fast(
+                            text_tensor=targets[i, : target_lengths[i].item()],
+                            sequence_length=logits_lengths[i].item(),
+                            num_labels=num_labels,
+                        )
+                        for i in range(batch_size)
+                    ]
+                )
+
+            # composed version
+            text_fsas = [
+                self.get_text_graph(text_tensor=targets[i, : target_lengths[i].item()], num_labels=num_labels,)
+                for i in range(batch_size)
+            ]
+            temporal_fsas = [
+                self.get_temporal_graph(
+                    sequence_length=logits_lengths[i].item(), num_labels=num_labels, device=targets.device
+                )
+                for i in range(batch_size)
+            ]
+            target_fsas_vec = k2.compose(
+                k2.create_fsa_vec(text_fsas), k2.create_fsa_vec(temporal_fsas), treat_epsilons_specially=False
+            )
+            if self._connect:
+                k2.connect(target_fsas_vec)
+        return target_fsas_vec
+
+    def get_logits_indices(self, target_fsas_vec: k2.Fsa, logits_shape: torch.Size) -> torch.Tensor:
+        # logits_shape: B x Time x Text+1 x Labels
+        batch_size = logits_shape[0]
+        device = target_fsas_vec.device
+        scores_to_batch_i = torch.repeat_interleave(
+            torch.arange(batch_size, device=device, dtype=torch.int64),
+            torch.tensor(
+                [target_fsas_vec.arcs.index(0, i)[0].values().shape[0] for i in range(batch_size)], device=device,
+            ),
+        )
+        indices = (
+            scores_to_batch_i * logits_shape[1] * logits_shape[2] * logits_shape[3]  # B
+            + target_fsas_vec.aux_labels.to(torch.int64) * logits_shape[2] * logits_shape[3]  # Time
+            + target_fsas_vec.text_positions.to(torch.int64) * logits_shape[3]  # Text
+            + target_fsas_vec.labels.to(torch.int64)  # Labels
+        )
+        return indices
+
+    @abc.abstractmethod
+    def get_rnnt_graph_fast(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+        pass
+
+
+class GraphRnntLoss(GraphTransducerLossBase):
+    def __init__(self, blank: int, connect=False, double_scores=False, optimized=True, cast_to_float32=False):
+        """
+        RNNT Loss - implementation based on k2 library
+        :param blank: blank label index
+        :param connect: connect composed graph (slow operation); useful for visualization, not necessary for loss computation
+        :param double_scores: compute scores in float64
+        :param optimized: use optimized graph construction instead of text-temporal composition
+        """
+        super().__init__(
+            connect=connect, double_scores=double_scores, optimized=optimized, cast_to_float32=cast_to_float32
+        )
+        self._blank = blank
+
+    def get_text_graph(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+        """
+        Construct text graph: forward arcs - text labels,
+        Example graph: text [1, 2], blank_id=0
+        labels: text_labels:text_labels:text_position
+
+            0:0:0                  0:0:1                  0:0:2
+          +-------+              +-------+              +-------+
+          v       |              v       |              v       |
+        +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
+        |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
+        +-----------+          +-----------+          +-----------+            #===#
+
+        :param text_tensor: 1d tensor with text
+        :param num_labels: number of total labels (vocab size including blank)
+        :return: k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
+        """
+
+        blank_id = self._blank
+        device = text_tensor.device
+        text_len = text_tensor.shape[0]
+
+        # arcs
+        # text_len + 1 states, in every state - self-loops (blank) and forward (text label / last forward -1)
+        arcs = torch.zeros(((text_len + 1) * 2, 4), dtype=torch.int32, device=device)
+        text_indices = torch.arange(0, text_len + 1, dtype=torch.int32, device=device)
+        # blank labels
+        arcs[::2, 0] = text_indices  # from state
+        arcs[::2, 1] = text_indices  # to state
+        arcs[::2, 2] = blank_id
+
+        # text labels
+        arcs[1::2, 0] = text_indices  # from state
+        arcs[1::2, 1] = text_indices + 1  # to state
+        arcs[1:-1:2, 2] = text_tensor  # labels: text
+
+        arcs[-1, 2] = -1  # last transition to final state, ilabel=-1 (special for k2)
+        olabels = arcs[:, 2].detach().clone()  # same as ilabels
+
+        fsa_text = k2.Fsa(arcs, olabels)
+        fsa_text.text_positions = text_indices.expand(2, -1).transpose(0, 1).flatten()
+        return fsa_text
+
+    def get_temporal_graph(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
+        """
+        Construct temporal graph
+        Forward arc - blank, self-loops - all labels excluding blank
+        Example graph: blank_id=0, sequence_length=3, num_labels=3
+        labels: labels_id:sequence_position
+
+            1:0                1:1                1:2
+          +-----+            +-----+            +-----+
+          v     |            v     |            v     |
+        +---------+  0:0   +---------+  0:1   +---------+  0:2   +---+  -1:-1   #===#
+        |    0    | -----> |    1    | -----> |    2    | -----> | 3 | -------> H 4 H
+        +---------+        +---------+        +---------+        +---+          #===#
+          ^ 2:0 |            ^ 2:1 |            ^ 2:2 |
+          +-----+            +-----+            +-----+
+
+        :param sequence_length:
+        :param num_labels:
+        :param device:
+        :return: k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
+        """
+        blank_id = self._blank
+
+        fsa_temporal_arcs = torch.zeros((sequence_length * num_labels + 1, 4), dtype=torch.int32, device=device)
+        sequence_states = torch.arange(0, sequence_length, dtype=torch.int32, device=device)
+        # for every state - num_labels arcs, [0, 1, ..., num_labels-1, 0, 1, ..., num_labels-1, ...]
+        start_states = sequence_states.expand(num_labels, sequence_length).transpose(0, 1).flatten()
+        # first: make all arcs - self-loops
+        fsa_temporal_arcs[:-1, 0] = start_states  # from
+        fsa_temporal_arcs[:-1, 1] = start_states  # to
+        fsa_temporal_arcs[:-1, 2] = (
+            torch.arange(0, num_labels, dtype=torch.int32, device=device).expand(sequence_length, num_labels).flatten()
+        )
+
+        # blank-arcs: forward
+        fsa_temporal_arcs[blank_id:-1:num_labels, 1] = sequence_states + 1  # blanks
+
+        # transition to last final state
+        fsa_temporal_arcs[-1, :3] = torch.tensor(
+            (sequence_length, sequence_length + 1, -1), dtype=torch.int32, device=device
+        )
+
+        # output symbols: position in the sequence, same as start states for arcs
+        olabels = fsa_temporal_arcs[:, 0].detach().clone()
+        olabels[-1] = -1  # last arc to final state
+
+        fsa_temporal = k2.Fsa(fsa_temporal_arcs, olabels)
+        fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose
+        return fsa_temporal
+
+    def relabel_states(self, states: torch.Tensor, n: int, m: int) -> torch.Tensor:
+        # FixMe: explain + test (!)
+        # some weird math here!
+        # need to be tested
+        # relabel states to be in topological order
+        i = states % n
+        j = torch.div(states, n, rounding_mode='floor')  # states // n, torch.div to aviod pytorch warnings
+        min_mn = min(m, n)
+        max_mn = max(m, n)
+        diag = i + j
+        anti_diag = m + n - 1 - diag
+        max_idx = n * m - 1
+        cur_diag_idx = i if m > n else m - j - 1
+        states = (
+            diag.lt(min_mn) * ((diag * (diag + 1) >> 1) + i)
+            + torch.logical_and(diag.ge(min_mn), diag.lt(max_mn))
+            * ((min_mn * (min_mn + 1) >> 1) + (diag - min_mn) * min_mn + cur_diag_idx)
+            + diag.ge(max_mn) * (max_idx - (anti_diag * (anti_diag + 1) >> 1) + m - j)
+        )
+        return states
+
+    def get_rnnt_graph_fast(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+        blank_id = self._blank
+        text_length = text_tensor.shape[0]
+        device = text_tensor.device
+        num_grid_states = sequence_length * (text_length + 1)
+        num_forward_arcs = (sequence_length - 1) * (text_length + 1)
+        num_text_arcs = text_length * sequence_length
+        arcs = torch.zeros((num_forward_arcs + num_text_arcs + 2, 4), dtype=torch.int32, device=device)
+        # blank transitions
+        # i, i+<text_len + 1>, 0 <blank>, i / <text_len+1>, i % <text_len + 1>
+        from_states = torch.arange(num_forward_arcs, device=device)
+        to_states = from_states + (text_length + 1)
+        arcs[:num_forward_arcs, 0] = from_states
+        arcs[:num_forward_arcs, 1] = to_states
+        arcs[:num_forward_arcs, 2] = blank_id
+
+        # text arcs
+        from_states = (
+            torch.arange(num_grid_states, dtype=torch.int32, device=device)
+            .reshape(sequence_length, text_length + 1)[:, :-1]
+            .flatten()
+        )
+        to_states = from_states + 1
+        ilabels = text_tensor.expand(sequence_length, -1).flatten()
+        arcs[num_forward_arcs:-2, 0] = from_states
+        arcs[num_forward_arcs:-2, 1] = to_states
+        arcs[num_forward_arcs:-2, 2] = ilabels
+
+        # last 2 states
+        arcs[-2, :3] = torch.tensor((num_grid_states - 1, num_grid_states, blank_id), dtype=torch.int32, device=device)
+        arcs[-1, :3] = torch.tensor((num_grid_states, num_grid_states + 1, -1), dtype=torch.int32, device=device)
+
+        # sequence indices, time indices
+        olabels = torch.div(arcs[:, 0], (text_length + 1), rounding_mode="floor")  # arcs[:, 0] // (text_length + 1)
+        text_positions = arcs[:, 0] % (text_length + 1)
+        # last state: final
+        olabels[-1] = -1
+        text_positions[-1] = -1
+
+        # relabel
+        # instead of using top sort (extremely expensive) k2.top_sort(rnnt_graph)
+        arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, sequence_length)
+        arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, sequence_length)
+
+        # sort by start state - required in k2
+        # FixMe: maybe it is more optimal to avoid sort, construct arcs in ascending order
+        _, indices = torch.sort(arcs[:, 0], dim=0)
+        sorted_arcs = arcs[indices]
+        olabels = olabels[indices]
+        text_positions = text_positions[indices]
+
+        rnnt_graph = k2.Fsa(sorted_arcs, olabels)
+        rnnt_graph.text_positions = text_positions
+        return rnnt_graph
+
+    def forward(
+        self, acts: torch.Tensor, labels: torch.Tensor, act_lens: torch.Tensor, label_lens: torch.Tensor,
+    ):
+        # nemo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
+        logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
+
+        # logits: B x Time x Text+1 x C
+        num_labels = logits.shape[-1]
+        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, num_labels)
+
+        cast_context = force_float32_context if self._cast_to_float32 else nullcontext
+        with cast_context():
+            log_probs = F.log_softmax(logits, dim=-1)
+            with torch.no_grad():
+                indices = self.get_logits_indices(target_fsas_vec, logits.shape)
+                indices[target_fsas_vec.labels == -1] = 0
+
+            # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
+            scores = log_probs.flatten().index_select(-1, indices)
+            scores[target_fsas_vec.labels == -1] = 0
+
+            target_fsas_vec.scores = scores
+            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self._double_scores, log_semiring=True)
+            return scores
