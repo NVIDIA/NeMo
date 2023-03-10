@@ -59,13 +59,15 @@ class ConcatDataset(IterableDataset):
         self.global_rank = global_rank
         self.world_size = world_size
         self.sampling_kwargs = {}
-        self.np_rng = np.random.RandomState(seed)
+        
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
             self.sampling_kwargs['temperature'] = sampling_temperature
+            self.sampling_kwargs['seed'] = seed
         elif sampling_technique == 'random':
             self.index_generator = ConcatDataset.random_generator
             self.sampling_kwargs['p'] = sampling_probabilities
+            self.sampling_kwargs['seed'] = seed
         elif sampling_technique == 'round-robin':
             self.index_generator = ConcatDataset.round_robin_generator
         else:
@@ -146,6 +148,8 @@ class ConcatDataset(IterableDataset):
         if not temp:
             raise ValueError("Temperature generator expects a 'temperature' keyword argument.")
 
+        seed = kwargs.get('seed')
+        np_rng = np.random.RandomState(seed)
         lengths = []
         num = len(datasets)
         for dataset in datasets:
@@ -156,7 +160,7 @@ class ConcatDataset(IterableDataset):
         p = p / np.sum(p)
 
         while True:
-            ind = self.np_rng.choice(np.arange(num), p=p)
+            ind = np_rng.choice(np.arange(num), p=p)
             yield ind
 
     @staticmethod
@@ -172,12 +176,14 @@ class ConcatDataset(IterableDataset):
         if not p:
             raise ValueError("Random generator expects a 'p' keyowrd argument for sampling probabilities.")
 
+        seed = kwargs.get('seed')
+        np_rng = np.random.RandomState(seed)
         num = len(datasets)
         if len(p) != num:
             raise ValueError("Length of probabilities list must be equal to the number of datasets.")
 
         while True:
-            ind = self.np_rng.choice(np.arange(num), p=p)
+            ind = np_rng.choice(np.arange(num), p=p)
             yield ind
 
 
