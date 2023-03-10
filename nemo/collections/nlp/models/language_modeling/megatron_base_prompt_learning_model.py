@@ -81,12 +81,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
-            VirtualPromptStyle.P_TUNING,
-        ]:
-
-            # TODO: Handle this when moving GPT prompt learning to the base class.
-            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:

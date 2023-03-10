@@ -14,6 +14,7 @@
 
 import itertools
 from typing import Any, List
+from torch import Tensor
 
 import torch
 from omegaconf import OmegaConf
@@ -74,6 +75,54 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
+    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
+        """
+        Replaces the virtual tokens in the input_ids with embeddings 
+        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        The virtual token placeholders have token_ids listed in
+        `self.pseudo_token_ids`.
+
+        params:
+            input_ids: the input token ids
+            taskname_ids: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        # Replace virtual token ids with padding for forward pass through vocab embeddings
+        discrete_token_ids = input_ids.clone()
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        
+
+        # Find the indicies where virtual tokens should be inserted
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+
+        # If there are no virtual tokens, just return discrete token embeds
+        if not virtual_token_locations.any():
+            return discrete_token_embeds
+
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            # taskname_embeddings = self.word_embeddings(taskname_ids)
+            batch_size, _ = taskname_ids.size()
+            
+        else:
+            raise ValueError("invalid VirtualPromptSource.")
+
+        # Create index template specifying where virtual token embeddings should be placed
+        batch_size, _, embedding_size = discrete_token_embeds.shape
+        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
+        virtual_token_index = virtual_token_index.expand(
+            batch_size, self.total_new_task_virtual_tokens, embedding_size
+        )
+
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+
+        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
+        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
+        input_embeds = discrete_token_embeds
+
+        return input_embeds
+
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
             return True
@@ -89,18 +138,19 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         batch_size, seq_length = input_ids.shape
 
         if self.first_stage_of_pipeline():
-            # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input(input_ids, taskname_ids, inference)
+            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=inference)
+            input_ids = input_ids[:, virtual_token_embeds.shape[1]:]
+            position_ids = position_ids[:,:-virtual_token_embeds.shape[1]]
+            input_embeds = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings(input_ids).clone()
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids) 
                 encoder_input = input_embeds + position_embeddings
             else:
                 encoder_input = input_embeds
         else:
             encoder_input = None
+        encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
 
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
