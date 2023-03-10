@@ -12,12 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple
+from typing import List, Optional, Tuple
+from collections import OrderedDict
 
 import torch
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
+from nemo.core.neural_types.elements import (
+    EncodedRepresentation,
+    MelSpectrogramType,
+    Index,
+    TokenDurationType
+)
+from nemo.core.neural_types.neural_type import NeuralType
 
 
 def masked_instance_norm(
@@ -122,7 +131,7 @@ class LinearNorm(torch.nn.Module):
         return self.linear_layer(x)
 
 
-class ConvNorm(torch.nn.Module):
+class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     __constants__ = ['use_partial_padding']
     use_partial_padding: bool
 
@@ -176,6 +185,10 @@ class ConvNorm(torch.nn.Module):
             ret = self.conv(signal)
             if self.norm is not None:
                 ret = self.norm(ret)
+                
+        if self.is_adapter_available():
+            ret = self.forward_enabled_adapters(ret.transpose(1,2)).transpose(1, 2)
+            
         return ret
 
 
@@ -410,3 +423,279 @@ class WaveNet(torch.nn.Module):
                 output = output + res_skip_acts
 
         return self.end(output)
+
+class WeightedSpeakerEmbedding(torch.nn.Module):
+    def __init__(self, pretrained_embedding, speaker_list=[]):
+        super().__init__()
+        if len(speaker_list) > 0:
+            self.pretrained_embedding = torch.nn.Parameter(pretrained_embedding.weight[speaker_list].detach().clone())
+        else:
+            self.pretrained_embedding = torch.nn.Parameter(pretrained_embedding.weight.detach().clone())
+        self.pretrained_embedding.requires_grad = False
+        self.num_embeddings = self.pretrained_embedding.size()[0]
+        self.embedding_weight = torch.nn.Parameter(torch.ones(1, self.num_embeddings))
+
+    def forward(self, speaker):
+        weight = self.embedding_weight.repeat(len(speaker), 1)
+        weight = torch.nn.functional.softmax(weight, dim=-1)
+        speaker_emb = weight @ self.pretrained_embedding
+        return speaker_emb
+
+
+class GlobalStyleToken(NeuralModule):
+    """
+    Global Style Token based Speaker Embedding
+    """
+    def __init__(self, 
+                 cnn_filters=[32, 32, 64, 64, 128, 128], 
+                 dropout=0.2, 
+                 gru_hidden=128,
+                 gst_size=128, 
+                 n_style_token=10, 
+                 n_style_attn_head=4):
+        super(GlobalStyleToken, self).__init__()    
+        self.reference_encoder = ReferenceEncoderUtteranceLevel(cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gru_hidden)
+        self.style_attention = StyleAttention(gru_hidden=gru_hidden, gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head)
+
+    @property
+    def input_types(self):
+        return {
+            "inp":NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "inp_mask":NeuralType(('B', 'T_spec', 1), TokenDurationType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "gst": NeuralType(('B', 'D'), EncodedRepresentation()),
+        }
+
+    def forward(self, inp, inp_mask):
+        style_embedding = self.reference_encoder(inp, inp_mask)
+        gst = self.style_attention(style_embedding)
+        return gst
+
+
+class ReferenceEncoderUtteranceLevel(NeuralModule):
+    def __init__(self, cnn_filters=[32, 32, 64, 64, 128, 128], dropout=0.2, gru_hidden=128):
+        super(ReferenceEncoderUtteranceLevel, self).__init__()
+        self.filter_size = [1] + cnn_filters
+        self.dropout = dropout
+        self.conv = torch.nn.Sequential(
+            OrderedDict(
+                [
+                    module
+                    for i in range(len(cnn_filters))
+                    for module in (
+                        (
+                            "conv2d_{}".format(i + 1),
+                            Conv2d(
+                                in_channels=int(self.filter_size[i]),
+                                out_channels=int(self.filter_size[i + 1]),
+                                kernel_size=(3, 3),
+                                stride=(2, 2),
+                                padding=(1, 1),
+                            ),
+                        ),
+                        ("relu_{}".format(i + 1), torch.nn.ReLU()),
+                        (
+                            "layer_norm_{}".format(i + 1),
+                            torch.nn.LayerNorm(self.filter_size[i + 1]),
+                        ),
+                        ("dropout_{}".format(i + 1), torch.nn.Dropout(self.dropout)),
+                    )
+                ]
+            )
+        )
+
+        self.gru = torch.nn.GRU(
+            input_size=cnn_filters[-1] * 2,
+            hidden_size=gru_hidden,
+            batch_first=True,
+        )
+
+    @property
+    def input_types(self):
+        return {
+            "inputs": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "inputs_masks": NeuralType(('B', 'T_spec', 1), TokenDurationType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "out": NeuralType(('B', 'D'), EncodedRepresentation()),
+        }
+
+    def forward(self, inputs, inputs_masks):
+        inputs = inputs.transpose(1,2)
+
+        inputs = inputs * inputs_masks
+        out = inputs.unsqueeze(3)
+        out = self.conv(out)
+        out = out.view(out.shape[0], out.shape[1], -1).contiguous()
+        self.gru.flatten_parameters()
+        _, out = self.gru(out)
+
+        return out.squeeze(0)
+
+
+class StyleAttention(NeuralModule):
+    def __init__(self, gru_hidden=128, gst_size=128, n_style_token=10, n_style_attn_head=4):
+        super(StyleAttention, self).__init__()
+        self.input_size = gru_hidden
+        self.output_size = gst_size
+        self.n_token = n_style_token
+        self.n_head = n_style_attn_head
+        self.token_size = self.output_size // self.n_head
+
+        self.tokens = torch.nn.Parameter(torch.FloatTensor(self.n_token, self.token_size))
+
+        self.q_linear = torch.nn.Linear(self.input_size, self.output_size)
+        self.k_linear = torch.nn.Linear(self.token_size, self.output_size)
+        self.v_linear = torch.nn.Linear(self.token_size, self.output_size)
+
+        self.tanh = torch.nn.Tanh()
+        self.softmax = torch.nn.Softmax(dim=2)
+        self.temperature = (self.output_size // self.n_head) ** 0.5
+        torch.nn.init.normal_(self.tokens)
+
+    @property
+    def input_types(self):
+        return {
+            "inputs": NeuralType(('B', 'D'), EncodedRepresentation()),
+            "token_id": NeuralType(('B'), Index(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "style_emb": NeuralType(('B', 'D'), EncodedRepresentation()),
+        }
+
+    def forward(self, inputs, token_id=None):
+        bs = inputs.size(0)
+        q = self.q_linear(inputs.unsqueeze(1))
+        k = self.k_linear(self.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1))
+        v = self.v_linear(self.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1))
+
+        q = q.view(bs, q.shape[1], self.n_head, self.token_size)
+        k = k.view(bs, k.shape[1], self.n_head, self.token_size)
+        v = v.view(bs, v.shape[1], self.n_head, self.token_size)
+
+        q = q.permute(2, 0, 1, 3).contiguous().view(-1, q.shape[1], q.shape[3])
+        k = k.permute(2, 0, 3, 1).contiguous().view(-1, k.shape[3], k.shape[1])
+        v = v.permute(2, 0, 1, 3).contiguous().view(-1, v.shape[1], v.shape[3])
+
+        scores = torch.bmm(q, k) / self.temperature
+        scores = self.softmax(scores)
+        if token_id is not None:
+            scores = torch.zeros_like(scores)
+            scores[:, :, token_id] = 1
+
+        style_emb = torch.bmm(scores, v).squeeze(1)
+        style_emb = style_emb.contiguous().view(self.n_head, bs, self.token_size)
+        style_emb = style_emb.permute(1, 0, 2).contiguous().view(bs, -1)
+
+        return style_emb
+
+
+class SVEmbeddingLinearProjectionNetwork(torch.nn.Module):
+    def __init__(self, speaker_embedding_dim, symbols_embedding_dim):
+        super(SVEmbeddingLinearProjectionNetwork, self).__init__()
+        self.speaker_proj = torch.nn.Linear(speaker_embedding_dim, symbols_embedding_dim)
+        self.bn1 = torch.nn.BatchNorm1d(num_features=symbols_embedding_dim)
+        self.act_fn = torch.nn.ReLU()
+
+    def forward(self, sv_embedding):
+        x = self.speaker_proj(sv_embedding)
+        return x.unsqueeze(1)
+        # return self.act_fn(self.bn1(x)).unsqueeze(1)
+
+
+
+class SpeakerEncoder(torch.nn.Module):
+    """
+    class SpeakerEncoder represents speakers representation. This module can combine GST (global style token)
+    based speaker embeddings, speaker embeddings from speaker verificaiton models and lookup table speaker
+    embeddings.
+    """
+    def __init__(self, gst_module=None, sv_projection_module=None, lookup_emb_projection_module=None):
+        """
+        Constructor.
+        Parameters:
+            - gst_module: Neural module to get GST based speaker embedding
+            - sv_projection_module: Neural module to get Speaker Verification based speaker embedding
+            - lookup_emb_projection_module: Neural module to project lookup speaker embedding
+        """ 
+        super(SpeakerEncoder, self).__init__()
+        self.gst_module = gst_module
+        self.sv_projection_module = sv_projection_module
+        self.lookup_emb_projection_module = lookup_emb_projection_module
+
+    def forward(self, spk_emb, gst_ref_spec=None, gst_ref_spec_lens=None, speaker_embedding=None):
+        x = spk_emb
+        # Project lookup speaker embedding
+        if self.lookup_emb_projection_module is not None:
+            x += self.lookup_emb_projection_module(spk_emb)
+
+        # Get GST based speaker embedding
+        if self.gst_module is not None and gst_ref_spec is not None and gst_ref_spec_lens is not None:
+            ref_spec_mask = (
+                torch.arange(gst_ref_spec_lens.max())
+                .to(gst_ref_spec.device)
+                .expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max())
+                < gst_ref_spec_lens.unsqueeze(1)
+             ).unsqueeze(2)
+            x += self.gst_module(gst_ref_spec, ref_spec_mask).unsqueeze(1)
+
+        # Project speaker embedding from Speaker Verification based 
+        if self.sv_projection_module is not None and speaker_embedding is not None:
+            x += self.sv_projection_module(speaker_embedding)
+        return x
+
+class Conv2d(torch.nn.Module):
+    """
+    Convolution 2D Module
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=(1, 1),
+        stride=(1, 1),
+        padding=(0, 0),
+        dilation=(1, 1),
+        bias=True,
+        w_init="linear",
+    ):
+        """
+        :param in_channels: dimension of input
+        :param out_channels: dimension of output
+        :param kernel_size: size of kernel
+        :param stride: size of stride
+        :param padding: size of padding
+        :param dilation: dilation rate
+        :param bias: boolean. if True, bias is included.
+        :param w_init: str. weight inits with xavier initialization.
+        """
+        super(Conv2d, self).__init__()
+
+        self.conv = torch.nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=bias,
+        )
+
+    def forward(self, x):
+        x = x.contiguous().transpose(1, 3)
+        x = x.contiguous().transpose(2, 3)
+        x = self.conv(x)
+        x = x.contiguous().transpose(2, 3)
+        x = x.contiguous().transpose(1, 3)
+        return x
