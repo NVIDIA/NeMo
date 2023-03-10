@@ -15,7 +15,7 @@
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
     MegatronGPTUniversalPromptLearningModel,

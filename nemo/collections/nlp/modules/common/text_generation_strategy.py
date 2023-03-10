@@ -19,6 +19,7 @@ import torch
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 
 try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
@@ -322,7 +323,6 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
             # If the first token is BOS, don't mask it
             # to be consistent with the training data
             self.prompt_input_mask[:, 0] = True
-            
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -382,7 +382,6 @@ def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
         MegatronGPTUniversalPromptLearningModel,
     )
