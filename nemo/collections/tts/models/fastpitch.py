@@ -25,13 +25,17 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_features
 from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
+    mel_to_audio,
     plot_alignment_to_numpy,
+    plot_multipitch_to_numpy,
+    plot_pitch_to_numpy,
     plot_spectrogram_to_numpy,
     process_batch,
     sample_tts_input,
+    tensor_to_wav,
 )
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -478,6 +482,197 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
+        spect = mels
+        pred_spect = mels_pred
+        pred_pitch = pitch_pred
+        audio_len = audio_lens
+
+        for logger in self.loggers:
+            if batch_idx == 0:
+                if isinstance(logger, TensorBoardLogger):
+                    for i in range(min(5, spect.shape[0])):
+                        self.tb_logger.add_image(
+                            f"gt mel {i}",
+                            plot_spectrogram_to_numpy(spect[i].data.cpu().numpy()),
+                            self.global_step,
+                            dataformats="HWC",
+                        )
+                        self.tb_logger.add_image(
+                            f"pred mel {i}",
+                            plot_spectrogram_to_numpy(pred_spect[i].data.cpu().numpy()),
+                            self.global_step,
+                            dataformats="HWC",
+                        )
+
+                        _pitch_pred = pred_pitch[i].data.cpu().numpy()
+                        _pitch_target = pitch[i].data.cpu().numpy()
+
+                        self.tb_logger.add_image(
+                            f"val_pitch {i}",
+                            plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
+                            self.global_step,
+                            dataformats="HWC",
+                        )
+
+                        # Audio:
+                        self.tb_logger.add_audio(
+                            f"original audio {i}",
+                            audio[i, : audio_len[i]],
+                            self.global_step,
+                            sample_rate=self._cfg.sample_rate,
+                        )
+                        self.tb_logger.add_audio(
+                            f"gt audio {i}",
+                            mel_to_audio(
+                                spect[i],
+                                sr=self._cfg.sample_rate,
+                                n_fft=self._cfg.n_fft,
+                                n_mels=self._cfg.n_mel_channels,
+                                fmax=self._cfg.highfreq,
+                            ),
+                            self.global_step,
+                            sample_rate=self._cfg.sample_rate,
+                        )
+                        self.tb_logger.add_audio(
+                            f"pred audio {i}",
+                            mel_to_audio(
+                                pred_spect[i],
+                                sr=self._cfg.sample_rate,
+                                n_fft=self._cfg.n_fft,
+                                n_mels=self._cfg.n_mel_channels,
+                                fmax=self._cfg.highfreq,
+                            ),
+                            self.global_step,
+                            sample_rate=self._cfg.sample_rate,
+                        )
+
+                    self.log_train_images = True
+
+                elif isinstance(logger, WandbLogger) and HAVE_WANDB:
+                    specs = []
+                    pitches = []
+                    audios = []
+
+                    for i in range(min(5, spect.shape[0])):
+                        specs += [
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(spect[i].data.cpu().numpy()), caption=f"gt mel {i}",
+                            ),
+                            wandb.Image(
+                                plot_spectrogram_to_numpy(pred_spect[i].data.cpu().numpy()), caption=f"pred mel {i}",
+                            ),
+                        ]
+
+                        _pitch_pred = pred_pitch[i].data.cpu().numpy()
+                        _pitch_target = pitch[i].data.cpu().numpy()
+
+                        pitches.append(
+                            wandb.Image(
+                                plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
+                                caption=f"val_pitch {self.global_step}-{i}",
+                            )
+                        )
+
+                        audios += [
+                            wandb.Audio(
+                                audio[i, : audio_len[i]].data.cpu().numpy(),
+                                caption=f"original audio {i}",
+                                sample_rate=self._cfg.sample_rate,
+                            ),
+                            wandb.Audio(
+                                mel_to_audio(
+                                    spect[i],
+                                    sr=self._cfg.sample_rate,
+                                    n_fft=self._cfg.n_fft,
+                                    n_mels=self._cfg.n_mel_channels,
+                                    fmax=self._cfg.highfreq,
+                                ),
+                                caption=f"gt audio {i}",
+                                sample_rate=self._cfg.sample_rate,
+                            ),
+                            wandb.Audio(
+                                mel_to_audio(
+                                    pred_spect[i],
+                                    sr=self._cfg.sample_rate,
+                                    n_fft=self._cfg.n_fft,
+                                    n_mels=self._cfg.n_mel_channels,
+                                    fmax=self._cfg.highfreq,
+                                ),
+                                caption=f"pred audio {i}",
+                                sample_rate=self._cfg.sample_rate,
+                            ),
+                        ]
+
+                    logger.experiment.log({"specs": specs, "pitches": pitches, "audio": audios})
+
+                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
+                    for i in range(min(5, spect.shape[0])):
+                        # Mels:
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(spect[i].data.cpu().numpy()),
+                            series=f"gt mel {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_image(
+                            image=plot_spectrogram_to_numpy(pred_spect[i].data.cpu().numpy()),
+                            series=f"pred mel {i}",
+                            title="mel",
+                            iteration=self.global_step,
+                        )
+
+                        # Pitch:
+                        _pitch_pred = pred_pitch[i].data.cpu().numpy()
+                        _pitch_target = pitch[i].data.cpu().numpy()
+
+                        logger.clearml_task.logger.report_image(
+                            image=plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
+                            series=f"val_pitch {i}",
+                            title="pitch",
+                            iteration=self.global_step,
+                        )
+
+                        # Audio:
+                        logger.clearml_task.logger.report_media(
+                            stream=tensor_to_wav(audio[i, : audio_len[i]], self._cfg.sample_rate),
+                            title="audio",
+                            series=f"original audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_media(
+                            stream=tensor_to_wav(
+                                mel_to_audio(
+                                    spect[i],
+                                    sr=self._cfg.sample_rate,
+                                    n_fft=self._cfg.n_fft,
+                                    n_mels=self._cfg.n_mel_channels,
+                                    fmax=self._cfg.highfreq,
+                                ),
+                                self._cfg.sample_rate,
+                            ),
+                            title="audio",
+                            series=f"gt audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+                        logger.clearml_task.logger.report_media(
+                            stream=tensor_to_wav(
+                                mel_to_audio(
+                                    pred_spect[i],
+                                    sr=self._cfg.sample_rate,
+                                    n_fft=self._cfg.n_fft,
+                                    n_mels=self._cfg.n_mel_channels,
+                                    fmax=self._cfg.highfreq,
+                                ),
+                                self._cfg.sample_rate,
+                            ),
+                            title="audio",
+                            series=f"pred audio {i}",
+                            file_extension="wav",
+                            iteration=self.global_step,
+                        )
+
         return {
             "val_loss": loss,
             "mel_loss": mel_loss,
@@ -501,52 +696,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if outputs[0]["energy_loss"] is not None:
             energy_loss = collect("energy_loss")
             self.log("val_energy_loss", energy_loss)
-
-        _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
-
-        for logger in self.loggers:
-            if isinstance(logger, TensorBoardLogger):
-                self.tb_logger.add_image(
-                    "val_mel_target",
-                    plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
-                self.tb_logger.add_image(
-                    "val_mel_predicted",
-                    plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
-                self.log_train_images = True
-
-            elif isinstance(logger, WandbLogger) and HAVE_WANDB:
-                specs = [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
-                        caption=f"val_mel_target {self.global_step}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
-                        caption=f"val_mel_predicted {self.global_step}",
-                    ),
-                ]
-                logger.experiment.log({"specs": specs})
-
-            elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                # Mels:
-                logger.clearml_task.logger.report_image(
-                    image=plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
-                    series=f"val_mel_target",
-                    title="mel",
-                    iteration=self.global_step,
-                )
-                logger.clearml_task.logger.report_image(
-                    image=plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy()),
-                    series=f"val_mel_predicted",
-                    title="mel",
-                    iteration=self.global_step,
-                )
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

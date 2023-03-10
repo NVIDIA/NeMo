@@ -25,7 +25,7 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_features
 from nemo.collections.tts.modules.transformer import mask_from_lens
-from nemo.collections.tts.parts.utils.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
+from nemo.collections.tts.parts.utils.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy, tensor_to_wav
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
@@ -397,8 +397,9 @@ class FastPitchModel_SSL(ModelPT):
 
                 wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
                 logger.clearml_task.logger.report_media(
-                    stream=io.BytesIO(wav_vocoded[0].tobytes()),
-                    title=f"real audio",
+                    stream=tensor_to_wav(wav_vocoded[0], 22050),
+                    title="audio",
+                    series=f"real audio",
                     file_extension="wav",
                     iteration=self.global_step,
                 )
@@ -407,8 +408,9 @@ class FastPitchModel_SSL(ModelPT):
                     spec_predict[_rand_idx].data.cpu().float().numpy()[:, :_spec_len]
                 )
                 logger.clearml_task.logger.report_media(
-                    stream=io.BytesIO(wav_vocoded[0].tobytes()),
-                    title=f"generated audio",
+                    stream=tensor_to_wav(wav_vocoded[0], 22050),
+                    title="audio",
+                    series=f"generated audio",
                     file_extension="wav",
                     iteration=self.global_step,
                 )
