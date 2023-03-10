@@ -669,7 +669,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if batch is None:
             return 0, 0
 
-        return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
+        if "audio" not in self._cfg.train_ds:
+            return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
+        else:
+            return_is_valid = self._cfg.train_ds.get('return_is_valid', False)
+
         if return_is_valid:
             signal, signal_len, transcript, transcript_len, valid = batch
             logging.info(f"----> num non-valid samples: {sum(valid == 0)}")
