@@ -346,7 +346,7 @@ class HifiGanModel(Vocoder, Exportable):
                             title="mel",
                             iteration=self.global_step,
                         )
-                        if self.input_as_mel:
+                        if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
                             logger.clearml_task.logger.report_image(
                                 image=plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
                                 series=f"gt mel {i}",
