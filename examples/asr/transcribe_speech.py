@@ -280,13 +280,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         augmentor=augmentor,
                     )
             else:
-                transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths,
+                transcriptions = asr_model.transcribe(paths2audio_files=filepaths,
                     batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
+                    # return_hypotheses=return_hypotheses,
+                    # channel_selector=cfg.channel_selector,
+                    # augmentor=augmentor,
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
@@ -297,14 +295,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
 
     # write audio transcriptions
-    output_filename = write_transcription(
-        transcriptions,
-        cfg,
-        model_name,
-        filepaths=filepaths,
-        compute_langs=compute_langs,
-        compute_timestamps=compute_timestamps,
-    )
+    output_filename = write_transcription(transcriptions,cfg,model_name,filepaths=filepaths,compute_langs=compute_langs,compute_timestamps=compute_timestamps)
     logging.info(f"Finished writing predictions to {output_filename}!")
 
     return cfg

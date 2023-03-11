@@ -409,6 +409,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def _text_and_speech_collate_fn(self, batch):
         import numpy
         return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
+        logging.info(f"return is valid id: {return_is_valid}")
         text_batches, speech_batches = [], []
         for i, b in enumerate(batch):
 
