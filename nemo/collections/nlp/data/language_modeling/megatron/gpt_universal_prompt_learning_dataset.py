@@ -75,7 +75,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         add_eos: bool = True,
         max_num_samples: int = None,
         seed: int = 1234,
-        index_mapping_dir: str=None,
+        index_mapping_dir: str = None,
     ):
         self.tokenizer = tokenizer
         self.virtual_token_len = virtual_token_len

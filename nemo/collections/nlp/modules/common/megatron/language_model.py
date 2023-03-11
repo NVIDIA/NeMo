@@ -674,7 +674,9 @@ class TransformerLanguageModel(MegatronModule):
             elif self.encoder.input_tensor is not None:
                 if self.sequence_parallel:
                     app_state = AppState()
-                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0) * app_state.tensor_model_parallel_size)
+                    rotary_pos_emb = self.rotary_pos_emb(
+                        self.encoder.input_tensor.size(0) * app_state.tensor_model_parallel_size
+                    )
                 else:
                     rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
