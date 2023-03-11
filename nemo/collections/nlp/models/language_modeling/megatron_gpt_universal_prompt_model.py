@@ -713,6 +713,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             "compute_logprob": False,
         }
 
+        # set a barrier to make sure all the processes have the same input
+        torch.distributed.barrier()
         result = megatron_gpt_generate(
             self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
         )
