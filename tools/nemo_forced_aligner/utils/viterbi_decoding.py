@@ -138,12 +138,4 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
             alignment_b.insert(0, int(backpointers[b, t, alignment_b[0]]))
         alignments_batch.append(alignment_b)
 
-    print(log_probs_batch.dtype)
-    print(y_batch.dtype)
-    print(T_batch.dtype)
-    print(U_batch.dtype)
-    print(log_probs_reordered.dtype)
-    print(v_matrix.dtype)
-    print(backpointers.dtype)
-
     return alignments_batch
