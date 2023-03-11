@@ -25,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
+from nemo.utils.app_state import AppState
 
 try:
     from apex.transformer import tensor_parallel
@@ -491,6 +492,7 @@ class TransformerLanguageModel(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
+        self.sequence_parallel = sequence_parallel
 
         if kv_channels is None:
 
@@ -664,8 +666,6 @@ class TransformerLanguageModel(MegatronModule):
         else:
             pass
 
-        # encoder_input: [s, b, h]
-
         # enc_attn_mask: [1, 1, s, s]
 
         if self.position_embedding_type == 'rope':
@@ -674,7 +674,11 @@ class TransformerLanguageModel(MegatronModule):
             elif self.encoder.input_tensor is not None:
                 rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
-                rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
+                if self.sequence_parallel:
+                    app_state = AppState()
+                    rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0) * app_state.tensor_model_parallel_size)
+                else:
+                    rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         else:
             rotary_pos_emb = None
         # encoder.

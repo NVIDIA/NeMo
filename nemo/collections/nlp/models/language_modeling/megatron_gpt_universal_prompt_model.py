@@ -677,7 +677,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             pred_text_tokens = result['token_ids'][bid][start_id:]
             pred_text = self.frozen_model.tokenizer.ids_to_text(pred_text_tokens)
             label_text_tokens = batch[1][bid][start_id - 1 : start_id + number_tokens[bid] - 1]
-            label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens)
+            label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens.tolist())
             preds_text.append(pred_text.strip())
             labels_text.append(label_text.strip())
         return preds_text, labels_text
