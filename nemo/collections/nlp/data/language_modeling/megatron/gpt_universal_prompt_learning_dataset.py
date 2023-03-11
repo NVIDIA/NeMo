@@ -32,6 +32,19 @@ from nemo.utils import AppState, logging
 
 __all__ = ['GPTUniversalPromptLearningDataset']
 
+SHORT_ASSIST_PROMPT = """Assistant: The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
+User: """
+
+LONG_ASSIST_PROMPT = """Assistant: I am Assistant, a large language model trained by NVIDIA.
+I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
+User: """
+
+LONG_ASSIST_PROMPT_NV = """Assistant: I am NVLM, a large language model trained by NVIDIA.
+I am designed to generate human-like text based on the input that I receive. This can include providing responses to questions, generating summaries of text, or even generating entire documents on a given topic. I am able to understand and process natural language, so you can interact with me in the same way that you would with another person.
+Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
+User: """
+
 
 class GPTUniversalPromptLearningT0Dataset(Dataset):
     """
@@ -72,6 +85,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         self.answer_only_loss = answer_only_loss
         self.max_num_samples = max_num_samples
         self.seed = seed
+        self.assistant_prompt = 'long_nv'
 
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
@@ -121,38 +135,52 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         """
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
-        tokenized_input = self.tokenizer.text_to_ids(example['input'])
-        # add a space between input and output
+        context = example['input']
         if 'output' in example:
-            tokenized_output = self.tokenizer.text_to_ids(' ' + example['output'])
+            label = example['output']
         else:
-            tokenized_output = self.tokenizer.text_to_ids(' ')
+            label = ''
+
+        if self.assistant_prompt == 'short':
+            context = SHORT_ASSIST_PROMPT + context + "\n\nAssistant:"
+        elif self.assistant_prompt == 'long':
+            context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
+        elif self.assistant_prompt == 'long_nv':
+            context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
+
+        text = context + ' ' + label
+
+        tokenized_text = self.tokenizer.text_to_ids(text)
+        tokenized_input = self.tokenizer.text_to_ids(context)
+        answer_ids = tokenized_text[len(tokenized_input):]
+        # add a space between input and output
+
         offset = self.virtual_token_len
         if self.add_bos:
             offset += 1
         if self.add_eos:
             offset += 1
-        if len(tokenized_input) + len(tokenized_output) > self.max_seq_length - offset:
-            cut_tokens = len(tokenized_input) + len(tokenized_output) - self.max_seq_length + offset
+        if len(tokenized_input) + len(answer_ids) > self.max_seq_length - offset:
+            cut_tokens = len(tokenized_input) + len(answer_ids) - self.max_seq_length + offset
             if len(tokenized_input) - cut_tokens > 0:
                 # cut the input by default
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_tokens]
-            elif len(tokenized_output) - cut_tokens > 0:
+            elif len(answer_ids) - cut_tokens > 0:
                 # cut the output
-                tokenized_output = tokenized_output[: len(tokenized_output) - cut_tokens]
+                answer_ids = answer_ids[: len(answer_ids) - cut_tokens]
             else:
                 # cut both the input and output
                 cut_input_tokens = len(tokenized_input) - 1  # retain at least one token
                 cut_output_tokens = cut_tokens - cut_input_tokens
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_input_tokens]
-                tokenized_output = tokenized_output[: len(tokenized_output) - cut_output_tokens]
+                answer_ids = answer_ids[: len(answer_ids) - cut_output_tokens]
         bos_id = self.tokenizer.bos_id
         if self.add_bos:
             tokenized_input = [bos_id] + tokenized_input
         if self.add_eos:
-            target = tokenized_output + [self.tokenizer.eos_id]
+            target = answer_ids + [self.tokenizer.eos_id]
         else:
-            target = tokenized_output
+            target = answer_ids
         answer_start_idx = len(tokenized_input)
         input_ids = tokenized_input + target
         results = (input_ids, answer_start_idx)
