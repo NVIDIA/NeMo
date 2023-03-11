@@ -497,7 +497,9 @@ def get_audio_to_text_char_dataset_from_config(
     is_concat = config.get('is_concat', False)
     if is_concat:
         if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
-            logging.warning(f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}")
+            logging.warning(
+                f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
+            )
             return None
 
         if not 'concat_sampling_probabilities' in config:
