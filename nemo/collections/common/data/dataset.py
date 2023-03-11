@@ -59,7 +59,7 @@ class ConcatDataset(IterableDataset):
         self.global_rank = global_rank
         self.world_size = world_size
         self.sampling_kwargs = {}
-        
+
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
             self.sampling_kwargs['temperature'] = sampling_temperature
