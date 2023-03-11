@@ -46,11 +46,6 @@ Arguments:
         log-probs which we will use to do alignment.
         Note: NFA can only use CTC models (not Transducer models) at the moment.
         Note: if a model_path is provided, it will override the pretrained_name.
-    model_downsample_factor: an int indicating the downsample factor of the ASR model, ie the ratio of input 
-        timesteps to output timesteps. 
-        If the ASR model is a QuartzNet model, its downsample factor is 2.
-        If the ASR model is a Conformer CTC model, its downsample factor is 4.
-        If the ASR model is a Citirnet model, its downsample factor is 8.
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
@@ -90,7 +85,6 @@ class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
     model_path: Optional[str] = None
-    model_downsample_factor: Optional[int] = None
     manifest_filepath: Optional[str] = None
     output_dir: Optional[str] = None
 
@@ -119,9 +113,6 @@ def main(cfg: AlignmentConfig):
 
     if cfg.model_path is not None and cfg.pretrained_name is not None:
         raise ValueError("One of cfg.model_path and cfg.pretrained_name must be None")
-
-    if cfg.model_downsample_factor is None:
-        raise ValueError("cfg.model_downsample_factor must be specified")
 
     if cfg.manifest_filepath is None:
         raise ValueError("cfg.manifest_filepath must be specified")
@@ -203,6 +194,9 @@ def main(cfg: AlignmentConfig):
     else:
         pred_text_all_lines = None
 
+    # init model_downsample_factor = None and we will calculate and update it during the first batch
+    model_downsample_factor = None
+
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
@@ -216,8 +210,13 @@ def main(cfg: AlignmentConfig):
             word_info_batch,
             segment_info_batch,
             pred_text_batch,
+            model_downsample_factor,
         ) = get_batch_tensors_and_boundary_info(
-            manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
+            manifest_lines_batch,
+            model,
+            cfg.additional_ctm_grouping_separator,
+            cfg.align_using_pred_text,
+            model_downsample_factor,
         )
 
         if cfg.align_using_pred_text:
@@ -230,7 +229,7 @@ def main(cfg: AlignmentConfig):
             alignments_batch,
             manifest_lines_batch,
             model,
-            cfg.model_downsample_factor,
+            model_downsample_factor,
             os.path.join(cfg.output_dir, "tokens"),
             cfg.remove_blank_tokens_from_ctm,
             cfg.audio_filepath_parts_in_utt_id,
@@ -242,7 +241,7 @@ def main(cfg: AlignmentConfig):
             alignments_batch,
             manifest_lines_batch,
             model,
-            cfg.model_downsample_factor,
+            model_downsample_factor,
             os.path.join(cfg.output_dir, "words"),
             False,  # dont try to remove blank tokens because we dont expect them to be there anyway
             cfg.audio_filepath_parts_in_utt_id,
@@ -255,7 +254,7 @@ def main(cfg: AlignmentConfig):
                 alignments_batch,
                 manifest_lines_batch,
                 model,
-                cfg.model_downsample_factor,
+                model_downsample_factor,
                 os.path.join(cfg.output_dir, "additional_segments"),
                 False,  # dont try to remove blank tokens because we dont expect them to be there anyway
                 cfg.audio_filepath_parts_in_utt_id,

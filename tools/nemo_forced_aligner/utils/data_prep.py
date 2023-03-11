@@ -15,8 +15,9 @@
 import json
 import os
 
-import soundfile as sf
+import librosa
 import torch
+from nemo.utils import logging
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 
@@ -283,7 +284,9 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, align_using_pred_text):
+def get_batch_tensors_and_boundary_info(
+    manifest_lines_batch, model, separator, align_using_pred_text, model_downsample_factor
+):
     """
     Returns:
         log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
@@ -292,6 +295,10 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
             for writing the CTM files with the human-readable alignments.
         pred_text_list - this is a list of the transcriptions from our model which we will save to our output JSON
             file if align_using_pred_text is True.
+        model_downsample_factor - the ratio (length of model input) / (length of model output).
+            This variable is also an input variable. The input variable will be None only during the first batch.
+            The function will calculate the value of this ratio and update the variable. When the input varialbe is 
+            not None, this ratio will not be re-calculated.
     """
 
     # get hypotheses by calling 'transcribe'
@@ -357,6 +364,17 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
         U_utt = U_batch[b]
         y_batch[b, :U_utt] = torch.tensor(y_utt)
 
+    # calculate model_downsample_factor if it is None
+    if model_downsample_factor is None:
+        audio_dur = librosa.get_duration(filename=audio_filepaths_batch[0])
+        n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
+        model_downsample_factor = round(n_input_frames / int(T_batch[0]))
+
+        logging.info(
+            f"Calculated that the model downsample factor is {model_downsample_factor}"
+            " -- will use this for all batches"
+        )
+
     return (
         log_probs_batch,
         y_batch,
@@ -366,4 +384,5 @@ def get_batch_tensors_and_boundary_info(manifest_lines_batch, model, separator, 
         word_info_batch,
         segment_info_batch,
         pred_text_batch,
+        model_downsample_factor,
     )

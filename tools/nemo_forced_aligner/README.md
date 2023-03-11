@@ -7,7 +7,6 @@ A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based model
 ``` bash
 python <path_to_NeMo>/tools/nemo_forced_aligner/align.py \
         pretrained_name="stt_en_citrinet_1024_gamma_0_25" \
-        model_downsample_factor=8 \
         manifest_filepath=<path to manifest of utterances you want to align> \
         output_dir=<path to where your ctm files will be saved>
 ```
@@ -22,8 +21,6 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * `model_path`: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the log-probs which we will use to do alignment. If `pretrained_name` is specified, `model_path` must not be specified.
 >Note: NFA can only use CTC models (not Transducer models) at the moment. If you want to transcribe a long audio file (longer than ~5-10 mins), do not use Conformer CTC model as that will likely give Out Of Memory errors.
-
-* `model_downsample_factor`: the downsample factor of the ASR model. It should be 2 if your model is QuartzNet, 4 if it is Conformer CTC, 8 if it is Citrinet.
 
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing `'audio_filepath'` and `'text'` fields. The audio filepaths need to be absolute paths.
 
