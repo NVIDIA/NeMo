@@ -53,6 +53,7 @@ from nemo.collections.nlp.modules.common.universal_prompt_encoder import Univers
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -688,48 +689,55 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         return preds_text, labels_text
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        app = AppState()
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
         torch.distributed.broadcast(loss_mean, get_last_rank())
-        # run inference
-        input_ids = batch[0]
-        # add three as buffer
-        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
-        context_lengths = batch[-1]
-        token_to_gen = input_ids.shape[1] - context_lengths.max()
 
-        length_params: LengthParam = {
-            "max_length": token_to_gen,
-            "min_length": 1,
-        }
+        if app.checkpoint_callback_params['monitor'] == 'validation_exact_string_match':
+            # run inference
+            input_ids = batch[0]
+            # add three as buffer
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
+            context_lengths = batch[-1]
+            token_to_gen = input_ids.shape[1] - context_lengths.max()
 
-        sampling_params: SamplingParam = {
-            "use_greedy": True,
-            "temperature": 1.0,
-            "top_k": 0,
-            "top_p": 0,
-            "repetition_penalty": 1.0,
-            "add_BOS": False,
-            "all_probs": False,
-            "compute_logprob": False,
-        }
+            length_params: LengthParam = {
+                "max_length": token_to_gen,
+                "min_length": 1,
+            }
 
-        # set a barrier to make sure all the processes have the same input
-        torch.distributed.barrier()
-        result = megatron_gpt_generate(
-            self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
-        )
+            sampling_params: SamplingParam = {
+                "use_greedy": True,
+                "temperature": 1.0,
+                "top_k": 0,
+                "top_p": 0,
+                "repetition_penalty": 1.0,
+                "add_BOS": False,
+                "all_probs": False,
+                "compute_logprob": False,
+            }
 
-        number_tokens = [int(i.sum()) for i in batch[2]]
-        preds_text, labels_text = self._get_predicted_text(number_tokens, context_lengths, batch, result)
-        metric = self.val_metric[dataloader_idx]
-        for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
-            _ = metric(pred.lower(), label.lower())
+            # set a barrier to make sure all the processes have the same input
+            torch.distributed.barrier()
+            result = megatron_gpt_generate(
+                self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
+            )
 
-        return {
-            'loss': loss_mean,
-            'preds': preds_text,
-            'labels': labels_text,
-        }
+            number_tokens = [int(i.sum()) for i in batch[2]]
+            preds_text, labels_text = self._get_predicted_text(number_tokens, context_lengths, batch, result)
+            metric = self.val_metric[dataloader_idx]
+            for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
+                _ = metric(pred.lower(), label.lower())
+
+            return {
+                'loss': loss_mean,
+                'preds': preds_text,
+                'labels': labels_text,
+            }
+        else:
+            return {
+                'loss': loss_mean,
+            }
 
     def set_inference_config(self, inference_config, data_cfg):
         self._inference_config = inference_config
@@ -756,6 +764,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         return self.common_epoch_end(outputs, 'validation')
 
     def common_epoch_end(self, outputs, mode='validation'):
+        app = AppState()
         averaged_loss = []
         averaged_metric = []
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
@@ -764,50 +773,84 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
-        for dataloader_idx, output in enumerate(outputs):
-            if parallel_state.is_pipeline_last_stage():
-                # only the last pipeline parallel stages return loss
-                loss = torch.stack([x['loss'] for x in output]).mean()
-            else:
-                loss = torch.tensor(0.0).cuda()
+        if app.checkpoint_callback_params['monitor'] == 'validation_exact_string_match':
+            for dataloader_idx, output in enumerate(outputs):
+                if parallel_state.is_pipeline_last_stage():
+                    # only the last pipeline parallel stages return loss
+                    loss = torch.stack([x['loss'] for x in output]).mean()
+                else:
+                    loss = torch.tensor(0.0).cuda()
 
-            # we can only log on one rank if it is rank zero so we broadcast from last rank
-            torch.distributed.broadcast(loss, get_last_rank())
-            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
-            loss_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, "loss", mode)
-            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
-            metric_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, metric_name, mode)
-            self.log(loss_log_key, loss)
-            metric_object = (
-                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                # we can only log on one rank if it is rank zero so we broadcast from last rank
+                torch.distributed.broadcast(loss, get_last_rank())
+                # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+                loss_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, "loss", mode)
+                # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+                metric_log_key = self._determine_log_key(
+                    self.cfg.data.validation_ds, dataloader_idx, metric_name, mode
+                )
+                self.log(loss_log_key, loss)
+                metric_object = (
+                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                )
+                metric = metric_object.compute()
+                self.log(metric_log_key, metric)
+                logging.info(f"{metric_log_key}: {metric}")
+                metric_object.reset()
+
+                averaged_loss.append(loss)
+                averaged_metric.append(metric)
+
+            # Logging of the averaged metrics:
+            averaged_loss = sum(averaged_loss) / len(averaged_loss)
+            averaged_metric = sum(averaged_metric) / len(averaged_metric)
+
+            if mode == 'validation':
+                self.log("validation_loss", averaged_loss)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric)
+            elif mode == 'test':
+                self.log("test_loss", averaged_loss)
+                self.log(f"test_{self.test_metric_name}", averaged_metric)
+            self._overwrite_checkpointing_for_inference(
+                self.backup_sequence_parallel,
+                self.backup_activations_checkpoint_granularity,
+                self.backup_activations_checkpoint_method,
             )
-            metric = metric_object.compute()
-            self.log(metric_log_key, metric)
-            logging.info(f"{metric_log_key}: {metric}")
-            metric_object.reset()
+            self.back_model_state = None
+            self.back_opt_state = None
+            torch.distributed.barrier()
+            return averaged_loss, averaged_metric
+        else:
+            for dataloader_idx, output in enumerate(outputs):
+                if parallel_state.is_pipeline_last_stage():
+                    # only the last pipeline parallel stages return loss
+                    loss = torch.stack([x['loss'] for x in output]).mean()
+                else:
+                    loss = torch.tensor(0.0).cuda()
 
-            averaged_loss.append(loss)
-            averaged_metric.append(metric)
+                # we can only log on one rank if it is rank zero so we broadcast from last rank
+                torch.distributed.broadcast(loss, get_last_rank())
+                # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+                loss_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, "loss", mode)
+                # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+                self.log(loss_log_key, loss)
+                averaged_loss.append(loss)
+            # Logging of the averaged metrics:
+            averaged_loss = sum(averaged_loss) / len(averaged_loss)
 
-        # Logging of the averaged metrics:
-        averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)
-
-        if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric)
-        elif mode == 'test':
-            self.log("test_loss", averaged_loss)
-            self.log(f"test_{self.test_metric_name}", averaged_metric)
-        self._overwrite_checkpointing_for_inference(
-            self.backup_sequence_parallel,
-            self.backup_activations_checkpoint_granularity,
-            self.backup_activations_checkpoint_method,
-        )
-        self.back_model_state = None
-        self.back_opt_state = None
-        torch.distributed.barrier()
-        return averaged_loss, averaged_metric
+            if mode == 'validation':
+                self.log("validation_loss", averaged_loss)
+            elif mode == 'test':
+                self.log("test_loss", averaged_loss)
+            self._overwrite_checkpointing_for_inference(
+                self.backup_sequence_parallel,
+                self.backup_activations_checkpoint_granularity,
+                self.backup_activations_checkpoint_method,
+            )
+            self.back_model_state = None
+            self.back_opt_state = None
+            torch.distributed.barrier()
+            return averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
