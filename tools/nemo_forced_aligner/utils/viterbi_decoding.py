@@ -57,7 +57,12 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
     # initialize tensors of viterbi probabilies and backpointers
     v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered)
-    backpointers = -999 * torch.ones_like(v_matrix)
+
+    if U_max < 32767:  # int16 range is -32768 to 32767
+        backpointers = -999 * torch.ones_like(v_matrix, dtype=torch.int16)
+    else:
+        backpointers = -999 * torch.ones_like(v_matrix, dtype=torch.int32)
+
     v_matrix[:, 0, :2] = log_probs_reordered[:, 0, :2]
 
     # Make a letter_repetition_mask the same shape as y_batch
@@ -132,5 +137,13 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         for t in range(T_b - 1, 0, -1):
             alignment_b.insert(0, int(backpointers[b, t, alignment_b[0]]))
         alignments_batch.append(alignment_b)
+
+    print(log_probs_batch.dtype)
+    print(y_batch.dtype)
+    print(T_batch.dtype)
+    print(U_batch.dtype)
+    print(log_probs_reordered.dtype)
+    print(v_matrix.dtype)
+    print(backpointers.dtype)
 
     return alignments_batch
