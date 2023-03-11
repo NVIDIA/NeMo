@@ -419,7 +419,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 text_batches.append(b)
             else:
                 speech_batches.append(b)
-
+        logging.info(f"speech batches: {len(speech_batches)}")
+        logging.info(f"len(speech_batches[0]): {len(speech_batches[0])}")
         speech = _speech_collate_fn(speech_batches, self.tokenizer.pad_id, add_valid=return_is_valid)
         text = bitext_collate_fn(text_batches, self.encoder_tokenizer.pad_id, self.decoder_tokenizer.pad_id,)
         return speech, text
