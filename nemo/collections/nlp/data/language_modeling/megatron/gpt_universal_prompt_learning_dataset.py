@@ -75,6 +75,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         add_eos: bool = True,
         max_num_samples: int = None,
         seed: int = 1234,
+        index_mapping_dir: str=None,
     ):
         self.tokenizer = tokenizer
         self.virtual_token_len = virtual_token_len
@@ -86,6 +87,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         self.max_num_samples = max_num_samples
         self.seed = seed
         self.assistant_prompt = 'long_nv'
+        self.index_mapping_dir = index_mapping_dir
 
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
@@ -107,6 +109,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
                 seed=self.seed,
                 name=file_path.split('/')[-1],
                 binary_head=False,
+                index_mapping_dir=self.index_mapping_dir,
             )
         else:
             self.samples_mapping = None

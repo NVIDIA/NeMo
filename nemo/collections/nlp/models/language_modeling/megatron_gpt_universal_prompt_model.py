@@ -636,6 +636,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 add_eos=data_cfg.get("add_eos", False),
                 max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
             )
             datasets.append(dataset)
         if is_train:
