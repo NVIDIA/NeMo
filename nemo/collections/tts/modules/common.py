@@ -628,6 +628,9 @@ class AffineTransformationLayer(torch.nn.Module):
                 kernel_size=kernel_size,
                 use_partial_padding=use_partial_padding,
             )
+        else:
+            raise Exception("{} affine model not supported".format(affine_model))
+
         self.n_mel_channels = n_mel_channels
 
     def get_scaling_and_logs(self, scale_unconstrained):
@@ -664,6 +667,8 @@ class AffineTransformationLayer(torch.nn.Module):
                 log_s_list.append(log_s_i[:, None])
             s = torch.cat(s_list, dim=1)
             log_s = torch.cat(log_s_list, dim=1)
+        else:
+            raise Exception("{} scaling fn not supported".format(scaling_fn))
         return s, log_s
 
     def forward(self, z, context, inverse=False, seq_lens=None):
