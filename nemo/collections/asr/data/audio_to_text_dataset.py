@@ -496,18 +496,18 @@ def get_audio_to_text_char_dataset_from_config(
 
     is_concat = config.get('is_concat', False)
     if is_concat:
-        if 'concat_sampling' in config and config['concat_sampling'] is None:
-            logging.warning(f"Concat dataset requires `concat_sampling` but it was not provided. Config: {config}")
+        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
+            logging.warning(f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}")
             return None
 
-        if not 'concat_probabilities' in config:
+        if not 'concat_sampling_probabilities' in config:
             logging.warning(
-                f"Concat dataset requires `concat_probabilities` list but it was not provided. Config: {config}"
+                f"Concat dataset requires `concat_sampling_probabilities` list but it was not provided. Config: {config}"
             )
             return None
         else:
-            if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
-                logging.warning(f"`concat_probabilities` need to sum to 1. Config: {config}")
+            if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
+                logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
                 return None
 
     shuffle = config['shuffle']
