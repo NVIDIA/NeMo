@@ -255,9 +255,9 @@ class FilterbankFeatures(nn.Module):
         rng=None,
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
+        mel_norm="slaney",
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
-        mel_norm='slaney',
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -495,6 +495,7 @@ class FilterbankFeaturesTA(nn.Module):
         window: str = "hann",
         pad_to: int = 0,
         pad_value: float = 0.0,
+        mel_norm="slaney",
         # Seems like no one uses these options anymore. Don't convolute the code by supporting thm.
         use_grads: bool = False,  # Deprecated arguments; kept for config compatibility
         max_duration: float = 16.7,  # Deprecated arguments; kept for config compatibility
@@ -551,7 +552,7 @@ class FilterbankFeaturesTA(nn.Module):
             n_mels=nfilt,
             window_fn=self.torch_windows[window],
             mel_scale="slaney",
-            norm="slaney",
+            norm=mel_norm,
             n_fft=n_fft,
             f_max=highfreq,
             f_min=lowfreq,
