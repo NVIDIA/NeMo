@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-import io
 
 import omegaconf
 import torch

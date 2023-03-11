@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import contextlib
 from dataclasses import dataclass
 from typing import List, Optional
@@ -25,13 +26,12 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_features
+from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
     mel_to_audio,
     plot_alignment_to_numpy,
     plot_multipitch_to_numpy,
-    plot_pitch_to_numpy,
     plot_spectrogram_to_numpy,
     process_batch,
     sample_tts_input,
