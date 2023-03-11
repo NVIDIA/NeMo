@@ -152,7 +152,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
 
         tokenized_text = self.tokenizer.text_to_ids(text)
         tokenized_input = self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(tokenized_input):]
+        answer_ids = tokenized_text[len(tokenized_input) :]
         # add a space between input and output
 
         offset = self.virtual_token_len

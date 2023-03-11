@@ -56,10 +56,10 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
 
@@ -119,7 +119,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             return self.frozen_model.model.module.pre_process
         else:
             return self.frozen_model.model.pre_process
-    
+
     @property
     def language_model(self):
         if hasattr(self.frozen_model.model, 'module'):
@@ -532,7 +532,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 perceiver_conf['init_method'] = encoder_init
                 perceiver_conf['output_layer_init_method'] = output_init
                 del perceiver_conf['trainable']
-                module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size, max_sequence_length=self.frozen_model.cfg.encoder_seq_length)
+                module = UniversalPromptEncoder(
+                    perceiver_conf,
+                    output_dim=self.frozen_model.cfg.hidden_size,
+                    max_sequence_length=self.frozen_model.cfg.encoder_seq_length,
+                )
             else:
                 module = self.prompt_encoder[i]
             if not trainable:

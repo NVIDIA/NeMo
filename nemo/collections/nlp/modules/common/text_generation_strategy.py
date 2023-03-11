@@ -18,8 +18,7 @@ from typing import List, Tuple
 import torch
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids, get_ltor_masks_and_position_ids
 
 try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining

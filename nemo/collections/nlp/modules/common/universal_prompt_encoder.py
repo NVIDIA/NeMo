@@ -20,9 +20,7 @@ from nemo.core.classes import Exportable, NeuralModule
 
 
 class UniversalPromptEncoder(NeuralModule, Exportable):
-    def __init__(
-        self, cfg, output_dim, max_sequence_length=1024
-    ):
+    def __init__(self, cfg, output_dim, max_sequence_length=1024):
         """
         """
         super().__init__()
