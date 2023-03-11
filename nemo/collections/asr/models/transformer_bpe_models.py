@@ -411,16 +411,26 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
         logging.info(f"return is valid id: {return_is_valid}")
         text_batches, speech_batches = [], []
-        for i, b in enumerate(batch):
 
-            if all([isinstance(b_i, tuple) for b_i in b]):
+
+        """
+        # original code:
+        if all([isinstance(b_i, tuple) for b_i in b]):
+            speech_batches.extend(b)
+        elif len(b) == 4:
+            speech_batches.append(b)
+        else:
+            text_batches.append(b)
+        """
+        for i, b in enumerate(batch):
+            logging.info(f"{i} -- batch_len {len(batch)}, type: {[type(b_i) for b_i in b]}")
+            if all([isinstance(b_i, tuple) for b_i in b]) or all([isinstance(b_i, list) for b_i in b]):
                 speech_batches.extend(b)
             elif len(b) == 5 and all([isinstance(b_i, numpy.ndarray) for b_i in b]):
                 text_batches.append(b)
             else:
                 speech_batches.append(b)
-        logging.info(f"speech batches: {len(speech_batches)}")
-        logging.info(f"len(speech_batches[0]): {len(speech_batches[0])}")
+        # logging.info(f"speech batches: {len(speech_batches)}, text batches: {len(text_batches)}, len(speech_batches[0]): {len(speech_batches[0])}")
         speech = _speech_collate_fn(speech_batches, self.tokenizer.pad_id, add_valid=return_is_valid)
         text = bitext_collate_fn(text_batches, self.encoder_tokenizer.pad_id, self.decoder_tokenizer.pad_id,)
         return speech, text
