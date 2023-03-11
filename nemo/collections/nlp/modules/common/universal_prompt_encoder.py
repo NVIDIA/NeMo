@@ -21,18 +21,24 @@ from nemo.core.classes import Exportable, NeuralModule
 
 class UniversalPromptEncoder(NeuralModule, Exportable):
     def __init__(
-        self, cfg, output_dim,
+        self, cfg, output_dim, max_sequence_length=1024
     ):
         """
         """
         super().__init__()
         self.encoder = MegatronPerceiverEncoderModule(**cfg, parent_model_type=None)
         self.hidden = self.encoder.hidden_size
+        self.position_embeddings = torch.nn.Embedding(max_sequence_length, output_dim)
         self.input_linear = nn.Linear(output_dim, self.hidden)
         self.output_linear = nn.Linear(self.hidden, output_dim)
-        # input_adaptor = nn.Linear(self.hidden_size, output_size)
 
     def forward(self, input_prompt, mask) -> torch.Tensor:
+        # calculate the position embedding on the fly
+        seq_length = input_prompt.size(0)
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_prompt.device)
+        position_ids = position_ids.unsqueeze(1).expand_as(input_prompt[:, :, 0]).clone()
+        position_emb = self.position_embeddings(position_ids)
+        input_prompt = input_prompt + position_emb
         input_prompt = self.input_linear(input_prompt)
         hidden = self.encoder.forward(input_prompt, mask)
         hidden = self.output_linear(hidden)

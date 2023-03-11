@@ -306,14 +306,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         discrete_token_ids = input_ids.clone()
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
-        # calculate the position embedding on the fly
-        seq_length = discrete_token_ids.size(1)
-        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
-        position_ids = position_ids.unsqueeze(0).expand_as(input_ids).clone()
-        position_emb = self.language_model.embedding.position_embeddings(position_ids)
-
         # [b, s, d] -> [s, b, d]
-        prompt_input_emb = (discrete_token_embeds + position_emb) .transpose(0, 1).contiguous()
+        prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
         v_embeds_list = []
         for i, p_encoder in enumerate(self.prompt_encoder):
             if not self.cfg.perceiver[i].trainable:
@@ -385,8 +379,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             else:
                 virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
-            position_embeddings = self.language_model.embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            if hasattr(self.language_model.embedding, 'position_embeddings'):
+                # add position embeddings only if the language model has them
+                position_embeddings = self.language_model.embedding.position_embeddings(position_ids)
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
             if virtual_token_emb is not None:
                 encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
@@ -534,7 +532,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 perceiver_conf['init_method'] = encoder_init
                 perceiver_conf['output_layer_init_method'] = output_init
                 del perceiver_conf['trainable']
-                module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+                module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size, max_sequence_length=self.frozen_model.cfg.encoder_seq_length)
             else:
                 module = self.prompt_encoder[i]
             if not trainable:
