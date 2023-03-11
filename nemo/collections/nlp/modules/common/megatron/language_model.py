@@ -672,7 +672,11 @@ class TransformerLanguageModel(MegatronModule):
             if inference_max_sequence_len is not None:
                 rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
             elif self.encoder.input_tensor is not None:
-                rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
+                if self.sequence_parallel:
+                    app_state = AppState()
+                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0) * app_state.tensor_model_parallel_size)
+                else:
+                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
                 if self.sequence_parallel:
                     app_state = AppState()
