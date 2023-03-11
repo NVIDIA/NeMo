@@ -926,9 +926,10 @@ class AudioToMelSpectrogramPreprocessorConfig:
     nb_augmentation_prob: float = 0.0
     nb_max_freq: int = 4000
     use_torchaudio: bool = False
+    mel_norm: str = "slaney"
     stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
     stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
-    mel_norm: str = 'slaney'
+
 
 
 @dataclass
