@@ -238,8 +238,10 @@ class UnivNetModel(Vocoder, Exportable):
         pred_denoised = self._bias_denoise(audio_pred, audio_mel).squeeze(1)
         pred_denoised_mel, _ = self.audio_to_melspec_precessor(pred_denoised, audio_len)
 
+        gt_mel = None
         if self.input_as_mel:
             gt_mel, gt_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
+
         audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
@@ -285,7 +287,7 @@ class UnivNetModel(Vocoder, Exportable):
                                 caption=f"denoised mel {i}",
                             ),
                         ]
-                        if self.input_as_mel:
+                        if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
                             specs += [
                                 wandb.Image(
                                     plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),

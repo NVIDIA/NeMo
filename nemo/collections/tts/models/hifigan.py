@@ -235,8 +235,10 @@ class HifiGanModel(Vocoder, Exportable):
 
         audio_pred = self(spec=audio_mel)
 
+        gt_mel = None
         if self.input_as_mel:
             gt_mel, gt_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
+
         audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
@@ -286,7 +288,7 @@ class HifiGanModel(Vocoder, Exportable):
                                 caption=f"denoised mel {i}",
                             ),
                         ]
-                        if self.input_as_mel:
+                        if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
                             specs += [
                                 wandb.Image(
                                     plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
