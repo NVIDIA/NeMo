@@ -931,7 +931,6 @@ class AudioToMelSpectrogramPreprocessorConfig:
     stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
 
 
-
 @dataclass
 class AudioToMFCCPreprocessorConfig:
     _target_: str = 'nemo.collections.asr.modules.AudioToMFCCPreprocessor'
