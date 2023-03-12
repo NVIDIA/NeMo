@@ -325,7 +325,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(batch, forward_only=False, micro_batch_size=self.cfg.data.train_ds.micro_batch_size)
+        loss_mean = self.fwd_bwd_step(
+            batch, forward_only=False, micro_batch_size=self.cfg.data.train_ds.micro_batch_size
+        )
         self.allreduce_gradients()
 
         # logging
@@ -699,7 +701,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         app = AppState()
-        loss_mean = self.fwd_bwd_step(batch, forward_only=True, micro_batch_size=self.cfg.data.validation_ds.micro_batch_size)
+        loss_mean = self.fwd_bwd_step(
+            batch, forward_only=True, micro_batch_size=self.cfg.data.validation_ds.micro_batch_size
+        )
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         if app.checkpoint_callback_params['monitor'] == 'validation_exact_string_match':
