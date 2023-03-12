@@ -95,7 +95,7 @@ def get_concat_char_dataset(
     manifest_filepaths = config['manifest_filepath']
     datasets = []
 
-    # needed to support validation Concat Datasets that arrive here as 
+    # needed to support validation Concat Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
         logging.warning(f"flattening {manifest_filepaths}")
@@ -179,7 +179,7 @@ def get_concat_bpe_dataset(
     manifest_filepaths = config['manifest_filepath']
     datasets = []
 
-    # needed to support validation Concat Datasets that arrive here as 
+    # needed to support validation Concat Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
         logging.warning(f"flattening {manifest_filepaths}")
