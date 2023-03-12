@@ -29,7 +29,8 @@ USAGE Example:
       data.train_ds.data_path=${DATA_PATH}/train.tsv \
       model.language_model.pretrained_model_name=${LANGUAGE_MODEL} \
       model.label_map=${DATA_PATH}/label_map.txt \
-      +output_tar_file=tarred/part1.tar
+      +output_tar_file=tarred/part1.tar \
+      +take_first_n_lines=100000
 
 """
 import pickle
@@ -40,9 +41,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.nlp.data.spellchecking_asr_customization import (
-    SpellcheckingAsrCustomizationDataset
-)
 
 
 @hydra_runner(config_path="conf", config_name="spellchecking_asr_customization_config")
@@ -52,9 +50,10 @@ def main(cfg: DictConfig) -> None:
     _, model = instantiate_model_and_trainer(cfg, MODEL, True)  # instantiate model like for training because we may not have pretrained model
     dataset = model._train_dl.dataset
     archive = tarfile.open(cfg.output_tar_file, mode="w")
+    max_lines = int(cfg.take_first_n_lines)
     for i in range(len(dataset)):
-        if i >= 100000:
-            logging.info("Reached 100000 examples")
+        if i >= max_lines:
+            logging.info("Reached " + str(max_lines) + " examples")
             break
         (
             input_ids,

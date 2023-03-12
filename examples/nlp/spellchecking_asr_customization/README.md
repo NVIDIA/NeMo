@@ -32,59 +32,21 @@ The pipeline consists of multiple steps:
 4. Align parallel corpus of "correct + misspelled" phrases with Giza++, count frequencies of ngram mappings.
    `dataset_preparation/get_ngram_mappings.sh`
 
-5. Generate training data in the following way.
-   Substitute Yago misspelled phrases into longer sentences to get synthetic data.
-   Given a set of custom phrases, index them with all possible "misspelled" ngrams.
-   Then given an ASR hypothesis look all its ngrams in the index and select top-10 phrases with largest coverage.
+5. Generate training data. 
    `dataset_preparation/build_training_data.sh`
+   Generate files config.json, label_map.txt, semiotic_classes.txt.
+   `dataset_preparation/generate_configs.sh`
+   [Optional] Convert training dataset to tarred files.
+   `dataset_preparation/convert_dataset_to_tarred.sh`
  
 6. Train spellchecking model.
    `run_training.sh`
+   or 
+   `run_training_tarred.sh`
 
-7. Prepare Spoken Wikipedia corpus.
-   Use
-   [NEMO_ROOT]/scripts/dataset_processing/spoken_wikipedia/run.sh
-   but replace in that bash-script
-   ```
-      mkdir ${INPUT_DIR}_prepared/audio
-      mkdir ${INPUT_DIR}_prepared/text
-      python ${NEMO_PATH}/scripts/dataset_processing/spoken_wikipedia/preprocess.py --input_folder ${INPUT_DIR} --destination_folder ${INPUT_DIR}_prepared
-   ```
-
-   with
-   ```
-      mkdir ${INPUT_DIR}_prepared/audio
-      mkdir ${INPUT_DIR}_prepared/text
-      mkdir ${INPUT_DIR}_prepared/vocabs
-      python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/evaluation/preprocess_spoken_wikipedia_and_create_vocabs.py --input_folder ${INPUT_DIR} --destination_folder ${INPUT_DIR}_prepared
-   ```
-   It does the same preprocessing but also creates vocabulary files to be used later.
-
-8. Test on Spoken Wikipedia.
+7. Run evaluation.
    `evaluation/test_on_spoken_wikipedia.sh`
-
-   The evaluation folder structure should look like this:
-   ```
-   ├── english
-   |   |── ...
-   │   ├── Zinc
-   │   └── Zorbing
-   ├── english_prepared
-   │   ├── audio
-   │   ├── text
-   │   └── vocabs
-   ├── english_result
-   │   ├── clips
-   │   ├── hypotheses
-   │   ├── logs
-   │   ├── manifests
-   │   ├── processed
-   │   │   └── en_grammars
-   │   ├── segments
-   │   ├── spellchecker_input
-   │   ├── spellchecker_output
-   │   └── verified_segments
-   ├── replacement_vocab_filt.txt [file generated during dataset_preparation/get_ngram_mappings.sh]
-   └── test_on_spoken_wikipedia.sh
-   ```
-
+   or
+   `evaluation/test_on_kensho.sh`
+   or
+   `evaluation/test_on_userlibri.sh`

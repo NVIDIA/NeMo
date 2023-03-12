@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 
 import random
 import os
@@ -32,7 +33,7 @@ parser = ArgumentParser(
 parser.add_argument("--hypotheses_folder", required=True, type=str, help="Path to input folder with asr hypotheses")
 parser.add_argument("--vocabs_folder", type=str, required=True, help="Path to input folder with user vocabs")
 parser.add_argument("--output_folder", type=str, required=True, help="Output folder")
-parser.add_argument("--ngram_mapping", type=str, required=True, help="Path to ngram mapping vocabulary")
+parser.add_argument("--ngram_mappings", type=str, required=True, help="Path to ngram mappings vocabulary")
 parser.add_argument(
     "--sub_misspells_file", required=True, type=str, help="File with misspells from which only keys will be used to sample dummy candidates"
 )
@@ -49,7 +50,7 @@ def read_custom_vocab(filename: str) -> List[str]:
     return list(phrases)
 
 print("load ngram mappings...")
-ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mapping, max_dst_freq=125000)
+ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mappings, max_dst_freq=125000)
 # CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
 print("done.")
 
