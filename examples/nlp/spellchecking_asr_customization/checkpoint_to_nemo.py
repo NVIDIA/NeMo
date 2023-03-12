@@ -16,7 +16,7 @@
 """
 This script converts checkpoint to .nemo file.
 
-This script uses the `/examples/nlp/spellchecking_asr_customization/conf/spellchecking_asr_customization_config.yaml`
+This script uses the `examples/nlp/spellchecking_asr_customization/conf/spellchecking_asr_customization_config.yaml`
 config file by default. The other option is to set another config file via command
 line arguments by `--config-name=CONFIG_FILE_PATH'.
 """

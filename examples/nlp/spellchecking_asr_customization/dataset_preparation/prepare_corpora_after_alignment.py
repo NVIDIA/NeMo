@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,27 @@
 
 
 """
-This script can be used to extract ngram mapping vocabulary from joined giza alignments and to index custom phrases.
+This script can be used to 1) extract alignments from GIZA++ output, 2) build n-gram mapping vocabulary and 3) extract aligned subphrases.
 """
 
-import math
-import os
 from argparse import ArgumentParser
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
-parser = ArgumentParser(description="Produce data for the Spellchecking ASR Customization")
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import (
+    fill_alignment_matrix, check_monotonicity, get_targets
+)
+
+
+parser = ArgumentParser(description="Produce n-gram mappings or sub_misspells data for the Spellchecking ASR Customization")
 parser.add_argument(
     "--mode",
     required=True,
     type=str,
-    help='Mode, one of ["get_replacement_vocab", "index_by_vocab", "edit_distance"]',
+    help='Mode, one of ["extract_giza_alignments", "get_replacement_vocab", "get_sub_misspells"]',
 )
-parser.add_argument("--alignment_filename", required=True, type=str, help='Name of alignment file, like "align.out"')
-parser.add_argument("--out_filename", required=True, type=str, help='Output file')
-parser.add_argument("--vocab_filename", required=True, type=str, help='Vocab name')
+parser.add_argument("--output_name", required=True, type=str, help='Output file')
+parser.add_argument("--input_name", required=True, type=str, help='Input file or folder, depending on mode')
 args = parser.parse_args()
 
 
@@ -78,7 +80,7 @@ def get_replacement_vocab() -> None:
     src_vocab = defaultdict(int)
     dst_vocab = defaultdict(int)
     n = 0
-    with open(args.alignment_filename, "r", encoding="utf-8") as f:
+    with open(args.input_name, "r", encoding="utf-8") as f:
         for line in f:
             n += 1
             if n % 100000 == 0:
@@ -102,7 +104,7 @@ def get_replacement_vocab() -> None:
                         dst_vocab
                     )
 
-    with open(args.vocab_filename, "w", encoding="utf-8") as out:
+    with open(args.output_name, "w", encoding="utf-8") as out:
         for inp in full_vocab:
             for rep in full_vocab[inp]:
                 out.write(
@@ -119,14 +121,14 @@ def get_replacement_vocab() -> None:
                 )
 
 
-def get_sub_misspells():
+def get_sub_misspells() -> None:
     """Loops through the file with alignment results, extract aligned segments if they correspond to whole words.
     """
     full_vocab = defaultdict(dict)
     src_vocab = defaultdict(int)
     dst_vocab = defaultdict(int)
     n = 0
-    with open(args.alignment_filename, "r", encoding="utf-8") as f:
+    with open(args.input_name, "r", encoding="utf-8") as f:
         for line in f:
             n += 1
             if n % 100000 == 0:
@@ -170,7 +172,7 @@ def get_sub_misspells():
                 clean=True
             )
 
-    with open(args.out_filename, "w", encoding="utf-8") as out:
+    with open(args.output_name, "w", encoding="utf-8") as out:
         for inp in full_vocab:
             for rep in full_vocab[inp]:
                 if full_vocab[inp][rep] / src_vocab[inp] <= 1/200:
@@ -191,93 +193,89 @@ def get_sub_misspells():
                 )
 
 
-def index_by_vocab() -> None:
-    """Given a restricted vocabulary of replacements,
-    loops through the file with custom phrases,
-    generates all possible conversions and creates index.
-    """
+def extract_giza_alignments() -> None:
+    # src=reference, dst=misspell
+    g = open(args.input_name + "/GIZA++.A3.final", "r", encoding="utf-8")
+    f = open(args.input_name + "/GIZA++reverse.A3.final", "r", encoding="utf-8")
+    out = open(args.output_name, "w", encoding="utf-8")
+    cache = {}
+    good_count, not_mono_count, not_covered_count, exception_count = 0, 0, 0, 0
+    n = 0
+    while True:
+        n += 3
+        if n % 10000 == 0:
+            print(n, "lines processed")
+        fline1 = f.readline().strip()
+        fline2 = f.readline().strip()
+        fline3 = f.readline().strip()
+        gline1 = g.readline().strip()
+        gline2 = g.readline().strip()
+        gline3 = g.readline().strip()
+        if fline1 == "" and gline1 == "":
+            break
+        cache_key = fline1 + "\t" + fline2 + "\t" + gline1 + "\t" + gline2
+        if cache_key in cache:
+            out.write(cache[cache_key] + "\n")
+            continue
+        if fline1 == "" or gline1 == "" or fline2 == "" or gline2 == "" or fline3 == "" or gline3 == "":
+            raise ValueError("Empty line: " + str(n))
+        try:
+            matrix, srctokens, dsttokens = fill_alignment_matrix(fline2, fline3, gline2, gline3)
+        except Exception:
+            print(fline1)
+            print(fline2)
+            print(fline3)
+            print(gline1)
+            print(gline2)
+            print(gline3)
+            exception_count += 1
+            out_str = "-exception:\t" + fline2 + "\t" + gline2
+            out.write(out_str + "\n")
+            continue
+        else:
+            matrix[matrix <= 2] = 0  # leave only 1-to-1 alignment points
+            if check_monotonicity(matrix):
+                targets = get_targets(matrix, dsttokens, delimiter="+")
+                if len(targets) != len(srctokens):
+                    raise ValueError(
+                        "targets length doesn't match srctokens length: len(targets)="
+                        + str(len(targets))
+                        + "; len(srctokens)="
+                        + str(len(srctokens))
+                    )
 
-    if not os.path.exists(args.vocab_filename):
-        raise ValueError(f"Vocab file {args.vocab_filename} does not exist")
-    # load vocab from file
-    vocab = defaultdict(dict)
-    ban_ngram = set()
+                align = " ".join(targets)
 
-    with open(args.vocab_filename, "r", encoding="utf-8") as f:
-        for line in f:
-            src, dst, joint_freq, src_freq, dst_freq = line.strip().split("\t")
-            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
-            # -if dst.startswith("<DELETE>") or dst.endswith("<DELETE>"):
-            # -    continue
-            vocab[src][dst] = int(joint_freq) / int(src_freq)
+                ban = False
 
-    index_freq = defaultdict(int)
-    ngram_to_phrase_and_position = defaultdict(list)
+                if align is None:
+                    ban = True
 
-    out = open(args.out_filename, "w", encoding="utf-8")
-    with open(args.alignment_filename, "r", encoding="utf-8") as f:
-        n = 0
-        for line in f:
-            n += 1
-            if n % 1000 == 0:
-                print(n)
-            t = process_line(line)
-            if t is None:
-                continue
-            phrase, _, _ = t
-            inputs = phrase.split(" ")
-            begin = 0
-            index_keys = [{} for i in inputs]  # key - letter ngram, index - beginning positions in phrase
+                if ban:
+                    out_str = "ban:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens) + "\t" + str(align)
+                else:
+                    out_str = "good:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens) + "\t" + align
 
-            for begin in range(len(inputs)):
-                for end in range(begin + 1, min(len(inputs) + 1, begin + 5)):
-                    inp = " ".join(inputs[begin:end])
-                    if inp not in vocab:
-                        continue
-                    for rep in vocab[inp]:
-                        lp = math.log(vocab[inp][rep])
-                        rep = rep.replace("<DELETE>", "=")
-                        if rep.strip() == "":
-                            continue
-                        for b in range(max(0, end - 5), end):  # try to grow previous ngrams with new replacement
-                            new_ngrams = {}
-                            for ngram in index_keys[b]:
-                                lp_prev = index_keys[b][ngram]
-                                if len(ngram) + len(rep) <= 10 and b + ngram.count(" ") == begin:
-                                    if lp_prev + lp > -4.0:
-                                        new_ngrams[ngram + rep + " "] = lp_prev + lp
-                            index_keys[b] = index_keys[b] | new_ngrams  #  join two dictionaries
-                        # add current replacement as ngram
-                        if lp > -4.0:
-                            index_keys[begin][rep + " "] = lp
+                out.write(out_str + "\n")
+                cache[cache_key] = out_str
+            else:
+                out_str = "-mon:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens)
+                out.write(out_str + "\n")
+                cache[cache_key] = out_str
+                not_mono_count += 1
 
-            for b in range(len(index_keys)):
-                for ngram, lp in sorted(index_keys[b].items(), key=lambda item: item[1], reverse=True):
-                    real_length = ngram.count(" ")
-                    ngram = ngram.replace("+", " ").replace("=", " ")
-                    ngram = " ".join(ngram.split())
-                    index_freq[ngram] += 1
-                    if ngram in ban_ngram:
-                        continue
-                    ngram_to_phrase_and_position[ngram].append((phrase, b, real_length, lp))
-                    if len(ngram_to_phrase_and_position[ngram]) > 100:
-                        ban_ngram.add(ngram)
-                        del ngram_to_phrase_and_position[ngram]
-                        continue
-
-    for ngram, freq in sorted(index_freq.items(), key=lambda item: item[1], reverse=True):
-        for phrase, b, length, lp in ngram_to_phrase_and_position[ngram]:
-            out.write(ngram + "\t" + phrase + "\t" + str(b) + "\t" + str(length) + "\t" + str(lp) + "\n")
+    f.close()
+    g.close()
     out.close()
 
 
 def main() -> None:
     if args.mode == "get_replacement_vocab":
         get_replacement_vocab()
-    elif args.mode == "index_by_vocab":
-        index_by_vocab()
     elif args.mode == "get_sub_misspells":
         get_sub_misspells()
+    elif args.mode == "extract_alignments":
+        extract_giza_alignments()
     else:
         raise ValueError("unknown mode: " + args.mode)
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,13 +31,8 @@ This is done to allow for easy sampling in the future.
 import random
 import re
 from argparse import ArgumentParser
-import sys
-from typing import Dict, List, TextIO, Tuple
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
+from typing import List, TextIO
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
 
 
 parser = ArgumentParser(description="Preparation of training examples from Yago Wikipedia preprocessed data")
@@ -92,7 +87,7 @@ def cut_spans(phrases: List[str], paragraph: str, out_non_empty: TextIO, out_emp
         phrase_match_id = next_phrase_match_id
         while phrase_match_id > -1:
             phrase_match = sorted_matches[phrase_match_id]
-            if phrase_match.start() < end and phrase_match.end() <= end + 1: # +1 because phrase ends with space
+            if phrase_match.start() < end and phrase_match.end() <= end + 1:  # +1 because phrase ends with space
                 targets.append((phrase_match.group(), phrase_match.start() - begin, phrase_match.end() - begin - 2))
                 phrase_match_id += 1
                 if phrase_match_id >= len(sorted_matches):

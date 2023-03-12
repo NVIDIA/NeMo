@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,17 +17,11 @@
 This script can be used to perform a simple text normalization using phrase vocabulary from Google Text Normalization dataset.
 """
 
-import os
 import re
 from argparse import ArgumentParser
-from collections import Counter
 import sys
-from typing import Dict, TextIO, Tuple
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import preprocess_apostrophes_space_diacritics, remove_oov_characters
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, remove_oov_characters
+from typing import Dict, Tuple
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, remove_oov_characters
 
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")

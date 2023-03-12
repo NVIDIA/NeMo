@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,12 @@
 
 
 """
-This script is used to extract sentences from Yago Wikipedia articles.
+This script is used to calculate idf for words and short phrases from Yago Wikipedia articles.
 """
 
 import argparse
 import math
 import os
-import sys
 import tarfile
 from collections import defaultdict
 from typing import Set

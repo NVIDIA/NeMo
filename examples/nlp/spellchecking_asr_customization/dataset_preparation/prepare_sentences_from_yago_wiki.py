@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,17 +20,10 @@ This script is used to extract sentences from Yago Wikipedia articles.
 import argparse
 import os
 import re
-from typing import Set, Dict
-import sys
 import tarfile
+from typing import Set, Dict
 
-from collections import Counter
-
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import load_yago_entities, get_title_and_text_from_json, get_paragraphs_from_text
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_title_and_text_from_json, get_paragraphs_from_text
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_title_and_text_from_json, get_paragraphs_from_text
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

@@ -31,7 +31,7 @@ The output file has the following format (space is also a phoneme):
     aadivaram aadavallaku selavu    AA2,D,IH1,V,ER0,AE2,M, ,AA2,AA0,D,AH0,V,AA1,L,AA1,K,UW2, ,S,EH1,L,AH0,V,UW0
     aa divasam      EY1,EY1, ,D,IH0,V,AH0,S,AA1,M
     aadi velli      AA1,D,IY0, ,V,EH1,L,IY0
-""" 
+"""
 
 from argparse import ArgumentParser
 

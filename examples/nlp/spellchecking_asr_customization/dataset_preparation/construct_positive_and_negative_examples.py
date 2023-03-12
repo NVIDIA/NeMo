@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,8 +38,7 @@ Example:
 import random
 from argparse import ArgumentParser
 from collections import defaultdict
-import sys
-from typing import Dict, List, Set, TextIO, Tuple
+from typing import Dict, List, Set, TextIO
 
 parser = ArgumentParser(description="Preparation of training examples from Yago Wikipedia preprocessed data")
 

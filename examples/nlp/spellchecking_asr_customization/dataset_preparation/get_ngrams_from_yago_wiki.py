@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,18 +19,11 @@ Input file is normalized paragraphs.
 The goal is to get a list of frequent ngrams up to given maximum length.
 """
 
-import os
-import random
 import re
 from argparse import ArgumentParser
-from collections import defaultdict
 import sys
-from typing import Dict, List, TextIO, Tuple
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
+from typing import Dict, List
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
 
 
 parser = ArgumentParser(description="Collecting frequent ngrams from Yago Wikipedia preprocessed data")
