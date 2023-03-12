@@ -823,8 +823,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         else:
             for dataloader_idx, output in enumerate(outputs):
                 if parallel_state.is_pipeline_last_stage():
+                    list_losses = [x['loss'] for x in output]
+                    if len(list_losses) == 0:
+                        print(output)
+                        return
                     # only the last pipeline parallel stages return loss
-                    loss = torch.stack([x['loss'] for x in output]).mean()
+                    loss = torch.stack(list_losses).mean()
                 else:
                     loss = torch.tensor(0.0).cuda()
 
