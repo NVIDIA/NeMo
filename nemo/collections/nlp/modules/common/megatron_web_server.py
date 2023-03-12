@@ -210,17 +210,20 @@ class RetroQADemoWebApp(RetroDemoWebApp):
         first_neighbor = ''.join([i['query'] for i in retrieved]).split('\nquestion:')[0]
         knowledges = [first_neighbor] + retrieved[0]['neighbors']
         answer = sentences[0].split('answer: ')[1]
-        while True:
-            try:
-                better_answer = request_post_data({'question': prompt, 'answer': answer}, ip=self.qa_service_ip, port=self.qa_service_port, path='decontext')['text'].strip()
-                break
-            except:
-                time.sleep(5)
-        qscore = request_post_data({'response': better_answer, 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='qsquare')
-        # nli_scores = request_post_data({'responses': [better_answer] * len(knowledges), 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='nli')
-        # selection = np.array(nli_scores).argmax(axis=1)
-        # nli_labels = ['contradiction', 'entailment', 'neutral']
-        # nli = [nli_labels[s] for s in selection]
-        if max(qscore['scores']) < 0.5:
-            sentences[0] = sentences[0] + ' (*WARNING* the answer is not based on the retrieved documents)'
+        if self.qa_service_ip is not None:
+            while True:
+                try:
+                    better_answer = request_post_data({'question': prompt, 'answer': answer}, ip=self.qa_service_ip, port=self.qa_service_port, path='decontext')['text'].strip()
+                    break
+                except:
+                    time.sleep(5)
+            qscore = request_post_data({'response': better_answer, 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='qsquare')
+            # nli_scores = request_post_data({'responses': [better_answer] * len(knowledges), 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='nli')
+            # selection = np.array(nli_scores).argmax(axis=1)
+            # nli_labels = ['contradiction', 'entailment', 'neutral']
+            # nli = [nli_labels[s] for s in selection]
+            if max(qscore['scores']) < 0.5:
+                sentences[0] = sentences[0] + ' (*WARNING* the answer is not based on the retrieved documents)'
+        else:
+            qscore = {'scores': [None] * len(knowledges)}
         return sentences[0], convert_qa_evidence_to_md(knowledges, qscore['scores'])
