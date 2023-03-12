@@ -18,6 +18,7 @@ import torch
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -81,6 +82,8 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         num_self_attention_per_cross_attention=1,
         normalize_attention_scores=True,
         megatron_legacy=False,
+        position_embedding_type=None,
+        rotary_percentage=1.0,
     ):
         super(MegatronPerceiverEncoderModule, self).__init__()
 
@@ -124,6 +127,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.ffn_dropout = ffn_dropout
         self.normalize_attention_scores = normalize_attention_scores
         self.megatron_legacy = megatron_legacy
+        self.position_embedding_type = position_embedding_type
 
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.hidden_steps >= 1
@@ -141,6 +145,13 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
         else:
             self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
+        if position_embedding_type == 'rope':
+            rotary_dim = self.hidden_size // num_attention_heads if kv_channels is None else kv_channels
+            assert 0 < rotary_percentage <= 1
+            if rotary_percentage < 1:
+                rotary_dim = int(rotary_dim * rotary_percentage)
+            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
 
     def _build_cross_attn_layer(self):
         return ParallelTransformer(
@@ -238,6 +249,13 @@ class MegatronPerceiverEncoderModule(MegatronModule):
                 f"enc_self_attention_relative_position_bias is not supported for Megatron Perceiver Encoders."
             )
 
+        if self.position_embedding_type == 'rope':
+            key_rotary_pos_emb = self.rotary_pos_emb(enc_input.size(0))
+            query_rotary_pos_emb = self.rotary_pos_emb(self.hidden_steps)
+            rotary_pos_emb = (query_rotary_pos_emb, query_rotary_pos_emb, key_rotary_pos_emb)
+        else:
+            rotary_pos_emb = None
+
         # convert to Megatron mask
         latent_attention_mask = torch.ones(enc_input.size(1), self.hidden_steps).to(enc_input.device)
 
@@ -266,10 +284,11 @@ class MegatronPerceiverEncoderModule(MegatronModule):
                 attention_mask=latent_attention_mask_4d,
                 enc_dec_attn_mask=enc_dec_attn_mask_4d,
                 encoder_output=enc_input,
+                rotary_pos_emb=rotary_pos_emb,
             )
             for j in range(self.num_self_attention_per_cross_attention):
                 hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
-                    hidden_states=hidden_states, attention_mask=latent_attention_mask_4d,
+                    hidden_states=hidden_states, attention_mask=latent_attention_mask_4d, rotary_pos_emb=rotary_pos_emb
                 )
 
             hidden_states += residual

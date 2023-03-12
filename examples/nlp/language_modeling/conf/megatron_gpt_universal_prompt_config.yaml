@@ -116,6 +116,8 @@ model:
       fp32_residual_connection: False # Use FP32 for residual connections.
       activations_checkpoint_method: null # 'uniform', 'block'
       activations_checkpoint_num_layers: 1 
+      position_embedding_type: rope
+      rotary_percentage: 0.5
 
       layernorm_epsilon: 1e-5
       persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -145,6 +147,8 @@ model:
       fp32_residual_connection: False # Use FP32 for residual connections.
       activations_checkpoint_method: null # 'uniform', 'block'
       activations_checkpoint_num_layers: 1 
+      position_embedding_type: rope
+      rotary_percentage: 0.5
 
       layernorm_epsilon: 1e-5
       persist_layer_norm: True # Use of persistent fused layer norm kernel.

@@ -544,11 +544,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 perceiver_conf['init_method'] = encoder_init
                 perceiver_conf['output_layer_init_method'] = output_init
                 del perceiver_conf['trainable']
-                module = UniversalPromptEncoder(
-                    perceiver_conf,
-                    output_dim=self.frozen_model.cfg.hidden_size,
-                    max_sequence_length=self.frozen_model.cfg.encoder_seq_length,
-                )
+                module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size,)
             else:
                 module = self.prompt_encoder[i]
             if not trainable:
