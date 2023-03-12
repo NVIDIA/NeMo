@@ -117,7 +117,6 @@ def get_concat_char_dataset(
         seed=config.get('concat_sampling_seed', None),
         global_rank=global_rank,
         world_size=world_size,
-        shuffle=config['shuffle'],
     )
     return dataset
 
@@ -200,7 +199,6 @@ def get_concat_bpe_dataset(
         seed=config.get('concat_sampling_seed', None),
         global_rank=global_rank,
         world_size=world_size,
-        shuffle=config['shuffle'],
     )
     return dataset
 
@@ -289,7 +287,6 @@ def get_concat_tarred_dataset(
         seed=config.get('concat_sampling_seed', None),
         global_rank=global_rank,
         world_size=world_size,
-        shuffle=config['shuffle'],
     )
     return dataset
 
