@@ -61,6 +61,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 
@@ -230,8 +231,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = self.cfg.get("megatron_amp_O2", False)
             frozen_model_cfg.optim.name = "fused_adam"
-            frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-            frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+            frozen_model_cfg.micro_batch_size = self.cfg.data.train_ds.micro_batch_size
+            frozen_model_cfg.global_batch_size = self.cfg.data.train_ds.global_batch_size
             frozen_model_cfg.precision = trainer.precision
             frozen_model_cfg.sequence_parallel = self.sequence_parallel
             frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
@@ -324,7 +325,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(batch, forward_only=False)
+        loss_mean = self.fwd_bwd_step(batch, forward_only=False, micro_batch_size=self.cfg.data.train_ds.micro_batch_size)
         self.allreduce_gradients()
 
         # logging
@@ -422,6 +423,14 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def on_validation_start(self) -> None:
         self._overwrite_checkpointing_for_inference(False, None, None)
         torch.distributed.barrier()
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
         return super().on_validation_start()
 
     def _overwrite_checkpointing_for_inference(
@@ -443,7 +452,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             if hasattr(layer, "activations_checkpoint_method"):
                 layer.activations_checkpoint_method = activations_checkpoint_method
 
-    def fwd_bwd_step(self, batch, forward_only):
+    def fwd_bwd_step(self, batch, forward_only, micro_batch_size):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
@@ -452,7 +461,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         sequence_parallel_enabled = self.sequence_parallel
         # Get seq length of batch
         _, seq_length = batch[0].shape
-        tensor_shape = [seq_length + self.virtual_token_length, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length + self.virtual_token_length, micro_batch_size, self.hidden_size]
 
         if self.pipeline_parallel:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -618,7 +627,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 raise ValueError(
                     f'Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}'
                 )
-            num_train_samples = [self.trainer.max_steps * self.cfg.global_batch_size]
+            num_train_samples = [self.trainer.max_steps * self.cfg.data.train_ds.global_batch_size]
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         else:
@@ -661,8 +670,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
-            micro_batch_size=self.cfg.micro_batch_size,
-            global_batch_size=self.cfg.global_batch_size,
+            micro_batch_size=data_cfg.micro_batch_size,
+            global_batch_size=data_cfg.global_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=True,
@@ -690,7 +699,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         app = AppState()
-        loss_mean = self.fwd_bwd_step(batch, forward_only=True)
+        loss_mean = self.fwd_bwd_step(batch, forward_only=True, micro_batch_size=self.cfg.data.validation_ds.micro_batch_size)
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         if app.checkpoint_callback_params['monitor'] == 'validation_exact_string_match':
@@ -811,13 +820,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             elif mode == 'test':
                 self.log("test_loss", averaged_loss)
                 self.log(f"test_{self.test_metric_name}", averaged_metric)
-            self._overwrite_checkpointing_for_inference(
-                self.backup_sequence_parallel,
-                self.backup_activations_checkpoint_granularity,
-                self.backup_activations_checkpoint_method,
-            )
-            self.back_model_state = None
-            self.back_opt_state = None
             torch.distributed.barrier()
             return averaged_loss, averaged_metric
         else:
@@ -825,8 +827,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 if parallel_state.is_pipeline_last_stage():
                     list_losses = [x['loss'] for x in output]
                     if len(list_losses) == 0:
-                        print(output)
-                        return
+                        # skip empty batches, it is caused by drop_last=True
+                        logging.info(f"dataset id {dataloader_idx}, Empty batch, skip")
+                        continue
                     # only the last pipeline parallel stages return loss
                     loss = torch.stack(list_losses).mean()
                 else:
@@ -846,15 +849,24 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 self.log("validation_loss", averaged_loss)
             elif mode == 'test':
                 self.log("test_loss", averaged_loss)
-            self._overwrite_checkpointing_for_inference(
-                self.backup_sequence_parallel,
-                self.backup_activations_checkpoint_granularity,
-                self.backup_activations_checkpoint_method,
-            )
-            self.back_model_state = None
-            self.back_opt_state = None
-            torch.distributed.barrier()
             return averaged_loss
+
+    def on_validation_epoch_end(self):
+        app_state = AppState()
+        self._overwrite_checkpointing_for_inference(
+            self.backup_sequence_parallel,
+            self.backup_activations_checkpoint_granularity,
+            self.backup_activations_checkpoint_method,
+        )
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.train_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        torch.distributed.barrier()
+        return super().on_validation_epoch_end()
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
