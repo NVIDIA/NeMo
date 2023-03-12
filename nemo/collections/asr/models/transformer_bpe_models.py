@@ -411,8 +411,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return_is_valid = self._cfg.train_ds.audio.get('return_is_valid', False)
         logging.info(f"return is valid id: {return_is_valid}")
         text_batches, speech_batches = [], []
-
-
         """
         # original code:
         if all([isinstance(b_i, tuple) for b_i in b]):
@@ -696,7 +694,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         if return_is_valid:
             signal, signal_len, transcript, transcript_len, valid = batch
-            logging.info(f"----> num non-valid samples: {sum(valid == 0)}")
+            num_non_valid = (valid == 0).sum()
+            logging.info(f"----> num non-valid samples: {num_non_valid}")
+            if num_non_valid == valid.shape[0]:
+                valid[0] = 1
             signal = signal[valid == 1]
             signal_len = signal_len[valid == 1]
             transcript = transcript[valid == 1]
