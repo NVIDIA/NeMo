@@ -15,9 +15,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-from nemo.collections.tts.helpers.helpers import mas_width1 as mas
-from nemo.collections.tts.helpers.helpers import regulate_len
 from nemo.collections.tts.modules.attribute_prediction_model import get_attribute_prediction_model
 from nemo.collections.tts.modules.common import (
     AffineTransformationLayer,
@@ -29,6 +26,7 @@ from nemo.collections.tts.modules.common import (
     LinearNorm,
     get_radtts_encoder,
 )
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, mas_width1, regulate_len
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.neural_types.elements import Index, LengthsType, MelSpectrogramType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
@@ -54,13 +52,19 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
     return energy_avg, f0
 
 
-def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
+def adjust_f0(f0, f0_mean, f0_std, vmask_bool, musical_scaling=True):
     if f0_mean > 0.0:
-        f0_sigma, f0_mu = torch.std_mean(f0[vmask_bool])
-        f0 = ((f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
-        f0_std = f0_std if f0_std > 0 else f0_sigma
-        f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
-    return f0.masked_fill(~vmask_bool, 0.0)
+        if musical_scaling:
+            f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
+            f0_factor = f0_mean / f0_mu
+            f0[vmask_bool] *= f0_factor
+        else:
+            f0_sigma, f0_mu = torch.std_mean(f0[vmask_bool])
+            f0 = ((f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
+            f0_std = f0_std if f0_std > 0 else f0_sigma
+            f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
+            f0 = f0.masked_fill(~vmask_bool, 0.0)
+    return f0
 
 
 class FlowStep(nn.Module):
@@ -274,6 +278,7 @@ class RadTTSModule(NeuralModule, Exportable):
             # 4 embeddings, first two are scales, second two are biases
             if self.ap_use_voiced_embeddings:
                 self.v_embeddings = torch.nn.Embedding(4, n_text_dim)
+            self.v_pred_threshold = 0.5
 
         if 'apm' in include_modules:
             f0_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
@@ -391,7 +396,7 @@ class RadTTSModule(NeuralModule, Exportable):
             attn_cpu = attn.data.cpu().numpy()
             attn_out = torch.zeros_like(attn)
             for ind in range(b_size):
-                hard_attn = mas(attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]])
+                hard_attn = mas_width1(attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]])
                 attn_out[ind, 0, : out_lens[ind], : in_lens[ind]] = torch.tensor(hard_attn, device=attn.get_device())
         return attn_out
 
@@ -624,7 +629,7 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = self.dur_pred_layer.infer(txt_enc, spk_vec_text, lens=in_lens)
             dur = pad_dur(dur, txt_enc)
             dur = dur[:, 0]
-            dur = dur.clamp(1, token_duration_max)
+            dur = dur.clamp(0, token_duration_max)
 
         if pace is None:
             pace = txt_enc.new_ones((batch_size, txt_len_pad_removed))
@@ -642,7 +647,7 @@ class RadTTSModule(NeuralModule, Exportable):
             if self.use_vpred_module:
                 # get logits
                 voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
-                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
+                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > self.v_pred_threshold
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
             else:
                 voiced_mask_bool = None
@@ -663,7 +668,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if f0 is None:
             f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=False)
 
         if energy_avg is None:
             energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]

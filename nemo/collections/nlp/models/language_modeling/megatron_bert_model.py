@@ -55,11 +55,11 @@ except (ImportError, ModuleNotFoundError):
 try:
     import logging
     from lddl.torch2 import get_bert_pretrain_data_loader2
-    
-    HAVE_LDDL=True
+
+    HAVE_LDDL = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_LDDL=False
-    
+    HAVE_LDDL = False
+
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -273,6 +273,25 @@ class MegatronBertModel(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
 
         self._optimizer.zero_grad()
+
+        if self.with_distributed_adam:
+            # hack to enable overlapping param sync and forward compute
+            # note: the distributed optimizer monkey-patches each
+            # parameter's __getattribute__ function so that it can
+            # launch parameter all-gathers the first time the
+            # parameter is accessed after the optimizer step. However,
+            # PyTorch directly passes embedding parameters into a C++,
+            # bypassing this process. A quick-and-dirty hack is to
+            # manually interact with the parameter.
+            modules = self.model if isinstance(self.model, list) else [self.model]
+            for module in modules:
+                if isinstance(module, Float16Module):
+                    module = module.module
+                module = module.language_model
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
+                        param.data_ptr()
+
         batch_for_pipeline = self.process_batch(batch)
 
         if self.cfg.data.dataloader_type == "LDDL":
@@ -501,7 +520,7 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
-            
+
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None

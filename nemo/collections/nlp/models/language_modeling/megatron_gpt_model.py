@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import torch
@@ -149,6 +149,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', False)
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -176,6 +178,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
+            ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
@@ -187,8 +190,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             normalization=self.cfg.get('normalization', 'layernorm'),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
+            bias=self.cfg.get('bias', True),
             bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+            activation=self.cfg.get('activation', 'gelu'),
+            headscale=self.cfg.get('headscale', False),
+            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
+            openai_gelu=self.cfg.get('openai_gelu', False),
+            normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
+            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+            rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
+            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+            attention_type=self.cfg.get('attention_type', 'multihead'),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
@@ -217,18 +230,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
-
-    def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
-        if self.with_distributed_adam:
-
-            # Enable overlapped param sync by default
-            if 'overlap_param_sync' not in optim_kwargs:
-                optim_kwargs['overlap_param_sync'] = True
-
-        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def configure_optimizers(self):
 
@@ -409,7 +410,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
+            'share_embeddings_and_output_weights', True
+        ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
 
@@ -519,25 +522,43 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            # GPT3 uses only causal mask, which doesn't need attention mask
+            batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = next(dataloader_iter)
                 for k in batch.keys():
-                    batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
+                    if self.get_attention_mask_from_fusion:
+                        batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
+                    else:
+                        batch[k] = batch[k].cuda(non_blocking=True)
             else:
                 if parallel_state.is_pipeline_first_stage():
-                    batch = next(dataloader_iter)
-                    # First pipeline stage needs only the tokens and position_ids
+                    # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
-                        batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['tokens', 'position_ids', 'attention_mask']
+                                else None
+                            )
                 elif parallel_state.is_pipeline_last_stage():
-                    batch = next(dataloader_iter)
-                    # Last pipeline stage needs only the labels and loss_mask
+                    # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
-                        batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['labels', 'loss_mask', 'attention_mask']
+                                else None
+                            )
                 else:
-                    # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
+                    # Intermediate pipeline stage only needs attention_mask
+                    if self.get_attention_mask_from_fusion:
+                        batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
+                    else:
+                        for k in batch.keys():
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['attention_mask'] else None
 
             output_tensor = model(
                 batch['tokens'],
@@ -807,10 +828,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-                self.model.sync_initial_word_embeddings()
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    self.model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
