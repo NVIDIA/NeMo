@@ -1162,6 +1162,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         beam_search = beam_size is not None
         if beam_search:
+            logging.info(f'Decoding using a beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
             # setting a default beam-search specific sampling method parametrised by beam_size
             sample_token_fn = partial(sample_token_topk_beam_search, beam_size=beam_size)
