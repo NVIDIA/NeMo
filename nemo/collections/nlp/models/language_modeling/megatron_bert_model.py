@@ -509,9 +509,9 @@ class MegatronBertModel(MegatronBaseModel):
         num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
         global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
         # We run under the assumption that the datapath is the prefix if LDDL dataloader
-        lddl_data_path = self.cfg.data.data_prefix[1]
+        train_lddl_data_path = self.cfg.data.data_prefix[0]
         self._train_dl = get_bert_pretrain_data_loader2(
-            lddl_data_path,
+            train_lddl_data_path,
             dp_rank=parallel_state.get_data_parallel_rank(),
             local_rank=self.local_rank,
             shuffle_buffer_size=16384,
@@ -526,7 +526,53 @@ class MegatronBertModel(MegatronBaseModel):
             base_seed=self.cfg.seed,
             log_level=logging.NOTSET,
             log_dir="/tmp/log",
-            return_raw_samples=False,  # This may need to be taken a look at
+            return_raw_samples=False,
+            start_epoch=0,
+            sequence_length_alignment=8,
+            ignore_index=-1,
+        )
+        if len(self.cfg.data.data_prefix[1]) > 1:
+            val_lddl_data_path = self.cfg.data.data_prefix[1]
+            self._val_dl = get_bert_pretrain_data_loader2(
+            val_lddl_data_path,
+            dp_rank=parallel_state.get_data_parallel_rank(),
+            local_rank=self.local_rank,
+            shuffle_buffer_size=16384,
+            shuffle_buffer_warmup_factor=16,
+            vocab_file=self.cfg.tokenizer.vocab_file,
+            data_loader_kwargs={
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
+                'num_workers': self.cfg.data.num_workers,
+                'prefetch_factor': 2,
+            },
+            mlm_probability=0.15,
+            base_seed=self.cfg.seed,
+            log_level=logging.NOTSET,
+            log_dir="/tmp/log",
+            return_raw_samples=False, 
+            start_epoch=0,
+            sequence_length_alignment=8,
+            ignore_index=-1,
+        )
+        if len(self.cfg.data.data_prefix[2]) > 2:
+            test_lddl_data_path = self.cfg.data.data_prefix[2]
+            self._test_dl = get_bert_pretrain_data_loader2(
+            test_lddl_data_path,
+            dp_rank=parallel_state.get_data_parallel_rank(),
+            local_rank=self.local_rank,
+            shuffle_buffer_size=16384,
+            shuffle_buffer_warmup_factor=16,
+            vocab_file=self.cfg.tokenizer.vocab_file,
+            data_loader_kwargs={
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
+                'num_workers': self.cfg.data.num_workers,
+                'prefetch_factor': 2,
+            },
+            mlm_probability=0.15,
+            base_seed=self.cfg.seed,
+            log_level=logging.NOTSET,
+            log_dir="/tmp/log",
+            return_raw_samples=False,
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
