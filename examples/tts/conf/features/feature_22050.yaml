@@ -1,0 +1,19 @@
+sample_rate: 22050
+win_length: 1024
+hop_length: 256
+
+mel:
+  _target_: nemo.collections.tts.parts.preprocessing.features.MelSpectrogramFeaturizer
+  sample_rate: ${sample_rate}
+  win_length: ${win_length}
+  hop_length: ${hop_length}
+  lowfreq: 0
+  highfreq: 8000
+
+pitch:
+  _target_: nemo.collections.tts.parts.preprocessing.features.PitchFeaturizer
+  sample_rate: ${sample_rate}
+  win_length: ${win_length}
+  hop_length: ${hop_length}
+  pitch_fmin: 60
+  pitch_fmax: 640

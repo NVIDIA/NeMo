@@ -35,12 +35,18 @@ def get_audio_paths(audio_path: Path, base_path: Path) -> Tuple[Path, Path]:
     return abs_path, rel_path
 
 
+def get_sup_data_file_name(audio_path: Path):
+    audio_prefix = str(audio_path.with_suffix(""))
+    audio_id = audio_prefix.replace(os.sep, "_")
+    file_name = f"{audio_id}.pt"
+    return file_name
+
+
 def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Path) -> Path:
     audio_path = Path(entry["audio_filepath"])
     rel_audio_path = audio_path.relative_to(base_audio_path).with_suffix("")
-    audio_id = str(rel_audio_path).replace(os.sep, "_")
-    file_name = f"{audio_id}.pt"
-    file_path = Path(os.path.join(sup_data_path, file_name))
+    file_name = get_sup_data_file_name(rel_audio_path)
+    file_path = sup_data_path / file_name
     return file_path
 
 
