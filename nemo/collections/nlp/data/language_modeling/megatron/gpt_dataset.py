@@ -91,7 +91,34 @@ def build_train_valid_test_datasets(
     skip_warmup,
     tokenizer,
 ):
-    if isinstance(data_prefix, DictConfig):
+    if data_impl in ['synthetic']:
+        logging.info('Initializing synthetic GPT dataset for train, validate, and test')
+        train_ds = SyntheticGPTDataset(
+            cfg,
+            tokenizer,
+            "train",
+            train_valid_test_num_samples[0],
+            seq_length,
+            seed,
+        )
+        validation_ds = SyntheticGPTDataset(
+            cfg,
+            tokenizer,
+            "valid",
+            train_valid_test_num_samples[1],
+            seq_length,
+            seed,
+        )
+        test_ds = SyntheticGPTDataset(
+            cfg,
+            tokenizer,
+            "test",
+            train_valid_test_num_samples[2],
+            seq_length,
+            seed,
+        )
+        return train_ds, validation_ds, test_ds
+    elif isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None
             and data_prefix.get('test') is not None
@@ -397,6 +424,64 @@ class GPTDataset(Dataset):
         # We make the loss_mask zero to mask out loss from these samples
         if idx == -1:
             logging.debug('Got -1 as item index. Masking loss from this sample')
+            loss_mask = torch.zeros_like(loss_mask)
+
+        return {
+            'tokens': tokens,
+            'labels': labels,
+            'attention_mask': attention_mask,
+            'loss_mask': loss_mask,
+            'position_ids': position_ids,
+        }
+
+
+class SyntheticGPTDataset(Dataset):
+    def __init__(
+        self,
+        cfg,
+        tokenizer,
+        name,
+        num_samples,
+        seq_length,
+        seed,
+    ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        super().__init__()
+        self.name = name
+        self.seq_length = seq_length
+        self.vocab_size = tokenizer.vocab_size
+        self.length = num_samples
+        self.np_gen = np.random.default_rng(seed=seed)
+
+    def __len__(self):
+        return self.length
+
+    def _get_text(self, idx: int) -> np.ndarray:
+        return self.np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+
+    def __getitem__(self, idx):
+        # Retain superficial structure of data (similar to actual GPTDataset).
+        text = torch.from_numpy(self._get_text(idx))
+        tokens = text
+        labels = torch.roll(text, shifts=-1, dims=0)
+        labels[-1] = -1
+
+        # These tensors have the correct shape, but skipping the more detailed handling.
+        attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+        loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+        position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+        attention_mask = attention_mask < 0.5
+        loss_mask[labels == -1] = 0.0
+        tokens[tokens == -1] = 0
+        labels[labels == -1] = 0
+
+        # As in GPTDataset, skip loss from invalid samples at the end of the batch.
+        if idx == -1:
+            logging.info('WARNING: Got -1 as item index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
 
         return {
