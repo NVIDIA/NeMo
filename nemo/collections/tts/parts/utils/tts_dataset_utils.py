@@ -23,6 +23,17 @@ from scipy import ndimage
 from torch.special import gammaln
 
 
+def get_audio_paths(audio_path, base_path):
+    if os.path.isabs(audio_path):
+        abs_path = audio_path
+        rel_path = audio_path.relative_to(base_path)
+    else:
+        rel_path = audio_path
+        abs_path = base_path / rel_path
+
+    return abs_path, rel_path
+
+
 def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Path) -> Path:
     audio_path = Path(entry["audio_filepath"])
     rel_audio_path = audio_path.relative_to(base_audio_path).with_suffix("")
