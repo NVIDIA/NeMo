@@ -39,6 +39,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
@@ -385,3 +386,30 @@ class NLPModel(ModelPT, Exportable):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name: str,
+        refresh_cache: bool = False,
+        override_config_path: Optional[str] = None,
+        map_location: Optional['torch.device'] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
+        save_restore_connector: SaveRestoreConnector = None,
+    ):
+        if trainer is None:
+            raise ValueError(
+                "To instantiate NLPModel instance you must instantiate PTL.Trainer() instance first and pass it as trainer argument."
+            )
+        return super().from_pretrained(
+            model_name=model_name,
+            refresh_cache=refresh_cache,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+            return_config=return_config,
+            trainer=trainer,
+            save_restore_connector=save_restore_connector,
+        )

@@ -1704,33 +1704,6 @@ class ModelPT(LightningModule, Model):
         if hasattr(self, '_freeze_cfg'):
             delattr(self, '_freeze_cfg')
 
-    @classmethod
-    def from_pretrained(
-        cls,
-        model_name: str,
-        refresh_cache: bool = False,
-        override_config_path: Optional[str] = None,
-        map_location: Optional['torch.device'] = None,
-        strict: bool = True,
-        return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
-        save_restore_connector: SaveRestoreConnector = None,
-    ):
-        if trainer is None:
-            raise ValueError(
-                "To instantiate MegatronGPTModel instance you must instantiate PTL.Trainer() instance first and pass it as trainer argument."
-            )
-        return super().from_pretrained(
-            model_name=model_name,
-            refresh_cache=refresh_cache,
-            override_config_path=override_config_path,
-            map_location=map_location,
-            strict=strict,
-            return_config=return_config,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
-        )
-
     # TODO: Remove in PTL 1.7.2
     def cuda(self, device=None):
         """ PTL is overriding this method and changing the pytorch behavior of a module.
