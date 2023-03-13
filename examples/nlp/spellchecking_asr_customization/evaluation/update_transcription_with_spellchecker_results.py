@@ -16,34 +16,37 @@
 import argparse
 import json
 import os
-import pdb
 from collections import defaultdict
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_ngram_mappings_for_dp, get_alignment_by_dp
 
 from tqdm.auto import tqdm
+
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    get_alignment_by_dp,
+    load_ngram_mappings_for_dp,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--asr_hypotheses_folder", required=True, type=str, help="Input folder with asr hypotheses")
 parser.add_argument(
-    "--spellchecker_inputs_folder", required=True, type=str, help="Input folder with spellchecker inputs, here .info.txt files are needed"
+    "--spellchecker_inputs_folder",
+    required=True,
+    type=str,
+    help="Input folder with spellchecker inputs, here .info.txt files are needed",
 )
 parser.add_argument(
     "--spellchecker_results_folder", required=True, type=str, help="Input folder with spellchecker output"
 )
 parser.add_argument("--input_manifest", required=True, type=str, help="Manifest with transcription before correction")
 parser.add_argument("--output_manifest", required=True, type=str, help="Manifest with transcription after correction")
+parser.add_argument("--min_cov", required=True, type=float, help="Minimum coverage value")
+parser.add_argument("--min_real_cov", required=True, type=float, help="Minimum real coverage value")
 parser.add_argument(
-    "--min_cov", required=True, type=float, help="Minimum coverage value"
+    "--min_dp_score_per_symbol",
+    required=True,
+    type=float,
+    help="Minimum dynamic programming sum score averaged by hypothesis length",
 )
-parser.add_argument(
-    "--min_real_cov", required=True, type=float, help="Minimum real coverage value"
-)
-parser.add_argument(
-    "--min_dp_score_per_symbol", required=True, type=float, help="Minimum dynamic programming sum score averaged by hypothesis length"
-)
-parser.add_argument(
-    "--min_dst_len", default=1, type=int, help="Minimum dst length"
-)
+parser.add_argument("--min_dst_len", default=1, type=int, help="Minimum dst length")
 parser.add_argument("--ngram_mappings", type=str, required=True, help="File with ngram mappings")
 
 args = parser.parse_args()
@@ -262,7 +265,10 @@ for name in os.listdir(args.spellchecker_results_folder):
         for line in f:
             info_lines.append(line.strip())
     if len(input_lines) != len(info_lines):
-        raise(IndexError, "len(input_lines) != len(info_lines): " + str(len(input_lines)) + " vs " + str(len(info_lines)))
+        raise (
+            IndexError,
+            "len(input_lines) != len(info_lines): " + str(len(input_lines)) + " vs " + str(len(info_lines)),
+        )
     for inpline, infoline in zip(input_lines, info_lines):
         short_sent = inpline.split("\t")[0]
         info_parts = infoline.split(";")
@@ -273,7 +279,7 @@ for name in os.listdir(args.spellchecker_results_folder):
             cov = float(cov)
             real_cov = float(real_cov)
             short2info[short_sent][phrase] = (begin, length, cov, real_cov)
-    
+
     with open(args.spellchecker_results_folder + "/" + doc_id + ".txt", "r", encoding="utf-8") as f:
         for line in f:
             s = line.strip()
@@ -301,7 +307,7 @@ for name in os.listdir(args.spellchecker_results_folder):
             if dst.count(" ") + 1 < args.min_dst_len:
                 continue
 
-            #  replace hyphens with space: this fix is only for evaluation purposes (because references are without hyphens) 
+            # replace hyphens with space: this fix is only for evaluation purposes (because references are without hyphens)
             dst = dst.replace("-", "_")
 
             for full_sent in short2full_sent[short_sent]:  # mostly there will be one-to-one correspondence
@@ -322,7 +328,7 @@ for name in os.listdir(args.spellchecker_results_folder):
                 full_sent2corrections[full_sent][src].items(), key=lambda item: item[1], reverse=True
             ):
                 path = get_alignment_by_dp(dst, src, joint_vocab, src_vocab, dst_vocab, max_len)
-                if path[-1][3] / (src.count(" ") + 1) < args.min_dp_score_per_symbol:  #sum_score
+                if path[-1][3] / (src.count(" ") + 1) < args.min_dp_score_per_symbol:  # sum_score
                     continue
                 corrected_full_sent = corrected_full_sent.replace(src, dst)
                 # take only best variant

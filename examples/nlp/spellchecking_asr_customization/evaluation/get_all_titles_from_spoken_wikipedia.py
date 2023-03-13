@@ -17,27 +17,24 @@
 This script can be used to extract article titles from Spoken Wikipedia corpus.
 The input folder consists of subfolders with following stricture
   ├── <Name of Wikipedia article>
-  │   ├── aligned.swc
-  │   ├── audiometa.txt
-  │   ├── audio.ogg
-  │   ├── info.json
-  │   ├── wiki.html
-  │   ├── wiki.txt
-  │   └── wiki.xml
-
+  │   ├── aligned.swc
+  │   ├── audiometa.txt
+  │   ├── audio.ogg
+  │   ├── info.json
+  │   ├── wiki.html
+  │   ├── wiki.txt
+  │   └── wiki.xml
 """
 
 import argparse
-import os
 import json
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_folder", required=True, type=str, help="Input folder in which each subfolder contains an article"
 )
-parser.add_argument(
-    "--output_file", required=True, type=str, help="Output file"
-)
+parser.add_argument("--output_file", required=True, type=str, help="Output file")
 args = parser.parse_args()
 
 

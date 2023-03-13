@@ -21,9 +21,9 @@ config file by default. The other option is to set another config file via comma
 line arguments by `--config-name=CONFIG_FILE_PATH'.
 """
 
-from nemo.collections.nlp.models import SpellcheckingAsrCustomizationModel
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.models import SpellcheckingAsrCustomizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -32,6 +32,7 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     SpellcheckingAsrCustomizationModel.load_from_checkpoint(cfg.checkpoint_path).save_to(cfg.target_nemo_path)
+
 
 if __name__ == "__main__":
     main()

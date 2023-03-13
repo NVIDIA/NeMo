@@ -75,12 +75,12 @@ def main(cfg: DictConfig) -> None:
         if not os.path.exists(text_file):
             raise ValueError(f"{text_file} not found.")
         input_filenames.append(text_file)
-        output_filenames.append(cfg.inference.out_file) 
+        output_filenames.append(cfg.inference.out_file)
 
     dataloader_cfg = {
         "batch_size": cfg.inference.get("batch_size", 8),
         "num_workers": cfg.inference.get("num_workers", 4),
-        "pin_memory": cfg.inference.get("num_workers", False)
+        "pin_memory": cfg.inference.get("num_workers", False),
     }
     for input_filename, output_filename in zip(input_filenames, output_filenames):
         if not os.path.exists(input_filename):
@@ -90,6 +90,7 @@ def main(cfg: DictConfig) -> None:
         with open(output_filename, "w", encoding="utf-8") as f_out:
             f_out.write("\n".join(all_preds))
         logging.info(f"Predictions saved to {output_filename}.")
+
 
 if __name__ == "__main__":
     main()

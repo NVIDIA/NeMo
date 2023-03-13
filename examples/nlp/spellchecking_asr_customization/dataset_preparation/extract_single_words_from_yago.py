@@ -34,7 +34,7 @@ The output file has just single words split by characters:
     z y w k o w o
     z y w o c i c e
     z y x
-""" 
+"""
 
 from argparse import ArgumentParser
 

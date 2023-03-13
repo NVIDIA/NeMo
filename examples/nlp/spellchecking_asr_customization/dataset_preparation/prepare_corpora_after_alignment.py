@@ -22,11 +22,15 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import (
-    fill_alignment_matrix, check_monotonicity, get_targets
+    check_monotonicity,
+    fill_alignment_matrix,
+    get_targets,
 )
 
 
-parser = ArgumentParser(description="Produce n-gram mappings or sub_misspells data for the Spellchecking ASR Customization")
+parser = ArgumentParser(
+    description="Produce n-gram mappings or sub_misspells data for the Spellchecking ASR Customization"
+)
 parser.add_argument(
     "--mode",
     required=True,
@@ -58,7 +62,7 @@ def update_vocabs_with_aligned_fragment(
     full_vocab: Dict[str, dict],
     src_vocab: Dict[str, int],
     dst_vocab: Dict[str, int],
-    clean: bool=False
+    clean: bool = False,
 ) -> None:
     inp = " ".join(inputs)
     rep = " ".join(replacements)
@@ -97,11 +101,7 @@ def get_replacement_vocab() -> None:
             for begin in range(len(inputs)):
                 for end in range(begin + 1, begin + 5):
                     update_vocabs_with_aligned_fragment(
-                        inputs[begin:end],
-                        replacements[begin:end], 
-                        full_vocab,
-                        src_vocab,
-                        dst_vocab
+                        inputs[begin:end], replacements[begin:end], full_vocab, src_vocab, dst_vocab
                     )
 
     with open(args.output_name, "w", encoding="utf-8") as out:
@@ -143,39 +143,23 @@ def get_sub_misspells() -> None:
                 raise ValueError("Length mismatch in: " + line)
             begin = 0
             for i in range(len(inputs)):
-                if inputs[i] == "_" and replacements[i] == "_":  # if corresponding spaces are aligned, this is safe word border
+                # if corresponding spaces are aligned, this is safe word border
+                if inputs[i] == "_" and replacements[i] == "_":
                     update_vocabs_with_aligned_fragment(
-                        inputs[begin:i],
-                        replacements[begin:i], 
-                        full_vocab,
-                        src_vocab,
-                        dst_vocab,
-                        clean=True
+                        inputs[begin:i], replacements[begin:i], full_vocab, src_vocab, dst_vocab, clean=True
                     )
                     begin = i + 1
             if begin > 0:  # last fragment until the end
                 update_vocabs_with_aligned_fragment(
-                    inputs[begin:],
-                    replacements[begin:], 
-                    full_vocab,
-                    src_vocab,
-                    dst_vocab,
-                    clean=True
+                    inputs[begin:], replacements[begin:], full_vocab, src_vocab, dst_vocab, clean=True
                 )
             # add the whole phrase itself
-            update_vocabs_with_aligned_fragment(
-                inputs,
-                replacements, 
-                full_vocab,
-                src_vocab,
-                dst_vocab,
-                clean=True
-            )
+            update_vocabs_with_aligned_fragment(inputs, replacements, full_vocab, src_vocab, dst_vocab, clean=True)
 
     with open(args.output_name, "w", encoding="utf-8") as out:
         for inp in full_vocab:
             for rep in full_vocab[inp]:
-                if full_vocab[inp][rep] / src_vocab[inp] <= 1/200:
+                if full_vocab[inp][rep] / src_vocab[inp] <= 1 / 200:
                     continue
                 if rep == "":
                     continue

@@ -96,7 +96,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         # hidden size is doubled because we concatenate bert for characters and for subwords
         self.logits = TokenClassifier(
-            self.hidden_size*2, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
+            self.hidden_size * 2, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
         )
 
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
@@ -117,11 +117,15 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         input_ids_for_subwords,
         input_mask_for_subwords,
         segment_ids_for_subwords,
-        character_pos_to_subword_pos
+        character_pos_to_subword_pos,
     ):
         src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
-        src_hiddens_for_subwords = self.bert_model(input_ids=input_ids_for_subwords, token_type_ids=segment_ids_for_subwords, attention_mask=input_mask_for_subwords)
-        # copies subword embeddings fo each character of the corresponding subword 
+        src_hiddens_for_subwords = self.bert_model(
+            input_ids=input_ids_for_subwords,
+            token_type_ids=segment_ids_for_subwords,
+            attention_mask=input_mask_for_subwords,
+        )
+        # copies subword embeddings fo each character of the corresponding subword
         index = character_pos_to_subword_pos.unsqueeze(-1).expand((-1, -1, src_hiddens_for_subwords.shape[2]))
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
         src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
@@ -145,7 +149,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             character_pos_to_subword_pos,
             labels_mask,
             labels,
-            _
+            _,
         ) = batch
         logits = self.forward(
             input_ids=input_ids,
@@ -154,7 +158,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             input_ids_for_subwords=input_ids_for_subwords,
             input_mask_for_subwords=input_mask_for_subwords,
             segment_ids_for_subwords=segment_ids_for_subwords,
-            character_pos_to_subword_pos=character_pos_to_subword_pos
+            character_pos_to_subword_pos=character_pos_to_subword_pos,
         )
         loss = self.loss_fn(logits=logits, labels=labels, loss_mask=labels_mask)
         lr = self._optimizer.param_groups[0]['lr']
@@ -178,7 +182,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             character_pos_to_subword_pos,
             labels_mask,
             labels,
-            spans
+            spans,
         ) = batch
         logits = self.forward(
             input_ids=input_ids,
@@ -187,7 +191,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             input_ids_for_subwords=input_ids_for_subwords,
             input_mask_for_subwords=input_mask_for_subwords,
             segment_ids_for_subwords=segment_ids_for_subwords,
-            character_pos_to_subword_pos=character_pos_to_subword_pos
+            character_pos_to_subword_pos=character_pos_to_subword_pos,
         )
         tag_preds = torch.argmax(logits, dim=2)
 
@@ -295,7 +299,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_ids_for_subwords,
                     input_mask_for_subwords,
                     segment_ids_for_subwords,
-                    character_pos_to_subword_pos
+                    character_pos_to_subword_pos,
                 ) = batch
 
                 tag_logits = self.forward(
@@ -305,7 +309,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_ids_for_subwords=input_ids_for_subwords.to(self.device),
                     input_mask_for_subwords=input_mask_for_subwords.to(self.device),
                     segment_ids_for_subwords=segment_ids_for_subwords.to(self.device),
-                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device)
+                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device),
                 )
                 tag_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
                 all_tag_preds.extend(tag_preds)
@@ -328,7 +332,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                             target = candidates[last_tag - 1]
                             target_len = target.count(" ") + 1
                             len_ratio = target_len / source_len
-                            report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
+                            report_str += (
+                                "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
+                            )
                         tag_begin = idx
                     last_tag = tag
                 if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
@@ -395,7 +401,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                pad_token_id=self.builder._pad_id
+                pad_token_id=self.builder._pad_id,
             )
         else:
             input_file = cfg.data_path

@@ -24,11 +24,16 @@ from argparse import ArgumentParser
 from collections import Counter
 
 parser = ArgumentParser(description="Sample phrases")
-parser.add_argument("--input_name", required=True, type=str, help='File with input data')
-parser.add_argument("--output_phrases_name", required=True, type=str, help='File with output data, phrases part')
-parser.add_argument("--output_paragraphs_name", required=True, type=str, help='File with output data, paragraphs part')
-parser.add_argument("--max_count", required=True, type=int, help='Maximum count after which we ignore lines that do not contain any new phrases')
-parser.add_argument("--each_n_line", type=int, default=1, help='Take only each n-th line, default n=1')
+parser.add_argument("--input_name", required=True, type=str, help="File with input data")
+parser.add_argument("--output_phrases_name", required=True, type=str, help="File with output data, phrases part")
+parser.add_argument("--output_paragraphs_name", required=True, type=str, help="File with output data, paragraphs part")
+parser.add_argument(
+    "--max_count",
+    required=True,
+    type=int,
+    help="Maximum count after which we ignore lines that do not contain any new phrases",
+)
+parser.add_argument("--each_n_line", type=int, default=1, help="Take only each n-th line, default n=1")
 args = parser.parse_args()
 
 vocab = Counter()
@@ -44,8 +49,8 @@ with open(args.input_name, "r", encoding="utf-8") as f:
             continue
         parts = line.strip().split("\t")
         phrase_str = parts[0]
-        paragraph = " ".join(parts[1:]) 
-        
+        paragraph = " ".join(parts[1:])
+
         phrases = phrase_str.split(";")
         ok = False
         for phrase in phrases:

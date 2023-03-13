@@ -30,14 +30,18 @@ This is done to allow for easy sampling in the future.
 
 import random
 import re
+
 from argparse import ArgumentParser
 from typing import List, TextIO
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, CHARS_TO_IGNORE_REGEX, OOV_REGEX
-
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    CHARS_TO_IGNORE_REGEX,
+    OOV_REGEX,
+    preprocess_apostrophes_space_diacritics,
+)
 
 parser = ArgumentParser(description="Preparation of training examples from Yago Wikipedia preprocessed data")
 
-# maskarada english the masquerade is the ninth studio album by serbian singer ceca it was released in nineteen ninety seven 
+# maskarada english the masquerade is the ninth studio album by serbian singer ceca it was released in nineteen ninety seven
 parser.add_argument(
     "--input_paragraphs_file", required=True, type=str, help="Input file, each line is a text paragraph"
 )
@@ -45,17 +49,27 @@ parser.add_argument(
 # masquerade;maskarada;ceca
 # southampton;fortin;merchant's;medieval merchant's house
 parser.add_argument(
-    "--input_phrases_file", required=True, type=str, help="Input file, each line is one or multiple phrases separated by semicolon"
+    "--input_phrases_file",
+    required=True,
+    type=str,
+    help="Input file, each line is one or multiple phrases separated by semicolon",
 )
 
-parser.add_argument("--output_file_non_empty", required=True, type=str, help="Output file for fragments with at least 1 correct candidate")
-parser.add_argument("--output_file_empty", required=True, type=str, help="Output file for fragments with no correct candidates")
+parser.add_argument(
+    "--output_file_non_empty",
+    required=True,
+    type=str,
+    help="Output file for fragments with at least 1 correct candidate",
+)
+parser.add_argument(
+    "--output_file_empty", required=True, type=str, help="Output file for fragments with no correct candidates"
+)
 args = parser.parse_args()
 
 
 def cut_spans(phrases: List[str], paragraph: str, out_non_empty: TextIO, out_empty: TextIO) -> None:
     p = preprocess_apostrophes_space_diacritics(paragraph)
-    p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()  # number of characters is the same in p and p_clean 
+    p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()  # number of characters is the same in p and p_clean
     p_clean = " ".join(p_clean.split(" "))
 
     p_clean_spaced = " " + p_clean + " "
@@ -63,22 +77,23 @@ def cut_spans(phrases: List[str], paragraph: str, out_non_empty: TextIO, out_emp
     for phrase in phrases:
         pattern = " " + phrase + " "
         matches += list(re.finditer(pattern, p_clean_spaced))
-    sorted_matches = sorted(matches, key=lambda x: (x.start(), x.end())) # sort found matches for all phrases by beginning
-    space_matches = list(re.finditer(r"\s+", p_clean_spaced)) # these are already sorted by beginning
+    # sort found matches for all phrases by beginning
+    sorted_matches = sorted(matches, key=lambda x: (x.start(), x.end()))
+    space_matches = list(re.finditer(r"\s+", p_clean_spaced))  # these are already sorted by beginning
 
     next_phrase_match_id = 0 if len(sorted_matches) > 0 else -1
     for i in range(len(space_matches) - 1):
         begin = space_matches[i].start()
         j = random.randrange(min(i + 3, len(space_matches) - 1), min(i + 12, len(space_matches)))
         end = space_matches[j].start()
-
-        while next_phrase_match_id > -1 and sorted_matches[next_phrase_match_id].start() < begin:  # move next_phrase_match_id so that it cannot start before begin 
+        # move next_phrase_match_id so that it cannot start before begin
+        while next_phrase_match_id > -1 and sorted_matches[next_phrase_match_id].start() < begin:
             next_phrase_match_id += 1
             if next_phrase_match_id >= len(sorted_matches):
                 next_phrase_match_id = -1
                 break
 
-        text = p_clean_spaced[begin+1:end]  # +1 to move from beginning space to next symbol
+        text = p_clean_spaced[begin + 1 : end]  # +1 to move from beginning space to next symbol
         if re.search(OOV_REGEX, text):
             print("bad text: ", text)
             continue
@@ -117,7 +132,7 @@ def main() -> None:
         phrases = phrases_file.readline().strip().split(";")
         cut_spans(phrases, paragraph, out_non_empty, out_empty)
         n += 1
-            
+
     paragraphs_file.close()
     phrases_file.close()
     out_non_empty.close()

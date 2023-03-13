@@ -24,24 +24,21 @@ import tarfile
 from collections import defaultdict
 from typing import Set
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_paragraphs_from_json
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    get_paragraphs_from_json,
+    load_yago_entities,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_folder",
     required=True,
     type=str,
-    help="Input folder with tar.gz files each containing wikipedia articles in json format"
+    help="Input folder with tar.gz files each containing wikipedia articles in json format",
 )
-parser.add_argument(
-    "--exclude_titles_file", required=True, type=str, help="File with article titles to be skipped"
-)
-parser.add_argument(
-    "--output_file", required=True, type=str, help="Output file"
-)
-parser.add_argument(
-    "--yago_entities_file", required=True, type=str, help="File with preprocessed YAGO entities"
-)
+parser.add_argument("--exclude_titles_file", required=True, type=str, help="File with article titles to be skipped")
+parser.add_argument("--output_file", required=True, type=str, help="Output file")
+parser.add_argument("--yago_entities_file", required=True, type=str, help="File with preprocessed YAGO entities")
 args = parser.parse_args()
 
 
@@ -55,7 +52,7 @@ def get_idf(input_folder: str, exclude_titles: Set[str], yago_entities: Set[str]
     Returns:
         idf: a dictionary where the key is a phrase, value is its inverse document frequency
     """
-    
+
     n_documents = 0
     idf = defaultdict(int)
     for name in os.listdir(input_folder):
@@ -109,4 +106,3 @@ if __name__ == "__main__":
         for phrase, freq in sorted(idf.items(), key=lambda item: item[1], reverse=True):
             score = math.log(n_documents / freq)
             out.write(phrase + "\t" + str(score) + "\t" + str(freq) + "\n")
- 

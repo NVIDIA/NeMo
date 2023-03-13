@@ -21,103 +21,30 @@ import argparse
 import os
 import re
 import tarfile
-from typing import Set, Dict
+from typing import Dict, Set
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_yago_entities, get_title_and_text_from_json, get_paragraphs_from_text
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    get_paragraphs_from_text,
+    get_title_and_text_from_json,
+    load_yago_entities,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_folder",
     required=True,
     type=str,
-    help="Input folder with tar.gz files each containing wikipedia articles in json format"
+    help="Input folder with tar.gz files each containing wikipedia articles in json format",
 )
-parser.add_argument(
-    "--exclude_titles_file", required=True, type=str, help="File with article titles to be skipped"
-)
-parser.add_argument(
-    "--output_file", required=True, type=str, help="Output file"
-)
-parser.add_argument(
-    "--yago_entities_file", required=True, type=str, help="File with preprocessed YAGO entities"
-)
+parser.add_argument("--exclude_titles_file", required=True, type=str, help="File with article titles to be skipped")
+parser.add_argument("--output_file", required=True, type=str, help="Output file")
+parser.add_argument("--yago_entities_file", required=True, type=str, help="File with preprocessed YAGO entities")
 parser.add_argument(
     "--sub_misspells_file", required=True, type=str, help="File with subphrase misspells from YAGO entities"
 )
-parser.add_argument(
-    "--idf_file", required=True, type=str, help="File with idf of YAGO entities and their subphrases"
-)
-
+parser.add_argument("--idf_file", required=True, type=str, help="File with idf of YAGO entities and their subphrases")
 
 args = parser.parse_args()
-
-
-def extract_sentences_debug(
-    input_folder: str,
-    output_file: str,
-    exclude_titles: Set[str],
-    yago_entities: Set[str],
-    sub_yago_entities: Set[str],
-    idf: Dict[str, float]
-) -> None:
-    out = open(output_file, "w", encoding="utf-8")
-    for name in os.listdir(input_folder):
-        f = open(os.path.join(input_folder, name), "r", encoding="utf-8")
-        content = f.read()
-        f.close()
-        text, title, title_clean = get_title_and_text_from_json(content, exclude_titles)
-        if text is None or title is None:
-            continue
-        title_clean_spaced = " " + title_clean + " "
-        for p, p_clean in get_paragraphs_from_text(text):
-            words = p_clean.split()
-            phrases = set()
-            sub_phrases = set()
-            for begin in range(len(words)):
-                for end in range(begin + 1, min(begin + 5, len(words) + 1)):
-                    max_word_idf = 0.0  # here we store idf of rarest word in the phrase, to filter out phrases like "placed within" 
-                    for w in words[begin:end]:
-                        if w in idf:
-                            if idf[w] > max_word_idf:
-                                max_word_idf = idf[w]
-                        else:
-                            max_word_idf = 100.0
-                    phrase = " ".join(words[begin:end])
-                    if phrase == title_clean:  # whole phrase is yago_entity and equals title (no filtering)
-                        phrases.add(phrase)
-                        continue
-                    if max_word_idf < 5.0:
-                        continue
-                    if phrase in yago_entities:
-                        phrases.add(phrase)
-                    elif phrase in sub_yago_entities:
-                        if max_word_idf > 7.0:
-                            sub_phrases.add(phrase)
-            #out.write(p + "\n")
-            #out.write(p_clean + "\n")
-            #out.write("phrases=" + str(phrases) + "\n")
-            #out.write("sub_phrases=" + str(sub_phrases) + "\n")
-            p_clean_spaced = " " + p_clean + " "
-            matches = []
-            for phrase in (phrases | sub_phrases):
-                pattern = " " + phrase + " "
-                matches += list(re.finditer(pattern, p_clean_spaced))
-            final_phrases = set()
-            for m in matches:
-                begin = m.start()
-                end = m.end() - 2
-                phrase_lower = p_clean[begin:end]
-                phrase_orig = p[begin:end]
-                if (phrase_lower != phrase_orig
-                    or phrase_lower in title_clean_spaced
-                    or (phrase_lower not in idf or idf[phrase_lower] > 9.0)
-                ):
-                    final_phrases.add(phrase_lower)
-                    #out.write(phrase_orig + "; " + str(begin) + " " + str(end) + "\n")
-            if len(final_phrases) > 0:
-                out.write(";".join(list(final_phrases)) + "\t" + p + "\n")
-            #out.write("\n\n")
-    out.close()
 
 
 def extract_sentences(
@@ -126,7 +53,7 @@ def extract_sentences(
     exclude_titles: Set[str],
     yago_entities: Set[str],
     sub_yago_entities: Set[str],
-    idf: Dict[str, float]
+    idf: Dict[str, float],
 ) -> None:
     out = open(output_file, "w", encoding="utf-8")
     for name in os.listdir(input_folder):
@@ -149,7 +76,7 @@ def extract_sentences(
                 sub_phrases = set()
                 for begin in range(len(words)):
                     for end in range(begin + 1, min(begin + 5, len(words) + 1)):
-                        max_word_idf = 0.0  # here we store idf of rarest word in the phrase, to filter out phrases like "placed within" 
+                        max_word_idf = 0.0  # here we store idf of rarest word in the phrase, to filter out phrases like "placed within"
                         for w in words[begin:end]:
                             if w in idf:
                                 if idf[w] > max_word_idf:
@@ -169,7 +96,7 @@ def extract_sentences(
                                 sub_phrases.add(phrase)
                 p_clean_spaced = " " + p_clean + " "
                 matches = []
-                for phrase in (phrases | sub_phrases):
+                for phrase in phrases | sub_phrases:
                     pattern = " " + phrase + " "
                     matches += list(re.finditer(pattern, p_clean_spaced))
                 final_phrases = set()
@@ -178,7 +105,8 @@ def extract_sentences(
                     end = m.end() - 2
                     phrase_lower = p_clean[begin:end]
                     phrase_orig = p[begin:end]
-                    if (phrase_lower != phrase_orig
+                    if (
+                        phrase_lower != phrase_orig
                         or phrase_lower in title_clean_spaced
                         or (phrase_lower not in idf or idf[phrase_lower] > 9.0)
                     ):
@@ -326,7 +254,7 @@ EXCLUDE_PHRASES = {
     "vii",
     "visited",
     "wednesday",
-    "worlds"
+    "worlds",
 }
 
 
@@ -342,9 +270,9 @@ if __name__ == "__main__":
     idf = {}
     with open(args.idf_file, "r", encoding="utf-8") as f:
         for line in f:
-            phrase, score, freq,  = line.strip().split("\t")
+            phrase, score, freq = line.strip().split("\t")
             score = float(score)
-            if score > 10.0:  # phrases with score above this will never be filtered based on idf 
+            if score > 10.0:  # phrases with score above this will never be filtered based on idf
                 break
             idf[phrase] = score
 
@@ -367,5 +295,3 @@ if __name__ == "__main__":
             sub_yago_entities.add(phrase)
 
     extract_sentences(args.input_folder, args.output_file, exclude_titles, yago_entities, sub_yago_entities, idf)
-
-    

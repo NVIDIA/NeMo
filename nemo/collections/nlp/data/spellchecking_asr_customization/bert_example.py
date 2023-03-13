@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import logging
-import pdb
 from collections import OrderedDict
 from os import path
 from typing import Dict, List, Optional, Tuple, Union
@@ -76,15 +75,16 @@ class BertExample(object):
             and input_len == len(labels)
             and input_len == len(character_pos_to_subword_pos)
         ):
-            raise ValueError('All feature lists should have the same length ({})'.format(input_len))
+            raise ValueError("All feature lists should have the same length ({})".format(input_len))
 
         input_len_for_subwords = len(input_ids_for_subwords)
         if not (
             input_len_for_subwords == len(input_mask_for_subwords)
             and input_len_for_subwords == len(segment_ids_for_subwords)
         ):
-            raise ValueError('All feature lists for subwords should have the same length ({})'.format(input_len_for_subwords))
-
+            raise ValueError(
+                "All feature lists for subwords should have the same length ({})".format(input_len_for_subwords)
+            )
 
         self.features = OrderedDict(
             [
@@ -134,9 +134,7 @@ class BertExample(object):
 
             self.features[key].extend([pad_id] * pad_len)
             if len(self.features[key]) != max_len:
-                raise ValueError(
-                    "{} has length {} (should be {}).".format(key, len(self.features[key]), max_len)
-                )
+                raise ValueError("{} has length {} (should be {}).".format(key, len(self.features[key]), max_len))
 
     def get_token_labels(self, features_key: str) -> List[int]:
         """Returns labels/tags for the original tokens, not for wordpieces."""
@@ -218,10 +216,10 @@ class BertExampleBuilder(object):
             labels_mask,
             labels,
             hyp_tokens,
-            token_start_indices
-        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags) 
+            token_start_indices,
+        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags)
 
-        # get input features for words 
+        # get input features for words
         hyp_with_words = hyp.replace(" ", "").replace("_", " ")
         ref_with_words = ref.replace(" ", "").replace("_", " ")
         (
@@ -231,16 +229,16 @@ class BertExampleBuilder(object):
             _,
             _,
             _,
-            _
-        ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None) 
+            _,
+        ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None)
 
         character_pos_to_subword_pos = [0 for _ in input_ids]
         ## Example:
         ##   hyp_tokens_for_words = ['pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace' ... 'world']
         ##   input_ids_for_subwords = [101, 21877, 6216, 5737, 10024, ..., 9311, 102, 27046, 102, 12525 ...]
         ##   hyp_tokens = ['p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', 'p', 'e', 'a', 'c', 'e', '_' ... ]
-        
-        ## ['[CLS]', 'p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', ..., '[SEP]' 
+
+        ## ['[CLS]', 'p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', ..., '[SEP]'
         tokens = self._tokenizer.convert_ids_to_tokens(input_ids)
         ##  ['[CLS]', 'pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace', ..., 'tent', '[SEP]', 'thru', '[SEP]', 'mister', '##ia', '[SEP]', 'r', 'v', 'g', '[SEP]', 'af', '##p', '[SEP]', 'dans', 'la', 'pea', '##u', '[SEP]', 'anthony', 'lester', '[SEP]', 'k', '##x', '##ok', '[SEP]', 'anthony', 'le', '##rew', '[SEP]', 'anthony', 'les', '##pes', '[SEP]', 'han', '##ey', '[SEP]']
         tokens_for_subwords = self._tokenizer.convert_ids_to_tokens(input_ids_for_subwords)
@@ -270,7 +268,7 @@ class BertExampleBuilder(object):
                     + "subwords="
                     + str(tokens_for_subwords)
                 )
-            # at this point we expect that 
+            # at this point we expect that
             #    subword either 1) is a normal first token of a word or 2) starts with "##" (not first word token)
             #    character either 1) is a normal character or 2) is a space character "_"
             if character == "_":
@@ -410,15 +408,7 @@ class BertExampleBuilder(object):
         if tags:
             labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(all_ref_tokens)
             labels = [0] + labels + [0] + [0] * len(all_ref_tokens)
-        return (
-            input_ids,
-            input_mask,
-            segment_ids,
-            labels_mask,
-            labels,
-            hyp_tokens,
-            token_start_indices
-        ) 
+        return (input_ids, input_mask, segment_ids, labels_mask, labels, hyp_tokens, token_start_indices)
 
     def _split_to_wordpieces_with_labels(
         self, tokens: List[str], labels: List[int]
@@ -471,7 +461,8 @@ class BertExampleBuilder(object):
         except KeyError:
             return 0
 
-    def read_input_file(self, input_filename: str, infer: bool = False
+    def read_input_file(
+        self, input_filename: str, infer: bool = False
     ) -> Union[List['BertExample'], Tuple[List['BertExample'], Tuple[str, str]]]:
         """Reads in Tab Separated Value file and converts to training/inference-ready examples.
 
@@ -509,7 +500,9 @@ class BertExampleBuilder(object):
                 else:
                     hyp, ref, target, semiotic_info = line.rstrip('\n').split('\t')
                     try:
-                        example = self.build_bert_example(hyp, ref, target=target, span_info=semiotic_info, infer=infer)
+                        example = self.build_bert_example(
+                            hyp, ref, target=target, span_info=semiotic_info, infer=infer
+                        )
                     except Exception as e:
                         logging.warning(str(e))
                         logging.warning(line)

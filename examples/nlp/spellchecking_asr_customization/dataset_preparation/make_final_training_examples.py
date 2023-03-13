@@ -50,17 +50,16 @@ from argparse import ArgumentParser
 parser = ArgumentParser(description="Preparation of final training examples")
 
 # three ninjas three ninjas knuckle up and three ninjas	*panda's;knuckle;*therrien;&william flynt nichols;&cansahcab;*wpk;&yenmanagandla;*neniae;*wpb;ninjas	2 10 10 10	26 33;19 25;6 12;47 53	knuckle;nines;ninjas;dinges
-parser.add_argument(
-    "--positive_file", required=True, type=str, help="Input file with positive examples"
-)
+parser.add_argument("--positive_file", required=True, type=str, help="Input file with positive examples")
 
 # merchant's house ceased	*a house;*windhausen;*oase;*seasider;*gladhouse;*haase;*hoseyni;*hosen;*gunhouse;*caseyi
-parser.add_argument(
-    "--negative_file", required=True, type=str, help="Input file with negative examples"
-)
+parser.add_argument("--negative_file", required=True, type=str, help="Input file with negative examples")
 
 parser.add_argument(
-    "--fraction_of_negatives", type=float, default=0.5, help="Desired fraction of negative examples, from 0 to 1, default 0.5"
+    "--fraction_of_negatives",
+    type=float,
+    default=0.5,
+    help="Desired fraction of negative examples, from 0 to 1, default 0.5",
 )
 
 
@@ -93,7 +92,7 @@ def main() -> None:
             candidates = []
             for cand in candidate_str.split(";"):
                 candidate = " ".join(list(cand[1:].replace(" ", "_")))
-                candidates.append(candidate) 
+                candidates.append(candidate)
             output.write(text + "\t" + ";".join(candidates) + "\t0\t\n")
         elif len(parts) == 5:  # positive example
             text, candidate_str, target_str, span_str, misspell_str = parts
@@ -112,12 +111,12 @@ def main() -> None:
                 spans.append([int(begin), int(end)])
             misspells = misspell_str.split(";")
             if len(misspells) != len(spans):
-                raise(IndexError, "mismatch in length of spans and misspells: " + line)
+                raise (IndexError, "mismatch in length of spans and misspells: " + line)
             for i in range(len(spans)):
                 # 0 if same length, negative if misspell is shorter, positive if misspell is longer
                 begin = spans[i][0]
                 end = spans[i][1]
-                len_diff = len(misspells[i]) - (end - begin)                
+                len_diff = len(misspells[i]) - (end - begin)
                 text = text[:begin] + misspells[i] + text[end:]
                 if len_diff != 0:
                     for j in range(len(spans)):  # update all positions further than begin
@@ -133,21 +132,13 @@ def main() -> None:
                 if cand[0] in ["#", "*", "&"]:
                     candidate = cand[1:]
                 candidate = " ".join(list(candidate.replace(" ", "_")))
-                candidates.append(candidate) 
+                candidates.append(candidate)
 
             span_info = []
             for span in spans:
                 span_info.append("CUSTOM " + str(span[0]) + " " + str(span[1]))
-            
-            output.write(
-                text
-                + "\t"
-                + ";".join(candidates)
-                + "\t"
-                + target_str
-                + "\t"
-                + ";".join(span_info) 
-                + "\n")
+
+            output.write(text + "\t" + ";".join(candidates) + "\t" + target_str + "\t" + ";".join(span_info) + "\n")
 
         else:
             print("Bad format: ", line)
@@ -155,7 +146,7 @@ def main() -> None:
     output.close()
     input_positive.close()
     input_negative.close()
-    
+
 
 if __name__ == "__main__":
     main()

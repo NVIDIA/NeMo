@@ -13,23 +13,12 @@
 # limitations under the License.
 
 
-import sys
 from argparse import ArgumentParser
-from collections import defaultdict
-from os.path import join
-from typing import List, Dict, Optional, TextIO, Tuple
+
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_index
 
 
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print(sys.path)
-from utils import load_index
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_index
-
-
-parser = ArgumentParser(
-    description="Create index for custom phrases, allows to use parameters"
-)
+parser = ArgumentParser(description="Create index for custom phrases, allows to use parameters")
 parser.add_argument("--input_file", required=True, type=str, help="Path to input file with custom phrases")
 parser.add_argument("--output_file", type=str, required=True, help="Output file")
 
@@ -59,7 +48,7 @@ with open(args.output_file, "w", encoding="utf-8") as out:
             out.write("".join(letters) + "\t" + "".join(phr.split()) + "\t" + str(sum(mask)) + "\n")
             k += 1
             if k > 10:
-                 break
+                break
         n += 1
         if n % 10000 == 0:
             print(n)
