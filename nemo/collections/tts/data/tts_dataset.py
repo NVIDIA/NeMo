@@ -223,7 +223,7 @@ class TTSDataset(Dataset):
 
         # If filtering based on a user-set vocab and there's a grapheme prefix,
         # remove all prefixes for comparison with the normalized text
-        if self.text_tokenizer.set_fixed_vocab and self.text_tokenizer.g2p.grapheme_prefix:
+        if getattr(self.text_tokenizer, "set_fixed_vocab", False) and self.text_tokenizer.g2p.grapheme_prefix:
             prefix = self.text_tokenizer.g2p.grapheme_prefix
             # Have check for length of token in case the prefix is a valid symbol by itself
             tokens_set = {
