@@ -38,7 +38,7 @@ class _TokensWrapper:
 
     @property
     def unk_id(self):
-        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id'):
+        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id') and self.tokenizer.unk_id is not None:
             return self.tokenizer.unk_id
 
         if '<unk>' in self.vocabulary:
@@ -99,18 +99,16 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
     ):
 
         try:
-            from flashlight.lib.text.dictionary import create_word_dict, load_words
-            from flashlight.lib.sequence.criterion import get_data_ptr_as_bytes
             from flashlight.lib.text.decoder import (
-                CriterionType,
-                LexiconDecoderOptions,
-                KenLM,
                 LM,
-                LMState,
+                CriterionType,
+                KenLM,
+                LexiconDecoder,
+                LexiconDecoderOptions,
                 SmearingMode,
                 Trie,
-                LexiconDecoder,
             )
+            from flashlight.lib.text.dictionary import create_word_dict, load_words
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "FlashLightKenLMBeamSearchDecoder requires the installation of flashlight python bindings "

@@ -17,7 +17,6 @@ import contextlib
 
 import omegaconf
 import torch
-import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -25,11 +24,11 @@ from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.helpers import clip_grad_value_, plot_spectrogram_to_numpy, slice_segments
+from nemo.collections.tts.data.tts_dataset import DistributedBucketSampler
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
-from nemo.collections.tts.torch.data import DistributedBucketSampler
+from nemo.collections.tts.parts.utils.helpers import clip_grad_value_, plot_spectrogram_to_numpy, slice_segments
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, FloatType, Index, IntType, TokenIndex
@@ -97,14 +96,29 @@ class VitsModel(TextToWaveform):
                     'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
 
-            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-            self.text_normalizer_call = self.normalizer.normalize
+            try:
+                import nemo_text_processing
+
+                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+                self.text_normalizer_call = self.normalizer.normalize
+            except Exception as e:
+                logging.error(e)
+                raise ImportError(
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
+                )
             if "text_normalizer_call_kwargs" in cfg:
                 self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -372,7 +386,14 @@ class VitsModel(TextToWaveform):
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
         list_of_models = []
-        # TODO: List available models??
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_vits",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_vits/versions/1.13.0/files/vits_ljspeech_fp16_full.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz. This model has been tested on generating female English "
+            "voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
         return list_of_models
 
     @typecheck(

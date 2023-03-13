@@ -24,13 +24,13 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch import nn
 
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import (
+from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.parts.utils.helpers import (
     get_mask_from_lengths,
     tacotron2_log_to_tb_func,
     tacotron2_log_to_wandb_func,
 )
-from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
-from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -133,8 +133,6 @@ class Tacotron2Model(SpectrogramGenerator):
                 abbreviation_version="fastpitch",
                 make_table=False,
             )
-        elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-            self.parser = self.vocab.encode
         else:
             raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
 
@@ -309,11 +307,13 @@ class Tacotron2Model(SpectrogramGenerator):
                 )
 
             try:
+                import nemo_text_processing
+
                 self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             except Exception as e:
                 logging.error(e)
                 raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
 
             self.text_normalizer_call = self.normalizer.normalize
@@ -323,6 +323,13 @@ class Tacotron2Model(SpectrogramGenerator):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:

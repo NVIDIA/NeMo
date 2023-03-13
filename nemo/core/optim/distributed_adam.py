@@ -12,20 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+import torch
+from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
 from apex.transformer import parallel_state
 
 
 # Wrapper class that supports main_grad buffer
 # Note: main_grad buffer is used for O2-style optimizations
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, disable_distributed_parameters=False, **kwargs):
         if 'process_group' not in kwargs and not parallel_state.is_unitialized():
             kwargs['process_group'] = parallel_state.get_data_parallel_group()
+        if disable_distributed_parameters:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            self_groups = [torch.distributed.new_group(ranks=[i]) for i in range(world_size)]
+            kwargs['distributed_process_group'] = self_groups[rank]
+            kwargs['redundant_process_group'] = kwargs['process_group']
         super().__init__(*args, **kwargs)
 
     def _make_post_backward_hook(self, param, param_group_id, param_id):
         def hook(*unused):
+            if getattr(param, '_pre_forward_hook_is_enabled', False):
+                raise RuntimeError(
+                    'A parameter called its post-backward hook '
+                    'before its pre-forward hook. '
+                    'Please manually interact with the parameter '
+                    'before the forward pass (e.g. by calling data_ptr) '
+                    'or run DistributedFusedAdam with overlap_param_sync=False.'
+                )
             with self._lock:
                 need_to_initialize = 'fragments' not in self.state[param]
                 if need_to_initialize:
@@ -49,6 +64,5 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         super().zero_grad(*args, **kwargs)
         if self.contiguous_grad_buffer:
             for param in self.parameters():
-                param.main_grad = self.grad_buffer_view(param)
-                if param.dtype == param.main_grad.dtype and param.is_cuda:
-                    param.grad = param.main_grad
+                with _disable_pre_forward_hook(param):
+                    param.main_grad = self.grad_buffer_view(param)

@@ -58,6 +58,7 @@ elif os.path.exists('README.rst'):
 
 else:
     long_description = 'See ' + __homepage__
+    long_description_content_type = "text/plain"
 
 
 ###############################################################################
@@ -78,8 +79,6 @@ install_requires = req_file("requirements.txt")
 extras_require = {
     # User packages
     'test': req_file("requirements_test.txt"),
-    # NeMo Tools
-    'nemo_text_processing': req_file("requirements_nemo_text_processing.txt"),
     # Lightning Collections Packages
     'core': req_file("requirements_lightning.txt"),
     'common': req_file('requirements_common.txt'),
@@ -94,46 +93,16 @@ extras_require = {
 extras_require['all'] = list(chain(extras_require.values()))
 
 # Add lightning requirements as needed
-extras_require['nemo_text_processing'] = list(chain([extras_require['nemo_text_processing'], extras_require['core']]))
 extras_require['common'] = list(chain([extras_require['common'], extras_require['core']]))
-extras_require['test'] = list(
-    chain(
-        [
-            extras_require['tts'],
-            extras_require['core'],
-            extras_require['common'],
-            extras_require['nemo_text_processing'],
-        ]
-    )
-)
+extras_require['test'] = list(chain([extras_require['tts'], extras_require['core'], extras_require['common'],]))
 extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core'], extras_require['common']]))
-extras_require['nlp'] = list(
-    chain(
-        [
-            extras_require['nlp'],
-            extras_require['core'],
-            extras_require['common'],
-            extras_require['nemo_text_processing'],
-        ]
-    )
-)
-extras_require['tts'] = list(
-    chain(
-        [
-            extras_require['tts'],
-            extras_require['core'],
-            extras_require['common'],
-            extras_require['nemo_text_processing'],
-        ]
-    )
-)
+extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['core'], extras_require['common'],]))
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['core'], extras_require['common'],]))
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
 
 extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']]))
-
-tests_requirements = extras_require["test"]
 
 
 ###############################################################################
@@ -143,12 +112,7 @@ tests_requirements = extras_require["test"]
 
 class StyleCommand(distutils_cmd.Command):
     __LINE_WIDTH = 119
-    __ISORT_BASE = (
-        'isort '
-        # These two lines makes isort compatible with black.
-        '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
-        f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
-    )
+    __ISORT_BASE = 'isort '
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'
     user_options = [
@@ -261,8 +225,6 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     install_requires=install_requires,
-    setup_requires=['pytest-runner'],
-    tests_require=tests_requirements,
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # $ pip install -e ".[all]"
