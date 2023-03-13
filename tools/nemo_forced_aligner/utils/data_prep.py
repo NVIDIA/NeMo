@@ -367,6 +367,12 @@ def get_batch_tensors_and_boundary_info(
 
     # calculate model_downsample_factor if it is None
     if model_downsample_factor is None:
+        if not 'window_stride' in model.cfg.preprocessor:
+            raise ValueError(
+                "Don't have attribute 'window_stride' in 'model.cfg.preprocessor' => cannot calculate "
+                " model_downsample_factor => stopping process"
+            )
+
         audio_dur = librosa.get_duration(filename=audio_filepaths_batch[0])
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))

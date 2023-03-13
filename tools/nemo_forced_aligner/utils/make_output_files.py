@@ -146,7 +146,7 @@ def make_ctm(
 
                 if not 'sample_rate' in model.cfg.preprocessor:
                     raise ValueError(
-                        " Don't have attribute 'sample_rate' in 'model.cfg.preprocessor => cannot calculate start "
+                        "Don't have attribute 'sample_rate' in 'model.cfg.preprocessor' => cannot calculate start "
                         " and end time of segments => stopping process"
                     )
 
