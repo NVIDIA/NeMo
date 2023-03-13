@@ -93,30 +93,11 @@ def build_train_valid_test_datasets(
 ):
     if data_impl in ['synthetic']:
         logging.info('Initializing synthetic GPT dataset for train, validate, and test')
-        train_ds = SyntheticGPTDataset(
-            cfg,
-            tokenizer,
-            "train",
-            train_valid_test_num_samples[0],
-            seq_length,
-            seed,
-        )
+        train_ds = SyntheticGPTDataset(cfg, tokenizer, "train", train_valid_test_num_samples[0], seq_length, seed,)
         validation_ds = SyntheticGPTDataset(
-            cfg,
-            tokenizer,
-            "valid",
-            train_valid_test_num_samples[1],
-            seq_length,
-            seed,
+            cfg, tokenizer, "valid", train_valid_test_num_samples[1], seq_length, seed,
         )
-        test_ds = SyntheticGPTDataset(
-            cfg,
-            tokenizer,
-            "test",
-            train_valid_test_num_samples[2],
-            seq_length,
-            seed,
-        )
+        test_ds = SyntheticGPTDataset(cfg, tokenizer, "test", train_valid_test_num_samples[2], seq_length, seed,)
         return train_ds, validation_ds, test_ds
     elif isinstance(data_prefix, DictConfig):
         assert (
@@ -437,13 +418,7 @@ class GPTDataset(Dataset):
 
 class SyntheticGPTDataset(Dataset):
     def __init__(
-        self,
-        cfg,
-        tokenizer,
-        name,
-        num_samples,
-        seq_length,
-        seed,
+        self, cfg, tokenizer, name, num_samples, seq_length, seed,
     ):
         if not HAVE_APEX:
             raise ImportError(
