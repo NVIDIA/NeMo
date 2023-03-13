@@ -17,8 +17,9 @@ import os
 
 import librosa
 import torch
-from nemo.utils import logging
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
+
+from nemo.utils import logging
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):

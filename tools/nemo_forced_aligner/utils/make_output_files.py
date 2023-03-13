@@ -144,8 +144,14 @@ def make_ctm(
                 start_sample = boundary_info_["t_start"] * timestep_to_sample_ratio
                 end_sample = (boundary_info_["t_end"] + 1) * timestep_to_sample_ratio - 1
 
-                start_time = start_sample / model.cfg.sample_rate
-                end_time = end_sample / model.cfg.sample_rate
+                if not 'sample_rate' in model.cfg.preprocessor:
+                    raise ValueError(
+                        " Don't have attribute 'sample_rate' in 'model.cfg.preprocessor => cannot calculate start "
+                        " and end time of segments => stopping process"
+                    )
+
+                start_time = start_sample / model.cfg.preprocessor.sample_rate
+                end_time = end_sample / model.cfg.preprocessor.sample_rate
 
                 if minimum_timestamp_duration > 0 and minimum_timestamp_duration > end_time - start_time:
                     # make the predicted duration of the token/word/segment longer, growing it outwards equal
