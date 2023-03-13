@@ -40,35 +40,39 @@ def test_recommend_hyperparameters():
     df_100 = pd.DataFrame({'prompt': ['prompt'] * 100, 'completion': ['completion'] * 100})
     assert recommend_hyperparameters(df_100) == {
         'batch_size': 2,
-        'max batch_size': 64,
+        'max_batch_size': 64,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
+        'max_seq_length': 104
     }
 
     df_1000 = pd.DataFrame({'prompt': ['prompt'] * 1000, 'completion': ['completion'] * 1000})
     assert recommend_hyperparameters(df_1000) == {
         'batch_size': 2,
-        'max batch_size': 128,
+        'max_batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
+        'max_seq_length': 104
     }
     df_10000 = pd.DataFrame({'prompt': ['prompt'] * 10000, 'completion': ['completion'] * 10000})
     assert recommend_hyperparameters(df_10000) == {
         'batch_size': 16,
-        'max batch_size': 128,
+        'max_batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
+        'max_seq_length': 104
     }
     df_100000 = pd.DataFrame({'prompt': ['prompt'] * 100000, 'completion': ['completion'] * 100000})
     assert recommend_hyperparameters(df_100000) == {
         'batch_size': 128,
-        'max batch_size': 128,
+        'max_batch_size': 128,
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
+        'max_seq_length': 104
     }
 
 
