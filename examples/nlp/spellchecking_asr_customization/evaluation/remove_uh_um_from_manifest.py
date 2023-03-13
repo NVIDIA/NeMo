@@ -45,4 +45,3 @@ with open(args.output_manifest, "w", encoding="utf-8") as out:
     for d in test_data:
         line = json.dumps(d)
         out.write(line + "\n")
-

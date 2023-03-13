@@ -13,10 +13,11 @@
 # limitations under the License.
 
 
-import numpy as np
 import re
 from itertools import groupby
 from typing import Dict, List, Tuple
+
+import numpy as np
 
 """Utility functions for Thutmose Tagger."""
 

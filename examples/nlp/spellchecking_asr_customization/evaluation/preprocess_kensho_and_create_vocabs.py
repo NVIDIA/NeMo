@@ -18,12 +18,12 @@ This script can be used to preprocess Kensho corpus.
 
 The input folder consists of subfolders like this
   ├── 0018ad922e541b415ae60e175160b976
-  │   ├── 118.wav
-  │   ├── 120.wav
-  │   ├── 148.wav
-  │   ├── 21.wav
-  │   ├── 34.wav
-  │   └── 3.wav
+  │   ├── 118.wav
+  │   ├── 120.wav
+  │   ├── 148.wav
+  │   ├── 21.wav
+  │   ├── 34.wav
+  │   └── 3.wav
 
 
 Transcription file looks like this:
@@ -35,45 +35,45 @@ wav_filename|wav_filesize|transcript
 
 Normalized file contains just normalized text (still keeping original case and punctuation)
 Number of lines in it is the same as in original transcription file, except for header line.
-
 """
 
 import argparse
 import json
 import os
 import re
-from collections import defaultdict
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--input_folder", required=True, type=str, help="Input folder in which each subfolder contains audios from the same talk"
+    "--input_folder",
+    required=True,
+    type=str,
+    help="Input folder in which each subfolder contains audios from the same talk",
+)
+parser.add_argument("--destination_folder", required=True, type=str, help="Destination folder with user vocabs")
+parser.add_argument("--transcription_file", required=True, type=str, help="Original kensho file with transcriptions")
+parser.add_argument("--normalized_file", required=True, type=str, help="Transcriptions after normalization")
+parser.add_argument("--output_manifest", required=True, type=str, help="Output manifest in NeMo format")
+parser.add_argument("--idf_file", required=True, type=str, help="File with idf of words and phrases")
+parser.add_argument(
+    "--min_idf_uppercase",
+    type=float,
+    default=5.0,
+    help="Words with idf below that will be considered too frequent and won't be included in user vocabulary",
 )
 parser.add_argument(
-    "--destination_folder", required=True, type=str, help="Destination folder with user vocabs"
+    "--min_idf_lowercase",
+    type=float,
+    default=8.0,
+    help="Words with idf below that will be considered too frequent and won't be included in user vocabulary",
 )
 parser.add_argument(
-    "--transcription_file", required=True, type=str, help="Original kensho file with transcriptions"
+    "--min_len",
+    required=True,
+    type=int,
+    help="Minimum number of characters in user phrase (including space), e.g. 6 symbols",
 )
-parser.add_argument(
-    "--normalized_file", required=True, type=str, help="Transcriptions after normalization"
-)
-parser.add_argument(
-    "--output_manifest", required=True, type=str, help="Output manifest in NeMo format"
-)
-parser.add_argument(
-    "--idf_file", required=True, type=str, help="File with idf of words and phrases"
-)
-parser.add_argument(
-    "--min_idf_uppercase", type=float, default=5.0, help="Words with idf below that will be considered too frequent and won't be included in user vocabulary"
-)
-parser.add_argument(
-    "--min_idf_lowercase", type=float, default=8.0, help="Words with idf below that will be considered too frequent and won't be included in user vocabulary"
-)
-parser.add_argument("--min_len", required=True, type=int, help="Minimum number of characters in user phrase (including space), e.g. 6 symbols")
-
 
 args = parser.parse_args()
-
 
 EXCLUDE_PHRASES = {
     "certainly",
@@ -85,7 +85,7 @@ EXCLUDE_PHRASES = {
     "i'd",
     "i'll",
     "i've",
-    "we'd"
+    "we'd",
     "we're",
     "we've",
     "you'd",
@@ -165,9 +165,15 @@ if __name__ == "__main__":
     normalized_lines = []
     with open(args.normalized_file, "r", encoding="utf-8") as f:
         normalized_lines = f.readlines()
-    
-    if (len(csv_lines) != 1 + len(normalized_lines)):
-        raise(IndexError, "number of lines in normalized and csv files do not match: " + str(len(normalized_lines)) + " vs " + str(len(csv_lines)))
+
+    if len(csv_lines) != 1 + len(normalized_lines):
+        raise (
+            IndexError,
+            "number of lines in normalized and csv files do not match: "
+            + str(len(normalized_lines))
+            + " vs "
+            + str(len(csv_lines)),
+        )
 
     user2vocab = {}
     test_data = []
@@ -194,4 +200,3 @@ if __name__ == "__main__":
             for phrase in user2vocab[user_id]:
                 if len(phrase) >= args.min_len:
                     out.write(phrase + "\n")
-

@@ -13,34 +13,34 @@
 # limitations under the License.
 
 
-import random
 import os
+import random
 from argparse import ArgumentParser
-from collections import defaultdict
-from os.path import exists
 from typing import List
 
-## !!!this is temporary hack for my windows machine since is misses some installs 
-#sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-#print(sys.path)
-#from utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_all_candidates_coverage, get_index, load_ngram_mappings, search_in_index
-
-
-parser = ArgumentParser(
-    description="Prepare input examples for inference"
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    get_all_candidates_coverage,
+    get_index,
+    load_ngram_mappings,
+    search_in_index,
 )
+
+parser = ArgumentParser(description="Prepare input examples for inference")
 parser.add_argument("--hypotheses_folder", required=True, type=str, help="Path to input folder with asr hypotheses")
 parser.add_argument("--vocabs_folder", type=str, required=True, help="Path to input folder with user vocabs")
 parser.add_argument("--output_folder", type=str, required=True, help="Output folder")
 parser.add_argument("--ngram_mappings", type=str, required=True, help="Path to ngram mappings vocabulary")
 parser.add_argument(
-    "--sub_misspells_file", required=True, type=str, help="File with misspells from which only keys will be used to sample dummy candidates"
+    "--sub_misspells_file",
+    required=True,
+    type=str,
+    help="File with misspells from which only keys will be used to sample dummy candidates",
 )
 parser.add_argument("--debug", action='store_true', help="Whether to create files with debug information")
 
 
 args = parser.parse_args()
+
 
 def read_custom_vocab(filename: str) -> List[str]:
     phrases = set()
@@ -49,9 +49,10 @@ def read_custom_vocab(filename: str) -> List[str]:
             phrases.add(" ".join(list(line.strip().casefold().replace(" ", "_"))))
     return list(phrases)
 
+
 print("load ngram mappings...")
 ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mappings, max_dst_freq=125000)
-# CAUTION: entries in ban_ngram end with a space and can contain "+" "=" 
+# CAUTION: entries in ban_ngram end with a space and can contain "+" "="
 print("done.")
 
 print("load big sample of phrases...")
@@ -59,10 +60,10 @@ big_sample_of_phrases = set()
 with open(args.sub_misspells_file, "r", encoding="utf-8") as f:
     for line in f:
         phrase, _, _, src_freq, dst_freq = line.strip().split("\t")
-        if int(src_freq) > 50:   # do not want to use frequent phrases as dummy candidates
+        if int(src_freq) > 50:  # do not want to use frequent phrases as dummy candidates
             continue
         if len(phrase) < 6 or len(phrase) > 15:  # do not want to use too short or too long phrases as dummy candidates
-            continue        
+            continue
         big_sample_of_phrases.add(phrase)
 
 big_sample_of_phrases = list(big_sample_of_phrases)
@@ -126,7 +127,8 @@ for name in os.listdir(args.hypotheses_folder):
                 begin = candidate2position[idx]  # this is most likely beginning of this candidate
                 phrase_length = phrases[idx].count(" ") + 1
                 for pos in range(begin, begin + phrase_length):
-                    if pos >= len(position2ngrams):  # we do not know exact end of custom phrase in text, it can be different from phrase length
+                    # we do not know exact end of custom phrase in text, it can be different from phrase length
+                    if pos >= len(position2ngrams):
                         break
                     for ngram in position2ngrams[pos]:
                         for phrase_id, b, size, lp in ngram2phrases[ngram]:
@@ -134,7 +136,7 @@ for name in os.listdir(args.hypotheses_folder):
                                 continue
                             for ppos in range(b, b + size):
                                 if ppos >= phrase_length:
-                                    break 
+                                    break
                                 phrases2coveredsymbols[phrase_id][ppos] = 1
                 k += 1
                 if k > 20:
@@ -142,16 +144,33 @@ for name in os.listdir(args.hypotheses_folder):
                 real_coverage = sum(phrases2coveredsymbols[idx]) / len(phrases2coveredsymbols[idx])
                 if real_coverage < 0.8:
                     if args.debug:
-                        out_debug.write("\t\t- " + phrases[idx] + "\tcov: " + str(coverage) + "\treal_cov: " + str(real_coverage) + "\n")
+                        out_debug.write(
+                            "\t\t- "
+                            + phrases[idx]
+                            + "\tcov: "
+                            + str(coverage)
+                            + "\treal_cov: "
+                            + str(real_coverage)
+                            + "\n"
+                        )
                     continue
                 candidates.append((phrases[idx], begin, phrase_length, coverage, real_coverage))
                 if args.debug:
                     out_debug.write(
-                        "\t" + str(real_coverage) + "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
+                        "\t"
+                        + str(real_coverage)
+                        + "\t"
+                        + phrases[idx]
+                        + "\n"
+                        + " ".join(list(map(str, (map(int, phrases2positions[idx])))))
+                        + "\n"
                     )
-                    out_debug2.write(doc_id + "\t" + phrases[idx].replace(" ", "").replace("_", " ") + "\t" + short_sent + "\n")
+                    out_debug2.write(
+                        doc_id + "\t" + phrases[idx].replace(" ", "").replace("_", " ") + "\t" + short_sent + "\n"
+                    )
 
-            if len(candidates) == 0:  # no need to process this short_sent further if it does not contain any real candidates
+            # no need to process this short_sent further if it does not contain any real candidates
+            if len(candidates) == 0:
                 continue
 
             while len(candidates) < 10:

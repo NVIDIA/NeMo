@@ -45,25 +45,32 @@ parser = ArgumentParser(description="Preparation of training examples from Yago 
 # evantra was presented	1	[evantra] 0 7
 # at the twenty thirteen top marques monaco show it was	1 2 3	[top marques monaco] 23 41;[marques] 27 34;[monaco] 35 41
 parser.add_argument(
-    "--non_empty_fragments_file", required=True, type=str, help="Input file with fragments containing at least 1 target phrase"
+    "--non_empty_fragments_file",
+    required=True,
+    type=str,
+    help="Input file with fragments containing at least 1 target phrase",
 )
 
-# of singapore began airing	0	
-# singapore began airing on channel twelve on the	0	
-parser.add_argument(
-    "--empty_fragments_file", required=True, type=str, help="Input file with empty fragments"
-)
+# of singapore began airing	0
+# singapore began airing on channel twelve on the	0
+parser.add_argument("--empty_fragments_file", required=True, type=str, help="Input file with empty fragments")
 
 # berlin_conclusion       beyond_inclusion        8
 parser.add_argument(
-    "--related_phrases_file", required=True, type=str, help="File with related phrases used to sample some similar candidates"
+    "--related_phrases_file",
+    required=True,
+    type=str,
+    help="File with related phrases used to sample some similar candidates",
 )
 
 # auto    otto    38      314     2332
 # auto    auto    239     314     824
 # awf tag-team championship       off tag team championship       1       1       1
 parser.add_argument(
-    "--sub_misspells_file", required=True, type=str, help="File with misspells used to sample misspells for target phrases"
+    "--sub_misspells_file",
+    required=True,
+    type=str,
+    help="File with misspells used to sample misspells for target phrases",
 )
 
 # muhammad	mohamad;mohammad;muhammed;muhammad's;mohammed;amadeus;l'homme;hamad;mohamed
@@ -74,15 +81,23 @@ parser.add_argument(
     "--reverse_frequent_ngrams_candidates", required=True, type=str, help="File with potential false positives"
 )
 
-parser.add_argument("--output_file_positive", required=True, type=str, help="Output file for examples with at least 1 correct candidate")
-parser.add_argument("--output_file_negative", required=True, type=str, help="Output file for examples with no correct candidates")
+parser.add_argument(
+    "--output_file_positive",
+    required=True,
+    type=str,
+    help="Output file for examples with at least 1 correct candidate",
+)
+parser.add_argument(
+    "--output_file_negative", required=True, type=str, help="Output file for examples with no correct candidates"
+)
 args = parser.parse_args()
 
 
-def make_negative_example(text: str, false_positive_vocab: Dict[str, Set[str]], big_sample_of_phrases: List[str], out: TextIO) -> None:
+def make_negative_example(
+    text: str, false_positive_vocab: Dict[str, Set[str]], big_sample_of_phrases: List[str], out: TextIO
+) -> None:
     incorrect_phrases = set()
     words = text.split()
-    
     ngrams = set()
 
     for begin in range(len(words)):
@@ -90,12 +105,12 @@ def make_negative_example(text: str, false_positive_vocab: Dict[str, Set[str]], 
             ngram = " ".join(words[begin:end])
             ngrams.add(ngram)
 
-
     for ngram in ngrams:
         if ngram in false_positive_vocab:
             phrases = []
             for phrase in false_positive_vocab[ngram]:
-                if phrase in ngrams:  # skip candidates that are present as ngrams in this fragment (they should not appear as incorrect candidates)
+                # skip candidates that are present as ngrams in this fragment (they should not appear as incorrect candidates)
+                if phrase in ngrams:
                     continue
                 phrases.append(phrase)
             if len(phrases) == 0:
@@ -113,23 +128,15 @@ def make_negative_example(text: str, false_positive_vocab: Dict[str, Set[str]], 
     random.shuffle(incorrect_phrases)
     incorrect_phrases = incorrect_phrases[:10]
 
-    out.write(
-        text
-        + "\t"
-        + ";".join(incorrect_phrases)
-        + "\n"
-    )
+    out.write(text + "\t" + ";".join(incorrect_phrases) + "\n")
 
 
 def process_negative_examples(
-    filename: str,
-    out_negative: TextIO,
-    false_positive_vocab: Dict[str, Set[str]],
-    big_sample_of_phrases: List[str]
+    filename: str, out_negative: TextIO, false_positive_vocab: Dict[str, Set[str]], big_sample_of_phrases: List[str]
 ) -> None:
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
-            # singapore began airing on channel twelve on the	0	
+            # singapore began airing on channel twelve on the	0
             text, _ = line.strip().split("\t")
             make_negative_example(text, false_positive_vocab, big_sample_of_phrases, out_negative)
 
@@ -141,7 +148,7 @@ def process_positive_examples(
     misspells_vocab: Dict[str, Dict[str, float]],
     related_vocab: Dict[str, Dict[str, int]],
     false_positive_vocab: Dict[str, Set[str]],
-    big_sample_of_phrases: List[str]
+    big_sample_of_phrases: List[str],
 ) -> None:
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
@@ -149,7 +156,8 @@ def process_positive_examples(
             text, _, span_str = line.strip().split("\t")
             span_infos = span_str.split(";")
             random.shuffle(span_infos)
-            mask = [0] * len(text)  # here we store positions already covered by some correct candidates (as intersection of correct candidates is not allowed)
+            # here we store positions already covered by some correct candidates (as intersection of correct candidates is not allowed)
+            mask = [0] * len(text)
             selected = defaultdict(list)  # key=phrase, value=list of tuples (begin, end)
             skipped = set()
             for span_info in span_infos:
@@ -157,13 +165,16 @@ def process_positive_examples(
                 begin, end = position_str.split(" ")
                 begin = int(begin)
                 end = int(end)
-                if phrase in skipped:  # if this is duplicate phrase in one sentence and it was already skipped, skip again
+                # if this is duplicate phrase in one sentence and it was already skipped, skip again
+                if phrase in skipped:
                     continue
-                if phrase not in selected:  # if this is duplicate phrase in one sentence and it was already selected, do not skip
+                # if this is duplicate phrase in one sentence and it was already selected, do not skip
+                if phrase not in selected:
                     if random.uniform(0, 1) > 0.9:  # skip candidate with probability 0.1
                         skipped.add(phrase)
                         continue
-                    if any(mask[begin:end]):  # skip candidate if it intersects with positions already occupied by anothe candidate 
+                    # skip candidate if it intersects with positions already occupied by another candidate
+                    if any(mask[begin:end]):
                         skipped.add(phrase)
                         continue
                 mask[begin:end] = [1] * (end - begin)
@@ -182,7 +193,7 @@ def process_positive_examples(
 
             incorrect_phrases1 = set()  # here we store incorrect candidates from source 1: related phrases
 
-            # add phrases "related" to correct candidates 
+            # add phrases "related" to correct candidates
             for phrase in selected:
                 if phrase in related_vocab:
                     phrases = []
@@ -194,7 +205,8 @@ def process_positive_examples(
                         weights.append(related_vocab[phrase][related_phrase])
                     if len(phrases) == 0:
                         continue
-                    for phr in random.choices(phrases, weights=weights, k=min(3, len(phrases))):  # take 3 or less (if same choice occur)
+                    # take 3 or less (if same choice occur)
+                    for phr in random.choices(phrases, weights=weights, k=min(3, len(phrases))):
                         incorrect_phrases1.add("#" + phr)
 
             incorrect_phrases2 = set()  # here we store incorrect candidates from source 2: false positives
@@ -294,20 +306,28 @@ def main() -> None:
                 if inp == phrase:
                     continue
                 if inp not in false_positive_vocab:
-                    false_positive_vocab[inp] = set()    
+                    false_positive_vocab[inp] = set()
                 false_positive_vocab[inp].add(phrase)
 
     big_sample_of_phrases = list(misspells_vocab.keys())
-    
+
     random.seed(0)
 
     out_positive = open(args.output_file_positive, "w", encoding="utf-8")
     out_negative = open(args.output_file_negative, "w", encoding="utf-8")
-    process_positive_examples(args.non_empty_fragments_file, out_positive, out_negative, misspells_vocab, related_vocab, false_positive_vocab, big_sample_of_phrases)
+    process_positive_examples(
+        args.non_empty_fragments_file,
+        out_positive,
+        out_negative,
+        misspells_vocab,
+        related_vocab,
+        false_positive_vocab,
+        big_sample_of_phrases,
+    )
     process_negative_examples(args.empty_fragments_file, out_negative, false_positive_vocab, big_sample_of_phrases)
     out_positive.close()
     out_negative.close()
-    
+
 
 if __name__ == "__main__":
     main()

@@ -57,20 +57,26 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_folder", required=True, type=str, help="Input folder with UserLibri corpus, see structure above."
 )
+parser.add_argument("--destination_folder", required=True, type=str, help="Destination folder with user vocabs")
+parser.add_argument("--output_manifest", required=True, type=str, help="Output manifest in NeMo format")
+parser.add_argument("--idf_file", required=True, type=str, help="File with idf of words and phrases")
 parser.add_argument(
-    "--destination_folder", required=True, type=str, help="Destination folder with user vocabs"
+    "--min_idf",
+    type=float,
+    default=5.0,
+    help="Words with idf below that will be considered too frequent and won't be included in user vocabulary",
 )
 parser.add_argument(
-    "--output_manifest", required=True, type=str, help="Output manifest in NeMo format"
+    "--min_len",
+    required=True,
+    type=int,
+    help="Minimum number of characters in user phrase (including space), e.g. 6 symbols",
 )
 parser.add_argument(
-    "--idf_file", required=True, type=str, help="File with idf of words and phrases"
+    "--use_lm_for_vocab",
+    action="store_true",
+    help="Whether to additionally extract vocabularies from lm files. If false (default) only transcriptions will be used",
 )
-parser.add_argument(
-    "--min_idf", type=float, default=5.0, help="Words with idf below that will be considered too frequent and won't be included in user vocabulary"
-)
-parser.add_argument("--min_len", required=True, type=int, help="Minimum number of characters in user phrase (including space), e.g. 6 symbols")
-parser.add_argument("--use_lm_for_vocab", action='store_true', help="Whether to additionally extract vocabularies from lm files. If false (default) only transcriptions will be used")
 
 
 args = parser.parse_args()
@@ -86,7 +92,7 @@ EXCLUDE_PHRASES = {
     "i'd",
     "i'll",
     "i've",
-    "we'd"
+    "we'd",
     "we're",
     "we've",
     "you'd",
@@ -109,7 +115,7 @@ EXCLUDE_PHRASES = {
     "whosoever",
     "whereon",
     "anyhow",
-    "unsaid"
+    "unsaid",
 }
 
 
@@ -126,9 +132,16 @@ def extract_custom_phrases(text, idf):
             continue
         if "'" in w:
             continue
-        if w.endswith("ed") or w.endswith("ing") or w.endswith("'d") or w.endswith("in") or w.endswith("'s") or w.endswith("es") or w.endswith("ly"):
+        if (
+            w.endswith("ed")
+            or w.endswith("ing")
+            or w.endswith("'d")
+            or w.endswith("in")
+            or w.endswith("'s")
+            or w.endswith("es")
+            or w.endswith("ly")
+        ):
             continue
-
 
         if re.match(r"^[a-z\-']+$", w):  # check that a string only contains letters, apostrophe or hyphen
             if w not in idf or idf[w] > args.min_idf:
@@ -154,7 +167,9 @@ if __name__ == "__main__":
             for name in os.listdir(os.path.join(args.input_folder, "audio_data", split, folder_name)):
                 if not name.endswith(".trans.txt"):
                     continue
-                with open(os.path.join(args.input_folder, "audio_data", split, folder_name, name), "r", encoding="utf-8") as f:
+                with open(
+                    os.path.join(args.input_folder, "audio_data", split, folder_name, name), "r", encoding="utf-8"
+                ) as f:
                     for line in f:
                         text = line.strip().casefold()
                         words = text.split(" ")
@@ -162,7 +177,9 @@ if __name__ == "__main__":
                         words = words[1:]
                         record = {}
                         record["text"] = " ".join(words)
-                        record["audio_filepath"] = os.path.join(args.input_folder, "audio_data", split, folder_name, file_id + ".wav")
+                        record["audio_filepath"] = os.path.join(
+                            args.input_folder, "audio_data", split, folder_name, file_id + ".wav"
+                        )
                         record["doc_id"] = book_id
                         test_data.append(record)
 
@@ -170,7 +187,6 @@ if __name__ == "__main__":
                         if book_id not in book2vocab:
                             book2vocab[book_id] = set()
                         book2vocab[book_id] = book2vocab[book_id].union(custom_phrases)
-                                    
 
     # save manifest
     with open(args.output_manifest, "w", encoding="utf-8") as out:
@@ -191,7 +207,7 @@ if __name__ == "__main__":
                     if book_id not in book2vocab:
                         book2vocab[book_id] = set()
                     book2vocab[book_id] = book2vocab[book_id].union(custom_phrases)
-        
+
     # save book vocabs
     for book_id in book2vocab:
         with open(os.path.join(args.destination_folder, book_id + ".custom.txt"), "w", encoding="utf-8") as out:

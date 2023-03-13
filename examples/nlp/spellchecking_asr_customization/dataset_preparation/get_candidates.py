@@ -13,28 +13,30 @@
 # limitations under the License.
 
 
-import sys
 from argparse import ArgumentParser
 
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_candidates, load_index
 
-## !!!this is temporary hack for my windows machine since is misses some installs 
-sys.path.insert(1, "D:\\data\\work\\nemo\\nemo\\collections\\nlp\\data\\spellchecking_asr_customization")
-print("SYS path:", sys.path)
-from utils import load_index, get_candidates
-# from nemo.collections.nlp.data.spellchecking_asr_customization.utils import load_index, get_candidates
-
-
-parser = ArgumentParser(
-    description="Get candidates, given custom index and input sentences"
-)
+parser = ArgumentParser(description="Get candidates, given custom index and input sentences")
 parser.add_argument("--index_file", required=True, type=str, help="Path to index with custom phrases")
 parser.add_argument("--input_file", required=True, type=str, help="Path to file with input phrases")
 parser.add_argument("--output_file", required=True, type=str, help="Output file")
 parser.add_argument("--max_candidates", type=int, default=10, help="Maximum number of candidates")
-parser.add_argument("--min_real_coverage", type=float, default=0.8, help="Minimum fraction of phrase covered by matching ngrams")
-parser.add_argument("--match_whole_input", type=bool, default=False, help="If true, will look for candidates matching the whole input text")
-parser.add_argument("--skip_empty", type=bool, default=False, help="If true, will skip lines for which no candidates were found")
-parser.add_argument("--skip_same", type=bool, default=False, help="If true, will skip candidates that are exactly same as input")
+parser.add_argument(
+    "--min_real_coverage", type=float, default=0.8, help="Minimum fraction of phrase covered by matching ngrams"
+)
+parser.add_argument(
+    "--match_whole_input",
+    type=bool,
+    default=False,
+    help="If true, will look for candidates matching the whole input text",
+)
+parser.add_argument(
+    "--skip_empty", type=bool, default=False, help="If true, will skip lines for which no candidates were found"
+)
+parser.add_argument(
+    "--skip_same", type=bool, default=False, help="If true, will skip candidates that are exactly same as input"
+)
 
 args = parser.parse_args()
 
@@ -49,7 +51,15 @@ with open(args.input_file, "r", encoding="utf-8") as f:
     for line in f:
         text = line.strip().split("\t")[0]  # if line is tab-separated only first part is considered as text
         letters = list(text.replace(" ", "_"))
-        candidates = get_candidates(ngram2phrases, phrases, phrase_lengths, letters, max_candidates=10, min_real_coverage=0.8, match_whole_input=args.match_whole_input)
+        candidates = get_candidates(
+            ngram2phrases,
+            phrases,
+            phrase_lengths,
+            letters,
+            max_candidates=10,
+            min_real_coverage=0.8,
+            match_whole_input=args.match_whole_input,
+        )
         result = []
         for cand in candidates:
             cand_text = "".join(cand.split(" ")).replace("_", " ")

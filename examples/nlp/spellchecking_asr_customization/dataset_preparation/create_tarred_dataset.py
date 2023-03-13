@@ -36,6 +36,7 @@ USAGE Example:
 import pickle
 import tarfile
 from io import BytesIO
+
 from helpers import MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
@@ -47,7 +48,9 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     logging.info("Start creating tar file from " + cfg.data.train_ds.data_path + " ...")
-    _, model = instantiate_model_and_trainer(cfg, MODEL, True)  # instantiate model like for training because we may not have pretrained model
+    _, model = instantiate_model_and_trainer(
+        cfg, MODEL, True
+    )  # instantiate model like for training because we may not have pretrained model
     dataset = model._train_dl.dataset
     archive = tarfile.open(cfg.output_tar_file, mode="w")
     max_lines = int(cfg.take_first_n_lines)
@@ -65,10 +68,10 @@ def main(cfg: DictConfig) -> None:
             character_pos_to_subword_pos,
             labels_mask,
             labels,
-            spans
+            spans,
         ) = dataset[i]
 
-        # do not store masks as they are just arrays of 1    
+        # do not store masks as they are just arrays of 1
         content = {
             "input_ids": input_ids,
             "input_mask": input_mask,
@@ -79,7 +82,7 @@ def main(cfg: DictConfig) -> None:
             "character_pos_to_subword_pos": character_pos_to_subword_pos,
             "labels_mask": labels_mask,
             "labels": labels,
-            "spans": spans
+            "spans": spans,
         }
         b = BytesIO()
         pickle.dump(content, b)
@@ -89,7 +92,7 @@ def main(cfg: DictConfig) -> None:
         archive.addfile(tarinfo=tarinfo, fileobj=b)
 
     archive.close()
-    logging.info("Tar file " + cfg.output_tar_file +" created!")
+    logging.info("Tar file " + cfg.output_tar_file + " created!")
 
 
 if __name__ == '__main__':

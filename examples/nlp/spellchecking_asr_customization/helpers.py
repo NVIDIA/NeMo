@@ -60,7 +60,9 @@ def instantiate_model_and_trainer(
     elif os.path.exists(pretrained_cfg):
         logging.info(f"Restoring pretrained {model_name} model from {pretrained_cfg}")
         save_restore_connector = NLPSaveRestoreConnector()
-        model = SpellcheckingAsrCustomizationModel.restore_from(pretrained_cfg, save_restore_connector=save_restore_connector)
+        model = SpellcheckingAsrCustomizationModel.restore_from(
+            pretrained_cfg, save_restore_connector=save_restore_connector
+        )
     else:
         logging.info(f"Loading pretrained model {pretrained_cfg}")
         if model_name == MODEL:

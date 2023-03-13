@@ -21,7 +21,12 @@ from collections import defaultdict
 parser = argparse.ArgumentParser()
 parser.add_argument("--folder", required=True, type=str, help="Folder with audio and text subfolder")
 parser.add_argument("--processed_folder", required=True, type=str, help="Folder with files like 1000_with_punct.txt")
-parser.add_argument("--min_len", required=True, type=int, help="Minimum number of characters in user phrase (including space), e.g. 6 symbols")
+parser.add_argument(
+    "--min_len",
+    required=True,
+    type=int,
+    help="Minimum number of characters in user phrase (including space), e.g. 6 symbols",
+)
 args = parser.parse_args()
 
 idf = defaultdict(int)

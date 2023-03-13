@@ -15,14 +15,13 @@
 
 import json
 import math
-import numpy as np
-import random
 import re
 from collections import defaultdict, namedtuple
 from heapq import heappush, heapreplace
-from numba import jit
 from typing import Dict, List, Set, Tuple
-import pdb
+
+import numpy as np
+from numba import jit
 
 """Utility functions for Spellchecking ASR Customization."""
 
@@ -55,9 +54,9 @@ def replace_diacritics(text):
 
 
 def preprocess_apostrophes_space_diacritics(text):
-    text = APOSTROPHES_REGEX.sub("'", text) # replace different apostrophes by one
+    text = APOSTROPHES_REGEX.sub("'", text)  # replace different apostrophes by one
     text = re.sub(r"'+", "'", text)  # merge multiple apostrophes
-    text = SPACE_REGEX.sub(" ", text) # replace different spaces by one
+    text = SPACE_REGEX.sub(" ", text)  # replace different spaces by one
     text = replace_diacritics(text)
 
     text = re.sub(r" '", " ", text)  # delete apostrophes at the beginning of word
@@ -107,7 +106,8 @@ def get_title_and_text_from_json(content: str, exclude_titles: Set[str]) -> Tupl
             continue
         text = page["extract"]
         title_clean = preprocess_apostrophes_space_diacritics(title)
-        title_clean = CHARS_TO_IGNORE_REGEX.sub(" ", title_clean).lower()  # number of characters is the same in p and p_clean 
+        # number of characters is the same in p and p_clean
+        title_clean = CHARS_TO_IGNORE_REGEX.sub(" ", title_clean).lower()
         return text, title, title_clean
     return (None, None, None)
 
@@ -118,7 +118,8 @@ def get_paragraphs_from_text(text):
         if paragraph == "":
             continue
         p = preprocess_apostrophes_space_diacritics(paragraph)
-        p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()  # number of characters is the same in p and p_clean 
+        # number of characters is the same in p and p_clean
+        p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()
         yield p, p_clean
 
 
@@ -161,7 +162,8 @@ def get_paragraphs_from_json(text, exclude_titles):
             if paragraph == "":
                 continue
             p = preprocess_apostrophes_space_diacritics(paragraph)
-            p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()  # number of characters is the same in p and p_clean 
+            # number of characters is the same in p and p_clean
+            p_clean = CHARS_TO_IGNORE_REGEX.sub(" ", p).lower()
             yield p, p_clean
 
 
@@ -179,7 +181,7 @@ def load_yago_entities(input_name: str, exclude_titles: Set[str]) -> Set[str]:
     return yago_entities
 
 
-def read_custom_phrases(filename: str, max_lines: int=-1, portion_size: int=-1) -> List[str]:
+def read_custom_phrases(filename: str, max_lines: int = -1, portion_size: int = -1) -> List[str]:
     """Reads custom phrases from input file.
     If input file contains multiple columns, only first column is used.
     """
@@ -202,7 +204,7 @@ def read_custom_phrases(filename: str, max_lines: int=-1, portion_size: int=-1) 
     yield list(phrases)
 
 
-def load_ngram_mappings(input_name: str, max_dst_freq: int=1000000000) -> Tuple[defaultdict, Set]:
+def load_ngram_mappings(input_name: str, max_dst_freq: int = 1000000000) -> Tuple[defaultdict, Set]:
     """Loads vocab from file
     Input format:
         u t o	u+i t o	49	8145	114
@@ -220,7 +222,7 @@ def load_ngram_mappings(input_name: str, max_dst_freq: int=1000000000) -> Tuple[
             if dst.replace("=", "").strip() == "":  # skip if resulting ngram doesn't contain any real character
                 continue
             if int(dst_freq) > max_dst_freq:
-                ban_ngram.add(dst + " ")  # space at the end is required within get_index function 
+                ban_ngram.add(dst + " ")  # space at the end is required within get_index function
             vocab[src][dst] = int(joint_freq) / int(src_freq)
     return vocab, ban_ngram
 
@@ -257,13 +259,17 @@ def get_alignment_by_dp(
     joint_vocab: defaultdict,
     src_vocab: defaultdict,
     dst_vocab: defaultdict,
-    max_len: int
+    max_len: int,
 ) -> List[Tuple[str, str, float, float, int, int, int]]:
     hyp_letters = ["*"] + hyp_phrase.split()
     ref_letters = ["*"] + ref_phrase.split()
-    DpInfo = namedtuple("DpInfo", ["hyp_pos", "ref_pos", "best_hyp_ngram_len", "best_ref_ngram_len", "score", "sum_score"])
+    DpInfo = namedtuple(
+        "DpInfo", ["hyp_pos", "ref_pos", "best_hyp_ngram_len", "best_ref_ngram_len", "score", "sum_score"]
+    )
     history = defaultdict(DpInfo)
-    history[(0, 0)] = DpInfo(hyp_pos=0, ref_pos=0, best_hyp_ngram_len=1, best_ref_ngram_len=1, score=0.0, sum_score=0.0)
+    history[(0, 0)] = DpInfo(
+        hyp_pos=0, ref_pos=0, best_hyp_ngram_len=1, best_ref_ngram_len=1, score=0.0, sum_score=0.0
+    )
     for hyp_pos in range(len(hyp_letters)):
         for ref_pos in range(len(ref_letters)):
             if hyp_pos == 0 and ref_pos == 0:  # cell (0, 0) is already defined
@@ -275,9 +281,9 @@ def get_alignment_by_dp(
             best_sum_score = float("-inf")
             # loop over paths ending on non-empty ngram mapping
             for hyp_ngram_len in range(1, 1 + min(max_len, hyp_pos + 1)):
-                hyp_ngram = " ".join(hyp_letters[(hyp_pos - hyp_ngram_len + 1):(hyp_pos+1)])
+                hyp_ngram = " ".join(hyp_letters[(hyp_pos - hyp_ngram_len + 1) : (hyp_pos + 1)])
                 for ref_ngram_len in range(1, 1 + min(max_len, ref_pos + 1)):
-                    ref_ngram = " ".join(ref_letters[(ref_pos - ref_ngram_len + 1):(ref_pos+1)])
+                    ref_ngram = " ".join(ref_letters[(ref_pos - ref_ngram_len + 1) : (ref_pos + 1)])
                     if (hyp_ngram, ref_ngram) not in joint_vocab:
                         continue
                     joint_freq = joint_vocab[(hyp_ngram, ref_ngram)]
@@ -318,10 +324,18 @@ def get_alignment_by_dp(
                     best_hyp_ngram_len = 0
                     best_ref_ngram_len = 1
 
-            assert(best_hyp_ngram_len > 0 or best_ref_ngram_len > 0)
+            if best_hyp_ngram_len == 0 and best_ref_ngram_len == 0:
+                raise (ValueError, "best_hyp_ngram_len = 0 and best_ref_ngram_len = 0")
 
             # save cell to history
-            history[(hyp_pos, ref_pos)] = DpInfo(hyp_pos=hyp_pos, ref_pos=ref_pos, best_hyp_ngram_len=best_hyp_ngram_len, best_ref_ngram_len=best_ref_ngram_len, score=best_ngram_score, sum_score=best_sum_score)
+            history[(hyp_pos, ref_pos)] = DpInfo(
+                hyp_pos=hyp_pos,
+                ref_pos=ref_pos,
+                best_hyp_ngram_len=best_hyp_ngram_len,
+                best_ref_ngram_len=best_ref_ngram_len,
+                score=best_ngram_score,
+                sum_score=best_sum_score,
+            )
     # now trace back on best path starting from last positions
     path = []
     hyp_pos = len(hyp_letters) - 1
@@ -330,14 +344,14 @@ def get_alignment_by_dp(
     path.append(cell_info)
     while hyp_pos > 0 or ref_pos > 0:
         hyp_pos -= cell_info.best_hyp_ngram_len
-        ref_pos -= cell_info.best_ref_ngram_len 
+        ref_pos -= cell_info.best_ref_ngram_len
         cell_info = history[(hyp_pos, ref_pos)]
         path.append(cell_info)
 
-    result = []    
+    result = []
     for info in reversed(path):
-        hyp_ngram = " ".join(hyp_letters[(info.hyp_pos-info.best_hyp_ngram_len+1):(info.hyp_pos+1)])
-        ref_ngram = " ".join(ref_letters[(info.ref_pos-info.best_ref_ngram_len+1):(info.ref_pos+1)])
+        hyp_ngram = " ".join(hyp_letters[(info.hyp_pos - info.best_hyp_ngram_len + 1) : (info.hyp_pos + 1)])
+        ref_ngram = " ".join(ref_letters[(info.ref_pos - info.best_ref_ngram_len + 1) : (info.ref_pos + 1)])
         joint_freq = joint_vocab.get((hyp_ngram, ref_ngram), 0)
         src_freq = src_vocab.get(hyp_ngram, 0)
         dst_freq = dst_vocab.get(ref_ngram, 0)
@@ -349,8 +363,8 @@ def get_index(
     custom_phrases: List[str],
     vocab: defaultdict,
     ban_ngram_global: Set[str],
-    min_log_prob: float=-4.0,
-    max_phrases_per_ngram: int=100
+    min_log_prob: float = -4.0,
+    max_phrases_per_ngram: int = 100,
 ) -> Tuple[List[str], Dict[str, int]]:
     """Given a restricted vocabulary of replacements,
     loops through custom phrases,
@@ -380,7 +394,7 @@ def get_index(
                             if len(ngram) + len(rep) <= 10 and b + ngram.count(" ") == begin:
                                 if lp_prev + lp > min_log_prob:
                                     new_ngrams[ngram + rep + " "] = lp_prev + lp
-                        index_keys[b].update(new_ngrams) # = index_keys[b] | new_ngrams  #  join two dictionaries
+                        index_keys[b].update(new_ngrams)  #  join two dictionaries
                     # add current replacement as ngram
                     if lp > min_log_prob:
                         index_keys[begin][rep + " "] = lp
@@ -435,7 +449,8 @@ def load_index(input_name: str) -> Tuple[List[str], Dict[str, int]]:
 
 def search_in_index(ngram2phrases, phrases, letters):
     phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
-    position2ngrams = [set() for _ in range(len(letters))]  # positions mapped to sets of ngrams starting from that position
+    # positions mapped to sets of ngrams starting from that position
+    position2ngrams = [set() for _ in range(len(letters))]
 
     begin = 0
     for begin in range(len(letters)):
@@ -445,7 +460,7 @@ def search_in_index(ngram2phrases, phrases, letters):
                 continue
             for phrase_id, b, size, lp in ngram2phrases[ngram]:
                 phrases2positions[phrase_id, begin:end] = 1.0
-            position2ngrams[begin].add(ngram) 
+            position2ngrams[begin].add(ngram)
     return phrases2positions, position2ngrams
 
 
@@ -518,7 +533,7 @@ def get_candidates_with_most_coverage(
                phrase id
     """
     top = []
-    for i in range(max_candidates): # add placeholders for best candidates
+    for i in range(max_candidates):  # add placeholders for best candidates
         heappush(top, (0.0, -1, -1))
 
     for i in range(len(phrase_lengths)):
@@ -537,18 +552,17 @@ def get_candidates_with_most_coverage(
                 best_pos = pos
 
         coverage = max_sum / (phrase_length + 2)  # smoothing
-        if coverage > top[0][0]:  # top[0] is the smallest element in the heap, top[0][0] - smallest coverage 
+        if coverage > top[0][0]:  # top[0] is the smallest element in the heap, top[0][0] - smallest coverage
             heapreplace(top, (coverage, best_pos, i))
     return top
 
 
 def get_candidates_with_most_coverage_on_whole_input(
-    phrases2positions: np.ndarray, phrase_lengths: List[int], max_candidates: int
+    phrases2positions: np.ndarray, max_candidates: int
 ) -> List[Tuple[float, int, int]]:
     """Returns k candidates whose ngrams cover most of the input text (compared to the candidate length).
        Args:
            phrases2positions: matrix where rows are phrases columns are letters of input sentence. Value is 1 on intersection of letter ngrams that were found in index leading to corresponding phrase. 
-           phrase_lengths: list of phrase lengths (to avoid recalculation)
            max_candidates: required number of candidates
        Returns:
            List of tuples:
@@ -557,7 +571,7 @@ def get_candidates_with_most_coverage_on_whole_input(
                phrase id
     """
     top = []
-    for i in range(max_candidates): # add placeholders for best candidates
+    for i in range(max_candidates):  # add placeholders for best candidates
         heappush(top, (0.0, -1, -1))
 
     coverage = np.sum(phrases2positions, axis=1) / (2 + phrases2positions.shape[1])
@@ -574,19 +588,15 @@ def get_candidates(
     phrases: List[str],
     phrase_lengths: List[int],
     letters: List[str],
-    max_candidates: int=10,
-    min_real_coverage: float=0.8,
-    match_whole_input: bool=False
+    max_candidates: int = 10,
+    min_real_coverage: float = 0.8,
+    match_whole_input: bool = False,
 ) -> List[str]:
     phrases2positions, position2ngrams = search_in_index(ngram2phrases, phrases, letters)
     if match_whole_input:
-        top = get_candidates_with_most_coverage_on_whole_input(
-            phrases2positions, phrase_lengths, 3 * max_candidates
-        )
+        top = get_candidates_with_most_coverage_on_whole_input(phrases2positions, 3 * max_candidates)
     else:
-        top = get_candidates_with_most_coverage(
-            phrases2positions, phrase_lengths, 3 * max_candidates
-        )
+        top = get_candidates_with_most_coverage(phrases2positions, phrase_lengths, 3 * max_candidates)
 
     top_sorted = sorted(top, key=lambda item: item[0], reverse=True)
     # mask for each custom phrase, how many which symbols are covered by input ngrams
@@ -597,7 +607,8 @@ def get_candidates(
         i += 1
         phrase_length = phrase_lengths[idx]
         for pos in range(begin, begin + phrase_length):
-            if pos >= len(position2ngrams):  # we do not know exact end of custom phrase in text, it can be different from phrase length
+            # we do not know exact end of custom phrase in text, it can be different from phrase length
+            if pos >= len(position2ngrams):
                 break
             for ngram in position2ngrams[pos]:
                 for phrase_id, b, size, lp in ngram2phrases[ngram]:
@@ -607,12 +618,12 @@ def get_candidates(
                         if ppos >= phrase_length:
                             break
                         phrases2coveredsymbols[i][ppos] = 1
-                        
+
         real_coverage = sum(phrases2coveredsymbols[i]) / len(phrases2coveredsymbols[i])
         if real_coverage < min_real_coverage:
             continue
         candidates.append(phrases[idx])
         if len(candidates) >= max_candidates:
             break
-    
+
     return candidates

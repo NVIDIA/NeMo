@@ -19,15 +19,12 @@ This script can be used to perform a simple text normalization using phrase voca
 
 import re
 from argparse import ArgumentParser
-import sys
 from typing import Dict, Tuple
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics, remove_oov_characters
 
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import preprocess_apostrophes_space_diacritics
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-parser.add_argument(
-    "--input_file", required=True, type=str, help="Input file, each line is a text paragraph"
-)
+parser.add_argument("--input_file", required=True, type=str, help="Input file, each line is a text paragraph")
 parser.add_argument("--tn_vocab", required=True, type=str, help="Multi variant vocabulary")
 parser.add_argument("--output_file", required=True, type=str, help="Output file")
 args = parser.parse_args()
@@ -63,23 +60,25 @@ def process_paragraph(paragraph: str, tn_vocab: Dict[str, Tuple[str, int]]) -> s
                     mask[begin:end] = [1] * (end - begin)
                     break  # exit loop after success, in favor of longer phrase
 
-        if not mask[begin]: # if current position was not replaced by anything just copy it to the output as is
+        if not mask[begin]:  # if current position was not replaced by anything just copy it to the output as is
             normalized_paragraph += pseudo_words[begin] + " "
 
     return normalized_paragraph
+
 
 def pseudo_normalize(tn_vocab: Dict[str, Tuple[str, int]]) -> None:
     out = open(args.output_file, "w", encoding="utf-8")
     with open(args.input_file, "r", encoding="utf-8") as f:
         for line in f:
             paragraph = line.strip().casefold()  # lowercase
-            paragraph = process_paragraph(paragraph, tn_vocab)                   
+            paragraph = process_paragraph(paragraph, tn_vocab)
             paragraph = preprocess_apostrophes_space_diacritics(paragraph)
             paragraph = re.sub(r"(\d)\-(\d)", "\g<1> \g<2>", paragraph)  # delete hyphen between digits
             paragraph = re.sub(r" \- ", " ", paragraph)  # delete hyphen between spaces
-            paragraph = re.sub(r"[^ '\-aiuenrbomkygwthszdcjfvplxq1234567890]", " ", paragraph)  # replace oov characters with space
+            # replace oov characters with space
+            paragraph = re.sub(r"[^ '\-aiuenrbomkygwthszdcjfvplxq1234567890]", " ", paragraph)
             paragraph = " ".join(paragraph.split())
-            paragraph = process_paragraph(paragraph, tn_vocab) # try to normalize once more on cleaned text
+            paragraph = process_paragraph(paragraph, tn_vocab)  # try to normalize once more on cleaned text
             out.write(paragraph + "\n")
 
     out.close()
@@ -92,7 +91,7 @@ def main() -> None:
             sem, spoken, written, freq = line.strip().split("\t")
             if sem in {"ELECTRONIC", "LETTERS", "PLAIN", "PUNCT", "VERBATIM"}:
                 continue
-            if not re.search(r'\d', written):    # skip phrases without digit 
+            if not re.search(r'\d', written):  # skip phrases without digit
                 continue
             freq = int(freq)
             best_freq = 0
@@ -102,7 +101,7 @@ def main() -> None:
                 tn_vocab[written] = (spoken, freq)
 
     print(len(tn_vocab))
-    pseudo_normalize(tn_vocab)            
+    pseudo_normalize(tn_vocab)
 
 
 if __name__ == "__main__":
