@@ -2055,6 +2055,8 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         else:
             snr = "N/A"
 
+        array = self._perturb_session_audio(array, self._params.data_simulator.sr)
+
         meta_data = {
             "duration": array.shape[0] / self._params.data_simulator.sr,
             "session_silence_mean": self.sess_silence_mean,
