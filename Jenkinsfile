@@ -3412,15 +3412,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron GPT Prompt Tuning TP1 PP2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      // TODO: add when https://github.com/NVIDIA/apex/pull/1596 is merged
+    // TODO: add when https://github.com/NVIDIA/apex/pull/1596 is merged
+    // stage('L2: Megatron GPT Prompt Tuning TP1 PP2') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
     //   parallel{
     //     stage('GPT Prompt Learning TP=1 PP=2') {
     //       steps {
