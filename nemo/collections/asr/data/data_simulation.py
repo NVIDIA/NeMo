@@ -34,6 +34,7 @@ from scipy.spatial.transform import Rotation
 from scipy.stats import beta, gamma
 from tqdm import tqdm
 
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
 from nemo.collections.asr.parts.utils.manifest_utils import (
@@ -50,7 +51,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     labels_to_rttmfile,
     merge_float_intervals,
 )
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.utils import logging
 
 try:
@@ -179,6 +179,20 @@ class MultiSpeakerSimulator(object):
       background_manifest (str): Path to background noise manifest file
       snr (int): SNR for background noise (using average speaker power)
     
+    add_seg_aug (bool): False  # set True to enable augmentation on each speech segment
+    segment_augmentor:
+      gain:
+        prob: 0.5 # probability of applying gain augmentation
+        min_gain_dbfs: -10.0
+        max_gain_dbfs: 10.0
+
+    add_sess_aug: False # set True to enable audio augmentation on the whole session
+    session_augmentor:
+      white_noise:
+        prob (float): 1.0  # probability of adding white noise
+        min_level: -90
+        max_level: -46
+
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
       enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled 
@@ -230,8 +244,16 @@ class MultiSpeakerSimulator(object):
         self.per_overlap_max_len = 0
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
-        self.segment_augmentor = process_augmentations(self._params.data_simulator.segment_augmentor) if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.add_seg_aug else None
-        self.session_augmentor = process_augmentations(self._params.data_simulator.session_augmentor) if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.add_sess_aug else None
+        self.segment_augmentor = (
+            process_augmentations(self._params.data_simulator.segment_augmentor)
+            if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.add_seg_aug
+            else None
+        )
+        self.session_augmentor = (
+            process_augmentations(self._params.data_simulator.session_augmentor)
+            if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.add_sess_aug
+            else None
+        )
 
         self._check_args()  # error check arguments
 
@@ -403,9 +425,7 @@ class MultiSpeakerSimulator(object):
                     if os.path.exists(background_manifest):
                         noise_manifest += read_manifest(background_manifest)
                     else:
-                        raise FileNotFoundError(
-                            f"Noise manifest file: {background_manifest} file not found."
-                        )
+                        raise FileNotFoundError(f"Noise manifest file: {background_manifest} file not found.")
             else:
                 raise FileNotFoundError(
                     f"Noise manifest file is null. Please provide a valid noise manifest file/list if add_bg=True."
@@ -938,7 +958,7 @@ class MultiSpeakerSimulator(object):
                 if audio_file.ndim > 1:
                     audio_file = torch.mean(audio_file, 1, False).to(self._device)
                 self._audio_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
-            
+
             # audio perturbation, such as gain, impulse response, and white noise
             audio_file = self._perturb_segment_audio(audio_file, sr)
 
@@ -1524,7 +1544,7 @@ class MultiSpeakerSimulator(object):
                 raise ValueError('No background noise samples found in self._noise_samples.')
         else:
             snr = "N/A"
-        
+
         array = self._perturb_session_audio(array, self._params.data_simulator.sr)
 
         # Step 7: Normalize and write to disk
@@ -1542,7 +1562,7 @@ class MultiSpeakerSimulator(object):
             "duration": array.shape[0] / self._params.data_simulator.sr,
             "session_silence_mean": self.sess_silence_mean,
             "session_overlap_mean": self.sess_overlap_mean,
-            "session_snr": snr
+            "session_snr": snr,
         }
         write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
 
@@ -1574,7 +1594,7 @@ class MultiSpeakerSimulator(object):
                 raise Exception("Output directory is nonempty and overwrite_output = false")
         elif not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        
+
         OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
 
         # only add root if paths are relative
@@ -2039,7 +2059,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             "duration": array.shape[0] / self._params.data_simulator.sr,
             "session_silence_mean": self.sess_silence_mean,
             "session_overlap_mean": self.sess_overlap_mean,
-            "session_snr": snr
+            "session_snr": snr,
         }
         write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
 
