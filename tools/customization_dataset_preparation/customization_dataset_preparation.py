@@ -105,7 +105,6 @@ def recommend_hyperparameters(df, model=None):
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
     return {'batch_size': bs, 'max batch_size': max_bs, 'num_virtual_tokens': 10, 'lr': 0.0001, 'epochs': 25}
-    return message
 
 
 def estimating_customization_job_time(df, recommended_hyperparameters):
