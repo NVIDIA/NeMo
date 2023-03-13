@@ -1,0 +1,85 @@
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+This script takes a list of TTS manifests and creates a JSON mapping the input speaker names to
+unique indices for multi-speaker TTS training.
+
+To ensure that speaker names are unique across datasets, it is recommended that you prepend the speaker
+names in your manifest with the name of the dataset.
+
+$ python <nemo_root_path>/scripts/dataset_processing/tts/create_speaker_map.py \
+    --manifest_paths=manifest1.json,manifest2.json \
+    --speaker_map_path=speakers.json
+
+Example output:
+
+{
+    "vctk_p225": 0,
+    "vctk_p226": 1,
+    "vctk_p227": 2,
+    ...
+}
+
+"""
+
+import argparse
+from pathlib import Path
+import json
+
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+
+
+def get_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
+    )
+    parser.add_argument(
+        "--manifest_paths", required=True, type=str, help="Path to training manifests, comma delimited",
+    )
+    parser.add_argument(
+        "--speaker_map_path", required=True, type=Path, help="Path for output speaker index JSON",
+    )
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = get_args()
+    manifest_path_string = args.manifest_paths
+    speaker_map_path = args.speaker_map_path
+
+    manifest_paths = [Path(manifest_path) for manifest_path in manifest_path_string.split(",")]
+
+    for manifest_path in manifest_paths:
+        if not manifest_path.exists():
+            raise ValueError(f"Manifest {manifest_path} does not exist.")
+
+    speaker_set = set()
+    for manifest_path in manifest_paths:
+        entries = read_manifest(manifest_path)
+        for entry in entries:
+            speaker = str(entry["speaker"])
+            speaker_set.add(speaker)
+
+    speaker_list = list(speaker_set)
+    speaker_list.sort()
+    speaker_index_map = {speaker_list[i]: i for i in range(len(speaker_list))}
+
+    with open(speaker_map_path, 'w', encoding="utf-8") as stats_f:
+        json.dump(speaker_index_map, stats_f, indent=4)
+
+
+if __name__ == "__main__":
+    main()
