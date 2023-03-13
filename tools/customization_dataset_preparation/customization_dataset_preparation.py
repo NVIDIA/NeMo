@@ -50,12 +50,12 @@ We suggest you prioritize changes suggested under ACTIONABLE MESSAGES but also h
 
 """
 import argparse
+import math
 import os
 import pathlib
 from collections import Counter
 
 import pandas as pd
-
 
 def load_file_into_df(filename):
     message = None
@@ -107,8 +107,8 @@ def recommend_hyperparameters(df, model=None):
 
     df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
     length_by_chars = sorted(list(df_char_length))
-    n_samples_under_99p5_limit = int(len(df_char_length) * 0.995 + 1)
-    max_char_length = length_by_chars[:n_samples_under_99p5_limit][-1]
+    n_samples_under_99p5_limit = math.ceil(len(df_char_length) * 0.995)
+    max_char_length = length_by_chars[n_samples_under_99p5_limit-1]
     # every token is around 4 chars + 100 for extra capacity
     max_seq_length = max_char_length // 4 + 100
     return {
