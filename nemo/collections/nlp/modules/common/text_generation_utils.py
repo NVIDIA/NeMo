@@ -909,15 +909,15 @@ def sample_token_topk_beam_search(logits: torch.Tensor, beam_size: int = 1, dim:
     and corresponding log_prob per target
 
     Args:
-        logits: [batch_size * beam_size, vocab_size] - unnormalized log probabilities of the next token,
+        logits: [batch_size, vocab_size] or [batch_size, vocab_size] - unnormalized log probabilities of the next token,
         beam_size: int > 1 - number of tokens to return with the highest probability per target
         dim: int - dim of log_softmax and topk selection
         log_softmax: bool - if to calculate log softmax  for log probabilities
 
 
     Returns:
-        log_probs: [batch_size] - log probabilities of the sampled tokens TODO
-        token_ids: [batch_size] - sampled token ids, TODO shape
+        log_probs: [batch_size, beam_size] - log probabilities of the sampled tokens
+        token_ids: [batch_size, beam_size] - sampled token ids
     """
     if log_softmax:
         log_probs = torch.nn.functional.log_softmax(logits, dim=dim)

@@ -21,6 +21,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from functools import partial
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -37,7 +38,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 
-from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, compute_beam_search_len_penalty
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_token_greedy, \
+    sample_token_topk_beam_search, compute_beam_search_len_penalty
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -1141,21 +1143,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
         ignore_ids - a list of token ids to ignore when sampling.
         bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
-        sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
+        sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size]
+                                    and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
+                                    If beam search is enabled, the method is overwritten by a beam-search specific
+                                    sampling method and return tensors [batch_size, beam_size]
         predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
-        param beam_size: beam size parameter for beam search, specifies number of the best sequences at each decode
-                        iteration to be left per target
-        param beam_alpha: the parameter of length penalty applied to sequences predicted by the beam search
-        param keep_only_best_tokens: boolean flag if to output only best sequence of predicted tokens (True)
-                                    or beam_size predictions per target
-        param return_scores:  boolean flag if to return scores at the top of predictions and logits
+        beam_size - optional, beam size parameter for beam search, specifies number of the best sequences at each decode
+                    iteration to be left per target
+        beam_alpha - the parameter of length penalty applied to sequences predicted by the beam search
+        keep_only_best_tokens - boolean flag if to output only best sequence of predicted tokens (True) or beam_size
+                                predictions per target
+        return_scores - boolean flag if to return scores at the top of predictions and logits
+
+        return:
+                tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
+                If beam_search and the flag keep_only_best_tokens is True the shape of the tensors are
+                [batch_size, beam_size, seq_len +1], [batch_size, beam_size, seq_len]
         """
         beam_search = beam_size is not None
         if beam_search:
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
+            # setting a default beam-search specific sampling method parametrised by beam_size
+            sample_token_fn = partial(sample_token_topk_beam_search, beam_size=beam_size)
         else:
             assert not keep_only_best_tokens and not return_scores, \
-                'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
+                'Arguments keep_only_best_tokens and return_scores can be enabled only in the beam search'
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1264,7 +1276,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
-
 
                 if i == 0 and beam_search:
                     # resizing decoder inputs to match tensors augmented with beams
