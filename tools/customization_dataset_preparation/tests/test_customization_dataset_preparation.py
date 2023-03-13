@@ -44,7 +44,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104
+        'max_seq_length': 104,
     }
 
     df_1000 = pd.DataFrame({'prompt': ['prompt'] * 1000, 'completion': ['completion'] * 1000})
@@ -54,7 +54,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104
+        'max_seq_length': 104,
     }
     df_10000 = pd.DataFrame({'prompt': ['prompt'] * 10000, 'completion': ['completion'] * 10000})
     assert recommend_hyperparameters(df_10000) == {
@@ -63,7 +63,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104
+        'max_seq_length': 104,
     }
     df_100000 = pd.DataFrame({'prompt': ['prompt'] * 100000, 'completion': ['completion'] * 100000})
     assert recommend_hyperparameters(df_100000) == {
@@ -72,7 +72,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104
+        'max_seq_length': 104,
     }
 
 

@@ -104,15 +104,21 @@ def recommend_hyperparameters(df, model=None):
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
-    
 
     df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
     length_by_chars = sorted(list(df_char_length))
-    n_samples_under_99p5_limit = int(len(df_char_length)*0.995+1)
+    n_samples_under_99p5_limit = int(len(df_char_length) * 0.995 + 1)
     max_char_length = length_by_chars[:n_samples_under_99p5_limit][-1]
     # every token is around 4 chars + 100 for extta capacity
     max_seq_length = max_char_length // 4 + 100
-    return {'batch_size': bs, 'max_batch_size': max_bs, 'num_virtual_tokens': 10, 'lr': 0.0001, 'epochs': 25, 'max_seq_length': max_seq_length}
+    return {
+        'batch_size': bs,
+        'max_batch_size': max_bs,
+        'num_virtual_tokens': 10,
+        'lr': 0.0001,
+        'epochs': 25,
+        'max_seq_length': max_seq_length,
+    }
 
 
 def estimating_customization_job_time(df, recommended_hyperparameters):
