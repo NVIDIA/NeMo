@@ -50,6 +50,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     labels_to_rttmfile,
     merge_float_intervals,
 )
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.utils import logging
 
 try:
@@ -229,6 +230,9 @@ class MultiSpeakerSimulator(object):
         self.per_overlap_max_len = 0
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
+        self.segment_augmentor = process_augmentations(self._params.data_simulator.segment_augmentor) if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.add_seg_aug else None
+        self.session_augmentor = process_augmentations(self._params.data_simulator.session_augmentor) if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.add_sess_aug else None
+
         self._check_args()  # error check arguments
 
     def _check_args(self):
@@ -392,15 +396,19 @@ class MultiSpeakerSimulator(object):
         noise_manifest = []
         if self._params.data_simulator.background_noise.add_bg is True:
             if self._params.data_simulator.background_noise.background_manifest is not None:
-                if os.path.exists(self._params.data_simulator.background_noise.background_manifest):
-                    noise_manifest = read_manifest(self._params.data_simulator.background_noise.background_manifest)
-                else:
-                    raise FileNotFoundError(
-                        f"Noise manifest file: {self._params.data_simulator.background_noise.background_manifest} file not found."
-                    )
+                background_manifest_list = self._params.data_simulator.background_noise.background_manifest
+                if isinstance(background_manifest_list, str):
+                    background_manifest_list = [background_manifest_list]
+                for background_manifest in background_manifest_list:
+                    if os.path.exists(background_manifest):
+                        noise_manifest += read_manifest(background_manifest)
+                    else:
+                        raise FileNotFoundError(
+                            f"Noise manifest file: {background_manifest} file not found."
+                        )
             else:
                 raise FileNotFoundError(
-                    f"Noise manifest file is null. Please provide a valid noise manifest file if add_bg=True."
+                    f"Noise manifest file is null. Please provide a valid noise manifest file/list if add_bg=True."
                 )
         return noise_manifest
 
@@ -727,6 +735,26 @@ class MultiSpeakerSimulator(object):
 
         return desired_overlap_amount
 
+    def _perturb_segment_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
+        if self.segment_augmentor is None:
+            return audio
+        if isinstance(audio, torch.Tensor):
+            audio = audio.cpu().numpy()
+        audio_segment = AudioSegment(audio, sample_rate=sr)
+        self.segment_augmentor.perturb(audio_segment)
+        audio_segment = torch.from_numpy(audio_segment.samples).to(self._device)
+        return audio_segment
+
+    def _perturb_session_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
+        if self.session_augmentor is None:
+            return audio
+        if isinstance(audio, torch.Tensor):
+            audio = audio.cpu().numpy()
+        audio_segment = AudioSegment(audio, sample_rate=sr)
+        self.session_augmentor.perturb(audio_segment)
+        audio_segment = torch.from_numpy(audio_segment.samples).to(self._device)
+        return audio_segment
+
     def _add_file(
         self,
         audio_manifest: dict,
@@ -910,6 +938,9 @@ class MultiSpeakerSimulator(object):
                 if audio_file.ndim > 1:
                     audio_file = torch.mean(audio_file, 1, False).to(self._device)
                 self._audio_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
+            
+            # audio perturbation, such as gain, impulse response, and white noise
+            audio_file = self._perturb_segment_audio(audio_file, sr)
 
             sentence_word_count, sentence_samples = self._add_file(
                 audio_manifest, audio_file, sentence_word_count, sl, max_samples_in_sentence
@@ -1057,7 +1088,12 @@ class MultiSpeakerSimulator(object):
             bg_array (tensor): Tensor containing background noise
         """
         bg_array = torch.zeros(len_array).to(self._device)
-        desired_snr = self._params.data_simulator.background_noise.snr
+        snr_min = self._params.data_simulator.background_noise.snr_min
+        snr_max = self._params.data_simulator.background_noise.snr_max
+        if (snr_min is not None) and (snr_max is not None) and (0 <= snr_min <= snr_max):
+            desired_snr = np.random.uniform(snr_min, snr_max)
+        else:
+            desired_snr = self._params.data_simulator.background_noise.snr
         ratio = 10 ** (desired_snr / 20)
         desired_avg_power_noise = (power_array / ratio).to(self._device)
         running_len_samples, file_id = 0, 0
@@ -1087,7 +1123,7 @@ class MultiSpeakerSimulator(object):
             bg_array[running_len_samples:end_audio_file] = scaled_audio_file
             running_len_samples = end_audio_file
 
-        return bg_array
+        return bg_array, desired_snr
 
     def _create_new_rttm_entry(self, start: int, end: int, speaker_id: int) -> List[str]:
         """
@@ -1482,21 +1518,35 @@ class MultiSpeakerSimulator(object):
         if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
-                bg = self._get_background(len(array), avg_power_array)
+                bg, snr = self._get_background(len(array), avg_power_array)
                 array += bg
             else:
                 raise ValueError('No background noise samples found in self._noise_samples.')
+        else:
+            snr = "N/A"
+        
+        array = self._perturb_session_audio(array, self._params.data_simulator.sr)
 
         # Step 7: Normalize and write to disk
         array = array / (1.0 * torch.max(torch.abs(array)))  # normalize wav file to avoid clipping
         if torch.is_tensor(array):
             array = array.cpu().numpy()
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
+
         labels_to_rttmfile(rttm_list, filename, self._params.data_simulator.outputs.output_dir)
         write_manifest(os.path.join(basepath, filename + '.json'), json_list)
         write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
         write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
 
+        meta_data = {
+            "duration": array.shape[0] / self._params.data_simulator.sr,
+            "session_silence_mean": self.sess_silence_mean,
+            "session_overlap_mean": self.sess_overlap_mean,
+            "session_snr": snr
+        }
+        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+
+        # Step 8: Clean up memory
         del array
         self.clean_up()
         return basepath, filename
@@ -1524,6 +1574,8 @@ class MultiSpeakerSimulator(object):
                 raise Exception("Output directory is nonempty and overwrite_output = false")
         elif not os.path.isdir(output_dir):
             os.mkdir(output_dir)
+        
+        OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
 
         # only add root if paths are relative
         if not os.path.isabs(output_dir):
@@ -1976,10 +2028,20 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         if self._params.data_simulator.background_noise.add_bg:
             avg_power_array = torch.mean(array[is_speech == 1] ** 2)
             length = array.shape[0]
-            bg = self._get_background(length, avg_power_array)
+            bg, snr = self._get_background(length, avg_power_array)
             augmented_bg, _ = self._convolve_rir(bg, -1, RIR)
             for channel in range(self._params.data_simulator.rir_generation.mic_config.num_channels):
                 array[:, channel] += augmented_bg[channel][:length]
+        else:
+            snr = "N/A"
+
+        meta_data = {
+            "duration": array.shape[0] / self._params.data_simulator.sr,
+            "session_silence_mean": self.sess_silence_mean,
+            "session_overlap_mean": self.sess_overlap_mean,
+            "session_snr": snr
+        }
+        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
 
         array = array / (1.0 * torch.max(torch.abs(array)))  # normalize wav file to avoid clipping
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
