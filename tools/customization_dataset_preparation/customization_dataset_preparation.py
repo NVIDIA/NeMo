@@ -109,7 +109,7 @@ def recommend_hyperparameters(df, model=None):
     length_by_chars = sorted(list(df_char_length))
     n_samples_under_99p5_limit = int(len(df_char_length) * 0.995 + 1)
     max_char_length = length_by_chars[:n_samples_under_99p5_limit][-1]
-    # every token is around 4 chars + 100 for extta capacity
+    # every token is around 4 chars + 100 for extra capacity
     max_seq_length = max_char_length // 4 + 100
     return {
         'batch_size': bs,
