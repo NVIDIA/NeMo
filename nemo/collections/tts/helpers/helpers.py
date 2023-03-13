@@ -417,17 +417,11 @@ def plot_spectrogram_to_numpy(spectrogram):
     plt.ylabel("Channels")
     plt.tight_layout()
 
-
     fig.canvas.draw()
     # data = save_figure_to_numpy(fig)
 
-
-
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    # import code  # NOQA
-    # code.interact(local={**locals(), **globals()})
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
 
     plt.close()
     return data

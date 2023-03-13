@@ -772,15 +772,15 @@ class InpainterModel(ModelPT, Exportable):
             take_log=False
         )
 
-        # import matplotlib.pyplot as plt
-        # f, axarr = plt.subplots(5)
-        # f.suptitle(replacement_phrase)
-        # axarr[0].imshow(spectrogram.cpu().numpy().T)
-        # axarr[1].imshow(blanked_spectrogram.cpu().numpy().T)
-        # axarr[2].imshow(attn_hard[0].cpu().detach().numpy().T)
-        # axarr[3].imshow(full_replacement.cpu().detach().numpy().T)
-        # axarr[4].imshow(partial_replacement.cpu().detach().numpy().T)
-        # plt.show()
+        import matplotlib.pyplot as plt
+        f, axarr = plt.subplots(5)
+        f.suptitle(replacement_phrase)
+        axarr[0].imshow(spectrogram.cpu().numpy().T)
+        axarr[1].imshow(blanked_spectrogram.cpu().numpy().T)
+        axarr[2].imshow(attn_hard[0].cpu().detach().numpy().T)
+        axarr[3].imshow(full_replacement.cpu().detach().numpy().T)
+        axarr[4].imshow(partial_replacement.cpu().detach().numpy().T)
+        plt.show()
 
         return full_replacement, partial_replacement, mcd_full, mcd_partial
 
