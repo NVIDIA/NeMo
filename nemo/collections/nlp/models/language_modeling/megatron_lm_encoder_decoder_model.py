@@ -15,13 +15,13 @@
 import copy
 import functools
 import inspect
+from functools import partial
 from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from functools import partial
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -40,7 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     compute_beam_search_len_penalty,
     sample_token_greedy,
-    sample_token_topk_beam_search
+    sample_token_topk_beam_search,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
