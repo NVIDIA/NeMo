@@ -34,7 +34,6 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
 )
-from nemo.collections.tts.parts.utils.g2p_utils import set_grapheme_case
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
@@ -221,17 +220,6 @@ class TTSDataset(Dataset):
         self.manifest_filepath = manifest_filepath
         self.lengths = []  # Needed for BucketSampling
 
-        # If filtering based on a user-set vocab and there's a grapheme prefix,
-        # remove all prefixes for comparison with the normalized text
-        tokens_set = set()  # Not used unless `set_fixed_vocab` is True
-        if getattr(self.text_tokenizer, "set_fixed_vocab", False) and self.text_tokenizer.g2p.grapheme_prefix:
-            prefix = self.text_tokenizer.g2p.grapheme_prefix
-            # Have check for length of token in case the prefix is a valid symbol by itself
-            tokens_set = {
-                token if (token[0] != prefix or len(token) == 1) else token[1:]
-                for token in self.text_tokenizer.tokens_set
-            }
-
         data = []
         total_duration = 0
         for manifest_file in self.manifest_filepath:
@@ -257,19 +245,6 @@ class TTSDataset(Dataset):
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
-
-                    # Check whether the user passed in a fixed vocab
-                    # If so, entries with illegal graphemes should be filtered out
-                    if getattr(self.text_tokenizer, "set_fixed_vocab", False):
-                        normalized_text = file_info["normalized_text"]
-                        text_set = set(set_grapheme_case(normalized_text, self.text_tokenizer.g2p.grapheme_case))
-                        # Skip if set difference between graphemes in text and valid tokens set is nonempty
-                        set_diff = text_set - tokens_set
-                        if set_diff:
-                            logging.warning(
-                                f"Skipping entry, found illegal grapheme(s) [{set_diff}] in text: [{normalized_text}]"
-                            )
-                            continue
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
