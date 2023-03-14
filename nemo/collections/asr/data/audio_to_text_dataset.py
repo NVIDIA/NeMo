@@ -1,6 +1,6 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache LiceConnse, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -112,6 +112,7 @@ def get_concat_char_dataset(
         datasets,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_scale=config.get('sampling_scale', 1),
         sampling_probabilities=config.get('concat_sampling_probabilities', None),
         shuffle=config.get('concat_shuffle', True),
         seed=config.get('concat_sampling_seed', None),
@@ -194,6 +195,7 @@ def get_concat_bpe_dataset(
         datasets,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_scale=config.get('sampling_scale', 1),
         sampling_probabilities=config.get('concat_sampling_probabilities', None),
         shuffle=config.get('concat_shuffle', True),
         seed=config.get('concat_sampling_seed', None),
@@ -282,6 +284,7 @@ def get_concat_tarred_dataset(
         datasets,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_scale=config.get('sampling_scale', 1),
         sampling_probabilities=config.get('concat_sampling_probabilities', None),
         shuffle=config.get('concat_shuffle', True),
         seed=config.get('concat_sampling_seed', None),
