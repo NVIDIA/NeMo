@@ -106,11 +106,14 @@ class MultiSpeakerSimulator(object):
     Change Log:
     v1.0: Dec 2022
         - First working verison, supports multispeaker simulation with overlaps, silence and RIR
-    v1.1: Feb 2023
+    v1.0.1: Feb 2023
         - Multi-GPU support for speed up 
         - Faster random sampling routine 
         - Fixed sentence duration bug 
         - Silence and overlap length sampling algorithms are updated to guarantee `mean_silence` approximation
+    v1.0.2: March 2023
+        - Added support for segment-level gain perturbation and session-level white-noise perturbation
+        - Modified speaker sampling mechanism to include as many speakers as possible in each data-generation run
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -245,17 +248,63 @@ class MultiSpeakerSimulator(object):
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
         self.segment_augmentor = (
-            process_augmentations(self._params.data_simulator.segment_augmentor)
+            process_augmentations(augmenter=self._params.data_simulator.segment_augmentor)
             if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.add_seg_aug
             else None
         )
         self.session_augmentor = (
-            process_augmentations(self._params.data_simulator.session_augmentor)
+            process_augmentations(augmenter=self._params.data_simulator.session_augmentor)
             if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.add_sess_aug
             else None
         )
 
         self._check_args()  # error check arguments
+        self._permutated_speaker_inds = self._init_speaker_permutations(
+            num_sess=self._params.data_simulator.session_config.num_sessions,
+            num_speakers=self._params.data_simulator.session_config.num_speakers,
+            all_speaker_ids=self._speaker_samples.keys()
+        )
+
+    def _init_speaker_permutations(self, num_sess, num_speakers, all_speaker_ids):
+        """
+        Initialize the speaker permutations for the number of speakers in the session.
+        When generating the simulated sessions, we want to include as many speakers as possible.
+        This function generates a set of permutations that can be used to sweep all speakers in 
+        the source dataset to make sure we maximize the total number of speakers included in 
+        the simulated sessions.
+
+        Args:
+            num_sess (int): Number of sessions to generate
+            num_speakers (int): Number of speakers in each session
+            all_speaker_ids (list): List of all speaker IDs
+
+        Returns:
+            permuted_inds (np.array): 
+                Array of permuted speaker indices to use for each session
+                Dimensions: (num_sess, num_speakers)
+        """
+        all_speaker_id_counts = len(list(all_speaker_ids))
+
+        # Calculate how many permutations are needed
+        perm_set_count = int(np.ceil(num_speakers * num_sess / all_speaker_id_counts))
+
+        target_count = num_speakers * num_sess
+        for count in range(perm_set_count):
+            if target_count < all_speaker_id_counts:
+                seq_len = target_count
+            else:
+                seq_len = all_speaker_id_counts
+            if seq_len <= 0:
+                raise ValueError(f"seq_len is {seq_len} at count {count} and should be greater than 0")
+
+            if count == 0:
+                permuted_inds = np.random.permutation(len(all_speaker_ids))[:seq_len]
+            else:
+                permuted_inds = np.hstack((permuted_inds, np.random.permutation(len(all_speaker_ids))[:seq_len]))
+            target_count -= seq_len
+
+        # Make dimension (num_sess, num_speakers)
+        return permuted_inds.reshape(num_sess, num_speakers)
 
     def _check_args(self):
         """
@@ -359,7 +408,7 @@ class MultiSpeakerSimulator(object):
         self._noise_read_buffer_dict = {}
         torch.cuda.empty_cache()
 
-    def _get_speaker_ids(self) -> List[str]:
+    def _get_speaker_ids(self, sess_idx) -> List[str]:
         """
         Randomly select speaker IDs from the loaded manifest file.
 
@@ -367,9 +416,7 @@ class MultiSpeakerSimulator(object):
             speaker_ids (list): List of speaker IDs
         """
         all_speaker_ids = list(self._speaker_samples.keys())
-        idx_list = np.random.permutation(len(all_speaker_ids))[
-            : self._params.data_simulator.session_config.num_speakers
-        ]
+        idx_list = self._permutated_speaker_inds[sess_idx, :]
         speaker_ids = [all_speaker_ids[i] for i in idx_list]
         return speaker_ids
 
@@ -756,6 +803,16 @@ class MultiSpeakerSimulator(object):
         return desired_overlap_amount
 
     def _perturb_segment_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
+        """
+        Perturb the audio of the segment using the segment augmentor.
+
+        Args:
+            audio (torch.Tensor): Time-series signal of the segment
+            sr (int): Sample rate of the original audio file
+
+        Returns:
+            audio (torch.Tensor): Perturbed audio (time-series signal) of the segment
+        """
         if self.segment_augmentor is None:
             return audio
         if isinstance(audio, torch.Tensor):
@@ -766,6 +823,16 @@ class MultiSpeakerSimulator(object):
         return audio_segment
 
     def _perturb_session_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
+        """
+        Perturb the audio of the entire session using the session augmentor.
+
+        Args:
+            audio (torch.Tensor): Time-series signal of the entire session
+            sr (int): Sample rate of the audio
+
+        Returns:
+            audio (torch.Tensor): Perturbed audio (time-series signal) of the entire session
+        """
         if self.session_augmentor is None:
             return audio
         if isinstance(audio, torch.Tensor):
@@ -1620,7 +1687,7 @@ class MultiSpeakerSimulator(object):
         # add radomly sampled arguments to a list(queue) for multiprocessing
         for sess_idx in range(num_sessions):
             filename = self._params.data_simulator.outputs.output_filename + f"_{sess_idx}"
-            speaker_ids = self._get_speaker_ids()
+            speaker_ids = self._get_speaker_ids(sess_idx)
             speaker_wav_align_map = self._get_speaker_samples(speaker_ids)
             noise_samples = self._sample_noise_manifest(source_noise_manifest)
             if torch.cuda.is_available():
