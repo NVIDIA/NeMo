@@ -193,7 +193,7 @@ class GPTPromptLearningDataset(Dataset):
                 if answer_only_loss and self.for_train:
                     answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
 
-                self.examples.append((taskname_id, input_ids, answer_start_idx, total_virtual_tokens))
+                self.examples.append((input_ids, answer_start_idx, total_virtual_tokens))
             else:
                 skipped += 1
 
@@ -333,7 +333,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        _, input_ids, answer_starts, num_virtual_tokens  = zip(*batch)
+        input_ids, answer_starts, num_virtual_tokens  = zip(*batch)
         num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
         # Get max sequence length of batch
         batch_max = max(len(i) for i in input_ids)

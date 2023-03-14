@@ -75,83 +75,24 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
-        """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
-        The virtual token placeholders have token_ids listed in
-        `self.pseudo_token_ids`.
-
-        params:
-            input_ids: the input token ids
-            taskname_ids: the NLP task tag token ids
-        returns:
-            the token embedding for the LM model.
-        """
-        # Replace virtual token ids with padding for forward pass through vocab embeddings
-        discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        
-
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-
-        # If there are no virtual tokens, just return discrete token embeds
-        if not virtual_token_locations.any():
-            return discrete_token_embeds
-
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            # taskname_embeddings = self.word_embeddings(taskname_ids)
-            batch_size, _ = taskname_ids.size()
-            
-        else:
-            raise ValueError("invalid VirtualPromptSource.")
-
-        # Create index template specifying where virtual token embeddings should be placed
-        batch_size, _, embedding_size = discrete_token_embeds.shape
-        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(
-            batch_size, self.total_new_task_virtual_tokens, embedding_size
-        )
-
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
-        input_embeds = discrete_token_embeds
-
-        return input_embeds
-
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
             return True
         return False
-
+    
+    
+ 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, labels=None, inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        batch_size, seq_length = input_ids.shape
-
         if self.first_stage_of_pipeline():
-            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=inference)
-            input_ids = input_ids[:, virtual_token_embeds.shape[1]:]
-            position_ids = position_ids[:,:-virtual_token_embeds.shape[1]]
-            input_embeds = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings(input_ids).clone()
-            # TODO: This check needs to be revisited with PP support.
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids) 
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
         else:
             encoder_input = None
-        encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
-
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
         dec_mask[:, 0] = 1
@@ -208,6 +149,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, "position_embeddings"):
+            self.pos_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings
+        else:
+            self.pos_embeddings = None
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
@@ -260,10 +206,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
             output_tensor, encoder_input = model(
-                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
+                enc_input, dec_input, enc_mask, dec_mask, position_ids, labels, inference=False
             )
             output_tensor = output_tensor.contiguous()
 
@@ -375,7 +321,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         }
 
     def validation_step(self, batch, batch_idx, inference=False):
-        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
         mode = self.training
         self.eval()
@@ -384,19 +330,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         if self.first_stage_of_pipeline():
-            # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input(input_ids, taskname_ids, False)
-
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference=True)
         else:
             encoder_input = None
-
         if self.cfg.get("report_validation_accuracy", False):
             metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
             metrics['loss'] = loss_mean
@@ -514,24 +450,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
         batch_size, seq_length = input_ids.shape
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=True)
-
-            # TODO: This check needs to be revisited with PP support.
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
-
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference=True)
         else:
             encoder_input = torch.zeros((batch_size, seq_length, self.hidden_size), dtype=self.autocast_dtype).cuda()
-
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
             enc_mask=enc_mask,

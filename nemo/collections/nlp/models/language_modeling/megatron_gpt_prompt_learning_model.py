@@ -134,6 +134,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
+        self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+        if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
+            self.pos_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings
+        else:
+            self.pos_embeddings = None
+
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
@@ -207,16 +213,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.first_stage_of_pipeline():
-            virtual_token_embeds = self.prompt_encoder(batch_size=input_ids.shape[0], use_cached_reps=inference)
-            input_embeds = self.frozen_model.model.language_model.embedding.word_embeddings(input_ids)
-            if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
-                position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
-            encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
