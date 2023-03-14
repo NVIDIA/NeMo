@@ -59,7 +59,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_split_rank=None,
     micro_batch_size=None,
     global_batch_size=None,
-    use_fp8=None,
+    use_fp8=False,
     seed=1234,
     apex_transformer_log_level=30,
 ):

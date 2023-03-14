@@ -54,7 +54,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_size = None
         self._data_parallel_group = None
         self._megatron_checkpoint_version = None
-        self._use_fp8 = None
+        self._use_fp8 = False
 
         self._random_seed = None
 
