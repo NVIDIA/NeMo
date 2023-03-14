@@ -262,7 +262,7 @@ class MultiSpeakerSimulator(object):
         self._permutated_speaker_inds = self._init_speaker_permutations(
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
-            all_speaker_ids=self._speaker_samples.keys()
+            all_speaker_ids=self._speaker_samples.keys(),
         )
 
     def _init_speaker_permutations(self, num_sess, num_speakers, all_speaker_ids):
