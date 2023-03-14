@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
-import logging
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -92,7 +92,7 @@ class ConcatDataset(IterableDataset):
                 self.length += len(dataset) // world_size
             else:
                 self.length += len(dataset)
-        
+
         if self.sampling_scale != 1:
             self.length = self.length / self.sampling_scale
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
