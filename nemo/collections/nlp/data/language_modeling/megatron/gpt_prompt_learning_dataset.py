@@ -162,11 +162,11 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
-            
+
             # these will be lobbed during the collate_fn
             temp_pads = [self.tokenizer.bos_id] * total_virtual_tokens
             input_ids = temp_pads + input_ids
-            
+
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
                 input_ids = self._truncate_input(
@@ -333,7 +333,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        input_ids, answer_starts, num_virtual_tokens  = zip(*batch)
+        input_ids, answer_starts, num_virtual_tokens = zip(*batch)
         num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
         # Get max sequence length of batch
         batch_max = max(len(i) for i in input_ids)
@@ -361,8 +361,8 @@ class GPTPromptLearningDataset(Dataset):
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
 
-        #lob off the space holder for virtual tokens
-        input_ids = input_ids[:, num_virtual_tokens:] 
+        # lob off the space holder for virtual tokens
+        input_ids = input_ids[:, num_virtual_tokens:]
 
         position_ids = build_position_ids(input_ids)
 
