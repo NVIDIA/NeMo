@@ -713,7 +713,7 @@ class RirAndNoisePerturbation(Perturbation):
 
         data_rms = data.rms_db
 
-        if self._fg_noise_perturbers and random.uniform(0.0, 1.0) < self._noise_prob:
+        if self._fg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._noise_prob:
             orig_sr = data.orig_sr
             if orig_sr not in self._fg_noise_perturbers:
                 orig_sr = max(self._fg_noise_perturbers.keys())
@@ -725,7 +725,7 @@ class RirAndNoisePerturbation(Perturbation):
                 data, noise, data_rms=data_rms, max_noise_dur=self._max_duration, max_additions=self._max_additions
             )
 
-        if self._bg_noise_perturbers and random.uniform(0.0, 1.0) < self._bg_noise_prob:
+        if self._bg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._bg_noise_prob:
             orig_sr = data.orig_sr
             if orig_sr not in self._bg_noise_perturbers:
                 orig_sr = max(self._bg_noise_perturbers.keys())

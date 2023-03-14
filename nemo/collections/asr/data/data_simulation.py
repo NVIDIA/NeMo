@@ -34,7 +34,7 @@ from scipy.spatial.transform import Rotation
 from scipy.stats import beta, gamma
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor, process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
 from nemo.collections.asr.parts.utils.manifest_utils import (
@@ -802,43 +802,24 @@ class MultiSpeakerSimulator(object):
 
         return desired_overlap_amount
 
-    def _perturb_segment_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
+    def _perturb_audio(self, audio: torch.Tensor, sr: int, augmentor: AudioAugmentor) -> torch.Tensor:
         """
-        Perturb the audio of the segment using the segment augmentor.
+        Perturb the audio (segment or session) using audio augmentor.
 
         Args:
             audio (torch.Tensor): Time-series signal of the segment
             sr (int): Sample rate of the original audio file
+            augmentor (AudioAugmentor): Audio augmentor to use
 
         Returns:
             audio (torch.Tensor): Perturbed audio (time-series signal) of the segment
         """
-        if self.segment_augmentor is None:
+        if augmentor is None:
             return audio
         if isinstance(audio, torch.Tensor):
             audio = audio.cpu().numpy()
         audio_segment = AudioSegment(audio, sample_rate=sr)
-        self.segment_augmentor.perturb(audio_segment)
-        audio_segment = torch.from_numpy(audio_segment.samples).to(self._device)
-        return audio_segment
-
-    def _perturb_session_audio(self, audio: torch.Tensor, sr: int) -> torch.Tensor:
-        """
-        Perturb the audio of the entire session using the session augmentor.
-
-        Args:
-            audio (torch.Tensor): Time-series signal of the entire session
-            sr (int): Sample rate of the audio
-
-        Returns:
-            audio (torch.Tensor): Perturbed audio (time-series signal) of the entire session
-        """
-        if self.session_augmentor is None:
-            return audio
-        if isinstance(audio, torch.Tensor):
-            audio = audio.cpu().numpy()
-        audio_segment = AudioSegment(audio, sample_rate=sr)
-        self.session_augmentor.perturb(audio_segment)
+        augmentor.perturb(audio_segment)
         audio_segment = torch.from_numpy(audio_segment.samples).to(self._device)
         return audio_segment
 
@@ -1027,7 +1008,7 @@ class MultiSpeakerSimulator(object):
                 self._audio_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
 
             # audio perturbation, such as gain, impulse response, and white noise
-            audio_file = self._perturb_segment_audio(audio_file, sr)
+            audio_file = self._perturb_audio(audio_file, sr, self.segment_augmentor)
 
             sentence_word_count, sentence_samples = self._add_file(
                 audio_manifest, audio_file, sentence_word_count, sl, max_samples_in_sentence
@@ -1612,7 +1593,8 @@ class MultiSpeakerSimulator(object):
         else:
             snr = "N/A"
 
-        array = self._perturb_session_audio(array, self._params.data_simulator.sr)
+        # Add optional perturbations to the whole session, such as white noise, reverb, etc.
+        array = self._perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor)
 
         # Step 7: Normalize and write to disk
         array = array / (1.0 * torch.max(torch.abs(array)))  # normalize wav file to avoid clipping
@@ -2122,7 +2104,8 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         else:
             snr = "N/A"
 
-        array = self._perturb_session_audio(array, self._params.data_simulator.sr)
+        # Add optional perturbations to the whole session, such as white noise, reverb, etc.
+        array = self._perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor)
 
         meta_data = {
             "duration": array.shape[0] / self._params.data_simulator.sr,
