@@ -126,11 +126,9 @@ class TestMegatronGPTPromptLearningDataset:
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)
 
-        assert len(batch) == 6
+        assert len(batch) == 5
 
-        _, _, _, _, _, taskname_ids = batch
-
-        assert list(taskname_ids[0].numpy()) == tokenizer.text_to_ids("task name A")
+        _, _, _, _, _ = batch
 
         os.remove(dataset_path)
 
