@@ -30,6 +30,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessor
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
 
 TOKEN_OFFSET = 100
@@ -60,36 +61,45 @@ def get_train_list(args_train_path):
     return sorted(train_path)
 
 
-def setup_tokenizer(nemo_model_file):
+def setup_tokenizer(tokenizer_model_file):
     """ TOKENIZER SETUP """
-    logging.info(f"Loading nemo model '{nemo_model_file}' ...")
-
-    if nemo_model_file.endswith('.nemo'):
-        model = nemo_asr.models.ASRModel.restore_from(nemo_model_file, map_location=torch.device('cpu'))
+    logging.info(f"Loading nemo model '{tokenizer_model_file}' ...")
+    if tokenizer_model_file.endswith('.model'):
+        tokenizer_nemo = SentencePieceTokenizer(tokenizer_model_file)
+    elif tokenizer_model_file.endswith('.nemo'):
+        model = nemo_asr.models.ASRModel.restore_from(tokenizer_model_file, map_location=torch.device('cpu'))
     else:
         logging.warning(
-            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+            "tokenizer_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
         )
-        model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
+        model = nemo_asr.models.ASRModel.from_pretrained(tokenizer_model_file, map_location=torch.device('cpu'))
 
-    encoding_level, offset_encoding = SUPPORTED_MODELS.get(type(model).__name__, None)
-    if not encoding_level:
-        logging.warning(
-            f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
-        )
-        encoding_level = 'char'
-    return model, encoding_level, offset_encoding
+    if tokenizer_model_file.endswith('.model'):
+        encoding_level = 'subword'
+        offset_encoding = True
+    else:
+        encoding_level, offset_encoding = SUPPORTED_MODELS.get(type(model).__name__, None)
+        if not encoding_level:
+            logging.warning(
+                f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
+            )
+            encoding_level = 'char'
+            
+        tokenizer_nemo = model.tokenizer
+        del model
+
+    return tokenizer_nemo, encoding_level, offset_encoding
 
 
-def iter_files(train_path, nemo_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation):
-    model, _, offset_encoding = setup_tokenizer(nemo_model_file)
+def iter_files(train_path, tokenizer_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation):
+    tokenizer, encoding_level, offset_encoding = setup_tokenizer(tokenizer_model_file)
     for fname in train_path:
         dataset = read_train_file(
             fname, do_lowercase, punctuation_to_preserve, separate_punctuation, clean_text, verbose=0
         )
         tokenize_text(
             dataset,
-            model.tokenizer,
+            tokenizer,
             path='',
             chunk_size=8192,
             buffer_size=32,
@@ -149,7 +159,6 @@ def read_train_file(
 def tokenize_str(texts, tokenizer, offset):
     tokenized_text = []
     for text in texts:
-        print(text)
         tok_text = tokenizer.text_to_ids(text)
         if offset < 0:
             tok_text = [str(token) for token in tok_text]
@@ -211,13 +220,13 @@ def _parse_args():
         required=True,
         nargs="+",
         type=str,
-        help="Path to the training file or files. it can be a text file or JSON manifest",
+        help="Path to the training file or whitespace separated files. it can be a text file, JSON manifest or .json.gz",
     )
     parser.add_argument(
-        "--nemo_model_file",
+        "--tokenizer_model_file",
         required=True,
         type=str,
-        help="Path to the training file or whitespace separated files. it can be a text file, JSON manifest or .json.gz",
+        help="The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model",
     )
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"

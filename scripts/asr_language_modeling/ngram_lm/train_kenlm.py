@@ -23,7 +23,7 @@
 # You need to install the KenLM library and also the beam search decoders to use this feature. Please refer
 # to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
-# USAGE: python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
+# USAGE: python train_kenlm.py --tokenizer_model_file <path to the .nemo file of the model> \
 #                              --train_path <path to the training text or JSON manifest file \
 #                              --kenlm_bin_path <path to the bin folder of KenLM library> \
 #                              --kenlm_model_file <path to store the binary KenLM model> \
@@ -68,10 +68,10 @@ def main():
     )
 
     parser.add_argument(
-        "--nemo_model_file",
+        "--tokenizer_model_file",
         required=True,
         type=str,
-        help="The path of the '.nemo' file of the ASR model or name of a pretrained model",
+        help="The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model",
     )
     parser.add_argument(
         "--kenlm_model_file", required=True, type=str, help="The path to store the KenLM binary model file"
@@ -103,21 +103,22 @@ def main():
         action='store_true',
         help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used",
     )
-    parser.add_argument("--verbose", type=int, default=1, help="Verbose level from 0. Default is 1 ")
+    parser.add_argument("--verbose", type=int, default=0, help="Verbose level from 0. Default is 1 ")
 
     args = parser.parse_args()
+
     assert (
-        args.clean_text or args.punctuation_to_preserve != "" and args.clean_text
+        args.clean_text or (not args.punctuation_to_preserve) and (not args.clean_text)
     ), "--punctuation_to_preserve work only with --clean_text "
     assert (
-        args.clean_text or args.clean_text and args.separate_punctuation and args.punctuation_to_preserve != ""
+        args.clean_text or (not args.punctuation_to_preserve) and (not args.clean_text) and (not args.separate_punctuation)
     ), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
     args.train_path = kenlm_utils.get_train_list(args.train_path)
 
     if type(args.ngram_prun) == str:
         args.ngram_prun = [args.ngram_prun]
 
-    model, encoding_level, offset_encoding = kenlm_utils.setup_tokenizer(args.nemo_model_file)
+    tokenizer, encoding_level, offset_encoding = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
     encoded_train_files = []
 
     if args.cache_path:
@@ -147,7 +148,7 @@ def main():
                 if encoding_level == "subword":
                     kenlm_utils.tokenize_text(
                         dataset,
-                        model.tokenizer,
+                        tokenizer,
                         path=encoded_train_file,
                         chunk_size=CHUNK_SIZE,
                         buffer_size=CHUNK_BUFFER_SIZE,
@@ -160,15 +161,14 @@ def main():
 
             encoded_train_files.append(encoded_train_file)
 
-        del model
         first_process_args = ["cat"] + encoded_train_files
 
     else:
         first_process_args = [
             "python3",
             os.path.join(file_path, "kenlm_utils.py"),
-            "--nemo_model_file",
-            args.nemo_model_file,
+            "--tokenizer_model_file",
+            args.tokenizer_model_file,
             "--punctuation_to_preserve",
             args.punctuation_to_preserve,
             "--train_path",
