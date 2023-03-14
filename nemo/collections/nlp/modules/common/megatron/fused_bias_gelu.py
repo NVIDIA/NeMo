@@ -133,5 +133,5 @@ class GeLUFunctionNB(torch.autograd.Function):
 
 def fused_gelu(input):
     args = _cast_if_autocast_enabled(input)
-    with torch.cuda.amp.autocast(enabled=True):
+    with torch.cuda.amp.autocast(enabled=False):
         return GeLUFunctionNB.apply(*args)
