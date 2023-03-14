@@ -223,6 +223,7 @@ class TTSDataset(Dataset):
 
         # If filtering based on a user-set vocab and there's a grapheme prefix,
         # remove all prefixes for comparison with the normalized text
+        tokens_set = set()  # Not used unless `set_fixed_vocab` is True
         if getattr(self.text_tokenizer, "set_fixed_vocab", False) and self.text_tokenizer.g2p.grapheme_prefix:
             prefix = self.text_tokenizer.g2p.grapheme_prefix
             # Have check for length of token in case the prefix is a valid symbol by itself
@@ -230,8 +231,6 @@ class TTSDataset(Dataset):
                 token if (token[0] != prefix or len(token) == 1) else token[1:]
                 for token in self.text_tokenizer.tokens_set
             }
-        else:
-            tokens_set = self.text_tokenizer.tokens_set
 
         data = []
         total_duration = 0
@@ -261,7 +260,7 @@ class TTSDataset(Dataset):
 
                     # Check whether the user passed in a fixed vocab
                     # If so, entries with illegal graphemes should be filtered out
-                    if self.text_tokenizer.set_fixed_vocab:
+                    if getattr(self.text_tokenizer, "set_fixed_vocab", False):
                         normalized_text = file_info["normalized_text"]
                         text_set = set(set_grapheme_case(normalized_text, self.text_tokenizer.g2p.grapheme_case))
                         # Skip if set difference between graphemes in text and valid tokens set is nonempty

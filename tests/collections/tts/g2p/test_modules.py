@@ -122,7 +122,7 @@ class TestIPAG2P:
         assert g2p.phoneme_dict["JONES"][0] == list("ˈdʒoʊnz")
         assert g2p.phoneme_dict["AIRPORT"][0] == list("ˈɛɹˌpɔɹt")
 
-    # @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_replace_symbols(self):
         g2p = self._create_g2p(use_chars=True, grapheme_prefix=self.GRAPHEME_PREFIX)
