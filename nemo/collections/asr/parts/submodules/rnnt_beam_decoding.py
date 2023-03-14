@@ -312,7 +312,6 @@ class BeamRNNTInfer(Typing):
         self.language_model = language_model
         self.preserve_alignments = preserve_alignments
 
-        self.decoding_type = None
         self.token_offset = 0
 
         if ngram_lm_model:
@@ -1393,8 +1392,12 @@ class BeamRNNTInfer(Typing):
         Score computation for kenlm ngram language model.
         """
 
+        if self.token_offset:
+            label = chr(label + self.token_offset)
+        else:
+            label = str(label)
         next_state = kenlm.State()
-        lm_score = self.ngram_lm.BaseScore(current_lm_state, chr(label + self.token_offset), next_state)
+        lm_score = self.ngram_lm.BaseScore(current_lm_state, label, next_state)
         lm_score *= 1.0 / np.log10(np.e)
 
         return lm_score, next_state
