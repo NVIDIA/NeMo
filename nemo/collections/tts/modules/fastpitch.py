@@ -44,7 +44,7 @@
 
 import torch
 
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len
+from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
@@ -287,7 +287,7 @@ class FastPitchModule(NeuralModule):
 
         # Predict energy
         if self.energy_predictor is not None:
-            energy_pred = self.energy_predictor(enc_out, enc_mask).squeeze(-1)
+            energy_pred = self.energy_predictor(prosody_input, enc_mask).squeeze(-1)
 
             if energy is not None:
                 # Average energy over characters
@@ -357,6 +357,8 @@ class FastPitchModule(NeuralModule):
         )
         pitch_predicted = self.pitch_predictor(prosody_input, enc_mask) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+        enc_out = enc_out + pitch_emb.transpose(1, 2)
+
         if self.energy_predictor is not None:
             if energy is not None:
                 assert energy.shape[-1] == text.shape[-1], f"energy.shape[-1]: {energy.shape[-1]} != len(text)"
@@ -365,7 +367,6 @@ class FastPitchModule(NeuralModule):
                 energy_pred = self.energy_predictor(prosody_input, enc_mask).squeeze(-1)
                 energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
             enc_out = enc_out + energy_emb.transpose(1, 2)
-        enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         # Expand to decoder time dimension
         len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
@@ -387,4 +388,105 @@ class FastPitchModule(NeuralModule):
             log_durs_predicted,
             pitch_predicted,
             volume_extended,
+        )
+
+
+class FastPitchSSLModule(NeuralModule):
+    def __init__(
+        self,
+        encoder_module: NeuralModule,
+        decoder_module: NeuralModule,
+        duration_predictor: NeuralModule,
+        pitch_predictor: NeuralModule,
+        symbols_embedding_dim: int,
+        pitch_embedding_kernel_size: int,
+        n_mel_channels: int = 80,
+        max_token_duration: int = 75,
+    ):
+        super().__init__()
+
+        self.encoder = encoder_module
+        self.decoder = decoder_module
+        self.duration_predictor = duration_predictor
+        self.pitch_predictor = pitch_predictor
+
+        self.max_token_duration = max_token_duration
+        self.min_token_duration = 0
+
+        if self.pitch_predictor is not None:
+            self.pitch_emb = torch.nn.Conv1d(
+                1,
+                symbols_embedding_dim,
+                kernel_size=pitch_embedding_kernel_size,
+                padding=int((pitch_embedding_kernel_size - 1) / 2),
+            )
+
+        # Store values precomputed from training data for convenience
+        self.register_buffer('pitch_mean', torch.zeros(1))
+        self.register_buffer('pitch_std', torch.zeros(1))
+
+        self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
+
+    @property
+    def input_types(self):
+        return {
+            "enc_out": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "enc_mask": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "durs": NeuralType(('B', 'T_text'), TokenDurationType(), optional=True),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "pace": NeuralType(optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
+        }
+
+    @typecheck()
+    def forward(self, *, enc_out=None, enc_mask=None, durs=None, pitch=None, pace=1.0):
+
+        log_durs_predicted, durs_predicted = None, None
+        if self.duration_predictor is not None:
+            log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
+            durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+
+        # Predict pitch
+        pitch_predicted = None
+        if self.pitch_predictor is not None:
+            pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
+            if pitch is not None:
+                if pitch.shape[-1] != enc_out.shape[1]:
+                    # during inference, we send the averaged pitch over each token so we don't need to average here
+                    # TODO: have a flag to indicate whether the pitch is already averaged or not
+                    pitch = average_features(pitch.unsqueeze(1), durs).squeeze(1)
+
+                pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+            else:
+                pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
+            enc_out = enc_out + pitch_emb.transpose(1, 2)
+
+        if durs is not None:
+            len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
+        else:
+            # Use predictions during inference
+            assert self.duration_predictor is not None, "Duration predictor cannot be none if durs is not provided"
+            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+
+        # Output FFT
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        spect = self.proj(dec_out).transpose(1, 2)
+        return (
+            spect,
+            dec_lens,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            pitch,
         )

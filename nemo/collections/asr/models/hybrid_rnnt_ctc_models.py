@@ -114,10 +114,19 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
-            A list of transcriptions in the same order as paths2audio_files. Will also return
+            Returns a tuple of 2 items -
+            * A list of greedy transcript texts / Hypothesis
+            * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
         if self.use_rnnt_decoder:
-            return super().transcribe(**kwargs)
+            return super().transcribe(
+                paths2audio_files=paths2audio_files,
+                batch_size=batch_size,
+                return_hypotheses=return_hypotheses,
+                partial_hypothesis=partial_hypothesis,
+                num_workers=num_workers,
+                channel_selector=channel_selector,
+            )
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
@@ -176,7 +185,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
                     if return_hypotheses:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
-                            best_hyp[idx].y_sequence = logits[idx][: logits_len[idx]]
+                            best_hyp[idx].y_sequence = logits[idx][: encoded_len[idx]]
                             if best_hyp[idx].alignments is None:
                                 best_hyp[idx].alignments = best_hyp[idx].y_sequence
                     del logits

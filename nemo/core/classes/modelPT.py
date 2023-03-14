@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 import copy
 import inspect
@@ -19,7 +20,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
 import torch
@@ -35,6 +36,7 @@ from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
+from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
 
 __all__ = ['ModelPT']
@@ -62,7 +64,7 @@ class ModelPT(LightningModule, Model):
         """
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
-                f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
+                f"trainer constructor argument must be either None or pytorch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
 
@@ -109,6 +111,9 @@ class ModelPT(LightningModule, Model):
                 cfg.nemo_version = package_info.__version__
 
         self._cfg = cfg
+
+        # init mapping submodule attribute -> config_field for nested NeMo models
+        self._nemo_submodule_name_to_config_field = dict()
 
         self.save_hyperparameters("cfg")
         self._train_dl = None
@@ -221,10 +226,14 @@ class ModelPT(LightningModule, Model):
                 str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
         """
 
-        app_state = AppState()
-
         if src is None or src == "":
             return src
+
+        if Path(src).suffix == ".nemo":
+            raise NeMoBaseException(
+                "Registering .nemo files as artifacts not supported. "
+                "If you are trying to make a nested model, use `register_nemo_submodule`."
+            )
 
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
@@ -239,6 +248,101 @@ class ModelPT(LightningModule, Model):
             )
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
+
+    def has_artifacts(self) -> bool:
+        """Returns True if model has artifacts registered"""
+        return hasattr(self, 'artifacts') and self.artifacts is not None and len(self.artifacts) > 0
+
+    def has_native_or_submodules_artifacts(self) -> bool:
+        """Returns True if it has artifacts or any of the submodules have artifacts"""
+        for module in self.modules():
+            if (
+                isinstance(module, ModelPT)
+                and hasattr(module, 'artifacts')
+                and module.artifacts is not None
+                and len(module.artifacts) > 0
+            ):
+                return True
+        return False
+
+    def has_nemo_submodules(self) -> bool:
+        """Returns True if it has any registered NeMo submodules"""
+        return len(self._nemo_submodule_name_to_config_field) > 0
+
+    def register_nemo_submodule(self, name: str, config_field: str, model: "ModelPT") -> None:
+        """
+        Adds a NeMo model as a submodule. Submodule can be accessed via the `name` attribute on the parent NeMo model this submodule was registered on (`self`).
+        In the saving process, the whole parent model (self) is held as a solid model with artifacts
+        from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
+        This method is necessary to create a nested model, e.g.
+            .. code-block:: python
+
+                class ParentModel(ModelPT):
+                    def __init__(self, cfg, trainer=None):
+                        super().__init__(cfg=cfg, trainer=trainer)
+
+                        # annotate type for autocompletion and type checking (optional)
+                        self.child_model: Optional[ChildModel] = None
+                        if cfg.get("child_model") is not None:
+                            self.register_nemo_submodule(
+                                name="child_model",
+                                config_field="child_model",
+                                model=ChildModel(self.cfg.child_model, trainer=trainer),
+                            )
+                        # ... other code
+
+        Args:
+            name: name of the attribute for the submodule
+            config_field: field in config, where submodule config should be saved
+            model: NeMo model, instance of ModelPT
+        """
+        # check it is a real NeMo model
+        if not isinstance(model, ModelPT):
+            raise NeMoBaseException(
+                f"Model is not and instance of ModelPT, so can't be registered. Got {type(model).__name__}"
+            )
+        # check if it is called after __init__
+        if not hasattr(self, "_nemo_submodule_name_to_config_field"):
+            raise NeMoBaseException(
+                "You are trying to register a submodule before the model is initialized. This is not allowed. "
+                "Did you forget to call `super().__init__`?"
+            )
+        # assign attribute to self
+        setattr(self, name, model)
+        # add to the submodules mapping
+        self._nemo_submodule_name_to_config_field[name] = config_field
+
+    def named_nemo_modules(
+        self, prefix_name: str = "", prefix_config: str = ""
+    ) -> Iterator[Tuple[str, str, "ModelPT"]]:
+        """
+        Returns an iterator over all NeMo submodules recursively, yielding
+        tuples of (attribute path, path in config, submodule), starting from the core module
+
+        Args:
+            prefix_name: prefix for the name path
+            prefix_config: prefix for the path in config
+
+        Returns:
+            Iterator over (attribute path, path in config, submodule), starting from (prefix, self)
+        """
+        if not hasattr(self, "_nemo_submodule_name_to_config_field"):
+            raise NeMoBaseException(
+                "Model is not fully initialized. Calling `named_nemo_modules` before __init__ not allowed. "
+                "Did you forget to call `super().__init__`?"
+            )
+
+        yield prefix_name, prefix_config, self
+
+        # recursive iteration over all NeMo submodules
+        for name, config_field in self._nemo_submodule_name_to_config_field.items():
+            attribute_path = f"{prefix_name}.{name}" if prefix_name else name
+            config_path = f"{prefix_config}.{config_field}" if prefix_config else config_field
+            module: ModelPT = getattr(self, name)
+            for submodule_name, subconfig_path, submodule in module.named_nemo_modules(
+                prefix_name=attribute_path, prefix_config=config_path
+            ):
+                yield submodule_name, subconfig_path, submodule
 
     def save_to(self, save_path: str):
         """
@@ -267,8 +371,10 @@ class ModelPT(LightningModule, Model):
                         'connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You '
                         'can also use a custom one.'
                     )
-            if app_state.data_parallel_rank == 0:
+            if is_global_rank_zero():
                 maybe_make_save_dir(save_path)
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
@@ -1518,12 +1624,32 @@ class ModelPT(LightningModule, Model):
                 else:
                     raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
+    def on_train_start(self):
+        """ PyTorch Lightning hook:
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-start
+            We use it here to copy the relevant config for dynamic freezing.
+        """
+
+        # dynamic freezing
+        # should fire only once, on the very first batch of training and never again
+        if not hasattr(self, '_freeze_cfg'):
+            if (
+                hasattr(self.cfg, 'freeze_updates')
+                and self.cfg.freeze_updates is not None
+                and self.cfg.freeze_updates.get('enabled', False)
+            ):
+                setattr(self, '_freeze_cfg', OmegaConf.to_container(self.cfg.freeze_updates))
+                self._freeze_cfg['is_frozen'] = {k: False for k in self._freeze_cfg['modules'].keys()}
+            else:
+                setattr(self, '_freeze_cfg', None)
+
     def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
         """ PyTorch Lightning hook:
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
-            We use it here to enable nsys profiling.
+            We use it here to enable nsys profiling and dynamic freezing.
         """
 
+        # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
@@ -1532,6 +1658,28 @@ class ModelPT(LightningModule, Model):
                         torch.cuda.cudart().cudaProfilerStart()
                         if self._nsys_profile_gen_shape:
                             torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+
+        # dynamic freezing
+        if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
+            if self.training and hasattr(self, "trainer") and self.trainer is not None:
+                num_updates = self.trainer.global_step + 1
+
+                for ml, m_steps in self._freeze_cfg['modules'].items():
+                    # we could do hasattr check here, but it's too expensive for each step
+                    # consequently you'll throw an error if the module name doesn't exist
+                    # or was spelled wrong in the config.yaml
+                    if isinstance(m_steps, list):
+                        assert len(m_steps) == 2, "freeze_updates modules list cannot have more than two elements"
+                        should_freeze = (num_updates >= m_steps[0]) and (num_updates <= m_steps[1] or m_steps[1] == -1)
+                    else:
+                        should_freeze = num_updates <= m_steps or m_steps == -1
+                    if should_freeze and not self._freeze_cfg['is_frozen'][ml]:
+                        getattr(self, ml).freeze()
+                        getattr(self, ml).train()
+                        self._freeze_cfg['is_frozen'][ml] = True
+                    elif not should_freeze and self._freeze_cfg['is_frozen'][ml]:
+                        getattr(self, ml).unfreeze()
+                        self._freeze_cfg['is_frozen'][ml] = False
 
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
         """ PyTorch Lightning hook:
@@ -1545,6 +1693,16 @@ class ModelPT(LightningModule, Model):
                     if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
+
+    def on_train_end(self):
+        """ PyTorch Lightning hook:
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
+            We use it here to cleanup the dynamic freezing config.
+        """
+
+        # dynamic freezing cleanup
+        if hasattr(self, '_freeze_cfg'):
+            delattr(self, '_freeze_cfg')
 
     # TODO: Remove in PTL 1.7.2
     def cuda(self, device=None):

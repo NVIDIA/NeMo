@@ -61,7 +61,8 @@ python speech_to_text_ctc_bpe.py \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Name of project>" \
-    model.graph_module_cfg.criterion_type=<either `mle` or `map`> \
+    model.graph_module_cfg.criterion_type=<either `ml` or `map`> \
+    model.graph_module_cfg.loss_type=<either `ctc` or `mmi`> \
     model.graph_module_cfg.transcribe_training=False \
     model.graph_module_cfg.split_batch_size=0 \
     model.graph_module_cfg.background_cfg.topo_type=<`default` or `compact` or `shared_blank` or `minimal`> \
@@ -70,7 +71,6 @@ python speech_to_text_ctc_bpe.py \
 
 # If graph_module_cfg.criterion_type=`map`, you can set the following parameters:
     model.graph_module_cfg.background_cfg.token_lm=<path to the token LM> \
-    model.graph_module_cfg.background_cfg.loss_type=mmi \
     model.graph_module_cfg.background_cfg.intersect_pruned=False \
     model.graph_module_cfg.background_cfg.boost_coeff=0.0
 """

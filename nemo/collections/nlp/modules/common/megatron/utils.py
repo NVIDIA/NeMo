@@ -20,13 +20,13 @@ from typing import Dict, List, Tuple, Union
 import torch
 
 try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.normalization import MixedFusedRMSNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
+    from apex.transformer.layers.layer_norm import FastLayerNorm
     from apex.transformer.pipeline_parallel.schedules.common import listify_model
     from apex.transformer.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
-    from apex.transformer.layers.layer_norm import FastLayerNorm
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -146,6 +146,10 @@ def gelu_impl(x):
 
 def openai_gelu(x):
     return gelu_impl(x)
+
+
+def squared_relu(x):
+    return torch.pow(torch.nn.functional.relu(x), 2)
 
 
 # This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter
