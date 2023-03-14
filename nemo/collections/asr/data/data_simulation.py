@@ -114,6 +114,7 @@ class MultiSpeakerSimulator(object):
     v1.0.2: March 2023
         - Added support for segment-level gain perturbation and session-level white-noise perturbation
         - Modified speaker sampling mechanism to include as many speakers as possible in each data-generation run
+        - Added chunking mechanism to avoid freezing in multiprocessing processes
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -234,6 +235,7 @@ class MultiSpeakerSimulator(object):
         self._audio_read_buffer_dict = {}
         self._noise_read_buffer_dict = {}
 
+        # Initialize the audio processing varialbes to zero
         self.running_speech_len_samples = 0
         self.running_silence_len_samples = 0
         self.running_overlap_len_samples = 0
@@ -245,6 +247,7 @@ class MultiSpeakerSimulator(object):
         self.sess_overlap_mean = 0
         self.per_overlap_min_len = 0
         self.per_overlap_max_len = 0
+
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
         self.segment_augmentor = (
@@ -258,12 +261,19 @@ class MultiSpeakerSimulator(object):
             else None
         )
 
-        self._check_args()  # error check arguments
+        # Error check the input arguments for simulation
+        self._check_args()  
+
+        # Initialize speaker permutations to maximize the number of speakers in the created dataset
         self._permutated_speaker_inds = self._init_speaker_permutations(
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
             all_speaker_ids=self._speaker_samples.keys()
         )
+        # Intialize multiprocessing related variables
+        self.num_workers = self._params.get("num_workers", 1)
+        self.multiprocessing_chunksize = self._params.data_simulator.get('multiprocessing_chunksize', 10000)
+        self.chunk_count = self._init_chunk_count()
 
     def _init_speaker_permutations(self, num_sess, num_speakers, all_speaker_ids):
         """
@@ -305,6 +315,15 @@ class MultiSpeakerSimulator(object):
 
         # Make dimension (num_sess, num_speakers)
         return permuted_inds.reshape(num_sess, num_speakers)
+
+    def _init_chunk_count(self):
+        """
+        Initialize the chunk count for multi-processing to prevent over-flow of job counts.
+        The multi-processing pipeline can freeze if there are more than approximately 10,000 jobs 
+        in the pipeline at the same time.        
+        """
+        return int(np.ceil(self._params.data_simulator.session_config.num_sessions / self.multiprocessing_chunksize))
+
 
     def _check_args(self):
         """
@@ -1638,6 +1657,34 @@ class MultiSpeakerSimulator(object):
         self.clean_up()
         return basepath, filename
 
+    def _get_cleaned_base_path(self, output_dir: str) -> str:
+        """
+        Delete output directory if it exists or throw warning.
+
+        Args:
+            output_dir (str): Path to output directory
+
+        Returns:
+            basepath (str): Path to base-path directory for writing output files
+        """
+        if os.path.isdir(output_dir) and os.listdir(output_dir):
+            if self._params.data_simulator.outputs.overwrite_output:
+                if os.path.exists(output_dir):
+                    shutil.rmtree(output_dir)
+                os.mkdir(output_dir)
+            else:
+                raise Exception("Output directory is nonempty and overwrite_output = false")
+        elif not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+        
+        # only add root if paths are relative
+        if not os.path.isabs(output_dir):
+            ROOT = os.getcwd()
+            basepath = os.path.join(ROOT, output_dir)
+        else:
+            basepath = output_dir
+        return basepath
+
     def generate_sessions(self, random_seed: int = None):
         """
         Generate several multispeaker audio sessions and corresponding list files.
@@ -1651,33 +1698,16 @@ class MultiSpeakerSimulator(object):
         np.random.seed(random_seed)
         output_dir = self._params.data_simulator.outputs.output_dir
 
-        # delete output directory if it exists or throw warning
-        if os.path.isdir(output_dir) and os.listdir(output_dir):
-            if self._params.data_simulator.outputs.overwrite_output:
-                if os.path.exists(output_dir):
-                    shutil.rmtree(output_dir)
-                os.mkdir(output_dir)
-            else:
-                raise Exception("Output directory is nonempty and overwrite_output = false")
-        elif not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
-
+        basepath = self._get_cleaned_base_path(output_dir)
         OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
-
-        # only add root if paths are relative
-        if not os.path.isabs(output_dir):
-            ROOT = os.getcwd()
-            basepath = os.path.join(ROOT, output_dir)
-        else:
-            basepath = output_dir
 
         wavlist = open(os.path.join(basepath, "synthetic_wav.list"), "w")
         rttmlist = open(os.path.join(basepath, "synthetic_rttm.list"), "w")
         jsonlist = open(os.path.join(basepath, "synthetic_json.list"), "w")
         ctmlist = open(os.path.join(basepath, "synthetic_ctm.list"), "w")
         textlist = open(os.path.join(basepath, "synthetic_txt.list"), "w")
-        num_workers = self._params.get("num_workers", 1)
-        tp = concurrent.futures.ProcessPoolExecutor(max_workers=self._params.get("num_workers", 1))
+        
+        tp = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         futures = []
 
         num_sessions = self._params.data_simulator.session_config.num_sessions
@@ -1697,45 +1727,48 @@ class MultiSpeakerSimulator(object):
             queue.append((sess_idx, basepath, filename, speaker_ids, speaker_wav_align_map, noise_samples, device))
 
         # for multiprocessing speed, we avoid loading potentially huge manifest list and speaker sample files into each process.
-        if num_workers > 1:
+        if self.num_workers > 1:
             self._manifest = None
             self._speaker_samples = None
 
-        for sess_idx in range(num_sessions):
-            self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
-            self._audio_read_buffer_dict = {}
-            if num_workers > 1:
-                futures.append(tp.submit(self._generate_session, *queue[sess_idx]))
+        for chunk_idx in range(self.chunk_count):
+            futures = []
+            stt_idx, end_idx = chunk_idx * self.multiprocessing_chunksize, min((chunk_idx+1)*self.multiprocessing_chunksize, num_sessions)
+            for sess_idx in range(stt_idx, end_idx):
+                self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
+                self._audio_read_buffer_dict = {}
+                if self.num_workers > 1:
+                    futures.append(tp.submit(self._generate_session, *queue[sess_idx]))
+                else:
+                    futures.append(queue[sess_idx])
+            
+            if self.num_workers > 1:
+                generator = concurrent.futures.as_completed(futures)
             else:
-                futures.append(queue[sess_idx])
+                generator = futures
 
-        if num_workers > 1:
-            generator = concurrent.futures.as_completed(futures)
-        else:
-            generator = futures
+            for future in tqdm(generator, desc=f"[{chunk_idx+1}/{self.chunk_count}] Waiting jobs from {stt_idx+1: 2} to {end_idx: 2}", unit="jobs", total=len(futures)):
+                if self.num_workers > 1:
+                    basepath, filename = future.result()
+                else:
+                    self._noise_samples = self._sample_noise_manifest(source_noise_manifest)
+                    basepath, filename = self._generate_session(*future)
 
-        for future in tqdm(generator, desc="Waiting for generators to finish", unit="jobs", total=len(futures)):
-            if num_workers > 1:
-                basepath, filename = future.result()
-            else:
-                self._noise_samples = self._sample_noise_manifest(source_noise_manifest)
-                basepath, filename = self._generate_session(*future)
+                wavlist.write(os.path.join(basepath, filename + '.wav\n'))
+                rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
+                jsonlist.write(os.path.join(basepath, filename + '.json\n'))
+                ctmlist.write(os.path.join(basepath, filename + '.ctm\n'))
+                textlist.write(os.path.join(basepath, filename + '.txt\n'))
 
-            wavlist.write(os.path.join(basepath, filename + '.wav\n'))
-            rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
-            jsonlist.write(os.path.join(basepath, filename + '.json\n'))
-            ctmlist.write(os.path.join(basepath, filename + '.ctm\n'))
-            textlist.write(os.path.join(basepath, filename + '.txt\n'))
-
-            # throw warning if number of speakers is less than requested
-            num_missing = 0
-            for k in range(len(self._furthest_sample)):
-                if self._furthest_sample[k] == 0:
-                    num_missing += 1
-            if num_missing != 0:
-                warnings.warn(
-                    f"{self._params.data_simulator.session_config.num_speakers-num_missing} speakers were included in the clip instead of the requested amount of {self._params.data_simulator.session_config.num_speakers}"
-                )
+                # throw warning if number of speakers is less than requested
+                num_missing = 0
+                for k in range(len(self._furthest_sample)):
+                    if self._furthest_sample[k] == 0:
+                        num_missing += 1
+                if num_missing != 0:
+                    warnings.warn(
+                        f"{self._params.data_simulator.session_config.num_speakers-num_missing} speakers were included in the clip instead of the requested amount of {self._params.data_simulator.session_config.num_speakers}"
+                    )
 
         tp.shutdown()
 
@@ -2779,10 +2812,9 @@ class RIRCorpusGenerator(object):
                 examples.append(example)
 
             # Simulation
-            num_workers = self.cfg.num_workers
-            if num_workers is not None and num_workers > 1:
-                logging.info(f'Simulate using {num_workers} workers')
-                with multiprocessing.Pool(processes=num_workers) as pool:
+            if self.num_workers is not None and self.num_workers > 1:
+                logging.info(f'Simulate using {self.num_workers} workers')
+                with multiprocessing.Pool(processes=self.num_workers) as pool:
                     metadata = list(tqdm(pool.imap(simulate_room_kwargs, examples), total=len(examples)))
 
             else:
@@ -3655,10 +3687,9 @@ class RIRMixGenerator(object):
                 examples.append(example)
 
             # Simulation
-            num_workers = self.cfg.num_workers
-            if num_workers is not None and num_workers > 1:
-                logging.info(f'Simulate using {num_workers} workers')
-                with multiprocessing.Pool(processes=num_workers) as pool:
+            if self.num_workers is not None and self.num_workers > 1:
+                logging.info(f'Simulate using {self.num_workers} workers')
+                with multiprocessing.Pool(processes=self.num_workers) as pool:
                     metadata = list(
                         tqdm(
                             pool.imap(simulate_room_mix_kwargs, examples),
