@@ -86,7 +86,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         self.answer_only_loss = answer_only_loss
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.assistant_prompt = 'long_nv'
+        self.assistant_prompt = 'instruction'
         self.index_mapping_dir = index_mapping_dir
 
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -155,7 +155,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
             context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
             assit_end_idx = len(self.tokenizer.text_to_ids(LONG_ASSIST_PROMPT_NV)) - 1
 
-        text = context + ' ' + label
+        text = context + '' + label
 
         tokenized_text = self.tokenizer.text_to_ids(text)
         tokenized_input = self.tokenizer.text_to_ids(context)
