@@ -52,7 +52,7 @@ def bias_gelu_back(g, bias, y):
 class GeLUFunction(torch.autograd.Function):
     @staticmethod
     # bias is an optional argument
-    def forward(ctx, input, bias):
+    def forward(ctx, input, bias=0):
         ctx.save_for_backward(input, bias)
         return bias_gelu(bias, input)
 
@@ -81,7 +81,7 @@ class GeLUFunction(torch.autograd.Function):
         return g.op("Mul", const_1, g.op("Mul", x, g.op("Add", const_2, p_2)))
 
 
-def fused_bias_gelu(input, bias):
+def fused_bias_gelu(input, bias=0):
     args = _cast_if_autocast_enabled(input, bias)
     with torch.cuda.amp.autocast(enabled=False):
         return GeLUFunction.apply(*args)
