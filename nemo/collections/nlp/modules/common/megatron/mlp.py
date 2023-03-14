@@ -20,7 +20,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     MLPInfusedAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -166,9 +166,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if openai_gelu:
             self.activation_func = openai_gelu_func
         elif activation in ["gelu", "geglu", "fast-geglu"]:
-            self.activation_func = fused_bias_gelu
+            self.activation_func = fused_gelu
         elif onnx_safe:
-            self.activation_func = fused_bias_gelu
+            self.activation_func = fused_gelu
         elif activation in ["reglu", "fast-reglu"]:
             self.activation_func = F.relu
         elif activation in ["swiglu", "fast-swiglu"]:

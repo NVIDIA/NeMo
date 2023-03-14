@@ -36,6 +36,10 @@ def bias_gelu(bias, y):
     x = bias + y
     return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
 
+@torch.jit.script
+def gelu(x):
+    return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
+
 
 # gradient of tanh approximation of gelu
 # gradient of actual gelu is:
@@ -48,11 +52,18 @@ def bias_gelu_back(g, bias, y):
     ff = 0.5 * x * ((1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)) + 0.5 * (1 + tanh_out)
     return ff * g
 
+@torch.jit.script
+def gelu_back(g, x):
+    tanh_out = torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x))
+    # sqrt(2/pi) * 3 * 0.044715 -> 0.1070322243
+    ff = 0.5 * x * ((1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)) + 0.5 * (1 + tanh_out)
+    return ff * g
+
 
 class GeLUFunction(torch.autograd.Function):
     @staticmethod
     # bias is an optional argument
-    def forward(ctx, input, bias=0):
+    def forward(ctx, input, bias):
         ctx.save_for_backward(input, bias)
         return bias_gelu(bias, input)
 
@@ -81,7 +92,46 @@ class GeLUFunction(torch.autograd.Function):
         return g.op("Mul", const_1, g.op("Mul", x, g.op("Add", const_2, p_2)))
 
 
-def fused_bias_gelu(input, bias=0):
+def fused_bias_gelu(input, bias):
     args = _cast_if_autocast_enabled(input, bias)
     with torch.cuda.amp.autocast(enabled=False):
         return GeLUFunction.apply(*args)
+
+
+class GeLUFunctionNB(torch.autograd.Function):
+    @staticmethod
+    # bias is an optional argument
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        return gelu(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input = ctx.saved_tensors
+        tmp = gelu_back(grad_output, input)
+        return tmp, tmp
+
+    @staticmethod
+    def symbolic(g: torch.Graph, input: torch.Value):
+        # define constants and variables
+        const_0 = g.op("Constant", value_t=torch.tensor(0.0, dtype=torch.float16))
+        x = g.op("Add", input, const_0)
+        const_1 = g.op("Constant", value_t=torch.tensor(0.5, dtype=torch.float16))
+        const_2 = g.op("Constant", value_t=torch.tensor(1.0, dtype=torch.float16))
+        const_3 = g.op("Constant", value_t=torch.tensor(0.79788456, dtype=torch.float16))
+        const_4 = g.op("Constant", value_t=torch.tensor(0.044715, dtype=torch.float16))
+
+        # calculates (1 + 0.044715 * x * x)
+        p_1 = g.op("Add", const_2, g.op("Mul", x, g.op("Mul", const_4, x)))
+
+        # calculates torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x))
+        p_2 = g.op("Tanh", g.op("Mul", const_3, g.op("Mul", x, p_1)))
+
+        # calculates x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
+        return g.op("Mul", const_1, g.op("Mul", x, g.op("Add", const_2, p_2)))
+
+
+def fused_gelu(input):
+    args = _cast_if_autocast_enabled(input)
+    with torch.cuda.amp.autocast(enabled=False):
+        return GeLUFunctionNB.apply(*args)
