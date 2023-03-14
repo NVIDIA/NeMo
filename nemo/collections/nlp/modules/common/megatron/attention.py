@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
+from nemo.collections.nlp.modules.common.megatron.xpos_relative_position import XPOS
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
 from nemo.core import adapter_mixins
 
@@ -171,6 +172,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             multi_query_attention=multi_query_attention,
             sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
+            position_embedding_type=position_embedding_type,
         )
 
         # Output.
@@ -657,6 +659,7 @@ class CoreAttention(MegatronModule):
         sequence_parallel=False,
         normalize_attention_scores=True,
         multi_query_attention=False,
+        position_embedding_type='learned_absolute',
     ):
 
         super(CoreAttention, self).__init__()
@@ -665,6 +668,7 @@ class CoreAttention(MegatronModule):
         self.fp16 = precision == 16
         self.bf16 = precision == 'bf16'
         self.multi_query_attention = multi_query_attention
+        self.position_embedding_type = position_embedding_type
 
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = False
@@ -715,6 +719,9 @@ class CoreAttention(MegatronModule):
         # different outputs on different number of parallel partitions but
         # on average it should not be partition dependent.
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
+
+        if position_embedding_type == 'xpos':
+            self.xpos = XPOS(hidden_size / num_attention_heads)
 
     def forward(
         self,
@@ -775,6 +782,14 @@ class CoreAttention(MegatronModule):
                 alpha=(1.0 / self.norm_factor),
             )
         else:
+            if self.position_embedding_type == 'xpos':
+                sq, bs, hn, np = query_layer.shape
+                query_layer = query_layer.reshape(bs * hn, sq, np)
+                key_layer = key_layer.reshape(bs * hn, sq, np)
+                key_layer = self.xpos(key_layer, offset=0, downscale=True)
+                query_layer = self.xpos(query_layer, offset=sq-1, downscale=False)
+                aa = 1
+
             # [sq, b, np, hn] -> [sq, b * np, hn]
             query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
             # [sk, b, np, hn] -> [sk, b * np, hn]

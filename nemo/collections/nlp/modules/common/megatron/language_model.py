@@ -587,6 +587,7 @@ class TransformerLanguageModel(MegatronModule):
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            position_embedding_type=position_embedding_type,
         )
         self._encoder_key = 'encoder'
 
@@ -626,6 +627,7 @@ class TransformerLanguageModel(MegatronModule):
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
                 transformer_engine=transformer_engine,
+                position_embedding_type=position_embedding_type,
             )
             self._decoder_key = 'decoder'
 
