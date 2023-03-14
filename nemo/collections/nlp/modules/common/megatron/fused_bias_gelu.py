@@ -114,12 +114,12 @@ class GeLUFunctionNB(torch.autograd.Function):
     @staticmethod
     def symbolic(g: torch.Graph, input: torch.Value):
         # define constants and variables
-        const_0 = g.op("Constant", value_t=torch.tensor(0.0, dtype=torch.float16))
+        const_0 = g.op("Constant", value_t=torch.tensor(0.0, dtype=torch.float))
         x = g.op("Add", input, const_0)
-        const_1 = g.op("Constant", value_t=torch.tensor(0.5, dtype=torch.float16))
-        const_2 = g.op("Constant", value_t=torch.tensor(1.0, dtype=torch.float16))
-        const_3 = g.op("Constant", value_t=torch.tensor(0.79788456, dtype=torch.float16))
-        const_4 = g.op("Constant", value_t=torch.tensor(0.044715, dtype=torch.float16))
+        const_1 = g.op("Constant", value_t=torch.tensor(0.5, dtype=torch.float))
+        const_2 = g.op("Constant", value_t=torch.tensor(1.0, dtype=torch.float))
+        const_3 = g.op("Constant", value_t=torch.tensor(0.79788456, dtype=torch.float))
+        const_4 = g.op("Constant", value_t=torch.tensor(0.044715, dtype=torch.float))
 
         # calculates (1 + 0.044715 * x * x)
         p_1 = g.op("Add", const_2, g.op("Mul", x, g.op("Mul", const_4, x)))
@@ -133,5 +133,5 @@ class GeLUFunctionNB(torch.autograd.Function):
 
 def fused_gelu(input):
     args = _cast_if_autocast_enabled(input)
-    with torch.cuda.amp.autocast(enabled=True):
+    with torch.cuda.amp.autocast(enabled=False):
         return GeLUFunctionNB.apply(*args)
