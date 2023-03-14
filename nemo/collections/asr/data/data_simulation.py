@@ -262,7 +262,7 @@ class MultiSpeakerSimulator(object):
         )
 
         # Error check the input arguments for simulation
-        self._check_args()  
+        self._check_args()
 
         # Initialize speaker permutations to maximize the number of speakers in the created dataset
         self._permutated_speaker_inds = self._init_speaker_permutations(
@@ -323,7 +323,6 @@ class MultiSpeakerSimulator(object):
         in the pipeline at the same time.        
         """
         return int(np.ceil(self._params.data_simulator.session_config.num_sessions / self.multiprocessing_chunksize))
-
 
     def _check_args(self):
         """
@@ -1658,7 +1657,7 @@ class MultiSpeakerSimulator(object):
                 raise Exception("Output directory is nonempty and overwrite_output = false")
         elif not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        
+
         # only add root if paths are relative
         if not os.path.isabs(output_dir):
             ROOT = os.getcwd()
@@ -1688,7 +1687,7 @@ class MultiSpeakerSimulator(object):
         jsonlist = open(os.path.join(basepath, "synthetic_json.list"), "w")
         ctmlist = open(os.path.join(basepath, "synthetic_ctm.list"), "w")
         textlist = open(os.path.join(basepath, "synthetic_txt.list"), "w")
-        
+
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         futures = []
 
@@ -1715,7 +1714,10 @@ class MultiSpeakerSimulator(object):
 
         for chunk_idx in range(self.chunk_count):
             futures = []
-            stt_idx, end_idx = chunk_idx * self.multiprocessing_chunksize, min((chunk_idx+1)*self.multiprocessing_chunksize, num_sessions)
+            stt_idx, end_idx = (
+                chunk_idx * self.multiprocessing_chunksize,
+                min((chunk_idx + 1) * self.multiprocessing_chunksize, num_sessions),
+            )
             for sess_idx in range(stt_idx, end_idx):
                 self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
                 self._audio_read_buffer_dict = {}
@@ -1723,13 +1725,18 @@ class MultiSpeakerSimulator(object):
                     futures.append(tp.submit(self._generate_session, *queue[sess_idx]))
                 else:
                     futures.append(queue[sess_idx])
-            
+
             if self.num_workers > 1:
                 generator = concurrent.futures.as_completed(futures)
             else:
                 generator = futures
 
-            for future in tqdm(generator, desc=f"[{chunk_idx+1}/{self.chunk_count}] Waiting jobs from {stt_idx+1: 2} to {end_idx: 2}", unit="jobs", total=len(futures)):
+            for future in tqdm(
+                generator,
+                desc=f"[{chunk_idx+1}/{self.chunk_count}] Waiting jobs from {stt_idx+1: 2} to {end_idx: 2}",
+                unit="jobs",
+                total=len(futures),
+            ):
                 if self.num_workers > 1:
                     basepath, filename = future.result()
                 else:
