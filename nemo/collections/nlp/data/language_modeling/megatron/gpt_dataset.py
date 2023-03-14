@@ -470,7 +470,7 @@ def _build_index_mappings(
     index_mapping_dir: str = None,
     drop_last: bool = True,
     add_extra_token: int = 1,
-    shuffle_documents: bool = True
+    shuffle_documents: bool = True,
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
