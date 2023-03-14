@@ -144,12 +144,16 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         else:
             label = ''
 
+        assit_end_idx = 0
         if self.assistant_prompt == 'short':
             context = SHORT_ASSIST_PROMPT + context + "\n\nAssistant:"
+            assit_end_idx = len(self.tokenizer.text_to_ids(SHORT_ASSIST_PROMPT)) - 1
         elif self.assistant_prompt == 'long':
             context = LONG_ASSIST_PROMPT + context + "\n\nAssistant:"
+            assit_end_idx = len(self.tokenizer.text_to_ids(LONG_ASSIST_PROMPT)) - 1
         elif self.assistant_prompt == 'long_nv':
             context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
+            assit_end_idx = len(self.tokenizer.text_to_ids(LONG_ASSIST_PROMPT_NV)) - 1
 
         text = context + ' ' + label
 
@@ -186,12 +190,12 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
             target = answer_ids
         answer_start_idx = len(tokenized_input)
         input_ids = tokenized_input + target
-        results = (input_ids, answer_start_idx)
+        results = (input_ids, answer_start_idx, assit_end_idx)
         return results
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        input_ids, answer_starts = zip(*batch)
+        input_ids, answer_starts, assit_end_idxs = zip(*batch)
 
         # Get max sequence length of batch
         batch_max = max(len(ids) for ids in input_ids)
@@ -203,7 +207,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
             resi_padding = 0
         batch_max += resi_padding
         input_ids, loss_mask, prompt_input_mask = self.pad_batch_and_build_loss_mask(
-            input_ids, batch_max, answer_starts
+            input_ids, batch_max, answer_starts, assit_end_idxs
         )
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
@@ -232,13 +236,14 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
             attention_mask,
             prompt_input_mask,
             torch.tensor(answer_starts),
+            torch.tensor(assit_end_idxs),
         )
 
-    def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
+    def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts, assit_end_idxs):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
         prompt_input_masks = []
-        for ids, answer_start_idx in zip(input_ids, answer_starts):
+        for ids, answer_start_idx, assit_end_idx in zip(input_ids, answer_starts, assit_end_idxs):
             if self.answer_only_loss and answer_start_idx is not None:
                 # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
                 loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
@@ -247,10 +252,12 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
                 loss_mask = [1.0] * len(ids)
             if answer_start_idx is not None:
                 # has ground truth in it, mask it out
-                prompt_input_mask = [True] * answer_start_idx + [False] * (batch_max - answer_start_idx)
+                prompt_input_mask = [True] * (answer_start_idx - assit_end_idx) + [False] * (
+                    batch_max - answer_start_idx
+                )
             else:
                 # no ground truth, all the inputs are used for perceiver
-                prompt_input_mask = [True] * len(ids) + [False] * (batch_max - len(ids))
+                prompt_input_mask = [True] * (len(ids) - assit_end_idx) + [False] * (batch_max - len(ids))
             prompt_input_masks.append(prompt_input_mask)
             # Pad to max length
             input_length = len(ids)

@@ -303,13 +303,13 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
         self.frozen_model.model.set_input_tensor(input_tensor)
 
-    def embed_input_train(self, input_ids: Tensor, prompt_input_mask):
+    def embed_input_train(self, input_ids: Tensor, prompt_input_mask, assist_end_idx):
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # [b, s, d] -> [s, b, d]
-        prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
+        prompt_input_emb = discrete_token_embeds.transpose(0, 1)[assist_end_idx[0] :].contiguous()
         v_embeds_list = []
         for i, p_encoder in enumerate(self.prompt_encoder):
             if not self.cfg.perceiver[i].trainable:
@@ -359,6 +359,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         attention_mask,
         prompt_input_mask,
         labels=None,
+        assist_end_idx=0,
         inference=True,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
@@ -373,7 +374,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             if inference and set_inference_key_value_memory:
                 all_input_ids = input_ids[0]  # all the input tokens, used to compute virtual token emb
                 input_ids = input_ids[1]  # the input token ids so far to generate the next token id
-                virtual_token_emb, _ = self.embed_input_train(all_input_ids, prompt_input_mask)
+                virtual_token_emb, _ = self.embed_input_train(all_input_ids, prompt_input_mask, assist_end_idx)
                 input_embeds = self.word_embeddings(input_ids).clone()
             elif inference and not set_inference_key_value_memory:
                 input_ids = input_ids[1]
@@ -381,7 +382,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 input_embeds = self.word_embeddings(discrete_token_ids).clone()
                 virtual_token_emb = None
             else:
-                virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
+                virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask, assist_end_idx)
 
             if hasattr(self.language_model.embedding, 'position_embeddings'):
                 # add position embeddings only if the language model has them
@@ -504,10 +505,21 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask, answer_starts = batch
+            (
+                input_ids,
+                labels,
+                loss_mask,
+                position_ids,
+                attention_mask,
+                prompt_input_mask,
+                answer_starts,
+                assist_end_idx,
+            ) = batch
             labels = F.pad(labels, (self.virtual_token_length, 0, 0, 0), value=0)
             loss_mask = F.pad(loss_mask, (self.virtual_token_length, 0, 0, 0), value=0)
-            output_tensor = model(input_ids, position_ids, attention_mask, prompt_input_mask, labels, inference=False)
+            output_tensor = model(
+                input_ids, position_ids, attention_mask, prompt_input_mask, labels, assist_end_idx, inference=False
+            )
 
             if isinstance(output_tensor, tuple):
                 output_tensor, _ = output_tensor
