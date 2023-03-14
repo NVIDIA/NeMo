@@ -47,28 +47,27 @@ def get_pitch_stats(dataset_path, sup_data_path):
         collate_fn=dataset._collate_fn,
         num_workers=0,
     )
+    sample_rate = dataset.sample_rate
     pitch_list = []
+    durations = []
     for batch in tqdm(dataloader, total=len(dataloader)):
         audios, audio_lengths, tokens, tokens_lengths, align_prior_matrices, pitches, pitches_lengths = batch
         pitch = pitches.squeeze(0)
-        pitch_list.append(pitch[pitch != 0])
+        pitch_list += [pitch[pitch != 0]]
+        durations += [audio_lengths.squeeze(0) / sample_rate]
 
     pitch_tensor = torch.cat(pitch_list)
     pitch_mean, pitch_std = pitch_tensor.mean().item(), pitch_tensor.std().item()
     pitch_min, pitch_max = pitch_tensor.min().item(), pitch_tensor.max().item()
 
-    # get the total duration of training data
-    with open(dataset_path) as f:
-        duration = sum([json.loads(line)['duration'] for line in f.readlines()])
-
-    return pitch_mean, pitch_std, pitch_min, pitch_max, duration
+    return pitch_mean, pitch_std, pitch_min, pitch_max, sum(durations)
 
 
 if __name__ == '__main__':
-    train_dataset_path = 'data/NickyData/train_manifest.json'
-    validation_dataset_path = 'data/NickyData/validation_manifest.json'
-    sup_data_path = 'data/NickyData/train_data_cache'
-    dest = './finetuned_model'
+    train_dataset_path = 'data/nichole/data_more.json'
+    validation_dataset_path = 'data/nichole/data.json'
+    sup_data_path = 'data/nichole/train_data_cache'
+    dest = './nichole_model'
 
     pitch_mean, pitch_std, pitch_fmin, pitch_fmax, duration = get_pitch_stats(
         train_dataset_path, sup_data_path)

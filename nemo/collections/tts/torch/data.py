@@ -970,7 +970,6 @@ class VocoderDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-
         if not self.load_precomputed_mel:
             features = AudioSegment.segment_from_file(
                 sample["audio_filepath"],
