@@ -82,6 +82,6 @@ class CastToFloatAll(torch.nn.Module):
 
     def forward(self, *args):
         from_dtype = args[0].dtype
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.cuda.amp.autocast(enabled=True):
             ret = self.mod.forward(*cast_all(args, from_dtype=from_dtype, to_dtype=torch.float32))
         return cast_all(ret, from_dtype=torch.float32, to_dtype=from_dtype)
