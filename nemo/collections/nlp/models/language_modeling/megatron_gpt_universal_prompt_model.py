@@ -718,8 +718,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             # run inference
             input_ids = batch[0]
             # add three as buffer
-            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
-            context_lengths = batch[-1]
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.pad_token_id)
+            context_lengths = batch[-2]
             token_to_gen = input_ids.shape[1] - context_lengths.max()
 
             length_params: LengthParam = {
@@ -741,7 +741,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             # set a barrier to make sure all the processes have the same input
             torch.distributed.barrier()
             result = megatron_gpt_generate(
-                self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
+                self,
+                (input_ids, context_lengths),
+                self.tokenizer,
+                length_params,
+                sampling_params,
+                assist_end_idx=batch[-1][0].item(),
             )
 
             number_tokens = [int(i.sum()) for i in batch[2]]
@@ -932,6 +937,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 prompt_input_mask,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
+                assist_end_idx,
             ) = batch
 
             all_tokens = all_tokens.cuda()
@@ -941,6 +947,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             prompt_input_mask = prompt_input_mask.cuda()
             extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            extra_arg['assist_end_idx'] = assist_end_idx
 
             output_tensor = model((all_tokens, tokens), position_ids, attention_mask, prompt_input_mask, **extra_arg)
 
@@ -958,8 +965,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         else:
             input_ids = batch[0]
             # add three as buffer
-            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.tokenizer.unk_id)
-            context_lengths = batch[-1]
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0), value=self.pad_token_id)
+            context_lengths = batch[-2]
             token_to_gen = input_ids.shape[1] - context_lengths.max()
             length_params: LengthParam = {
                 "max_length": token_to_gen,
@@ -984,7 +991,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
             # Call same generate code as in MegatronGPT
             result = megatron_gpt_generate(
-                self.cuda(), (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
+                self.cuda(),
+                (input_ids, context_lengths),
+                self.tokenizer,
+                length_params,
+                sampling_params,
+                assist_end_idx=batch[-1][0].item(),
             )
 
             number_tokens = [int(i.sum()) for i in batch[2]]
