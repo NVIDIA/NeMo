@@ -114,12 +114,12 @@ class GeLUFunctionNB(torch.autograd.Function):
     @staticmethod
     def symbolic(g: torch.Graph, input: torch.Value):
         # define constants and variables
-        const_0 = g.op("Constant", value_t=torch.tensor(0.0, dtype=torch.float))
+        const_0 = g.op("Constant", value_t=torch.tensor(0.0, dtype=torch.float32))
         x = g.op("Add", input, const_0)
-        const_1 = g.op("Constant", value_t=torch.tensor(0.5, dtype=torch.float))
-        const_2 = g.op("Constant", value_t=torch.tensor(1.0, dtype=torch.float))
-        const_3 = g.op("Constant", value_t=torch.tensor(0.79788456, dtype=torch.float))
-        const_4 = g.op("Constant", value_t=torch.tensor(0.044715, dtype=torch.float))
+        const_1 = g.op("Constant", value_t=torch.tensor(0.5, dtype=torch.float32))
+        const_2 = g.op("Constant", value_t=torch.tensor(1.0, dtype=torch.float32))
+        const_3 = g.op("Constant", value_t=torch.tensor(0.79788456, dtype=torch.float32))
+        const_4 = g.op("Constant", value_t=torch.tensor(0.044715, dtype=torch.float32))
 
         # calculates (1 + 0.044715 * x * x)
         p_1 = g.op("Add", const_2, g.op("Mul", x, g.op("Mul", const_4, x)))
