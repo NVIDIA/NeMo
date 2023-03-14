@@ -81,7 +81,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
             self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
@@ -129,7 +128,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             encoder_input = input_embeds
         encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
         return encoder_input
-    
+
     def load_task_templates(self, task_templates):
         """
         Takes in the task template portion of the config and turns  

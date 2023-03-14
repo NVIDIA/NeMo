@@ -14,13 +14,13 @@
 
 import itertools
 from typing import Any, List
-from torch import Tensor
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -79,9 +79,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
             return True
         return False
-    
-    
- 
+
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, labels=None, inference=False,
     ):

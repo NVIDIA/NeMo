@@ -130,7 +130,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             # these will be lobbed during the collate_fn
             temp_pads = [self.tokenizer.bos_id] * total_virtual_tokens
             input_ids = temp_pads + input_ids
-            
+
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
                 input_ids = self._truncate_input(truncation_field, input_ids, taskname, doc, total_virtual_tokens)
@@ -192,8 +192,8 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             enc_input, dec_input, dec_labels
         )
 
-        #lob off the space holder for virtual tokens
-        enc_input = enc_input[:, num_virtual_tokens:] 
+        # lob off the space holder for virtual tokens
+        enc_input = enc_input[:, num_virtual_tokens:]
 
         position_ids = build_position_ids(enc_input).contiguous()
 
