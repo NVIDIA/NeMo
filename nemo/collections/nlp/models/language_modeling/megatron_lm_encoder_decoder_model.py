@@ -1147,11 +1147,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
         sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size]
                                     and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
-                                    If beam search is enabled, the method is overwritten by a beam-search specific
-                                    sampling method and return tensors [batch_size, beam_size]
+                                    If the beam search is enabled, the method is overwritten by a beam-search specific
+                                    sampling method and returns tensors [batch_size, beam_size]
         predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
-        beam_size - optional, beam size parameter for beam search, specifies number of the best sequences at each decode
-                    iteration to be left per target
+        beam_size - optional, the beam size parameter for the beam search, specifies number of the best sequences
+                    at each decode iteration to be left per target
         beam_alpha - the parameter of length penalty applied to sequences predicted by the beam search
         keep_only_best_tokens - boolean flag if to output only best sequence of predicted tokens (True) or beam_size
                                 predictions per target
@@ -1159,8 +1159,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return:
                 tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
-                If beam_search and the flag keep_only_best_tokens is True the shape of the tensors are
-                [batch_size, beam_size, seq_len +1], [batch_size, beam_size, seq_len]
+                If the beam_search and keep_only_best_tokens is False the shape of the tensors are
+                [batch_size, beam_size, seq_len + 1], [batch_size, beam_size, seq_len]
         """
         beam_search = beam_size is not None
         if beam_search:
