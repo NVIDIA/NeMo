@@ -111,7 +111,10 @@ def main():
         args.clean_text or (not args.punctuation_to_preserve) and (not args.clean_text)
     ), "--punctuation_to_preserve work only with --clean_text "
     assert (
-        args.clean_text or (not args.punctuation_to_preserve) and (not args.clean_text) and (not args.separate_punctuation)
+        args.clean_text
+        or (not args.punctuation_to_preserve)
+        and (not args.clean_text)
+        and (not args.separate_punctuation)
     ), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
     args.train_path = kenlm_utils.get_train_list(args.train_path)
 

@@ -84,14 +84,16 @@ def setup_tokenizer(tokenizer_model_file):
                 f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
             )
             encoding_level = 'char'
-            
+
         tokenizer_nemo = model.tokenizer
         del model
 
     return tokenizer_nemo, encoding_level, offset_encoding
 
 
-def iter_files(train_path, tokenizer_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation):
+def iter_files(
+    train_path, tokenizer_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation
+):
     tokenizer, encoding_level, offset_encoding = setup_tokenizer(tokenizer_model_file)
     for fname in train_path:
         dataset = read_train_file(
