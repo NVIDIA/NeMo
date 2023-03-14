@@ -1396,7 +1396,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 scores = scores / len_penalties
                 scores = scores.view(-1, beam_size)
                 best_ids = torch.argmax(scores, dim=1, keepdim=True)
-                scores = scores * len_penalties
+                scores = scores * len_penalties.view(-1, beam_size)
                 scores = scores.gather(1, best_ids)
                 best_tokens = best_ids.repeat(1, predicted_tokens_dec.size(1)).unsqueeze(1)
                 predicted_tokens_dec = (
