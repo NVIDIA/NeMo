@@ -1356,7 +1356,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
                     )
                     predicted_log_probs = torch.cat(
-                        [predicted_log_probs.to(token_ids.device), log_probs.unsqueeze(1)], dim=1
+                        [predicted_log_probs.to(log_probs.device), log_probs.unsqueeze(1)], dim=1
                     )
 
             else:
