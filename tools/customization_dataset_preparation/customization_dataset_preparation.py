@@ -58,6 +58,7 @@ from collections import Counter
 import pandas as pd
 from transformers import GPT2TokenizerFast
 
+
 def load_file_into_df(filename):
     message = None
     if not os.path.isfile(filename):
@@ -108,14 +109,14 @@ def recommend_hyperparameters(df, model=None):
 
     df_prompt_completion = df.apply(lambda x: x.prompt + ' ' + x.completion, axis=1)
     all_prompts_and_completions = list(df_prompt_completion)
-    
+
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
     output = tokenizer(all_prompts_and_completions)
     n_tokens = [len(input_id) for input_id in output['input_ids']]
 
     n_tokens = sorted(n_tokens)
     n_samples_under_99p5_limit = math.ceil(len(n_tokens) * 0.995)
-    max_seq_length = n_tokens[n_samples_under_99p5_limit-1]
+    max_seq_length = n_tokens[n_samples_under_99p5_limit - 1]
 
     return {
         'batch_size': bs,
@@ -293,8 +294,10 @@ def convert_into_prompt_completion_only(df, prompt_template="{prompt}", completi
 def warn_and_drop_long_samples(df, model_max_seq_length):
 
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
-    long_examples = df.apply(lambda x: len(tokenizer(x.prompt + ' ' + x.completion)['input_ids']) > model_max_seq_length, axis=1)
-    
+    long_examples = df.apply(
+        lambda x: len(tokenizer(x.prompt + ' ' + x.completion)['input_ids']) > model_max_seq_length, axis=1
+    )
+
     indices_of_long_examples = df.reset_index().index[long_examples].tolist()
     message = None
     if len(indices_of_long_examples) > 0:
