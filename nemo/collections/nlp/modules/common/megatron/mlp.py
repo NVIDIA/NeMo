@@ -166,9 +166,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if openai_gelu:
             self.activation_func = openai_gelu_func
         elif activation in ["gelu", "geglu", "fast-geglu"]:
-            self.activation_func = F.gelu
+            self.activation_func = fused_bias_gelu
         elif onnx_safe:
-            self.activation_func = erf_gelu
+            self.activation_func = fused_bias_gelu
         elif activation in ["reglu", "fast-reglu"]:
             self.activation_func = F.relu
         elif activation in ["swiglu", "fast-swiglu"]:
