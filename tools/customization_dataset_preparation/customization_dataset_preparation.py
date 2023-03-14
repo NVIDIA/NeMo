@@ -56,7 +56,7 @@ import pathlib
 from collections import Counter
 
 import pandas as pd
-
+from transformers import GPT2TokenizerFast
 
 def load_file_into_df(filename):
     message = None
@@ -106,12 +106,17 @@ def recommend_hyperparameters(df, model=None):
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
 
-    df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
-    length_by_chars = sorted(list(df_char_length))
-    n_samples_under_99p5_limit = math.ceil(len(df_char_length) * 0.995)
-    max_char_length = length_by_chars[n_samples_under_99p5_limit - 1]
-    # every token is around 4 chars + 100 for extra capacity
-    max_seq_length = max_char_length // 4 + 100
+    df_prompt_completion = df.apply(lambda x: x.prompt + ' ' + x.completion, axis=1)
+    all_prompts_and_completions = list(df_prompt_completion)
+    
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    output = tokenizer(all_prompts_and_completions)
+    n_tokens = [len(input_id) for input_id in output['input_ids']]
+
+    n_tokens = sorted(n_tokens)
+    n_samples_under_99p5_limit = math.ceil(len(n_tokens) * 0.995)
+    max_seq_length = n_tokens[n_samples_under_99p5_limit-1]
+
     return {
         'batch_size': bs,
         'max_batch_size': max_bs,
@@ -285,14 +290,17 @@ def convert_into_prompt_completion_only(df, prompt_template="{prompt}", completi
     return df
 
 
-def warn_and_drop_long_samples(df, max_total_char_length):
-    long_examples = df.apply(lambda x: len(x.prompt) + len(x.completion) > max_total_char_length, axis=1)
+def warn_and_drop_long_samples(df, model_max_seq_length):
+
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    long_examples = df.apply(lambda x: len(tokenizer(x.prompt + ' ' + x.completion)['input_ids']) > model_max_seq_length, axis=1)
+    
     indices_of_long_examples = df.reset_index().index[long_examples].tolist()
     message = None
     if len(indices_of_long_examples) > 0:
         message = f"""TODO: There are {len(indices_of_long_examples)} / {len(df)} 
         samples that have its prompt and completion too long 
-        (over {max_total_char_length} chars), which have been dropped."""
+        (over {model_max_seq_length} tokens), which have been dropped."""
         df = df.drop(indices_of_long_examples).reset_index()
         df = df.drop('index', axis=1)
     return df, message
@@ -387,8 +395,7 @@ if __name__ == "__main__":
     messages = []
     messages.append(str(args))
 
-    # every token is around 4 chars
-    MAX_TOTAL_CHAR_LENGTH = 4 * 2048
+    MODEL_MAX_SEQ_LENGTH = 2048
 
     df, message = load_file_into_df(args.filename)
     messages.append(message)
@@ -415,7 +422,7 @@ if __name__ == "__main__":
     messages.append(warn_imbalanced_completion(df))
     messages.append(warn_low_n_samples(df))
 
-    df, message = warn_and_drop_long_samples(df, MAX_TOTAL_CHAR_LENGTH)
+    df, message = warn_and_drop_long_samples(df, MODEL_MAX_SEQ_LENGTH)
     messages.append(message)
 
     recommended_hyperparameters = recommend_hyperparameters(df)

@@ -44,7 +44,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104,
+        'max_seq_length': 3,
     }
 
     df_1000 = pd.DataFrame({'prompt': ['prompt'] * 1000, 'completion': ['completion'] * 1000})
@@ -54,7 +54,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104,
+        'max_seq_length': 3,
     }
     df_10000 = pd.DataFrame({'prompt': ['prompt'] * 10000, 'completion': ['completion'] * 10000})
     assert recommend_hyperparameters(df_10000) == {
@@ -63,7 +63,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104,
+        'max_seq_length': 3,
     }
     df_100000 = pd.DataFrame({'prompt': ['prompt'] * 100000, 'completion': ['completion'] * 100000})
     assert recommend_hyperparameters(df_100000) == {
@@ -72,7 +72,7 @@ def test_recommend_hyperparameters():
         'num_virtual_tokens': 10,
         'lr': 0.0001,
         'epochs': 25,
-        'max_seq_length': 104,
+        'max_seq_length': 3,
     }
 
 
@@ -299,17 +299,18 @@ def get_indexes_of_long_examples(df, max_total_char_length):
 def test_warn_and_drop_long_samples():
     df = pd.DataFrame({'prompt': ['a' * 12000, 'a' * 9000, 'a'], 'completion': ['b' * 12000, 'b' * 2000, 'b']})
 
+    model_max_seq_len = 2048
     expected_df = pd.DataFrame({'prompt': ['a'], 'completion': ['b']})
     message = f"""TODO: There are {2} / {3} 
         samples that have its prompt and completion too long 
-        (over {10000} chars), which have been dropped."""
-
-    assert expected_df.equals(warn_and_drop_long_samples(df, 10000)[0])
-    assert warn_and_drop_long_samples(df, 10000)[1] == message
+        (over {model_max_seq_len} tokens), which have been dropped."""
+    print(len(df))
+    assert expected_df.equals(warn_and_drop_long_samples(df, model_max_seq_len)[0])
+    assert warn_and_drop_long_samples(df, model_max_seq_len)[1] == message
 
     df_short = pd.DataFrame({'prompt': ['a'] * 2, 'completion': ['b'] * 2})
 
-    assert warn_and_drop_long_samples(df_short, 10000) == (df_short, None)
+    assert warn_and_drop_long_samples(df_short, model_max_seq_len) == (df_short, None)
 
 
 def test_warn_low_n_samples():
