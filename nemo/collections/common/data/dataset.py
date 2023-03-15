@@ -94,7 +94,7 @@ class ConcatDataset(IterableDataset):
                 self.length += len(dataset)
 
         if self.sampling_scale != 1:
-            self.length = int(self.length / self.sampling_scale)
+            self.length = int(self.length * self.sampling_scale)
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
 
     def get_iterable(self, dataset):
