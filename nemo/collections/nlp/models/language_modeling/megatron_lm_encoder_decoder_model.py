@@ -38,9 +38,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
+    get_sampling_token_fn,
     compute_beam_search_len_penalty,
-    sample_token_greedy,
-    sample_token_topk_beam_search,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -1128,8 +1127,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
-        sample_token_fn=sample_token_greedy,
+        sampling_method: str = "greedy-search",
         predicted_tokens_dec=None,
+        sampling_kwargs: dict = {},
         beam_size: Optional[int] = None,
         beam_alpha: int = 0,
         keep_only_best_tokens: bool = False,
@@ -1145,33 +1145,40 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
         ignore_ids - a list of token ids to ignore when sampling.
         bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
-        sample_token_fn(logits) -> log_probs, token_ids  - a function that takes in a tensor of logits [batch_size, vocab_size]
-                                    and returns a tuple (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
-                                    If the beam search is enabled, the method is overwritten by a beam-search specific
-                                    sampling method and returns tensors [batch_size, beam_size]
-        predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded. This is used for beam search.
-        beam_size - optional, the beam size parameter for the beam search, specifies number of the best sequences
-                    at each decode iteration to be left per target
-        beam_alpha - the parameter of length penalty applied to sequences predicted by the beam search
-        keep_only_best_tokens - boolean flag if to output only best sequence of predicted tokens (True) or beam_size
-                                predictions per target
-        return_scores - boolean flag if to return scores at the top of predictions and logits
+        predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded.
+        sampling_method - a sampling method to use in the decoding iterations. Currently supported methods are
+                          "beam-search"/"greedy-search"/"topkp-sampling". The argument specifies the sampling function
+                          that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple
+                          (tensor of log_probs [batch_size], tensor of sampled tokens_ids from logits [batch_size]).
+                          If the beam search is enabled, the sampling function returns tensors [batch_size, beam_size]
+        sampling_kwargs - dict with arguments to be passed to the sampling function. Please refer to the method
+                         get_sampling_token_fn to see which arguments are required for chosen sampling_method.
+                         If sampling method is 'beam-search', sampling_kwargs must contain keys:
+                         beam_size - int, number of the best sequences at each decode iteration to be left per target
+                         beam_alpha - int, the parameter of length penalty applied to predicted sequences
+        keep_only_best_tokens - used in the beam search, boolean flag if to output only best sequence of
+                        predicted tokens (True) or beam_size predictions per target
+        return_scores - used in the beam search, boolean flag if to return scores at the top of predictions and logits
 
         return:
                 tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
-                If the beam_search and keep_only_best_tokens is False the shape of the tensors are
+                If sampling_method == 'beam-size' and keep_only_best_tokens is False the shape of the tensors are
                 [batch_size, beam_size, seq_len + 1], [batch_size, beam_size, seq_len]
         """
-        beam_search = beam_size is not None
+        # Setting up the sampling strategy
+        sample_token_fn = get_sampling_token_fn(sampling_method, sampling_kwargs)
+        beam_search = sampling_method == 'beam-search'
         if beam_search:
-            logging.info(f'Decoding using a beam search method with beam size={beam_size}...')
+            beam_size = sampling_kwargs.get('beam_size', 1)
+            beam_alpha = sampling_kwargs['beam_alpha']
+            logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
-            # setting a default beam-search specific sampling method parametrised by beam_size
-            sample_token_fn = partial(sample_token_topk_beam_search, beam_size=beam_size)
         else:
+            logging.info(f'Decoding using the {sampling_method} method...')
             assert (
                 not keep_only_best_tokens and not return_scores
             ), 'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
+
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
