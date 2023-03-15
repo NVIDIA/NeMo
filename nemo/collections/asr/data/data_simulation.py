@@ -1768,6 +1768,7 @@ class MultiSpeakerSimulator(object):
         jsonlist.close()
         ctmlist.close()
         textlist.close()
+        metalist.close()
 
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
 
