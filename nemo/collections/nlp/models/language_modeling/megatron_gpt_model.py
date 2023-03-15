@@ -28,6 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -51,7 +52,6 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -362,7 +362,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
-        #TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
+        # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,

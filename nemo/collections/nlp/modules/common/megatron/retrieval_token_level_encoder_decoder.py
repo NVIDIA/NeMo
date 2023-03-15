@@ -28,8 +28,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from megatron.core import tensor_parallel
     from apex.transformer.enums import ModelType
+    from megatron.core import tensor_parallel
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

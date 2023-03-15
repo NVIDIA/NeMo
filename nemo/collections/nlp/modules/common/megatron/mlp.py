@@ -44,7 +44,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import tensor_parallel, parallel_state
+    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_MEGATRON_CORE = True
