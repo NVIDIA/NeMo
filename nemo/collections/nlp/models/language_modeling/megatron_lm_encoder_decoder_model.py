@@ -1167,7 +1167,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if beam_search:
             beam_size = sampling_kwargs['beam_size']
             beam_alpha = sampling_kwargs['beam_alpha']
-            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens'] #, False)
+            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']  # , False)
             # logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
         else:

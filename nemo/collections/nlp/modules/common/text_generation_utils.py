@@ -961,20 +961,14 @@ def get_sampling_token_fn(sampling_method: str, sampling_kwargs: dict) -> Callab
     supported_sampling_methods = ["greedy-search", "topkp-sampling", "beam-search"]
     all_default_sampling_kwargs = {
         'greedy-search': {},
-        'topkp-sampling': {
-            'top_k': 0,
-            'top_p': 0.0,
-            'temperature': 1.0,
-        },
-        'beam-search': {
-            'beam_size': 1,
-            'beam_alpha': 0.0,
-            'keep_only_best_tokens': False,
-        },
+        'topkp-sampling': {'top_k': 0, 'top_p': 0.0, 'temperature': 1.0,},
+        'beam-search': {'beam_size': 1, 'beam_alpha': 0.0, 'keep_only_best_tokens': False,},
     }
-    
+
     if not sampling_method in supported_sampling_methods:
-        raise ValueError(f"Sampling method {sampling_method} is not supported. Supported methods are {supported_sampling_methods}")
+        raise ValueError(
+            f"Sampling method {sampling_method} is not supported. Supported methods are {supported_sampling_methods}"
+        )
 
     # update default sampling kwargs with user provided kwargs
     default_sampling_kwargs = all_default_sampling_kwargs[sampling_method].copy()
