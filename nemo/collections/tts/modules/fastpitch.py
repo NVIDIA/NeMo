@@ -44,7 +44,7 @@
 
 import torch
 
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len
+from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
@@ -314,6 +314,10 @@ class FastPitchModule(NeuralModule):
         # Use predictions during inference
         elif spec is None:
             len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+        else:
+            raise ValueError(
+                f"Something unexpected happened when 'spec' is not None and 'self.learn_alignment' is False."
+            )
 
         # Output FFT
         if self.speaker_emb_condition_decoder:
