@@ -15,7 +15,6 @@
 import copy
 import functools
 import inspect
-from functools import partial
 from typing import Any, Dict, Optional
 
 import torch
@@ -1130,7 +1129,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         predicted_tokens_dec=None,
         sampling_method: str = "greedy-search",
         sampling_kwargs: dict = {},
-        keep_only_best_tokens: bool = False,
         return_scores: bool = False,
     ):
         """
@@ -1164,15 +1162,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 [batch_size, beam_size, seq_len + 1], [batch_size, beam_size, seq_len]
         """
         # Setting up the sampling strategy
-        sample_token_fn = get_sampling_token_fn(sampling_method, sampling_kwargs)
+        sample_token_fn, sampling_kwargs = get_sampling_token_fn(sampling_method, sampling_kwargs)
         beam_search = sampling_method == 'beam-search'
         if beam_search:
-            beam_size = sampling_kwargs.get('beam_size', 1)
+            beam_size = sampling_kwargs['beam_size']
             beam_alpha = sampling_kwargs['beam_alpha']
-            logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
+            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens'] #, False)
+            # logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
         else:
-            logging.info(f'Decoding using the {sampling_method} method...')
+            # logging.info(f'Decoding using the {sampling_method} method...')
             assert (
                 not keep_only_best_tokens and not return_scores
             ), 'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
