@@ -11,11 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ##########################################################################
-
-
 import contextlib
+import random
 
 import torch
 from hydra.utils import instantiate
@@ -24,17 +21,23 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
-from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.parts.utils.helpers import (
+from nemo.collections.tts.helpers.helpers import (
     batch_from_ragged,
     plot_alignment_to_numpy,
     regulate_len,
     sample_tts_input,
 )
+from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
+from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex
+from nemo.core.neural_types.elements import (
+    Index,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
@@ -422,9 +425,19 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             self._tb_logger = tb_logger
         return self._tb_logger
 
+    def load_state_dict(self, state_dict, strict=True):
+        # Override load_state_dict to be backward-compatible with old checkpoints
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            k = k.replace("projection_fn.weight", "projection_fn.conv.weight")
+            k = k.replace("projection_fn.bias", "projection_fn.conv.bias")
+            new_state_dict[k] = v
+        super().load_state_dict(new_state_dict, strict=strict)
+
+    # Methods for model exportability
     @property
-    def input_module(self):
-        return self.model
+    def input_types(self):
+        return self._input_types
 
     @property
     def output_types(self):

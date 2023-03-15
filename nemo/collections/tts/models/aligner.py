@@ -23,8 +23,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
+from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.parts.utils.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
@@ -126,7 +126,7 @@ class AlignerModel(ModelPT):
             attn_soft, attn_logprob = self.alignment_encoder(
                 queries=spec,
                 keys=self.embed(text).transpose(1, 2),
-                mask=get_mask_from_lengths(text_len).unsqueeze(-1) == 0,
+                mask=get_mask_from_lengths(text_len).unsqueeze(-1),
                 attn_prior=attn_prior,
             )
 
