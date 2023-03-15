@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.enums import ModelType
+    from apex.transformer.enums import ModelType
 
     HAVE_MEGATRON_CORE = True
 
