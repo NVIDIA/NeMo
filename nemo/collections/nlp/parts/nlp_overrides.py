@@ -52,6 +52,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
+NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
+
+
 class NLPDDPStrategy(DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
 
