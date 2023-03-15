@@ -38,8 +38,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    get_sampling_token_fn,
     compute_beam_search_len_penalty,
+    get_sampling_token_fn,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
