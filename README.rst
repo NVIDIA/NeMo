@@ -1,5 +1,5 @@
 
-|status| |documentation| |license| |lgtm_grade| |lgtm_alerts| |black|
+|status| |documentation| |codeql| |license| |pypi| |pyversion| |downloads| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -13,13 +13,21 @@
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
   :alt: NeMo core license and license for collections in this repo
 
-.. |lgtm_grade| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
-  :alt: Language grade: Python
+.. |pypi| image:: https://badge.fury.io/py/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Release version
 
-.. |lgtm_alerts| image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
-  :alt: Total alerts
+.. |pyversion| image:: https://img.shields.io/pypi/pyversions/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Python version
+
+.. |downloads| image:: https://static.pepy.tech/personalized-badge/nemo-toolkit?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=downloads
+  :target: https://pepy.tech/project/nemo-toolkit
+  :alt: PyPi total downloads
+
+.. |codeql| image:: https://github.com/nvidia/nemo/actions/workflows/codeql.yml/badge.svg?branch=main&event=push
+  :target: https://github.com/nvidia/nemo/actions/workflows/codeql.yml
+  :alt: CodeQL
 
 .. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
   :target: https://github.com/psf/black
@@ -47,9 +55,9 @@ NeMo models can be optimized for inference and deployed for production use-cases
 Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
 `NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
-These models can be used to transcribe audio, synthesize speech, or translate text in a just a few lines of code.
+These models can be used to transcribe audio, synthesize speech, or translate text in just a few lines of code.
 
-We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
+We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
 can all be run on `Google Colab <https://colab.research.google.com>`_.
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
@@ -184,7 +192,7 @@ Use this installation mode if you want the latest released version.
 
 Pip from source
 ~~~~~~~~~~~~~~~
-Use this installation mode if you want the a version from particular GitHub branch (e.g main).
+Use this installation mode if you want the version from a particular GitHub branch (e.g main).
 
 .. code-block:: bash
 
@@ -226,9 +234,9 @@ Install it manually if not using the NVIDIA PyTorch container.
 
 .. code-block:: bash
 
-    git clone https://github.com/ericharper/apex.git
+    git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout nm_v1.15.0
+    git checkout a32d7a6dddcf4e39d241b0d139c222a97c91887d
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 Transformer Engine
@@ -247,13 +255,13 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separa
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.15.0`` comes with container ``nemo:22.12``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.16.0`` comes with container ``nemo:23.01``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:22.12
+    docker pull nvcr.io/nvidia/nemo:23.01
 
 To build a nemo container with Dockerfile from a branch, please run 
 
@@ -262,18 +270,18 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.01-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.02-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.01-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.02-py3
 
 Examples
 --------
 
-Many examples can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
+Many examples can be found under the `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
