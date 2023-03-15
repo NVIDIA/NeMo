@@ -22,6 +22,7 @@ from nemo.core.classes import Dataset
 
 __all__ = ['GPTSFTDataset']
 
+
 class GPTSFTDataset(Dataset):
     def __init__(
         self,
@@ -42,7 +43,7 @@ class GPTSFTDataset(Dataset):
         truncation_field: str = "answer",
         pad_to_max_length: bool = True,
         index_mapping_dir: str = None,
-        assistant_prompt: str = None
+        assistant_prompt: str = None,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
@@ -149,7 +150,7 @@ class GPTSFTDataset(Dataset):
 
         tokenized_text = self.tokenizer.text_to_ids(text)
         context_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids):]
+        answer_ids = tokenized_text[len(context_ids) :]
         total_ids = len(context_ids) + len(answer_ids)
         if self.add_bos:
             total_ids += 1

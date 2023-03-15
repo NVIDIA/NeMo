@@ -179,7 +179,9 @@ def main(cfg) -> None:
             if os.path.isdir(cfg.model.restore_from_path):
                 save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
             gpt_cfg = MegatronGPTSFTModel.restore_from(
-                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                return_config=True,
                 save_restore_connector=save_restore_connector,
             )
             model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
