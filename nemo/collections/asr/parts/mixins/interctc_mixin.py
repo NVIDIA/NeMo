@@ -33,7 +33,8 @@ class InterCTCMixin:
 
     Then call
 
-        * ``self.setup_interctc`` in the init method
+        * ``self.setup_interctc(ctc_wer, ctc_encoder, ctc_decoder, ctc_loss)``
+          in the init method
         * ``self.add_interctc_losses`` after computing regular loss.
         * ``self.finalize_interctc_metrics(metrics, outputs, prefix="val_")``
           in the `multi_validation_epoch_end` method.
@@ -42,10 +43,10 @@ class InterCTCMixin:
     """
 
     def _process_config_values(self, loss_weights: List[float], apply_at_layers: List[int]):
-        self._intermediate_loss_weights = loss_weights
-        self._apply_at_layers = apply_at_layers
-        self._main_loss_weight = 1.0 - sum(self._intermediate_loss_weights)
-        if self._main_loss_weight <= 0.0:
+        self._interctc_params['intermediate_loss_weights'] = loss_weights
+        self._interctc_params['apply_at_layers'] = apply_at_layers
+        self._interctc_params['main_loss_weight'] = 1.0 - sum(self._interctc_params['intermediate_loss_weights'])
+        if self._interctc_params['main_loss_weight'] <= 0.0:
             raise ValueError(
                 "Make sure that sum of intermediate loss weights is < 1.0. "
                 "Note that we don't do any normalization and assign "
@@ -53,49 +54,65 @@ class InterCTCMixin:
                 "E.g., if interctc.loss_weights = [0.1, 0.3], regular "
                 "loss will have weight of 0.6"
             )
-        self._interctc_enabled = len(self._intermediate_loss_weights) > 0
+        self._interctc_params['enabled'] = len(self._interctc_params['intermediate_loss_weights']) > 0
 
-        if len(self._apply_at_layers) != len(self._intermediate_loss_weights):
+        if len(self._interctc_params['apply_at_layers']) != len(self._interctc_params['intermediate_loss_weights']):
             raise ValueError('Length of interctc.apply_at_layers has to match interctc.loss_weights')
 
         # setting up config for AccessMixin that will be checked in encoders to
         # log the layers we need
-        AccessMixin.update_access_cfg({'interctc': {'capture_layers': self._apply_at_layers}})
+        AccessMixin.update_access_cfg({'interctc': {'capture_layers': self._interctc_params['apply_at_layers']}})
 
-    def setup_interctc(self):
-        """Sets up all interctc-specific parameters and checks config consistency."""
+    def setup_interctc(self, wer, encoder, decoder, loss):
+        """Sets up all interctc-specific parameters and checks config consistency.
+
+        Caller has to specify classes to perform CTC-specific WER, decoder and
+        loss computation.
+        """
+        # registering all parameters in a dictionary to avoid conflicts with
+        # main class's names
+        self._interctc_params = {}
         interctc_config = self.cfg.get("interctc")
         if interctc_config is not None:
             # if interctc is in the config, we want to check that it indeed defines
             # the required keys and nothing else - that's automatically done by
             # matching with keyword arguments in self._process_config_values
             self._process_config_values(**interctc_config)
+            self._interctc_params['wer'] = wer
+            self._interctc_params['encoder'] = encoder
+            self._interctc_params['decoder'] = decoder
+            self._interctc_params['loss'] = loss
         else:
-            self._interctc_enabled = False
+            self._interctc_params['enabled'] = False
 
     def _verify_setup_was_called(self):
         """Can be used to verify if setup_interctc was called."""
-        if not hasattr(self, '_interctc_enabled'):
-            raise RuntimeError('self.setup_interctc() has to be called before InterCTC loss can be used!')
+        if not hasattr(self, '_interctc_params'):
+            raise RuntimeError(
+                'self.setup_interctc(ctc_wer, ctc_encoder, ctc_decoder, ctc_loss) has to be '
+                'called before InterCTC loss can be used!'
+            )
 
     def is_interctc_enabled(self) -> bool:
         """Returns whether interCTC loss is enabled."""
         self._verify_setup_was_called()
-        return self._interctc_enabled
+        return self._interctc_params['enabled']
 
     def set_interctc_enabled(self, enabled: bool):
         """Can be used to enable/disable InterCTC manually."""
         self._verify_setup_was_called()
         if enabled:  # checking if proper config parameters were specified
-            if len(self._intermediate_loss_weights) == 0:
+            if len(self._interctc_params['intermediate_loss_weights']) == 0:
                 raise RuntimeError(
                     'InterCTC cannot be enabled since interctc.loss_weights was not specified in the config.'
                 )
-            if len(self._apply_at_layers) != len(self._intermediate_loss_weights):
+            if len(self._interctc_params['apply_at_layers']) != len(
+                self._interctc_params['intermediate_loss_weights']
+            ):
                 raise RuntimeError(
                     'InterCTC cannot be enabled, since length of "loss_weights" does not match "apply_at_layers".'
                 )
-        self._interctc_enabled = enabled
+        self._interctc_params['enabled'] = enabled
 
     def finalize_interctc_metrics(self, metrics: Dict, outputs: List[Dict], prefix: str):
         """Finalizes InterCTC WER and loss metrics for logging purposes.
@@ -106,7 +123,7 @@ class InterCTCMixin:
         Note that ``metrics`` argument is going to be updated in-place.
         """
         if self.is_interctc_enabled():
-            for layer_idx in self._apply_at_layers:
+            for layer_idx in self._interctc_params['apply_at_layers']:
                 loss = torch.stack([x[f"{prefix}inter_ctc_loss_l{layer_idx}"] for x in outputs]).mean()
                 wer_num = torch.stack([x[f"{prefix}inter_wer_num_l{layer_idx}"] for x in outputs]).sum()
                 wer_denom = torch.stack([x[f"{prefix}inter_wer_denom_l{layer_idx}"] for x in outputs]).sum()
@@ -116,14 +133,12 @@ class InterCTCMixin:
                         f"{prefix}inter_wer_l{layer_idx}": wer_num / wer_denom,
                     }
                 )
-            metrics["log"][f"{prefix}final_ctc_loss"] = torch.stack(
-                [x[f"{prefix}final_ctc_loss"] for x in outputs]
-            ).mean()
+            metrics["log"][f"{prefix}final_loss"] = torch.stack([x[f"{prefix}final_loss"] for x in outputs]).mean()
 
     def get_captured_interctc_tensors(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
         """Returns a list of captured tensors from encoder: tuples of (output, length).
 
-        Will additionally apply ``self.decoder`` to the outputs.
+        Will additionally apply ``ctc_decoder`` to the outputs.
         """
         if not self.is_interctc_enabled():
             return []
@@ -131,8 +146,8 @@ class InterCTCMixin:
         # note that we have a loop here, because tensors can be defined from
         # submodules of encoder (e.g., that's the case in Jasper)
         total_registry = {}
-        for module_registry in AccessMixin.get_module_registry(self.encoder).values():
-            for key, value in module_registry.items():
+        for module_registry in AccessMixin.get_module_registry(self._interctc_params['encoder']).values():
+            for key in module_registry:
                 if key.startswith("interctc/") and key in total_registry:
                     raise RuntimeError(f"layer {key} has been logged multiple times!")
             total_registry.update(module_registry)
@@ -140,7 +155,7 @@ class InterCTCMixin:
         # interctc/layer_output_X and interctc/layer_length_X tensors.
         # We need to apply decoder to each of them and compute CTC loss.
         captured_tensors = []
-        for layer_idx in self._apply_at_layers:
+        for layer_idx in self._interctc_params['apply_at_layers']:
             try:
                 layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
                 layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
@@ -154,7 +169,9 @@ class InterCTCMixin:
                 raise RuntimeError(
                     "Make sure encoder.forward is called exactly one time before interCTC loss is computed."
                 )
-            captured_tensors.append((self.decoder(encoder_output=layer_outputs[0]), layer_lengths[0]))
+            captured_tensors.append(
+                (self._interctc_params['decoder'](encoder_output=layer_outputs[0]), layer_lengths[0])
+            )
         return captured_tensors
 
     def add_interctc_losses(
@@ -189,13 +206,15 @@ class InterCTCMixin:
         """
         if not self.is_interctc_enabled() or not AccessMixin.is_access_enabled():
             return loss_value, {}
-        metrics = {f"{log_prefix}final_ctc_loss": loss_value}
+        metrics = {f"{log_prefix}final_loss": loss_value}
         captured_tensors = self.get_captured_interctc_tensors()
 
         for layer_idx, intermediate_result, loss_weight in zip(
-            self._apply_at_layers, captured_tensors, self._intermediate_loss_weights
+            self._interctc_params['apply_at_layers'],
+            captured_tensors,
+            self._interctc_params['intermediate_loss_weights'],
         ):
-            inter_loss_value = self.loss(
+            inter_loss_value = self._interctc_params['loss'](
                 log_probs=intermediate_result[0],
                 targets=transcript,
                 target_lengths=transcript_len,
@@ -204,14 +223,14 @@ class InterCTCMixin:
             metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}"] = loss_value.detach()
             loss_value += inter_loss_value * loss_weight
             if compute_wer:
-                self._wer.update(
+                self._interctc_params['wer'].update(
                     predictions=intermediate_result[0],
                     targets=transcript,
                     target_lengths=transcript_len,
                     predictions_lengths=intermediate_result[1],
                 )
-                wer, wer_num, wer_denom = self._wer.compute()
-                self._wer.reset()
+                wer, wer_num, wer_denom = self._interctc_params['wer'].compute()
+                self._interctc_params['wer'].reset()
                 metrics.update({f'{log_prefix}inter_wer_l{layer_idx}': wer})
                 if log_wer_num_denom:
                     metrics.update(
