@@ -15,12 +15,12 @@
 """Utilities for generating text."""
 
 from collections.abc import Iterable
+from functools import partial
+from typing import Callable
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Callable
-from functools import partial
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -973,8 +973,9 @@ def get_sampling_token_fn(sampling_method: str, sampling_kwargs: dict) -> Callab
         sampling_token_fn = partial(sample_token_topk_beam_search, beam_size=beam_size)
 
     else:
-        raise ValueError(f'Invalid samping method {sampling_method}, '
-                         f'supported sampling methods are {supported_sampling_methods}')
+        raise ValueError(
+            f'Invalid samping method {sampling_method}, '
+            f'supported sampling methods are {supported_sampling_methods}'
+        )
 
     return sampling_token_fn
-
