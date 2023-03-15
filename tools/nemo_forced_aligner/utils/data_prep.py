@@ -373,7 +373,7 @@ def get_batch_tensors_and_boundary_info(
                 " model_downsample_factor => stopping process"
             )
 
-        audio_dur = librosa.get_duration(filename=audio_filepaths_batch[0])
+        audio_dur = librosa.get_duration(path=audio_filepaths_batch[0])
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))
 
