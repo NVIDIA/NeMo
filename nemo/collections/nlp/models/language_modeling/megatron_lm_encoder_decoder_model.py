@@ -1413,11 +1413,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1)
                 scores = scores.view(-1, beam_size)
 
-        if beam_search:
-            if return_scores:
-               return predicted_tokens_dec, predicted_log_probs, scores
-        
-        return predicted_tokens_dec, predicted_log_probs
+        if beam_search and return_scores:
+            return predicted_tokens_dec, predicted_log_probs, scores
+        else:
+            return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """
