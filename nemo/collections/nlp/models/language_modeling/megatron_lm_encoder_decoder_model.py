@@ -1127,11 +1127,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output_attn_mask=None,
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
-        sampling_method: str = "greedy-search",
         predicted_tokens_dec=None,
+        sampling_method: str = "greedy-search",
         sampling_kwargs: dict = {},
-        beam_size: Optional[int] = None,
-        beam_alpha: int = 0,
         keep_only_best_tokens: bool = False,
         return_scores: bool = False,
     ):
