@@ -55,9 +55,6 @@ except:
 
     HAVE_INTERLEAVED = False
 
-from megatron.core import parallel_state as megatron_core_parallel_state
-from megatron.core import tensor_parallel as megatron_core_tensor_parallel
-
 
 def initialize_model_parallel_for_nemo(
     world_size,
@@ -111,21 +108,6 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
-    # update megatron.core transformer globals
-    megatron_core_parallel_state.set_tensor_model_parallel_world_size(app_state.tensor_model_parallel_size)
-    megatron_core_parallel_state.set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
-
-    megatron_core_parallel_state.set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    if HAVE_INTERLEAVED:
-        megatron_core_parallel_state.set_virtual_pipeline_model_parallel_world_size(
-            app_state.virtual_pipeline_model_parallel_size
-        )
-    megatron_core_parallel_state.set_virtual_pipeline_model_parallel_rank(
-        app_state.virtual_pipeline_model_parallel_rank
-    )
-    megatron_core_parallel_state.set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
-    megatron_core_parallel_state.set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
-
     _set_random_seed(seed)
 
     if global_batch_size and micro_batch_size is not None:
@@ -165,7 +147,6 @@ def _set_random_seed(seed_):
         torch.manual_seed(seed)
         if torch.cuda.device_count() > 0:
             tensor_parallel.model_parallel_cuda_manual_seed(seed)
-            megatron_core_tensor_parallel.model_parallel_cuda_manual_seed(seed)
     else:
         raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
 
