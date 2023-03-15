@@ -147,7 +147,7 @@ def main(cfg: AlignmentConfig):
         if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
             raise RuntimeError(
                 "At least one line in cfg.manifest_filepath does not contain a 'text' entry. "
-                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=True."
+                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=False."
             )
 
     # init devices
