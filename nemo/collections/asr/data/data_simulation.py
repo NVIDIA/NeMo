@@ -1687,6 +1687,7 @@ class MultiSpeakerSimulator(object):
         jsonlist = open(os.path.join(basepath, "synthetic_json.list"), "w")
         ctmlist = open(os.path.join(basepath, "synthetic_ctm.list"), "w")
         textlist = open(os.path.join(basepath, "synthetic_txt.list"), "w")
+        metalist = open(os.path.join(basepath, "synthetic_meta.list"), "w")
 
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         futures = []
@@ -1748,6 +1749,7 @@ class MultiSpeakerSimulator(object):
                 jsonlist.write(os.path.join(basepath, filename + '.json\n'))
                 ctmlist.write(os.path.join(basepath, filename + '.ctm\n'))
                 textlist.write(os.path.join(basepath, filename + '.txt\n'))
+                metalist.write(os.path.join(basepath, filename + '.meta\n'))
 
                 # throw warning if number of speakers is less than requested
                 num_missing = 0
