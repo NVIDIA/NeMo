@@ -1405,8 +1405,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if beam_search:
             if return_scores:
-               return predicted_tokens_dec, predicted_log_probs, scores
-        
+                return predicted_tokens_dec, predicted_log_probs, scores
+
         return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
