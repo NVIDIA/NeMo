@@ -962,8 +962,14 @@ def get_sampling_token_fn(sampling_method: str, sampling_kwargs: dict) -> Callab
     all_default_sampling_kwargs = {
         'greedy-search': {},
         'topkp-sampling': {'top_k': 0, 'top_p': 0.0, 'temperature': 1.0,},
-        'beam-search': {'beam_size': 1, 'beam_alpha': 0.0, 'keep_only_best_tokens': False,},
+        'beam-search': {'beam_size': 1, 'beam_alpha': 0.0, 'keep_only_best_tokens': False, 'return_scores': False},
     }
+    # For sampling method is 'beam-search' the following kwargs are supported:
+    # beam_size - int, number of the best sequences at each decode iteration to be left per target
+    # beam_alpha - int, the parameter of length penalty applied to predicted sequences
+    # keep_only_best_tokens - used in the beam search, boolean flag if to output only best sequence of
+    #             predicted tokens (True) or beam_size predictions per target
+    # return_scores - used in the beam search, boolean flag if to return scores at the top of predictions and logits
 
     if not sampling_method in supported_sampling_methods:
         raise ValueError(

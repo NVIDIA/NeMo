@@ -1129,7 +1129,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         predicted_tokens_dec=None,
         sampling_method: str = "greedy-search",
         sampling_kwargs: dict = {},
-        return_scores: bool = False,
     ):
         """
         tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
@@ -1149,12 +1148,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                           If the beam search is enabled, the sampling function returns tensors [batch_size, beam_size]
         sampling_kwargs - dict with arguments to be passed to the sampling function. Please refer to the method
                          get_sampling_token_fn to see which arguments are required for chosen sampling_method.
-                         If sampling method is 'beam-search', sampling_kwargs must contain keys:
-                         beam_size - int, number of the best sequences at each decode iteration to be left per target
-                         beam_alpha - int, the parameter of length penalty applied to predicted sequences
-        keep_only_best_tokens - used in the beam search, boolean flag if to output only best sequence of
-                        predicted tokens (True) or beam_size predictions per target
-        return_scores - used in the beam search, boolean flag if to return scores at the top of predictions and logits
 
         return:
                 tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
@@ -1167,14 +1160,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if beam_search:
             beam_size = sampling_kwargs['beam_size']
             beam_alpha = sampling_kwargs['beam_alpha']
-            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']  # , False)
+            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']
+            return_scores = sampling_kwargs['return_scores']
             # logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
-        else:
-            # logging.info(f'Decoding using the {sampling_method} method...')
-            assert (
-                not keep_only_best_tokens and not return_scores
-            ), 'Arguments keep_only_best_tokens and beam_search can be enabled only in the beam search'
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1414,10 +1403,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1)
                 scores = scores.view(-1, beam_size)
 
-        if beam_search and return_scores:
-            return predicted_tokens_dec, predicted_log_probs, scores
-        else:
-            return predicted_tokens_dec, predicted_log_probs
+        if beam_search:
+            if return_scores:
+               return predicted_tokens_dec, predicted_log_probs, scores
+        
+        return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """
