@@ -883,6 +883,44 @@ def build_train_valid_test_datasets(
             "respect_document_boundaries=False is not compatible with text_memmap and csv_memmap (data_impl_kwargs != {})"
         )
 
+    if data_impl in ["synthetic"]:
+        if len(data_prefix) != 0:
+            raise ValueError(f"With data_impl=synthetic, data_prefix=[] is expected; instead, received {data_prefix}")
+        if dataset_type == DSET_TYPE_T5:
+            from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import SyntheticT5Dataset
+            if tokenizer is None:
+                raise ValueError("Tokenizer is required for a synthetic T5 dataset")
+            train_ds = SyntheticT5Dataset(
+                cfg,
+                tokenizer,
+                "train",
+                train_valid_test_num_samples[0],
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
+            )
+            valid_ds = SyntheticT5Dataset(
+                cfg,
+                tokenizer,
+                "valid",
+                train_valid_test_num_samples[1],
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
+            )
+            test_ds = SyntheticT5Dataset(
+                cfg,
+                tokenizer,
+                "train",
+                train_valid_test_num_samples[2],
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
+            )
+            return train_ds, valid_ds, test_ds
+        else:
+            raise NotImplementedError(f"Synthetic dataset is not implemented for requested type: {dataset_type}")
+
     if isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None

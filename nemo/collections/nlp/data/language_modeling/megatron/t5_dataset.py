@@ -420,3 +420,70 @@ class T5Dataset(Dataset):
         loss_mask = np.array(loss_mask, dtype=np.int64)
 
         return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
+
+
+class SyntheticT5Dataset(Dataset):
+    # account for added tokens
+    #MAX_SEQ_LENGTH_DELTA = 2
+
+    def __init__(
+        self,
+        cfg,
+        #trainer,
+        tokenizer,
+        name,
+        num_samples,
+        #indexed_dataset,
+        #data_prefix,
+        #num_epochs,
+        #max_num_samples,
+        max_seq_length,
+        max_seq_length_dec,
+        seed,
+        #masked_lm_prob=0.15,
+        #short_seq_prob=0.1,
+        #max_ngram_size=10,
+        #mean_ngram_size=None,
+        #geometric_dist=True,
+        #permutation=False,
+        #whole_word_masking=True,
+        #favor_long_ngrams=False,
+        #respect_document_boundaries=True,
+        #documents=None,
+    ):
+        super().__init__()
+        self.name = name
+        self.max_seq_length = max_seq_length
+        self.max_seq_length_dec = max_seq_length_dec
+        self.vocab_size = tokenizer.vocab_size
+        self.length = num_samples
+        self.np_gen = np.random.default_rng(seed=seed)
+
+    def __len__(self):
+        return self.length
+
+    def _get_sample(self, idx):
+        sample = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
+        return [sample], self.max_seq_length
+
+    def __getitem__(self, idx):
+        #sample, seq_length = self._get_sample(idx)
+
+        tokens_enc = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
+        tokens_dec_in = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
+        labels = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
+        enc_mask = np.ones(shape=[self.max_seq_length], dtype=np.int64)
+        dec_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
+        loss_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
+
+        training_sample = {
+            'text_enc': tokens_enc,
+            'text_dec': tokens_dec_in,
+            'labels': labels,
+            'loss_mask': loss_mask,
+            'enc_mask': enc_mask,
+            'dec_mask': dec_mask,
+        }
+        return training_sample
+
+
