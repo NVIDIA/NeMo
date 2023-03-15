@@ -1273,7 +1273,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
                 # enforce valid range of token ids
                 token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
-                
+
                 if beam_search:
                     # beam search: beam creation in the first iteration
                     if i == 0:
@@ -1350,7 +1350,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         )
 
                         # update decoder_seq_length and pad_profile
-                        not_eos_pad = predicted_tokens_dec.ne(tokenizer.eos_id) & predicted_tokens_dec.ne(tokenizer.pad_id)
+                        not_eos_pad = predicted_tokens_dec.ne(tokenizer.eos_id) & predicted_tokens_dec.ne(
+                            tokenizer.pad_id
+                        )
                         decoder_seq_lengths = 1 + not_eos_pad.sum(dim=1, keepdim=True).to(scores.dtype)
                         pad_profile = (~not_eos_pad[:, -1:]).long()
                 else:
@@ -1415,8 +1417,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if beam_search:
             if return_scores:
-               return predicted_tokens_dec, predicted_log_probs, scores
-        
+                return predicted_tokens_dec, predicted_log_probs, scores
+
         return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
