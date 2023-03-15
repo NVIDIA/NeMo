@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@
 
 import json
 import math
+import os
 import pickle
 import random
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -32,7 +34,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
 )
-from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+from nemo.collections.tts.torch.helpers import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
     general_padding,
@@ -102,6 +104,10 @@ class TTSDataset(Dataset):
         n_mels: int = 80,
         lowfreq: int = 0,
         highfreq: Optional[int] = None,
+        segment_max_duration: Optional[int] = None,
+        pitch_augment: bool = False,
+        cache_pitch_augment: bool = True,
+        pad_multiple: int = 1,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -163,6 +169,10 @@ class TTSDataset(Dataset):
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
             pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
             pitch_std (Optional[float]): The std that we use to normalize the pitch.
+            segment_max_duration (Optional[float]): If audio length is greater than segment_max_duration, take a random segment of segment_max_duration (Used for SV task in SSLDisentangler)
+            pitch_augment (bool): Whether to apply pitch-shift transform and return a pitch-shifted audio. If set as False, audio_shifted will be None (used in SSLDisentangler)
+            cache_pitch_augment (bool): Whether to cache pitch augmented audio or not. Defaults to False (used in SSLDisentangler)
+            pad_multiple (int): If audio length is not divisible by pad_multiple, pad the audio with zeros to make it divisible by pad_multiple (used in SSLDisentangler)
             pitch_norm (Optional[bool]): Whether to normalize pitch or not. If True, requires providing either
                 pitch_stats_path or (pitch_mean and pitch_std).
             pitch_stats_path (Optional[Path, str]): Path to file containing speaker level pitch statistics.
@@ -270,6 +280,10 @@ class TTSDataset(Dataset):
         self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
 
+        self.segment_max_duration = segment_max_duration
+        self.pitch_augment = pitch_augment
+        self.cache_pitch_augment = cache_pitch_augment
+
         self.n_fft = n_fft
         self.n_mels = n_mels
         self.lowfreq = lowfreq
@@ -327,6 +341,8 @@ class TTSDataset(Dataset):
 
         for data_type in self.sup_data_types:
             getattr(self, f"add_{data_type.name}")(**kwargs)
+
+        self.pad_multiple = pad_multiple
 
     @staticmethod
     def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
@@ -484,6 +500,30 @@ class TTSDataset(Dataset):
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
 
+    def pitch_shift(self, audio, sr, rel_audio_path_as_text_id):
+        audio_shifted_path = Path(self.sup_data_path) / f"{rel_audio_path_as_text_id}_pitch_shift.pt"
+        if audio_shifted_path.exists() and self.cache_pitch_augment:
+            audio_shifted = torch.load(audio_shifted_path)
+            return audio_shifted
+        else:
+            choice1 = np.random.uniform(-4, -1)
+            choice2 = np.random.uniform(1, 4)
+            shift_val = random.choice([choice1, choice2])
+            audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=shift_val)
+            # save audio_shifted
+            audio_shifted = torch.tensor(audio_shifted)
+            if self.cache_pitch_augment:
+                torch.save(audio_shifted, audio_shifted_path)
+            return audio_shifted
+
+    def _pad_wav_to_multiple(self, wav):
+        if self.pad_multiple > 1:
+            if wav.shape[0] % self.pad_multiple != 0:
+                wav = torch.cat(
+                    [wav, torch.zeros(self.pad_multiple - wav.shape[0] % self.pad_multiple, dtype=torch.float)]
+                )
+        return wav
+
     def __getitem__(self, index):
         sample = self.data[index]
 
@@ -491,16 +531,47 @@ class TTSDataset(Dataset):
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
 
-        # Load audio
-        features = self.featurizer.process(
-            sample["audio_filepath"],
-            trim=self.trim,
-            trim_ref=self.trim_ref,
-            trim_top_db=self.trim_top_db,
-            trim_frame_length=self.trim_frame_length,
-            trim_hop_length=self.trim_hop_length,
-        )
-        audio, audio_length = features, torch.tensor(features.shape[0]).long()
+        if (
+            self.segment_max_duration is not None
+            and 'duration' in sample
+            and sample['duration'] > self.segment_max_duration
+        ):
+            # this case has been added for segmenting audio for speaker verification task of SSLDisentangler
+            n_segments = int(self.segment_max_duration * self.sample_rate)
+            features = AudioSegment.segment_from_file(
+                sample["audio_filepath"], target_sr=self.sample_rate, n_segments=n_segments, trim=self.trim
+            )
+            audio_shifted = None
+
+            # should not have pitch shift augmented data for speaker verification
+            assert not self.pitch_augment
+
+            features = torch.tensor(features.samples)
+            if self.pad_multiple > 1:
+                features = self._pad_wav_to_multiple(features)
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
+        else:
+            features = self.featurizer.process(
+                sample["audio_filepath"],
+                trim=self.trim,
+                trim_ref=self.trim_ref,
+                trim_top_db=self.trim_top_db,
+                trim_frame_length=self.trim_frame_length,
+                trim_hop_length=self.trim_hop_length,
+            )
+
+            if self.pad_multiple > 1:
+                features = self._pad_wav_to_multiple(features)
+            audio_shifted = None
+            if self.pitch_augment:
+                audio_shifted = self.pitch_shift(
+                    features.cpu().detach().numpy(), self.sample_rate, rel_audio_path_as_text_id
+                )
+                assert audio_shifted.size() == features.size(), "{} != {}".format(
+                    audio_shifted.size(), features.size()
+                )
+
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
             text = torch.tensor(sample["text_tokens"]).long()
@@ -630,6 +701,7 @@ class TTSDataset(Dataset):
             speaker_id,
             voiced_mask,
             p_voiced,
+            audio_shifted,
         )
 
     def __len__(self):
@@ -662,6 +734,7 @@ class TTSDataset(Dataset):
             _,
             voiced_masks,
             p_voiceds,
+            _,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -683,7 +756,19 @@ class TTSDataset(Dataset):
             if AlignPriorMatrix in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids, voiced_masks, p_voiceds = (
+        (
+            audios,
+            tokens,
+            log_mels,
+            durations_list,
+            pitches,
+            energies,
+            speaker_ids,
+            voiced_masks,
+            p_voiceds,
+            audios_shifted,
+        ) = (
+            [],
             [],
             [],
             [],
@@ -712,6 +797,7 @@ class TTSDataset(Dataset):
                 speaker_id,
                 voiced_mask,
                 p_voiced,
+                audio_shifted,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -719,6 +805,10 @@ class TTSDataset(Dataset):
 
             token = general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_tokenizer_pad_id)
             tokens.append(token)
+
+            if audio_shifted is not None:
+                audio_shifted = general_padding(audio_shifted, audio_len.item(), max_audio_len)
+                audios_shifted.append(audio_shifted)
 
             if LogMel in self.sup_data_types_set:
                 log_mels.append(general_padding(log_mel, log_mel_len, max_log_mel_len, pad_value=log_mel_pad))
@@ -762,6 +852,7 @@ class TTSDataset(Dataset):
             "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
             "voiced_mask": torch.stack(voiced_masks) if Voiced_mask in self.sup_data_types_set else None,
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
+            "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
         }
 
         return data_dict
@@ -826,6 +917,7 @@ class MixerTTSXDataset(TTSDataset):
             speaker_id,
             voiced_mask,
             p_voiced,
+            _,  # audio_shifted (only needed for SSLDisentangler)
         ) = super().__getitem__(index)
 
         lm_tokens = None
@@ -1044,7 +1136,7 @@ class PairedRealFakeSpectrogramsDataset(Dataset):
 
     def _collate_fn(self, batch):
         pred_specs, true_specs = zip(*batch)
-        lengths = [spec.shape[0] for spec in true_specs]
+        lengths = [spec.shape[-1] for spec in true_specs]
 
         pred_specs = torch.nn.utils.rnn.pad_sequence(pred_specs, batch_first=True)
         true_specs = torch.nn.utils.rnn.pad_sequence(true_specs, batch_first=True)

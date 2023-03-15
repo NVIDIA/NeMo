@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Optional, Sequence
+from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
@@ -133,11 +133,25 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.device)
 
 
-def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
-    if max_len is None:
-        max_len = lengths.max()
-    ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
-    mask = (ids < lengths.unsqueeze(1)).bool()
+def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[torch.Tensor] = None,) -> torch.Tensor:
+    """Constructs binary mask from a 1D torch tensor of input lengths
+
+    Args:
+        lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
+        x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask 
+    Returns:
+        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
+    """
+    if lengths is None:
+        assert x is not None
+        return torch.ones(x.shape[-1], dtype=torch.bool, device=x.device)
+    else:
+        if x is None:
+            max_len = torch.max(lengths)
+        else:
+            max_len = x.shape[-1]
+    ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
+    mask = ids < lengths.unsqueeze(1)
     return mask
 
 
@@ -411,6 +425,23 @@ def plot_pitch_to_numpy(pitch, ylim_range=None):
         plt.ylim(ylim_range)
     plt.xlabel("Frames")
     plt.ylabel("Pitch")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
+def plot_multipitch_to_numpy(pitch_gt, pitch_pred, ylim_range=None):
+    fig, ax = plt.subplots(figsize=(12, 3))
+    plt.plot(pitch_gt, label="Ground truth")
+    plt.plot(pitch_pred, label="Predicted")
+    if ylim_range is not None:
+        plt.ylim(ylim_range)
+    plt.xlabel("Frames")
+    plt.ylabel("Pitch")
+    plt.legend()
     plt.tight_layout()
 
     fig.canvas.draw()
