@@ -39,7 +39,7 @@ from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
 
-from nemo.collections.common.callbacks import EMA, NeMoModelCheckpoint
+from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -49,7 +49,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
-from nemo.utils.preemption_callback import PreemptionCallback
+from nemo.utils.callbacks import PreemptionCallback, NeMoModelCheckpoint
 
 
 class NotFoundError(NeMoBaseException):
@@ -891,7 +891,6 @@ def configure_checkpointing(
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
-    # TODO create support_preemption arg, if True do the below
     preemption_callback = PreemptionCallback(torch.device('cuda'), checkpoint_callback)
     trainer.callbacks.append(preemption_callback)
 
