@@ -177,11 +177,19 @@ def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
 
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started=None):
-    """ This function has been mostly taken from huggingface conversational
-     ai code at
+    """
+       This function has been mostly taken from huggingface conversational
+         ai code at
          https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 """
+              conversational-ai-with-transfer-learning-2d818ac26313 
 
+        @param logits: logits tensor
+        @param top_k: keep only top k tokens with highest probability
+        @param top_p: keep the top tokens with cumulative probability
+        @filter_value: value to set filtered tokens to
+        @started: a tensor of bools indicating whether the text generation starts for the batch
+        returns the filtered logits
+    """
     if top_k > 0:
         # Remove all tokens with a probability less than the
         # last token of the top-k
@@ -630,6 +638,7 @@ def sample_sequence_batch(
                 # make sure it won't sample outside the vocab_size range
                 logits[:, tokenizer.vocab_size :] = -float('Inf')
 
+                # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
                 started = context_lengths <= context_length
                 if extra.get('greedy', False):
                     prev = torch.argmax(logits, dim=-1).view(-1)
@@ -641,8 +650,8 @@ def sample_sequence_batch(
                     logits = top_k_logits(
                         logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
                     )
-                    log_probs = F.softmax(logits, dim=-1)
-                    prev = torch.multinomial(log_probs, num_samples=1).view(-1)
+                    probs = F.softmax(logits, dim=-1)
+                    prev = torch.multinomial(probs, num_samples=1).view(-1)
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
@@ -803,8 +812,8 @@ def tab_sample_sequence_batch(
                     # limit the range
                     min_id, max_id = tokenid_range[token_in_row]
                     logits = tab_logits(logits, min_id, max_id)
-                log_probs = F.softmax(logits, dim=-1)
-                prev = torch.multinomial(log_probs, num_samples=1).view(-1)
+                probs = F.softmax(logits, dim=-1)
+                prev = torch.multinomial(probs, num_samples=1).view(-1)
                 started = context_lengths <= context_length
                 # Clamp the out of vocabulary tokens.
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
