@@ -14,13 +14,16 @@
 
 import os
 from argparse import ArgumentParser
+from typing import Dict, List
 
 import torch
-from typing import Dict, List
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
+from nemo.collections.nlp.parts.nlp_overrides import (
+    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
+)
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 
@@ -92,14 +95,14 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
 
 
 def split_partition(
-        model,
-        partitions,
-        pp_size: int,
-        tp_size: int,
-        pp_rank: int,
-        offset: int,
-        write_path: str = None,
-        megatron_legacy: bool = False,
+    model,
+    partitions,
+    pp_size: int,
+    tp_size: int,
+    pp_rank: int,
+    offset: int,
+    write_path: str = None,
+    megatron_legacy: bool = False,
 ):
     if len(partitions) != 2:
         raise ValueError(
@@ -128,7 +131,7 @@ def split_partition(
     idx = offset - num_params + 1  # start index of current PP TP rank in global map
 
     assert (
-            idx + num_params - 1 == offset
+        idx + num_params - 1 == offset
     ), f"idx = {idx}, num_params = {num_params}, sum = {idx + num_params}, offset = {offset}"
 
     # Special case for GPT models - whose last PP TP rank has a duplicate embedding tensor
@@ -320,7 +323,7 @@ def main():
                 app_state.pipeline_model_parallel_size = pp_size
                 app_state.tensor_model_parallel_size = tp_size
                 app_state.model_parallel_size = (
-                        app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
                 )
 
                 model = cls.restore_from(
@@ -344,7 +347,7 @@ def main():
                 app_state.pipeline_model_parallel_size = pp_size
                 app_state.tensor_model_parallel_size = tp_size
                 app_state.model_parallel_size = (
-                        app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
                 )
 
         # Build a unified model with PP 1 TP 1
@@ -384,7 +387,7 @@ def main():
         global_params.append([n for n, p in model.named_parameters()])  # names
 
         world_size = (
-                tgt_pp_size * tgt_tp_size
+            tgt_pp_size * tgt_tp_size
         )  # pseudo world size for simulating load of a specific rank on a single gpu
         new_global_batch_size = model.cfg.micro_batch_size * world_size
         old_global_batch_size = model.cfg.global_batch_size
@@ -405,7 +408,7 @@ def main():
 
             # Compute the global rank
             global_rank = (
-                    pp_rank * tgt_tp_size + 0
+                pp_rank * tgt_tp_size + 0
             )  # tp_rank = 0 needed just for modules, all TP will be merged to this PP rank
 
             # Update AppState
@@ -415,7 +418,7 @@ def main():
             app_state.pipeline_model_parallel_size = tgt_pp_size
             app_state.tensor_model_parallel_size = tgt_tp_size
             app_state.model_parallel_size = (
-                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
             trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
