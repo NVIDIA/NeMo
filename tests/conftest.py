@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os.path
 import shutil
 import tarfile
@@ -20,8 +21,11 @@ from os import mkdir
 from os.path import dirname, exists, getsize, join
 from pathlib import Path
 from shutil import rmtree
+from typing import Tuple
 
 import pytest
+
+from tests.fixtures.tts import *
 
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
@@ -55,6 +59,11 @@ def pytest_addoption(parser):
         help="numba compatibility checks will be relaxed to just availability of cuda, "
         "without cuda compatibility matrix check",
     )
+    parser.addoption(
+        "--nightly",
+        action="store_true",
+        help="pass this argument to activate tests which have been marked as nightly for nightly quality assurance.",
+    )
 
 
 @pytest.fixture
@@ -79,6 +88,15 @@ def downloads_weights(request, device):
         if not request.config.getoption("--with_downloads"):
             pytest.skip(
                 'To run this test, pass --with_downloads option. It will download (and cache) models from cloud.'
+            )
+
+
+@pytest.fixture(autouse=True)
+def run_nightly_test_for_qa(request, device):
+    if request.node.get_closest_marker('nightly'):
+        if not request.config.getoption("--nightly"):
+            pytest.skip(
+                'To run this test, pass --nightly option. It will run any tests marked with "nightly". Currently, These tests are mostly used for QA.'
             )
 
 
@@ -140,6 +158,33 @@ def extract_data_from_tar(test_dir, test_data_archive, url=None, local_data=Fals
     tar.close()
 
 
+@pytest.fixture(scope="session")
+def k2_is_appropriate() -> Tuple[bool, str]:
+    try:
+        from nemo.core.utils.k2_guard import k2  # noqa: E402
+
+        return True, "k2 is appropriate."
+    except Exception as e:
+        logging.exception(e, exc_info=True)
+        return False, "k2 is not available or does not meet the requirements."
+
+
+@pytest.fixture(scope="session")
+def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
+    if not k2_is_appropriate[0]:
+        return k2_is_appropriate
+
+    import torch  # noqa: E402
+    from nemo.core.utils.k2_guard import k2  # noqa: E402
+
+    if torch.cuda.is_available() and k2.with_cuda:
+        return True, "k2 supports CUDA."
+    elif torch.cuda.is_available():
+        return False, "k2 does not support CUDA. Consider using a k2 build with CUDA support."
+    else:
+        return False, "k2 needs CUDA to be available in torch."
+
+
 def pytest_configure(config):
     """
     Initial configuration of conftest.
@@ -152,6 +197,9 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "with_downloads: runs the test using data present in tests/.data",
+    )
+    config.addinivalue_line(
+        "markers", "nightly: runs the nightly test for QA.",
     )
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)

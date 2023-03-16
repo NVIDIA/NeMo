@@ -76,7 +76,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.TTSDataset
+      _target_: nemo.collections.tts.data.tts_dataset.TTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -110,7 +110,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.TTSDataset
+      _target_: nemo.collections.tts.data.tts_dataset.TTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -228,7 +228,7 @@ trainer:
   accelerator: gpu
   strategy: ddp
   precision: 16
-  max_epochs: 1000
+  max_epochs: 5000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
   enable_checkpointing: false # Provided by exp_manager
