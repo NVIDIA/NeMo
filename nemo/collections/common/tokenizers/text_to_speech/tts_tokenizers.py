@@ -553,9 +553,14 @@ class IPATokenizer(BaseTokenizer):
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
 
+        if locale == "en-US":
+            self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
+        else:
+            self.text_preprocessing_func = any_locale_text_preprocessing
+
         # Build tokens list if fixed_vocab isn't set
         if fixed_vocab:
-            tokens = set(fixed_vocab)
+            tokens = {self.text_preprocessing_func(c) for c in fixed_vocab}
             self.set_fixed_vocab = True  # Used to check whether dataset entries need filtering
             g2p.replace_symbols(tokens)
         else:
@@ -593,10 +598,6 @@ class IPATokenizer(BaseTokenizer):
 
         self.g2p = g2p
 
-        if locale == "en-US":
-            self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
-        else:
-            self.text_preprocessing_func = any_locale_text_preprocessing
 
     def encode(self, text: str) -> List[int]:
         """See base class for more information."""

@@ -158,7 +158,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    # @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_ipa_tokenizer_fixed_vocab(self):
         phoneme_dict = self.PHONEME_DICT_EN
