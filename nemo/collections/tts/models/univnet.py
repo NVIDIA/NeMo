@@ -19,34 +19,22 @@ import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from nemo.collections.tts.parts.utils.helpers import (
-    get_batch_size,
-    get_num_workers,
-    plot_spectrogram_to_numpy,
-    tensor_to_wav,
-)
+from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
+from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
-from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 
-class UnivNetModel(Vocoder, Exportable):
+class UnivNetModel(Vocoder, Exportable, TTSValLogger):
     """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -248,110 +236,39 @@ class UnivNetModel(Vocoder, Exportable):
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
 
         # Plot audio once per epoch
-        for logger in self.loggers:
-            if batch_idx == 0:
-                if isinstance(logger, WandbLogger) and HAVE_WANDB:
-                    clips = []
-                    specs = []
-                    for i in range(min(5, audio.shape[0])):
-                        clips += [
-                            wandb.Audio(
-                                audio[i, : audio_len[i]].data.cpu().numpy(),
-                                caption=f"real audio {i}",
-                                sample_rate=self.sample_rate,
-                            ),
-                            wandb.Audio(
-                                audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
-                                caption=f"generated audio {i}",
-                                sample_rate=self.sample_rate,
-                            ),
-                            wandb.Audio(
-                                pred_denoised[i, : audio_len[i]].data.cpu().numpy(),
-                                caption=f"denoised audio {i}",
-                                sample_rate=self.sample_rate,
-                            ),
-                        ]
-                        specs += [
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                                caption=f"input mel {i}",
-                            ),
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                                caption=f"output mel {i}",
-                            ),
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(
-                                    pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
-                                ),
-                                caption=f"denoised mel {i}",
-                            ),
-                        ]
-                        if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
-                            specs += [
-                                wandb.Image(
-                                    plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                                    caption=f"gt mel {i}",
-                                ),
-                            ]
+        if batch_idx == 0:
+            # Prepare for logging
+            max_log_len = min(5, audio.shape[0])
 
-                    logger.experiment.log({"audio": clips, "specs": specs})
+            spects_input = [audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy() for i in range(max_log_len)]
+            spects_pred = [audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy() for i in range(max_log_len)]
+            spects_denoised = [
+                pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy() for i in range(max_log_len)
+            ]
 
-                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                    for i in range(min(5, audio.shape[0])):
-                        # Audio:
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(audio[i, : audio_len[i]], self.sample_rate),
-                            title="audio",
-                            series=f"real audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(audio_pred[i, 0, : audio_len[i]], self.sample_rate),
-                            title="audio",
-                            series=f"generated audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(pred_denoised[i, : audio_len[i]], self.sample_rate),
-                            title="audio",
-                            series=f"denoised audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
+            audio_orig = [audio[i, : audio_len[i]].data.cpu().numpy() for i in range(max_log_len)]
+            audio_pred = [audio_pred[i, 0, : audio_len[i]].data.cpu().float().numpy() for i in range(max_log_len)]
+            audio_denoised = [pred_denoised[i, : audio_len[i]].data.cpu().numpy() for i in range(max_log_len)]
 
-                        # Mels:
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                            series=f"input mel {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(
-                                audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
-                            ),
-                            series=f"output mel {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(
-                                pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
-                            ),
-                            series=f"denoised mel {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-                        if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
-                            logger.clearml_task.logger.report_image(
-                                image=plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                                series=f"gt mel {i}",
-                                title="mel",
-                                iteration=self.global_step,
-                            )
+            spects = {
+                "val_mel_input": spects_input,
+                "val_mel_pred": spects_pred,
+                "val_mel_denoised": spects_denoised,
+            }
+
+            if self.input_as_mel and isinstance(gt_mel, torch.Tensor):
+                spects["val_mel_target"] = [
+                    gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy() for i in range(max_log_len)
+                ]
+
+            self.val_log(
+                spects=spects,
+                audios={
+                    "val_audio_orig": audio_orig,
+                    "val_audio_pred": audio_pred,
+                    "val_audio_denoised": audio_denoised,
+                },
+            )
 
     def _bias_denoise(self, audio, mel):
         def stft(x):

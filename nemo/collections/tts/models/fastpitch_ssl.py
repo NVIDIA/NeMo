@@ -12,34 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 from typing import Iterable
 
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_features
 from nemo.collections.tts.modules.transformer import mask_from_lens
-from nemo.collections.tts.parts.utils.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy, tensor_to_wav
+from nemo.collections.tts.parts.utils.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
-from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 
 @experimental
-class FastPitchModel_SSL(ModelPT):
+class FastPitchModel_SSL(ModelPT, TTSValLogger):
     """
     FastPitch based model that can synthesize mel spectrograms from content and speaker embeddings
     obtained from SSLDisentangler. This model can be used for voice conversion by swapping the speaker embedding 
@@ -57,6 +50,7 @@ class FastPitchModel_SSL(ModelPT):
         self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
 
+        self.sample_rate = cfg.sample_rate
         self.bin_loss_warmup_epochs = cfg.get("bin_loss_warmup_epochs", 100)
         self.log_train_images = False
 
@@ -284,135 +278,31 @@ class FastPitchModel_SSL(ModelPT):
         pitch_target = single_output['pitch_target']
         pitch_pred = single_output['pitch_pred']
 
-        for logger in self.loggers:
-            if isinstance(logger, TensorBoardLogger):
-                _rand_idx = random.randint(0, spec_target.shape[0] - 1)
-                self.tb_logger.add_image(
-                    "val_mel_target",
-                    plot_spectrogram_to_numpy(spec_target[_rand_idx].data.cpu().float().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
-                self.tb_logger.add_image(
-                    "val_mel_predicted",
-                    plot_spectrogram_to_numpy(spec_predict[_rand_idx].data.cpu().float().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
+        # Prepare for logging
+        max_log_len = min(5, spec_target.shape[0])
 
-                if self.pitch_conditioning:
-                    _pitch_pred = pitch_pred[_rand_idx].data.cpu().numpy()
-                    _pitch_target = pitch_target[_rand_idx].data.cpu().numpy()
+        spects_target = [spec_target[i].data.cpu().float().numpy() for i in range(max_log_len)]
+        spects_pred = [spec_predict[i].data.cpu().float().numpy() for i in range(max_log_len)]
 
-                    self.tb_logger.add_image(
-                        "val_pitch",
-                        plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
-                        self.global_step,
-                        dataformats="HWC",
-                    )
+        pitches_target = [pitch_target[i].data.cpu().numpy() for i in range(max_log_len)]
+        pitches_pred = [pitch_pred[i].data.cpu().numpy() for i in range(max_log_len)]
 
-                _spec_len = spec_len[_rand_idx].data.cpu().item()
-                wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
-                self.tb_logger.add_audio("Real audio", wav_vocoded[0], self.global_step, 22050)
+        audio_oracle = [
+            self.vocode_spectrogram(spec_target[i].data.cpu().float().numpy()[:, : spec_len[i].data.cpu().item()])[0]
+            for i in range(max_log_len)
+        ]
 
-                wav_vocoded = self.vocode_spectrogram(
-                    spec_predict[_rand_idx].data.cpu().float().numpy()[:, :_spec_len]
-                )
-                self.tb_logger.add_audio("Generated Audio", wav_vocoded[0], self.global_step, 22050)
-                self.log_train_images = True
+        audio_pred = [
+            self.vocode_spectrogram(spec_predict[i].data.cpu().float().numpy()[:, : spec_len[i].data.cpu().item()])[0]
+            for i in range(max_log_len)
+        ]
 
-            elif isinstance(logger, WandbLogger) and HAVE_WANDB:
-                logs = {}
-                _rand_idx = random.randint(0, spec_target.shape[0] - 1)
-
-                logs["specs"] = [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(spec_target[_rand_idx].data.cpu().float().numpy()),
-                        caption=f"val_mel_target {self.global_step}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(spec_predict[_rand_idx].data.cpu().float().numpy()),
-                        caption=f"val_mel_predicted {self.global_step}",
-                    ),
-                ]
-
-                if self.pitch_conditioning:
-                    _pitch_pred = pitch_pred[_rand_idx].data.cpu().numpy()
-                    _pitch_target = pitch_target[_rand_idx].data.cpu().numpy()
-
-                    logs["pitches"] = wandb.Image(
-                        plot_multipitch_to_numpy(_pitch_target, _pitch_pred), caption=f"val_pitch {self.global_step}",
-                    )
-
-                clips = []
-                _spec_len = spec_len[_rand_idx].data.cpu().item()
-
-                wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
-                clips.append(wandb.Audio(wav_vocoded[0], caption=f"real audio {self.global_step}", sample_rate=22050,))
-
-                wav_vocoded = self.vocode_spectrogram(
-                    spec_predict[_rand_idx].data.cpu().float().numpy()[:, :_spec_len]
-                )
-                clips.append(
-                    wandb.Audio(wav_vocoded[0], caption=f"generated audio {self.global_step}", sample_rate=22050,)
-                )
-
-                logs["audio"] = clips
-
-                logger.experiment.log(logs)
-
-            elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                _rand_idx = random.randint(0, spec_target.shape[0] - 1)
-
-                # Mels:
-                logger.clearml_task.logger.report_image(
-                    image=plot_spectrogram_to_numpy(spec_target[_rand_idx].data.cpu().float().numpy()),
-                    series=f"val_mel_target",
-                    title="mel",
-                    iteration=self.global_step,
-                )
-                logger.clearml_task.logger.report_image(
-                    image=plot_spectrogram_to_numpy(spec_predict[_rand_idx].data.cpu().float().numpy()),
-                    series=f"val_mel_predicted",
-                    title="mel",
-                    iteration=self.global_step,
-                )
-
-                # Pitch:
-                if self.pitch_conditioning:
-                    _pitch_pred = pitch_pred[_rand_idx].data.cpu().numpy()
-                    _pitch_target = pitch_target[_rand_idx].data.cpu().numpy()
-
-                    logger.clearml_task.logger.report_image(
-                        image=plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
-                        series=f"val_pitch",
-                        title="pitch",
-                        iteration=self.global_step,
-                    )
-
-                # Audio:
-                clips = []
-                _spec_len = spec_len[_rand_idx].data.cpu().item()
-
-                wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
-                logger.clearml_task.logger.report_media(
-                    stream=tensor_to_wav(wav_vocoded[0], 22050),
-                    title="audio",
-                    series=f"real audio",
-                    file_extension="wav",
-                    iteration=self.global_step,
-                )
-
-                wav_vocoded = self.vocode_spectrogram(
-                    spec_predict[_rand_idx].data.cpu().float().numpy()[:, :_spec_len]
-                )
-                logger.clearml_task.logger.report_media(
-                    stream=tensor_to_wav(wav_vocoded[0], 22050),
-                    title="audio",
-                    series=f"generated audio",
-                    file_extension="wav",
-                    iteration=self.global_step,
-                )
+        self.val_log(
+            spects={"val_mel_target": spects_target, "val_mel_pred": spects_pred,},
+            pitches_target=pitches_target,
+            pitches_pred=pitches_pred,
+            audios={"val_audio_oracle": audio_oracle, "val_audio_pred": audio_pred,},
+        )
 
     def generate_wav(
         self,

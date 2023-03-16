@@ -118,15 +118,21 @@ class ClearMLLogger(Logger):
             self.clearml_model.update_design(config_text=params)
 
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
-        if self.clearml_model and self.clearml_cfg.log_metrics:
-            metrics = {
-                k: {
-                    "value": str(v.item() if type(v) == Tensor else v),
+        last_metrics = {}
+
+        for k, v in metrics.items():
+            val = v.item() if type(v) == Tensor else v
+
+            self.clearml_task.logger.report_scalar(k, k, iteration=step, value=val)
+
+            if self.clearml_model and self.clearml_cfg.log_metrics:
+                last_metrics[k] = {
+                    "value": str(val),
                     "type": str(type(v.item() if type(v) == Tensor else v)),
                 }
-                for k, v in metrics.items()
-            }
-            self.last_metrics = metrics
+
+        if self.clearml_model and self.clearml_cfg.log_metrics:
+            self.last_metrics = last_metrics
 
     def log_table(
         self,
