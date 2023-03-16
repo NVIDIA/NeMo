@@ -1147,8 +1147,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                           (tensor of log_probs [batch_size], tensor of sampled tokens_ids from logits [batch_size]).
                           If the beam search is enabled, the sampling function returns tensors [batch_size, beam_size]
         sampling_kwargs - dict with arguments to be passed to the sampling function. Please refer to the method
-                         get_sampling_token_fn to see which arguments are required for chosen sampling_method.
-
+                          get_sampling_token_fn to see which arguments are required for a chosen sampling_method.
         return:
                 tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
                 If sampling_method == 'beam-size' and keep_only_best_tokens is False the shape of the tensors are
@@ -1162,8 +1161,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             beam_alpha = sampling_kwargs['beam_alpha']
             keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']
             return_scores = sampling_kwargs['return_scores']
-            # logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
+            logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
+        else:
+            logging.info(f'Decoding using the {sampling_method} method...')
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
