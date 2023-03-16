@@ -275,6 +275,21 @@ def main():
     num_gpu_per_node = args.num_gpu_per_node
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
+
+    if precision == "bf16":
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            precision = "bf16"
+        else:
+            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
+            precision = 16
+
+    if precision == 32:
+        dtype = torch.float32
+    elif precision == 16:
+        dtype = torch.float16
+    elif precision == "bf16":
+        dtype = torch.bfloat16
+
     tp_size = args.tensor_model_parallel_size
     tgt_tp_size = args.target_tensor_model_parallel_size
     pp_size = args.pipeline_model_parallel_size
@@ -332,6 +347,7 @@ def main():
                     map_location=torch.device("cpu"),
                     save_restore_connector=NLPSaveRestoreConnector(),
                 )
+                model.to(dtype=dtype)
 
                 # Reset env flag
                 os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
@@ -377,6 +393,7 @@ def main():
         # If input model has TP = 1 and PP = 1
         app_state.model_parallel_size = 1
         model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
+        model.to(dtype=dtype)
 
     # If target model has TP > 1 or PP > 1
     if tgt_pp_size > 1 or tgt_tp_size > 1:
@@ -427,6 +444,7 @@ def main():
 
             model = cls(model.cfg, trainer).to('cpu')
             model._save_restore_connector = NLPSaveRestoreConnector()
+            model.to(dtype=dtype)
 
             # Update global batch size
             if old_global_batch_size % new_global_batch_size != 0 or old_global_batch_size < new_global_batch_size:
