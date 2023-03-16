@@ -64,14 +64,24 @@ def get_pitch_stats(dataset_path, sup_data_path):
 
 
 if __name__ == '__main__':
-    train_dataset_path = 'data/nichole/data_more.json'
+    # train_dataset_path = 'data/nichole/data_more.json'
+    # validation_dataset_path = 'data/nichole/data.json'
+    # sup_data_path = 'data/nichole/train_data_cache'
+    # dest = './nichole_model'
+    train_dataset_path = 'data/nichole/train_manifest_0316.json'
     validation_dataset_path = 'data/nichole/data.json'
     sup_data_path = 'data/nichole/train_data_cache'
     dest = './nichole_model'
+    # train_dataset_path = 'NickyData 2/clean_train_manifest.json'
+    # # validation_dataset_path = 'data/NickyData/validation_manifest.json'
+    # sup_data_path = 'data/NickyData 2/something'
+    # dest = './nicky_model'
 
     pitch_mean, pitch_std, pitch_fmin, pitch_fmax, duration = get_pitch_stats(
         train_dataset_path, sup_data_path)
 
+    print(pitch_mean, pitch_std, pitch_fmin, pitch_fmax)
+    print(duration / 60)
     # 1000 - steps per minute of audio
     max_steps = (duration / 60) * 1000
 
