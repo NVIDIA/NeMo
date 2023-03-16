@@ -490,6 +490,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         del signal
 
         tensorboard_logs = {}
+        loss_value = None
 
         # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:

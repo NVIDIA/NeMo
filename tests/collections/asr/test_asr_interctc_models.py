@@ -87,7 +87,6 @@ class TestInterCTCLoss:
         ],
     )
     def test_forward(self, model_class, encoder_config, apply_at_layers, loss_weights):
-
         preprocessor_config = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
         vocabulary = [
             ' ',
@@ -128,6 +127,7 @@ class TestInterCTCLoss:
             }
             model_config = DictConfig(
                 {
+                    'compute_eval_loss': True,  # will be ignored by the model
                     'preprocessor': DictConfig(preprocessor_config),
                     'encoder': DictConfig(encoder_config),
                     'decoder': DictConfig(decoder_config),
@@ -159,6 +159,7 @@ class TestInterCTCLoss:
             }
             model_config = DictConfig(
                 {
+                    'compute_eval_loss': True,
                     'labels': ListConfig(vocabulary),
                     'preprocessor': DictConfig(preprocessor_config),
                     'model_defaults': DictConfig({'enc_hidden': 4, 'pred_hidden': 4}),
@@ -170,6 +171,13 @@ class TestInterCTCLoss:
                     'aux_ctc': DictConfig(aux_ctc_config),
                 }
             )
+            # to avoid adding additional tests, we will always disable eval loss
+            # when encoder is Squeezeformer - there is nothing specific to
+            # particular encoder here, just picking a random one to test disabled
+            # loss use-case.
+            if encoder_config['_target_'] == 'nemo.collections.asr.modules.SqueezeformerEncoder':
+                model_config['compute_eval_loss'] = False
+
         model_config.update(
             {
                 'interctc': {'loss_weights': loss_weights, 'apply_at_layers': apply_at_layers},
@@ -233,7 +241,13 @@ class TestInterCTCLoss:
             required_metrics += [f'{prefix}{metric}' for metric in required_metrics]
             required_metrics += [f'{prefix}wer'] + [f'{prefix}inter_wer_l{idx}' for idx in apply_at_layers]
             for metric in required_metrics:
-                assert metric in trainer.logged_metrics
+                if 'loss' in metric and 'val_' in metric:
+                    if model_config['compute_eval_loss']:
+                        assert metric in trainer.logged_metrics
+                    else:
+                        assert metric not in trainer.logged_metrics
+                else:
+                    assert metric in trainer.logged_metrics
 
             trainer.test(
                 asr_model,
@@ -242,9 +256,15 @@ class TestInterCTCLoss:
                 ),
             )
             required_metrics = [f'inter_ctc_loss_l{idx}' for idx in apply_at_layers]
-            prefix = "test_"
+            prefix = 'test_'
             # note that "=" is on purpose here, not "+=", since we only log test metrics
             required_metrics = [f'{prefix}{metric}' for metric in required_metrics]
             required_metrics += [f'{prefix}wer'] + [f'{prefix}inter_wer_l{idx}' for idx in apply_at_layers]
             for metric in required_metrics:
-                assert metric in trainer.logged_metrics
+                if 'loss' in metric:
+                    if model_config['compute_eval_loss']:
+                        assert metric in trainer.logged_metrics
+                    else:
+                        assert metric not in trainer.logged_metrics
+                else:
+                    assert metric in trainer.logged_metrics
