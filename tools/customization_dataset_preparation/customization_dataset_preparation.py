@@ -56,7 +56,7 @@ import pathlib
 from collections import Counter
 
 import pandas as pd
-
+import numpy as np
 
 def load_file_into_df(filename):
     message = None
@@ -91,7 +91,7 @@ def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
     
-    All hyperparameters except batch_size and max_batch_size are hardcoded based on API defaults for now
+    All hyperparameters except batch_size, max_batch_size and max_seq_length are hardcoded based on API defaults for now
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
     bs = 2
@@ -109,7 +109,13 @@ def recommend_hyperparameters(df, model=None):
     df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
     length_by_chars = sorted(list(df_char_length))
     n_samples_under_99p5_limit = math.ceil(len(df_char_length) * 0.995)
-    max_char_length = length_by_chars[n_samples_under_99p5_limit - 1]
+    char_length_99p5 = length_by_chars[n_samples_under_99p5_limit - 1]
+    mean_char_length = np.mean(length_by_chars)
+    std_char_length = np.std(length_by_chars)
+
+    #filter out only outliers that are >2 std above mean
+    max_char_length = max(min(mean_char_length+2*std_char_length, length_by_chars[-1]), char_length_99p5)
+    
     # every token is around 4 chars + 100 for extra capacity
     max_seq_length = max_char_length // 4 + 100
     return {
