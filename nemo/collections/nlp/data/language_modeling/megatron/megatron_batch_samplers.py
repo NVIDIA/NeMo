@@ -140,8 +140,8 @@ class BaseMegatronBatchSampler:
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     def get_start_end_idx(self) -> Tuple[int, int]:
-        start_idx = self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank
-        end_idx = start_idx + self._global_batch_size_on_this_data_parallel_rank
+        start_idx = self.data_parallel_rank * self.micro_batch_size
+        end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
     def __iter__(self):
@@ -149,12 +149,16 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            if len(batch) == self._global_batch_size:
+            if len(batch) == self.micro_batch_size:
                 # start_idx, end_idx = self.get_start_end_idx()
+
+                """
+                if data parallel size was 2, batch size was 8
+                """
                 indices = [
-                    batch[i] for i in range(self.data_parallel_rank, self._global_batch_size, self.data_parallel_size,)
+                    batch[i] for i in range(self.data_parallel_rank, self.micro_batch_size, self.data_parallel_size,)
                 ]
-                assert len(indices) == self._global_batch_size_on_this_data_parallel_rank
+                assert len(indices) == self.micro_batch_size
                 yield indices
                 # yield batch[start_idx:end_idx]
                 batch = []
