@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.metrics.wer import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.core.classes.mixins import AccessMixin
 
