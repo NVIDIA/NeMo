@@ -151,10 +151,6 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             batch.append(idx)
             if len(batch) == self.micro_batch_size:
                 # start_idx, end_idx = self.get_start_end_idx()
-
-                """
-                if data parallel size was 2, batch size was 8
-                """
                 indices = [
                     batch[i] for i in range(self.data_parallel_rank, self.micro_batch_size, self.data_parallel_size,)
                 ]
