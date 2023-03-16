@@ -17,9 +17,13 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.utilities import model_summary
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
+
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -170,8 +174,8 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         logging.info("Done")
         # self.model = self.frozen_model
-
-        self.load_adapters(strict=False)
+        if cfg.eval == True:
+            self.load_adapters(strict=False)
 
     def add_adapters_init(self, module, adapter_cfg):
         for adapter_key in self.adapter_name_keys:
@@ -238,6 +242,53 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 module.set_enabled_adapters(enabled=True)
 
 
+    def build_train_valid_test_datasets(self):
+        logging.info('Building RETRO datasets.')
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = int(self.trainer.limit_test_batches)
+
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
+
+        self._train_ds, self._validation_ds, self._test_ds = build_all_datasets(
+            cfg=self.cfg.data, tokenizer=self.tokenizer, train_valid_test_num_samples=train_valid_test_num_samples,
+        )
+        if self._train_ds is not None:
+            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        if self._validation_ds is not None:
+            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+        if self._test_ds is not None:
+            logging.info(f'Length of test dataset: {len(self._test_ds)}')
+        logging.info(f'Finished building RETRO datasets.')
+        return self._train_ds, self._validation_ds, self._test_ds
+
+    def build_pretraining_data_loader(self, dataset, consumed_samples):
+        if isinstance(dataset, BlendableDataset):
+            collate_fun = dataset.datasets[0].collate_fn
+        else:
+            collate_fun = dataset.collate_fn
+
+        collate_fn = partial(collate_fun, tp_workers=0)
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=self.cfg.micro_batch_size,
+            global_batch_size=global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=True,
+        )
+        return torch.utils.data.DataLoader(
+            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
+        )
+
     # def load_model_state_dict(self, checkpoint) -> None:
     #     self.load_state_dict(state_dict())
 
@@ -279,44 +330,44 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #     # self.frozen_model.load_state_dict(state_dict)
     #     print("Loaded state dict")
 
-    def get_forward_output_only_func(self):
-        """
-        Used for generate method only.
-        """
+    # def get_forward_output_only_func(self):
+    #     """
+    #     Used for generate method only.
+    #     """
 
-        def fwd_output_only_func(batch, model):
-            extra_arg = {}
-            (
-                tokens,
-                attention_mask,
-                retrieved,
-                retrieved_mask,
-                set_inference_key_value_memory,
-                inference_max_sequence_len,
-                neighbors,
-                position_ids,
-            ) = batch
+    #     def fwd_output_only_func(batch, model):
+    #         extra_arg = {}
+    #         (
+    #             tokens,
+    #             attention_mask,
+    #             retrieved,
+    #             retrieved_mask,
+    #             set_inference_key_value_memory,
+    #             inference_max_sequence_len,
+    #             neighbors,
+    #             position_ids,
+    #         ) = batch
 
-            if len(retrieved.shape) == 1:
-                retrieved = None
-                retrieved_mask = None
-            else:
-                retrieved = retrieved.cuda()
-                retrieved_mask = retrieved_mask.cuda()
+    #         if len(retrieved.shape) == 1:
+    #             retrieved = None
+    #             retrieved_mask = None
+    #         else:
+    #             retrieved = retrieved.cuda()
+    #             retrieved_mask = retrieved_mask.cuda()
 
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            extra_arg['neighbors'] = neighbors[0].item()
-            # extra_arg['position_ids'] = position_ids
+    #         extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+    #         extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+    #         extra_arg['neighbors'] = neighbors[0].item()
+    #         # extra_arg['position_ids'] = position_ids
 
-            output_tensor = model.model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
+    #         output_tensor = model.model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
 
-            def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+    #         def id_func(output_tensor):
+    #             return output_tensor, {'logits': output_tensor}
 
-            return output_tensor, id_func
+    #         return output_tensor, id_func
 
-        return fwd_output_only_func
+    #     return fwd_output_only_func
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.
@@ -403,3 +454,49 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     @classmethod
     def list_available_models(cls):
         pass
+
+def build_all_datasets(
+    cfg, tokenizer, train_valid_test_num_samples,
+):
+    """Build train, valid, and test RETRO datasets.
+       There is one to one mapping between data_prefix and knn_map_path.
+       Currently only supports one retrieval dataset.
+    """
+    train_dataset = RetroQAFineTuneDataset(
+        cfg.train_ds.get('file_name'),
+        tokenizer,
+        cfg.train_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.train_ds.get('seq_length'),
+        cfg.train_ds.get('add_bos'),
+        cfg.train_ds.get('add_eos'),
+        train_valid_test_num_samples[0],
+        cfg.train_ds.get('seed'),
+        cfg.train_ds.get('neighbors'),
+    )
+    val_dataset = RetroQAFineTuneDataset(
+        cfg.val_ds.get('file_name'),
+        tokenizer,
+        cfg.val_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.val_ds.get('seq_length'),
+        cfg.val_ds.get('add_bos'),
+        cfg.val_ds.get('add_eos'),
+        train_valid_test_num_samples[1],
+        cfg.val_ds.get('seed'),
+        cfg.val_ds.get('neighbors'),
+    )
+    test_dataset = RetroQAFineTuneDataset(
+        cfg.test_ds.get('file_name'),
+        tokenizer,
+        cfg.test_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.test_ds.get('seq_length'),
+        cfg.test_ds.get('add_bos'),
+        cfg.test_ds.get('add_eos'),
+        train_valid_test_num_samples[2],
+        cfg.test_ds.get('seed'),
+        cfg.test_ds.get('neighbors'),
+    )
+
+    return train_dataset, val_dataset, test_dataset
