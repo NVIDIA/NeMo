@@ -73,8 +73,7 @@ class PreemptionCallback(Callback):
         # distributed broadcast of "_interrupted" flag from rank 0 to all other
         # ranks, to avoid performance overheads it's best to store the result in
         # a regular local variable
-        #interrupted = self.interrupted(pl_module.device)
-        interrupted = self.interrupted()
+        interrupted = self.interrupted
         if interrupted:
             logging.info("Received SIGTERM, exiting")
             monitor_candidates = self.checkpoint_callback._monitor_candidates(trainer)
