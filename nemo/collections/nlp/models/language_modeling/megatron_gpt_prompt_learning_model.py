@@ -380,13 +380,22 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.get('report_validation_metric', False):
             preds_text, labels_text = [], []
             input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            input_lenghts = torch.cuda.LongTensor(
-                [input.shape[0] - self.length_params['max_length'] for input in input_ids]
-            )
+            input_lenghts = torch.argmax(loss_mask, 1, keepdim=True)
 
             res = megatron_gpt_generate(
                 self.cuda(),
-                (input_ids, torch.cuda.LongTensor(input_lenghts)),
+                (
+                    torch.cat(
+                        (
+                            input_ids,
+                            torch.zeros(
+                                input_ids.shape[0], self.length_params['max_length'], dtype=input_ids.dtype
+                            ).to(self.device),
+                        ),
+                        axis=1,
+                    ),
+                    input_lenghts.squeeze(1),
+                ),
                 self.tokenizer,
                 self.length_params,
                 self.sampling_params,
@@ -394,6 +403,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
 
             for pred, label in zip(res['token_ids'], labels):
+                # ids_to_text ignores special tokens by default
                 pred = self.tokenizer.ids_to_text(pred)
                 label = self.tokenizer.ids_to_text(label)
                 preds_text.append(pred)
