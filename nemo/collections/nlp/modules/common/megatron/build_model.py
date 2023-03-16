@@ -13,8 +13,9 @@
 # limitations under the License.
 
 
-import torch
 from typing import Any, Callable, Dict, List, Optional
+
+import torch
 
 try:
     from megatron.core import parallel_state
@@ -27,16 +28,15 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from apex.transformer.tensor_parallel.layers import (
-        set_defaults_if_not_set_tensor_model_parallel_attributes,
-    )
+    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
-#Apex's `build model' refactored to call Megatron-Core classes
+# Apex's `build model' refactored to call Megatron-Core classes
 def build_model(
     model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
     wrap_with_ddp: bool = True,
@@ -96,9 +96,7 @@ def build_model(
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
                 if split_rank is None:
-                    raise RuntimeError(
-                        "Split rank needs to be specified for model with both encoder and decoder."
-                    )
+                    raise RuntimeError("Split rank needs to be specified for model with both encoder and decoder.")
                 rank = parallel_state.get_pipeline_model_parallel_rank()
                 world_size = parallel_state.get_pipeline_model_parallel_world_size()
                 pre_process = rank == 0 or rank == split_rank
@@ -128,10 +126,7 @@ def build_model(
             set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if (
-        parallel_state.model_parallel_is_initialized()
-        and parallel_state.get_data_parallel_rank() == 0
-    ):
+    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
         msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
@@ -147,10 +142,7 @@ def build_model(
         i = torch.cuda.current_device()
         model = [
             torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module,
-                device_ids=[i],
-                output_device=i,
-                process_group=parallel_state.get_data_parallel_group(),
+                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
             )
             for model_module in model
         ]
@@ -159,10 +151,4 @@ def build_model(
 
 def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
     assert isinstance(model, list)
-    return sum(
-        [
-            sum([p.nelement() for p in model_module.parameters()])
-            for model_module in model
-        ]
-    )
-
+    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
