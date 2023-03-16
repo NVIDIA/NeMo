@@ -598,7 +598,6 @@ class IPATokenizer(BaseTokenizer):
 
         self.g2p = g2p
 
-
     def encode(self, text: str) -> List[int]:
         """See base class for more information."""
         # normalize the input text with "NFC" form.
