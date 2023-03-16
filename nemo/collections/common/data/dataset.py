@@ -156,7 +156,7 @@ class ConcatDataset(IterableDataset):
         if not temp:
             raise ValueError("Temperature generator expects a 'temperature' keyword argument.")
 
-        seed = kwargs.get('seed')
+        seed = kwargs.get('seed', None)
         np_rng = np.random.RandomState(seed)
         lengths = []
         num = len(datasets)
@@ -184,7 +184,7 @@ class ConcatDataset(IterableDataset):
         if not p:
             raise ValueError("Random generator expects a 'p' keyowrd argument for sampling probabilities.")
 
-        seed = kwargs.get('seed')
+        seed = kwargs.get('seed', None)
         np_rng = np.random.RandomState(seed)
         num = len(datasets)
         if len(p) != num:

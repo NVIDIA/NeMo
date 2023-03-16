@@ -1,6 +1,6 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
-# Licensed under the Apache LiceConnse, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -98,7 +98,7 @@ def get_concat_char_dataset(
     # needed to support validation Concat Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
-        logging.warning(f"flattening {manifest_filepaths}")
+        logging.info(f"removing an extra nesting level from {manifest_filepaths}")
         manifest_filepaths = config['manifest_filepath'][0]
 
     for manifest_filepath in manifest_filepaths:
@@ -182,7 +182,7 @@ def get_concat_bpe_dataset(
     # needed to support validation Concat Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
-        logging.warning(f"flattening {manifest_filepaths}")
+        logging.info(f"removing an extra nesting level from {manifest_filepaths}")
         manifest_filepaths = config['manifest_filepath'][0]
 
     for manifest_filepath in manifest_filepaths:
