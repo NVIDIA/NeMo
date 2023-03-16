@@ -53,7 +53,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
+class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
     """A Hybrid Autoregressive Transducer Joint Network (HAT Joint Network).
     An HAT Joint network, comprised of a feedforward model.
 
@@ -143,26 +143,26 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
                 "wer_denom": NeuralType(elements_type=ElementType(), optional=True),
             }
 
-    # def _prepare_for_export(self, **kwargs):
-    #     self._fuse_loss_wer = False
-    #     self.log_softmax = False
-    #     super()._prepare_for_export(**kwargs)
+    def _prepare_for_export(self, **kwargs):
+        self._fuse_loss_wer = False
+        self.log_softmax = False
+        super()._prepare_for_export(**kwargs)
 
-    # def input_example(self, max_batch=1, max_dim=8192):
-    #     """
-    #     Generates input examples for tracing etc.
-    #     Returns:
-    #         A tuple of input examples.
-    #     """
-    #     B, T, U = max_batch, max_dim, max_batch
-    #     encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
-    #     decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
-    #     return (encoder_outputs, decoder_outputs)
+    def input_example(self, max_batch=1, max_dim=8192):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        B, T, U = max_batch, max_dim, max_batch
+        encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
+        decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
+        return (encoder_outputs, decoder_outputs)
 
-    # @property
-    # def disabled_deployment_input_names(self):
-    #     """Implement this method to return a set of input names disabled for export"""
-    #     return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
 
     def __init__(
         self,
@@ -253,7 +253,7 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
                     "decoder_outputs can only be None for fused step!"
                 )
 
-            out = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, V + 1]
+            out, _ = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, V + 1]
             return out
 
         else:
@@ -368,7 +368,7 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
 
             return losses, wer, wer_num, wer_denom
 
-    def joint(self, f: torch.Tensor, g: torch.Tensor, return_ilm: bool = False) -> torch.Tensor:
+    def joint(self, f: torch.Tensor, g: torch.Tensor, return_ilm: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute the joint step of the network.
 
@@ -397,6 +397,7 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
 
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
+            Internal LM probs (B, T, U, V).
         """
         # f = [B, T, H1]
         f = self.enc(f)
@@ -428,9 +429,9 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
             ilm_logit = self.joint_net(g)
             ilm_logprob = ilm_logit.log_softmax(dim=-1)
 
-        res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1) # [B, T, U, V+1]
+        res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous() # [B, T, U, V+1]
 
-        del blank_logprob, label_logit, label_logprob, scale_prob, label_logprob_scaled
+        del blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
 
         if self.preserve_memory:
             torch.cuda.empty_cache()
@@ -477,58 +478,58 @@ class HATJoint(rnnt.RNNTJoint, Exportable, AdapterModuleMixin):
         )
         return pred, enc, torch.nn.Sequential(*layers), blank_pred
 
-    # # Adapter method overrides
-    # def add_adapter(self, name: str, cfg: DictConfig):
-    #     # Update the config with correct input dim
-    #     cfg = self._update_adapter_cfg_input_dim(cfg)
-    #     # Add the adapter
-    #     super().add_adapter(name=name, cfg=cfg)
+    # Adapter method overrides
+    def add_adapter(self, name: str, cfg: DictConfig):
+        # Update the config with correct input dim
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        # Add the adapter
+        super().add_adapter(name=name, cfg=cfg)
 
-    # def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-    #     cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
-    #     return cfg
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
+        return cfg
 
-    # @property
-    # def num_classes_with_blank(self):
-    #     return self._num_classes
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes
 
-    # @property
-    # def num_extra_outputs(self):
-    #     return self._num_extra_outputs
+    @property
+    def num_extra_outputs(self):
+        return self._num_extra_outputs
 
-    # @property
-    # def loss(self):
-    #     return self._loss
+    @property
+    def loss(self):
+        return self._loss
 
-    # def set_loss(self, loss):
-    #     if not self._fuse_loss_wer:
-    #         raise ValueError("Attempting to set loss module even though `fuse_loss_wer` is not set!")
+    def set_loss(self, loss):
+        if not self._fuse_loss_wer:
+            raise ValueError("Attempting to set loss module even though `fuse_loss_wer` is not set!")
 
-    #     self._loss = loss
+        self._loss = loss
 
-    # @property
-    # def wer(self):
-    #     return self._wer
+    @property
+    def wer(self):
+        return self._wer
 
-    # def set_wer(self, wer):
-    #     if not self._fuse_loss_wer:
-    #         raise ValueError("Attempting to set WER module even though `fuse_loss_wer` is not set!")
+    def set_wer(self, wer):
+        if not self._fuse_loss_wer:
+            raise ValueError("Attempting to set WER module even though `fuse_loss_wer` is not set!")
 
-    #     self._wer = wer
+        self._wer = wer
 
-    # @property
-    # def fuse_loss_wer(self):
-    #     return self._fuse_loss_wer
+    @property
+    def fuse_loss_wer(self):
+        return self._fuse_loss_wer
 
-    # def set_fuse_loss_wer(self, fuse_loss_wer, loss=None, metric=None):
-    #     self._fuse_loss_wer = fuse_loss_wer
+    def set_fuse_loss_wer(self, fuse_loss_wer, loss=None, metric=None):
+        self._fuse_loss_wer = fuse_loss_wer
 
-    #     self._loss = loss
-    #     self._wer = metric
+        self._loss = loss
+        self._wer = metric
 
-    # @property
-    # def fused_batch_size(self):
-    #     return self._fuse_loss_wer
+    @property
+    def fused_batch_size(self):
+        return self._fuse_loss_wer
 
-    # def set_fused_batch_size(self, fused_batch_size):
-    #     self._fused_batch_size = fused_batch_size
+    def set_fused_batch_size(self, fused_batch_size):
+        self._fused_batch_size = fused_batch_size
