@@ -131,6 +131,10 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         {'text': 'hey', 's_start': 5, 's_end': 7},
     ]
     's_start' and 's_end' indicate where in the sequence of tokens does each segment start and end.
+
+    If the text is empty, then token_info, word_info and segment_info will be None and 
+    y_token_ids_with_blanks will be [BLANK_ID] (we do not make it None so that it is possible to use
+    this list of y tokens inside y_batch with other utterances which may have non-empty text).
     """
 
     if not separator:  # if separator is not defined - treat the whole text as one segment
@@ -146,6 +150,10 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
 
         y_token_ids_with_blanks = [BLANK_ID]
+
+        if len(text) == 0:
+            return y_token_ids_with_blanks, None, None, None
+
         token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
         word_info = []
         segment_info = []
@@ -207,6 +215,10 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         SPACE_ID = model.decoder.vocabulary.index(" ")
 
         y_token_ids_with_blanks = [BLANK_ID]
+
+        if len(text) == 0:
+            return y_token_ids_with_blanks, None, None, None
+
         token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
         word_info = []
         segment_info = []

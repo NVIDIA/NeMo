@@ -128,6 +128,9 @@ def make_ctm(
         boundary_info_batch, alignments_batch, manifest_lines_batch
     ):
 
+        if boundary_info_utt is None:
+            continue
+
         boundary_info_utt = add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt)
 
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm
@@ -209,6 +212,11 @@ def make_new_manifest(
 
             if pred_text_all_lines:
                 data['pred_text'] = pred_text_all_lines[i_line]
+
+            # change ctm filepaths to None if they do not actually exits (which will happen if text was empty)
+            for key in ["token_level_ctm_filepath", "word_level_ctm_filepath", "additional_segment_level_ctm_filepat"]:
+                if not os.path.exists(key):
+                    data[key] = None
 
             new_line = json.dumps(data)
 
