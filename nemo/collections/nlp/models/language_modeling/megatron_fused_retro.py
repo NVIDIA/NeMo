@@ -242,52 +242,52 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 module.set_enabled_adapters(enabled=True)
 
 
-    def build_train_valid_test_datasets(self):
-        logging.info('Building RETRO datasets.')
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
-        # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
-        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = int(self.trainer.limit_test_batches)
+    # def build_train_valid_test_datasets(self):
+    #     logging.info('Building RETRO datasets.')
+    #     global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+    #     # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+    #     max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+    #     eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+    #     test_iters = int(self.trainer.limit_test_batches)
 
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
+    #     train_valid_test_num_samples = [
+    #         max_train_steps * global_batch_size,
+    #         eval_iters * global_batch_size,
+    #         test_iters * global_batch_size,
+    #     ]
 
-        self._train_ds, self._validation_ds, self._test_ds = build_all_datasets(
-            cfg=self.cfg.data, tokenizer=self.tokenizer, train_valid_test_num_samples=train_valid_test_num_samples,
-        )
-        if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building RETRO datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
+    #     self._train_ds, self._validation_ds, self._test_ds = build_all_datasets(
+    #         cfg=self.cfg.data, tokenizer=self.tokenizer, train_valid_test_num_samples=train_valid_test_num_samples,
+    #     )
+    #     if self._train_ds is not None:
+    #         logging.info(f'Length of train dataset: {len(self._train_ds)}')
+    #     if self._validation_ds is not None:
+    #         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+    #     if self._test_ds is not None:
+    #         logging.info(f'Length of test dataset: {len(self._test_ds)}')
+    #     logging.info(f'Finished building RETRO datasets.')
+    #     return self._train_ds, self._validation_ds, self._test_ds
 
-    def build_pretraining_data_loader(self, dataset, consumed_samples):
-        if isinstance(dataset, BlendableDataset):
-            collate_fun = dataset.datasets[0].collate_fn
-        else:
-            collate_fun = dataset.collate_fn
+    # def build_pretraining_data_loader(self, dataset, consumed_samples):
+    #     if isinstance(dataset, BlendableDataset):
+    #         collate_fun = dataset.datasets[0].collate_fn
+    #     else:
+    #         collate_fun = dataset.collate_fn
 
-        collate_fn = partial(collate_fun, tp_workers=0)
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
-        batch_sampler = MegatronPretrainingBatchSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=self.cfg.micro_batch_size,
-            global_batch_size=global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
-        )
-        return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
-        )
+    #     collate_fn = partial(collate_fun, tp_workers=0)
+    #     global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+    #     batch_sampler = MegatronPretrainingBatchSampler(
+    #         total_samples=len(dataset),
+    #         consumed_samples=consumed_samples,
+    #         micro_batch_size=self.cfg.micro_batch_size,
+    #         global_batch_size=global_batch_size,
+    #         data_parallel_rank=parallel_state.get_data_parallel_rank(),
+    #         data_parallel_size=parallel_state.get_data_parallel_world_size(),
+    #         drop_last=True,
+    #     )
+    #     return torch.utils.data.DataLoader(
+    #         dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
+    #     )
 
     # def load_model_state_dict(self, checkpoint) -> None:
     #     self.load_state_dict(state_dict())
