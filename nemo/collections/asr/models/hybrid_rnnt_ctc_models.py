@@ -89,7 +89,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         self.use_rnnt_decoder = True
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc(self.ctc_wer, self.encoder, self.ctc_decoder, self.ctc_loss)
+        self.setup_interctc('ctc_decoder', 'ctc_loss', 'ctc_wer')
 
     @torch.no_grad()
     def transcribe(
@@ -436,7 +436,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 tensorboard_logs.update({'training_batch_wer_ctc': ctc_wer})
 
         # note that we want to apply interctc independent of whether main ctc
-        # loss  is used or not (to allow rnnt + interctc training).
+        # loss is used or not (to allow rnnt + interctc training).
+        # assuming ``ctc_loss_weight=0.3`` and interctc is applied to a single
+        # layer with weight of ``0.1``, the total loss will be
+        # ``loss = 0.9 * (0.3 * ctc_loss + 0.7 * rnnt_loss) + 0.1 * interctc_loss``
         loss_value, additional_logs = self.add_interctc_losses(
             loss_value, transcript, transcript_len, compute_wer=compute_wer
         )

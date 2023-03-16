@@ -104,7 +104,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.setup_optimization_flags()
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc(self._wer, self.encoder, self.decoder, self.loss)
+        self.setup_interctc('decoder', 'loss', '_wer')
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()

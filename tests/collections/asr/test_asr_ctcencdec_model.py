@@ -12,18 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-from typing import Dict
 
 import pytest
-import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.metrics.wer import CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, configs
-from nemo.core.classes.mixins import AccessMixin
+from nemo.collections.asr.models import EncDecCTCModel, configs
 from nemo.utils.config_utils import assert_dataclass_signature_match, update_model_config
 
 
