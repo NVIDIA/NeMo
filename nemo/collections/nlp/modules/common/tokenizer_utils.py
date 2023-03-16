@@ -105,7 +105,6 @@ def get_tokenizer(
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        '''
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
@@ -113,7 +112,6 @@ def get_tokenizer(
             merges_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_merges_file(
                 tokenizer_name
             )
-        '''
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
     if tokenizer_name == 'sentencepiece':
