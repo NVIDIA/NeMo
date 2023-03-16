@@ -22,7 +22,6 @@ import transformers
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.nn import functional as F
 from transformers import AlbertTokenizer
@@ -38,12 +37,8 @@ from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     g2p_backward_compatible_support,
     get_mask_from_lengths,
-    mel_to_audio,
-    plot_multipitch_to_numpy,
-    plot_pitch_to_numpy,
-    plot_spectrogram_to_numpy,
-    tensor_to_wav,
 )
+from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -58,16 +53,9 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
-from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 
-class MixerTTSModel(SpectrogramGenerator, Exportable):
+class MixerTTSModel(SpectrogramGenerator, Exportable, TTSValLogger):
     """Mixer-TTS and Mixer-TTS-X models (https://arxiv.org/abs/2110.03584) that is used to generate mel spectrogram from text."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -92,6 +80,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
+        self.sample_rate = cfg.sample_rate
         self.pitch_loss_scale = cfg.pitch_loss_scale
         self.durs_loss_scale = cfg.durs_loss_scale
         self.mel_loss_scale = cfg.mel_loss_scale
@@ -570,148 +559,32 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         }
         self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
-        for logger in self.loggers:
-            if batch_idx == 0:
-                if isinstance(logger, WandbLogger) and HAVE_WANDB:
-                    specs = []
-                    pitches = []
-                    audios = []
+        if batch_idx == 0:
+            # Prepare for logging
+            max_log_len = min(5, spect.shape[0])
 
-                    for i in range(min(5, spect.shape[0])):
-                        specs += [
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(spect[i, :, : spect_len[i]].data.cpu().numpy()),
-                                caption=f"gt mel {i}",
-                            ),
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(
-                                    pred_spect.transpose(1, 2)[i, :, : spect_len[i]].data.cpu().numpy()
-                                ),
-                                caption=f"pred mel {i}",
-                            ),
-                        ]
+            spects_target = [spect[i, :, : spect_len[i]].data.cpu().numpy() for i in range(max_log_len)]
+            pred_spect = pred_spect.transpose(1, 2)
+            spects_pred = [pred_spect[i, :, : spect_len[i]].data.cpu().numpy() for i in range(max_log_len)]
 
-                        _pitch_target = (
-                            average_features(pitch.unsqueeze(1), attn_hard_dur)
-                            .squeeze(1)[i, : text_len[i]]
-                            .data.cpu()
-                            .numpy()
-                        )
-                        _pitch_pred = pred_pitch[i, : text_len[i]].data.cpu().numpy()
+            pitches_target = [
+                average_features(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)[i, : text_len[i]].data.cpu().numpy()
+                for i in range(max_log_len)
+            ]
+            pitches_pred = [pred_pitch[i, : text_len[i]].data.cpu().numpy() for i in range(max_log_len)]
 
-                        pitches.append(
-                            wandb.Image(
-                                plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
-                                caption=f"val_pitch {self.global_step}-{i}",
-                            )
-                        )
+            audio_orig = [audio[i, : audio_len[i]].data.cpu().numpy() for i in range(max_log_len)]
 
-                        audios += [
-                            wandb.Audio(
-                                audio[i, : audio_len[i]].data.cpu().numpy(),
-                                caption=f"original audio {i}",
-                                sample_rate=self._cfg.sample_rate,
-                            ),
-                            wandb.Audio(
-                                mel_to_audio(
-                                    spect[i, :, : spect_len[i]],
-                                    sr=self._cfg.sample_rate,
-                                    n_fft=self._cfg.n_fft,
-                                    n_mels=self._cfg.n_mel_channels,
-                                    fmax=self._cfg.highfreq,
-                                ),
-                                caption=f"gt audio {i}",
-                                sample_rate=self._cfg.sample_rate,
-                            ),
-                            wandb.Audio(
-                                mel_to_audio(
-                                    pred_spect.transpose(1, 2)[i, :, : spect_len[i]],
-                                    sr=self._cfg.sample_rate,
-                                    n_fft=self._cfg.n_fft,
-                                    n_mels=self._cfg.n_mel_channels,
-                                    fmax=self._cfg.highfreq,
-                                ),
-                                caption=f"pred audio {i}",
-                                sample_rate=self._cfg.sample_rate,
-                            ),
-                        ]
-
-                    logger.experiment.log({"specs": specs, "pitches": pitches, "audio": audios})
-
-                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                    for i in range(min(5, spect.shape[0])):
-                        # Mels:
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(spect[i, :, : spect_len[i]].data.cpu().numpy()),
-                            series=f"gt mel {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(
-                                pred_spect.transpose(1, 2)[i, :, : spect_len[i]].data.cpu().numpy()
-                            ),
-                            series=f"pred mel {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-
-                        # Pitch:
-                        _pitch_target = (
-                            average_features(pitch.unsqueeze(1), attn_hard_dur)
-                            .squeeze(1)[i, : text_len[i]]
-                            .data.cpu()
-                            .numpy()
-                        )
-                        _pitch_pred = pred_pitch[i, : text_len[i]].data.cpu().numpy()
-
-                        logger.clearml_task.logger.report_image(
-                            image=plot_multipitch_to_numpy(_pitch_target, _pitch_pred),
-                            series=f"val_pitch {i}",
-                            title="pitch",
-                            iteration=self.global_step,
-                        )
-
-                        # Audio:
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(audio[i, : audio_len[i]], self._cfg.sample_rate),
-                            title="audio",
-                            series=f"original audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(
-                                mel_to_audio(
-                                    spect[i, :, : spect_len[i]],
-                                    sr=self._cfg.sample_rate,
-                                    n_fft=self._cfg.n_fft,
-                                    n_mels=self._cfg.n_mel_channels,
-                                    fmax=self._cfg.highfreq,
-                                ),
-                                self._cfg.sample_rate,
-                            ),
-                            title="audio",
-                            series=f"gt audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(
-                                mel_to_audio(
-                                    pred_spect.transpose(1, 2)[i, :, : spect_len[i]],
-                                    sr=self._cfg.sample_rate,
-                                    n_fft=self._cfg.n_fft,
-                                    n_mels=self._cfg.n_mel_channels,
-                                    fmax=self._cfg.highfreq,
-                                ),
-                                self._cfg.sample_rate,
-                            ),
-                            title="audio",
-                            series=f"pred audio {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
+            self.val_log(
+                spects={"val_mel_target": spects_target, "val_mel_pred": spects_pred,},
+                pitches_target=pitches_target,
+                pitches_pred=pitches_pred,
+                audios={
+                    "val_audio_orig": audio_orig,
+                    "val_audio_oracle": spects_target,
+                    "val_audio_pred": spects_pred,
+                },
+            )
 
     @typecheck(
         input_types={

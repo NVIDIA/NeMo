@@ -280,7 +280,7 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
 
 
 def tensor_to_wav(audio_tensor, sample_rate: int):
-    if type(audio_tensor) != np.ndarray:
+    if isinstance(audio_tensor, torch.Tensor):
         audio_tensor = audio_tensor.data.cpu().numpy()
     temp_file = io.BytesIO()
     soundfile.write(
@@ -293,8 +293,10 @@ def mel_to_audio(
     mel, sr=22050, n_fft=1024, n_mels=80, fmax=8000, griffin_lim_mag_scale=1024, griffin_lim_power=1.2,
 ):
     filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
-    log_mel = mel.data.cpu().numpy().T
-    mel = np.exp(log_mel)
+    if isinstance(mel, torch.Tensor):
+        mel = mel.data.cpu().numpy()
+    mel = mel.T
+    mel = np.exp(mel)
     magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
     audio_pred = griffin_lim(magnitude.T ** griffin_lim_power)
     return audio_pred / max(np.abs(audio_pred))

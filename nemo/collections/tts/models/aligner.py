@@ -20,7 +20,6 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
@@ -28,21 +27,14 @@ from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention,
     g2p_backward_compatible_support,
     get_mask_from_lengths,
-    plot_alignment_to_numpy,
 )
+from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 
-class AlignerModel(ModelPT):
+class AlignerModel(ModelPT, TTSValLogger):
     """Speech-to-text alignment model (https://arxiv.org/pdf/2108.10447.pdf) that is used to learn alignments between mel spectrogram and text."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -190,60 +182,25 @@ class AlignerModel(ModelPT):
         loss, forward_sum_loss, bin_loss, attn_hard = self._metrics(attn_soft, attn_logprob, spec_len, text_len)
 
         # plot once per epoch
-        for logger in self.loggers:
-            if batch_idx == 0:
-                if isinstance(self.logger, WandbLogger) and HAVE_WANDB:
-                    if attn_hard is None:
-                        attn_hard = binarize_attention(attn_soft, text_len, spec_len)
+        if batch_idx == 0:
+            # Prepare for logging
+            if attn_hard is None:
+                attn_hard = binarize_attention(attn_soft, text_len, spec_len)
 
-                    attn_matrices = []
-                    for i in range(min(5, audio.shape[0])):
-                        attn_matrices.append(
-                            wandb.Image(
-                                plot_alignment_to_numpy(
-                                    np.fliplr(
-                                        np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy())
-                                    )
-                                ),
-                                caption=f"attn soft",
-                            ),
-                        )
+            max_log_len = min(5, attn_hard.shape[0])
 
-                        attn_matrices.append(
-                            wandb.Image(
-                                plot_alignment_to_numpy(
-                                    np.fliplr(
-                                        np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy())
-                                    )
-                                ),
-                                caption=f"attn hard",
-                            )
-                        )
+            attn_soft = [
+                np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                for i in range(max_log_len)
+            ]
+            attn_hard = [
+                np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                for i in range(max_log_len)
+            ]
 
-                    self.logger.experiment.log({"attn_matrices": attn_matrices})
-
-                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                    if attn_hard is None:
-                        attn_hard = binarize_attention(attn_soft, text_len, spec_len)
-
-                    # Attentions:
-                    for i in range(min(5, audio.shape[0])):
-                        logger.clearml_task.logger.report_image(
-                            image=plot_alignment_to_numpy(
-                                np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
-                            ),
-                            series=f"attn soft {i}",
-                            title="attn_matrices",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_image(
-                            image=plot_alignment_to_numpy(
-                                np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
-                            ),
-                            series=f"attn hard {i}",
-                            title="attn_matrices",
-                            iteration=self.global_step,
-                        )
+            self.val_log(
+                alignments={"val_attn_soft": attn_soft, "val_attn_hard": attn_hard,}
+            )
 
         val_log = {
             'val_loss': loss,

@@ -19,7 +19,6 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
@@ -30,10 +29,9 @@ from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
 from nemo.collections.tts.parts.utils.helpers import (
     clip_grad_value_,
     g2p_backward_compatible_support,
-    plot_spectrogram_to_numpy,
     slice_segments,
-    tensor_to_wav,
 )
+from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, FloatType, Index, IntType, TokenIndex
@@ -41,17 +39,10 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators.experimental import experimental
-from nemo.utils.loggers.clearml_logger import HAVE_CLEARML_LOGGER, ClearMLLogger
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 
 @experimental
-class VitsModel(TextToWaveform):
+class VitsModel(TextToWaveform, TTSValLogger):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
 
@@ -92,6 +83,8 @@ class VitsModel(TextToWaveform):
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
 
         self.automatic_optimization = False
+
+        self.sample_rate = self._cfg.sample_rate
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -318,76 +311,22 @@ class VitsModel(TextToWaveform):
         audio_pred_mel, audio_pred_mel_len = self.audio_to_melspec_processor(audio_pred, audio_pred_len)
 
         # plot audio once per epoch
-        for logger in self.loggers:
-            if batch_idx == 0:
-                if isinstance(logger, WandbLogger) and HAVE_WANDB:
-                    logger = self.logger.experiment
+        if batch_idx == 0:
+            # Prepare for logging
+            max_log_len = min(5, mel.shape[0])
 
-                    specs = []
-                    audios = []
+            spects_target = [mel[i, :, : mel_lengths[i]].data.cpu().numpy() for i in range(max_log_len)]
+            spects_pred = [
+                audio_pred_mel[i, :, : audio_pred_mel_len[i]].data.cpu().numpy() for i in range(max_log_len)
+            ]
 
-                    for i in range(min(5, audio.shape[0])):
-                        specs += [
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].data.cpu().numpy()),
-                                caption=f"val_mel_target {i}",
-                            ),
-                            wandb.Image(
-                                plot_spectrogram_to_numpy(
-                                    audio_pred_mel[i, :, : audio_pred_mel_len[i]].data.cpu().numpy()
-                                ),
-                                caption=f"val_mel_predicted {i}",
-                            ),
-                        ]
+            audio_orig = [audio[i, : audio_len[i]].data.cpu().float().numpy() for i in range(max_log_len)]
+            audio_pred = [audio_pred[i, : audio_pred_len[i]].data.cpu().float().numpy() for i in range(max_log_len)]
 
-                        audios += [
-                            wandb.Audio(
-                                audio[i, : audio_len[i]].data.cpu().to(torch.float).numpy(),
-                                caption=f"val_wav_target {i}",
-                                sample_rate=self._cfg.sample_rate,
-                            ),
-                            wandb.Audio(
-                                audio_pred[i, : audio_pred_len[i]].data.cpu().to(torch.float).numpy(),
-                                caption=f"val_wav_predicted {i}",
-                                sample_rate=self._cfg.sample_rate,
-                            ),
-                        ]
-
-                    logger.log({"specs": specs, "audios": audios})
-
-                elif isinstance(logger, ClearMLLogger) and HAVE_CLEARML_LOGGER:
-                    for i in range(min(5, audio.shape[0])):
-                        # Audio:
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(audio[i, : audio_len[i]], self._cfg.sample_rate),
-                            title="audio",
-                            series=f"val_wav_target {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_media(
-                            stream=tensor_to_wav(audio_pred[i, : audio_pred_len[i]], self._cfg.sample_rate),
-                            title="audio",
-                            series=f"val_wav_predicted {i}",
-                            file_extension="wav",
-                            iteration=self.global_step,
-                        )
-
-                        # Mels:
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].data.cpu().numpy()),
-                            series=f"val_mel_target {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
-                        logger.clearml_task.logger.report_image(
-                            image=plot_spectrogram_to_numpy(
-                                audio_pred_mel[i, :, : audio_pred_mel_len[i]].data.cpu().numpy()
-                            ),
-                            series=f"val_mel_predicted {i}",
-                            title="mel",
-                            iteration=self.global_step,
-                        )
+            self.val_log(
+                spects={"val_mel_target": spects_target, "val_mel_pred": spects_pred,},
+                audios={"val_audio_orig": audio_orig, "val_audio_pred": audio_pred,},
+            )
 
     def _loader(self, cfg):
         try:
