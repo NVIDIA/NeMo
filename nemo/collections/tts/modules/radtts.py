@@ -167,7 +167,7 @@ class RadTTSModule(NeuralModule, Exportable):
         use_first_order_features=False,
         unvoiced_bias_activation='',
         ap_pred_log_f0=False,
-        **kwargs
+        **kwargs,
     ):
         super(RadTTSModule, self).__init__()
         assert n_early_size % 2 == 0
@@ -460,7 +460,9 @@ class RadTTSModule(NeuralModule, Exportable):
 
             context = torch.bmm(text_enc, attn.squeeze(1).transpose(1, 2))
         else:
-            raise ValueError(f"Something unexpected happened. Both 'atn' and 'dec' are not included in 'self.include_modules'. Please double-check.")
+            raise ValueError(
+                f"Something unexpected happened. Both 'atn' and 'dec' are not included in 'self.include_modules'. Please double-check."
+            )
 
         f0_bias = 0
         # unvoiced bias forward pass
