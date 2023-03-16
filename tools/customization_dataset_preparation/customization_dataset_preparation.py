@@ -55,8 +55,9 @@ import os
 import pathlib
 from collections import Counter
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 
 def load_file_into_df(filename):
     message = None
@@ -113,9 +114,9 @@ def recommend_hyperparameters(df, model=None):
     mean_char_length = np.mean(length_by_chars)
     std_char_length = np.std(length_by_chars)
 
-    #filter out only outliers that are >2 std above mean
-    max_char_length = max(min(mean_char_length+2*std_char_length, length_by_chars[-1]), char_length_99p5)
-    
+    # filter out only outliers that are >2 std above mean
+    max_char_length = max(min(mean_char_length + 2 * std_char_length, length_by_chars[-1]), char_length_99p5)
+
     # every token is around 4 chars + 100 for extra capacity
     max_seq_length = max_char_length // 4 + 100
     return {
