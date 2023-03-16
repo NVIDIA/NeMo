@@ -500,6 +500,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 loss_value = self.loss(
                     log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
                 )
+                tensorboard_logs['val_loss'] = loss_value
 
             self.wer.update(encoded, encoded_len, transcript, transcript_len)
             wer, wer_num, wer_denom = self.wer.compute()
@@ -528,6 +529,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 transcript_lengths=target_len,
                 compute_wer=compute_wer,
             )
+            if loss_value is not None:
+                tensorboard_logs['val_loss'] = loss_value
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -541,6 +544,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             tensorboard_logs['val_ctc_loss'] = ctc_loss
             tensorboard_logs['val_rnnt_loss'] = loss_value
             loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
+            tensorboard_logs['val_loss'] = loss_value
         self.ctc_wer.update(
             predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len,
         )
@@ -553,9 +557,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         loss_value, additional_logs = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
+            loss_value,
+            transcript,
+            transcript_len,
+            compute_wer=True,
+            compute_loss=self.compute_eval_loss,
+            log_wer_num_denom=True,
+            log_prefix="val_",
         )
-        tensorboard_logs['val_loss'] = loss_value
+        if self.compute_eval_loss:
+            # overriding total loss value. Note that the previous
+            # rnnt + ctc loss is available in metrics as "val_final_loss" now
+            tensorboard_logs['val_loss'] = loss_value
         tensorboard_logs.update(additional_logs)
 
         # Reset access registry

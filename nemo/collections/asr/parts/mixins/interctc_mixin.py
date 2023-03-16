@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -33,7 +33,7 @@ class InterCTCMixin:
 
     Then call
 
-        * ``self.setup_interctc(ctc_wer, ctc_encoder, ctc_decoder, ctc_loss)``
+        * ``self.setup_interctc(ctc_decoder_name, ctc_loss_name, ctc_wer_name)``
           in the init method
         * ``self.add_interctc_losses`` after computing regular loss.
         * ``self.finalize_interctc_metrics(metrics, outputs, prefix="val_")``
@@ -115,7 +115,7 @@ class InterCTCMixin:
         """Can be used to verify if setup_interctc was called."""
         if not hasattr(self, '_interctc_params'):
             raise RuntimeError(
-                'self.setup_interctc(ctc_wer, ctc_encoder, ctc_decoder, ctc_loss) has to be '
+                'self.setup_interctc(ctc_decoder_name, ctc_loss_name, ctc_wer_name) has to be '
                 'called before InterCTC loss can be used!'
             )
 
@@ -146,20 +146,22 @@ class InterCTCMixin:
         Should be called inside ``multi_validation_epoch_end`` (with ``prefix="val_"``) or
         ``multi_test_epoch_end`` (with ``prefix="test_"``).
 
-        Note that ``metrics`` argument is going to be updated in-place.
+        Note that ``metrics`` dictionary is going to be updated in-place.
         """
         if self.is_interctc_enabled():
             for layer_idx in self.get_interctc_param('apply_at_layers'):
-                loss = torch.stack([x[f"{prefix}inter_ctc_loss_l{layer_idx}"] for x in outputs]).mean()
-                wer_num = torch.stack([x[f"{prefix}inter_wer_num_l{layer_idx}"] for x in outputs]).sum()
-                wer_denom = torch.stack([x[f"{prefix}inter_wer_denom_l{layer_idx}"] for x in outputs]).sum()
-                metrics["log"].update(
-                    {
-                        f"{prefix}inter_ctc_loss_l{layer_idx}": loss,
-                        f"{prefix}inter_wer_l{layer_idx}": wer_num / wer_denom,
-                    }
-                )
-            metrics["log"][f"{prefix}final_loss"] = torch.stack([x[f"{prefix}final_loss"] for x in outputs]).mean()
+                # assuming that if the first batch logged the metrics, then all batches did
+                if f"{prefix}inter_ctc_loss_l{layer_idx}" in outputs[0]:
+                    loss = torch.stack([x[f"{prefix}inter_ctc_loss_l{layer_idx}"] for x in outputs]).mean()
+                    metrics["log"][f"{prefix}inter_ctc_loss_l{layer_idx}"] = loss
+
+                if f"{prefix}inter_wer_num_l{layer_idx}" in outputs[0]:
+                    wer_num = torch.stack([x[f"{prefix}inter_wer_num_l{layer_idx}"] for x in outputs]).sum()
+                    wer_denom = torch.stack([x[f"{prefix}inter_wer_denom_l{layer_idx}"] for x in outputs]).sum()
+                    metrics["log"][f"{prefix}inter_wer_l{layer_idx}"] = wer_num / wer_denom
+
+            if f"{prefix}final_loss" in outputs[0]:
+                metrics["log"][f"{prefix}final_loss"] = torch.stack([x[f"{prefix}final_loss"] for x in outputs]).mean()
 
     def get_captured_interctc_tensors(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
         """Returns a list of captured tensors from encoder: tuples of (output, length).
@@ -206,9 +208,10 @@ class InterCTCMixin:
         transcript: torch.Tensor,
         transcript_len: torch.Tensor,
         compute_wer: bool,
+        compute_loss: bool = True,
         log_wer_num_denom: bool = False,
         log_prefix: str = "",
-    ) -> Tuple[torch.Tensor, Dict]:
+    ) -> Tuple[Optional[torch.Tensor], Dict]:
         """Adding interCTC losses if required.
 
         Will also register loss/wer metrics in the returned dictionary.
@@ -220,36 +223,46 @@ class InterCTCMixin:
             compute_wer (bool): whether to compute WER for the current utterance.
                 Should typically be True for validation/test and only True for
                 training if current batch WER should be logged.
+            compute_loss (bool): whether to compute loss for the current utterance.
+                Should always be True in training and almost always True in
+                validation, unless all other losses are disabled as well.
+                Defaults to True.
             log_wer_num_denom (bool): if True, will additionally log WER num/denom
                 in the returned metrics dictionary. Should always be True for
                 validation/test to allow correct metrics aggregation. Should
                 always be False for training. Defaults to False.
             log_prefix (str): prefix added to all log values. Should be ``""`` for
-                training and ``"val_"`` for validation.
+                training and ``"val_"`` for validation. Defaults to "".
 
         Returns:
-            tuple[torch.Tensor, Dict]: tuple of new loss tensor and dictionary with logged metrics.
+            tuple[Optional[torch.Tensor], Dict]: tuple of new loss tensor and dictionary with logged metrics.
         """
         if not self.is_interctc_enabled() or not AccessMixin.is_access_enabled():
             return loss_value, {}
-        metrics = {f"{log_prefix}final_loss": loss_value}
+        metrics = {}
+        if compute_loss:
+            metrics[f"{log_prefix}final_loss"] = loss_value
+        else:
+            loss_value = None
         captured_tensors = self.get_captured_interctc_tensors()
 
-        loss_value *= self.get_interctc_param('main_loss_weight')
+        if compute_loss:
+            loss_value *= self.get_interctc_param('main_loss_weight')
 
         for layer_idx, intermediate_result, loss_weight in zip(
             self.get_interctc_param('apply_at_layers'),
             captured_tensors,
             self.get_interctc_param('intermediate_loss_weights'),
         ):
-            inter_loss_value = self.get_interctc_param('loss')(
-                log_probs=intermediate_result[0],
-                targets=transcript,
-                target_lengths=transcript_len,
-                input_lengths=intermediate_result[1],
-            )
-            metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}"] = inter_loss_value.detach()
-            loss_value += inter_loss_value * loss_weight
+            if compute_loss:
+                inter_loss_value = self.get_interctc_param('loss')(
+                    log_probs=intermediate_result[0],
+                    targets=transcript,
+                    target_lengths=transcript_len,
+                    input_lengths=intermediate_result[1],
+                )
+                metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}"] = inter_loss_value.detach()
+                loss_value += inter_loss_value * loss_weight
             if compute_wer:
                 self.get_interctc_param('wer').update(
                     predictions=intermediate_result[0],
@@ -268,5 +281,5 @@ class InterCTCMixin:
                         }
                     )
 
-        # return total loss
+        # return total loss and dictionary of metrics
         return loss_value, metrics
