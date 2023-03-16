@@ -74,13 +74,23 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
     with open(manifest_filepath, "r") as f:
         for line_i, line in enumerate(f):
             if line_i == start and line_i == end:
-                manifest_lines_batch.append(json.loads(line))
+                data = json.loads(line)
+                if "text" in data:
+                    # remove any duplicated spaces and convert any
+                    # newline chars to spaces
+                    data["text"] = " ".join(data["text"].split())
+                manifest_lines_batch.append(data)
                 break
 
             if line_i == end:
                 break
             if line_i >= start:
-                manifest_lines_batch.append(json.loads(line))
+                data = json.loads(line)
+                if "text" in data:
+                    # remove any duplicated spaces and convert any
+                    # newline chars to spaces
+                    data["text"] = " ".join(data["text"].split())
+                manifest_lines_batch.append(data)
     return manifest_lines_batch
 
 
