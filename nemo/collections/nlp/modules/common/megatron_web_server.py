@@ -26,7 +26,7 @@ __all__ = ['RetroDemoWebApp', 'get_demo']
 
 
 def create_gen_function(port=5555):
-    def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition):
+    def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
         data = {
             "sentences": [prompt],
             "tokens_to_generate": int(token_to_gen),
@@ -38,8 +38,10 @@ def create_gen_function(port=5555):
             "all_probs": False,
             "repetition_penalty": repetition,
             "min_tokens_to_generate": int(min_tokens),
+            "end_strings": [i for i in end_strings.split(',') if len(i) != 0],
         }
-        sentences = text_generation(data, port=port)['sentences']
+        response = text_generation(data, port=port)
+        sentences = response['sentences']
         return sentences[0]
 
     return get_generation
@@ -60,6 +62,7 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
                 repetition_penality = gr.Slider(
                     minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
+                end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
@@ -80,6 +83,7 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
                         top_p,
                         top_k,
                         repetition_penality,
+                        end_strings,
                     ],
                     outputs=[output_box],
                 )
