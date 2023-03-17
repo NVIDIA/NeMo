@@ -17,7 +17,8 @@
 import itertools
 
 import torch
-from torch._six import inf
+# from torch._six import inf
+from torch import inf
 
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
 
