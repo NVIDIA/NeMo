@@ -18,8 +18,8 @@ from typing import Any, Callable, Dict, List, Optional
 import torch
 
 try:
+    from apex.transformer.enums import ModelType
     from megatron.core import parallel_state
-    from megatron.core.enums import ModelType
 
     HAVE_MEGATRON_CORE = True
 
