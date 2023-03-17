@@ -237,9 +237,7 @@ class TestAudioSegment:
                 )
 
                 # Test
-                assert (
-                    audio_segment_1 == audio_segment_2
-                ), f'trim setup {trim_setup}, loaded segments not matching'
+                assert audio_segment_1 == audio_segment_2, f'trim setup {trim_setup}, loaded segments not matching'
 
 
 class TestSelectChannels:
