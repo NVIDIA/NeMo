@@ -107,17 +107,17 @@ class MultiSpeakerSimulator(object):
     Change Log:
     v1.0: Dec 2022
         - First working verison, supports multispeaker simulation with overlaps, silence and RIR
-    v1.0.1: Feb 2023
-        - Multi-GPU support for speed up 
-        - Faster random sampling routine 
-        - Fixed sentence duration bug 
-        - Silence and overlap length sampling algorithms are updated to guarantee `mean_silence` approximation
-    v1.0.2: March 2023
-        - Added support for segment-level gain perturbation and session-level white-noise perturbation
-        - Modified speaker sampling mechanism to include as many speakers as possible in each data-generation run
-        - Added chunking mechanism to avoid freezing in multiprocessing processes
-    v1.0.3 March 2023
-        - Faster audio-file loading with maximum audio duration parameter
+        v1.0.1: Feb 2023
+            - Multi-GPU support for speed up 
+            - Faster random sampling routine 
+            - Fixed sentence duration bug 
+            - Silence and overlap length sampling algorithms are updated to guarantee `mean_silence` approximation
+        v1.0.2: March 2023
+            - Added support for segment-level gain perturbation and session-level white-noise perturbation
+            - Modified speaker sampling mechanism to include as many speakers as possible in each data-generation run
+            - Added chunking mechanism to avoid freezing in multiprocessing processes
+        v1.0.3 March 2023
+            - Faster audio-file loading with maximum audio duration parameter
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -1066,7 +1066,7 @@ class MultiSpeakerSimulator(object):
             buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
         return audio_file, sr, audio_manifest
 
-    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count=2) -> int:
+    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count: int=2) -> int:
         """
         Get an index for randomly accessing the silence in alignment timestamps. 
 
@@ -1085,7 +1085,7 @@ class MultiSpeakerSimulator(object):
         sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
         # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
         if (
-            len(sil_inds) <= 2
+            len(sil_inds) <= min_alignment_count
             or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < self.max_audio_read_sec
         ):
             return 0
