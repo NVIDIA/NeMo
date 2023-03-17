@@ -816,7 +816,7 @@ class BeamRNNTInfer(Typing):
         """
         # delay this import here instead of at the beginning to avoid circular imports.
         from nemo.collections.asr.modules.rnnt import RNNTDecoder, StatelessTransducerDecoder
-            
+
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
