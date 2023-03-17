@@ -607,7 +607,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         kwargs - shared arguments (non tensors)
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
 
             # map batch and shared args into forward args
@@ -919,7 +920,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
 
             def dummy():
                 return
@@ -981,16 +982,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         fwd_bwd_func = get_forward_backward_func()
 
-        # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length because while running `.enocde()`, the last hidden states from encoder are passed through as identity through the pipeline. Setting it to anything else will cause hanging due to tensor shape mismatches.
+        # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length
+        # because while running `.encode()`, the last hidden states from encoder are passed through
+        # as identity through the pipeline.
+        # Setting it to anything else will cause hanging due to tensor shape mismatches.
         output_tensor = fwd_bwd_func(
             forward_step_func=forward_step_func,
-            batch=batch_for_pipeline,
-            model=self.enc_dec_model,
+            data_iterator=iter([batch_for_pipeline,]),
+            model=[self.enc_dec_model],
             forward_only=True,
             tensor_shape=tensor_shape,
-            decoder_sequence_length=encoder_seq_length,
+            num_microbatches=1,
+            decoder_seq_length=encoder_seq_length,
             dtype=self.autocast_dtype,
-            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
         )
 
         if output_tensor:
@@ -1071,7 +1075,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             logging.info(f'Decoding using the {sampling_method} method...')
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
 
             def dummy():
                 return
@@ -1147,11 +1151,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             output_tensor = fwd_bwd_func(
                 forward_step_func=forward_step_func,
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
+                data_iterator=iter([batch_for_pipeline,]),
+                model=[self.enc_dec_model],
                 forward_only=True,
                 tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
+                num_microbatches=1,
+                decoder_seq_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
             )
             # get output tensor
