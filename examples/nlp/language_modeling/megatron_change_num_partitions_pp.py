@@ -149,7 +149,7 @@ def split_partition(
     idx += duplicate_word_embedding_offset  # add duplicate embedding offset to index
 
     print("Start Layer Idx:", idx, "Num Remaining layers:", num_params, "Offset:", offset)
-    print("duplicate_word_embedding_offset", duplicate_word_embedding_offset)
+    print("Duplicate_word_embedding_offset", duplicate_word_embedding_offset)
     print()
 
     splits = []
@@ -168,7 +168,16 @@ def split_partition(
             idx = 0  # reset idx parameter to 0 if we have duplicate embedding copy
 
         if DEBUG_PRINT:
-            print("Model param:", param_name, param.shape, "Layer Idx:", idx, "Global params:", partitions[1][idx], partitions[0][idx].shape)
+            print(
+                "Model param:",
+                param_name,
+                param.shape,
+                "Layer Idx:",
+                idx,
+                "Global params:",
+                partitions[1][idx],
+                partitions[0][idx].shape,
+            )
 
         # Tensor Parallel Splitting
         if param.shape == partitions[0][idx].shape:
@@ -492,6 +501,14 @@ def main():
                 f"Currently, seems some parameters were duplicated."
             )
         elif global_offset > -1:
+            print()
+            print("!" * 80)
+            print("Error: Some parameters were not correctly added to model partitions.")
+            print("Below is list of parameters skipped in reverse order: ")
+
+            for param_id in range(global_offset, -1, -1):
+                print("Param ID:", param_id, ":", global_params[1][param_id], global_params[0][param_id].shape)
+
             raise ValueError(
                 f"Invalid global offset {global_offset} found for global rank {app_state.global_rank} "
                 f"and local rank {app_state.local_rank}. Should be -1 if all parameters have been assigned. "
