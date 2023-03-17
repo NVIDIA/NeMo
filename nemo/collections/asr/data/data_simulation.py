@@ -1035,7 +1035,7 @@ class MultiSpeakerSimulator(object):
                 keys: 'audio_filepath', 'duration', 'alignments', 'words'
             buffer_dict (dict): Hash-table that saves loaded audio files.
             offset_index (int): Index of the offset for the audio file.
-            read_subset (bool): whether to read a subset of the audio file.
+            read_subset (bool): If True, read a subset of the audio file.
                                 To control the length of the audio file, use data_simulator.session_params.max_audio_read_sec.
                                 Note that using large value (greater than 3~4 sec) for `max_audio_read_sec` will slow down the generation process.
                                 If False, read the entire audio file.
@@ -1049,18 +1049,15 @@ class MultiSpeakerSimulator(object):
         if audio_file_id in buffer_dict:
             audio_file, sr, audio_manifest = buffer_dict[audio_file_id]
         else:
-            import time
-
-            start = time.time()
             if read_subset:
                 audio_manifest = self._get_subset_of_audio_manifest(audio_manifest, offset_index)
                 segment = AudioSegment.from_file(
-                    audio_manifest['audio_filepath'],
+                    audio_file=audio_manifest['audio_filepath'],
                     offset=audio_manifest['offset'],
                     duration=audio_manifest['duration'],
                 )
             else:
-                segment = AudioSegment.from_file(audio_manifest['audio_filepath'])
+                segment = AudioSegment.from_file(audio_file=audio_manifest['audio_filepath'])
             audio_file, sr = torch.from_numpy(segment.samples).to(self._device), segment.sample_rate
             if read_subset and segment.duration < (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]):
                 audio_manifest['alignments'][-1] = min(segment.duration, audio_manifest['alignments'][-1])
@@ -1084,7 +1081,7 @@ class MultiSpeakerSimulator(object):
             raise ValueError(
                 f"Audio file {audio_manifest['audio_filepath']} has less than {min_alignment_count} alignment timestamps."
             )
-        # Find all the silence indices
+        # Find all silence indices
         sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
         # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
         if (
@@ -4072,7 +4069,7 @@ def load_audio_from_multiple_files(items: List[Dict], sample_rate: int, total_le
         check_min_sample_rate(item['audio_filepath'], sample_rate)
         # load the pre-defined segment
         segment = AudioSegment.from_file(
-            item['audio_filepath'], target_sr=sample_rate, offset=item['offset'], duration=item['duration'],
+            audio_file=item['audio_filepath'], target_sr=sample_rate, offset=item['offset'], duration=item['duration'],
         )
         # not perfect, since different files may have different distributions
         segment_samples = normalize_max(segment.samples)
@@ -4167,7 +4164,7 @@ def simulate_room_mix(
     # Target signals
     check_min_sample_rate(target_cfg['audio_filepath'], sample_rate)
     target_segment = AudioSegment.from_file(
-        target_cfg['audio_filepath'], target_sr=sample_rate, duration=target_cfg['duration']
+        audio_file=target_cfg['audio_filepath'], target_sr=sample_rate, duration=target_cfg['duration']
     )
     if target_segment.num_channels > 1:
         raise RuntimeError(
