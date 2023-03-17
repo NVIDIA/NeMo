@@ -477,7 +477,7 @@ def main():
         help="NeMo model class. This script should support all NeMo megatron models that use Tensor Parallel",
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument('--num_gpu_per_node', default=8, help='Number of GPUs per node')
+    parser.add_argument('--num_gpu_per_node', default=8, type=int, help='Number of GPUs per node')
     parser.add_argument(
         "--megatron_legacy",
         action="store_true",
@@ -494,7 +494,7 @@ def main():
     args = parser.parse_args()
 
     precision = args.precision
-    num_gpu_per_node = args.num_gpu_per_node
+    num_gpu_per_node = int(args.num_gpu_per_node)
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
 
