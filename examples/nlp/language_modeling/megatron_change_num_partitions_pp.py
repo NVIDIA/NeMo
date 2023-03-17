@@ -29,10 +29,22 @@ from nemo.utils.app_state import AppState
 
 """
 Usage:
+
+# Megatron GPT
 python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
     --target_file=PATH_TO_TGT_FILE \
-    --tensor_model_parallel_size=2 \
+    --tensor_model_parallel_size=1 \
+    --target_tensor_model_parallel_size=1 \
+    --pipeline_model_parallel_size=1 \
+    --target_pipeline_model_parallel_size=1
+
+# Megatron T5
+python megatron_change_num_partitions_pp.py \
+    --model_file=PATH_TO_SRC_FILE \
+    --target_file=PATH_TO_TGT_FILE \
+    --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model" \
+    --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=1 \
     --pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_size=1
@@ -141,7 +153,7 @@ def split_partition(
 
     # Megatron GPT check for final PP rank duplicated embeddings
     if (
-        pp_rank == (pp_size - 1) and hasattr(model, 'mode') and hasattr(model.model, 'word_embeddings')
+        pp_rank == (pp_size - 1) and hasattr(model, 'model') and hasattr(model.model, 'word_embeddings')
     ):  # duplicate embedding copy (tied weights)
         duplicate_word_embedding_offset = 1
     else:
@@ -169,6 +181,8 @@ def split_partition(
 
         if DEBUG_PRINT:
             print(
+                "Index",
+                idx,
                 "Model param:",
                 param_name,
                 param.shape,
@@ -217,7 +231,7 @@ def split_partition(
     # Compute the new offset for the next PP rank in reverse order
     # Add 1 to offset to account for last PP rank's duplicated Embedding
     offset_diff = offset - num_params
-    if pp_rank == (pp_size - 1):
+    if pp_rank == (pp_size - 1) and pp_size > 1:
         offset_diff += 1
     new_offset = offset_diff
 
@@ -424,6 +438,8 @@ def main():
         global_params.append([p for n, p in model.named_parameters()])  # params
         global_params.append([n for n, p in model.named_parameters()])  # names
 
+        print("TP 1 PP 1 Number of Parameters :", len(global_params[0]))
+
         world_size = (
             tgt_pp_size * tgt_tp_size
         )  # pseudo world size for simulating load of a specific rank on a single gpu
@@ -431,7 +447,7 @@ def main():
         old_global_batch_size = model.cfg.global_batch_size
 
         global_offset = len(global_params[0]) - 1  # -1 cause this indexes the array, range [0, L-1]
-        print("Global offset of layers: ", global_offset)
+        print("Final layer offset for parameters: ", global_offset)
 
         for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
 
@@ -477,6 +493,8 @@ def main():
 
             print("Global rank: ", global_rank, "Local rank: ", app_state.local_rank, "World size: ", world_size)
             print("PP rank: ", pp_rank, "TP rank: ", 0)
+            print("TP 1 PP 1 Number of Parameters :", len(global_params[0]))
+            print("Remaining layer offset for parameters: ", global_offset)
             print()
 
             global_offset = split_partition(
@@ -508,6 +526,7 @@ def main():
 
             for param_id in range(global_offset, -1, -1):
                 print("Param ID:", param_id, ":", global_params[1][param_id], global_params[0][param_id].shape)
+            print("!" * 80)
 
             raise ValueError(
                 f"Invalid global offset {global_offset} found for global rank {app_state.global_rank} "
