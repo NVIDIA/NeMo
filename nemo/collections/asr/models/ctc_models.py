@@ -104,7 +104,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.setup_optimization_flags()
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc()
+        self.setup_interctc(decoder_name='decoder', loss_name='loss', wer_name='_wer')
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
@@ -360,8 +360,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
