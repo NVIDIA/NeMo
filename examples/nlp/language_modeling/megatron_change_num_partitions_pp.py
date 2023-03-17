@@ -54,6 +54,7 @@ python megatron_change_num_partitions_pp.py \
 
 DEBUG_PRINT = False
 
+
 def compute_tp_splits(
     param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
 ):
