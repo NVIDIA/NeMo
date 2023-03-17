@@ -511,6 +511,8 @@ def main():
         dtype = torch.float16
     elif precision == "bf16":
         dtype = torch.bfloat16
+    else:
+        dtype = torch.float32  # fallback
 
     tp_size = args.tensor_model_parallel_size
     tgt_tp_size = args.target_tensor_model_parallel_size
