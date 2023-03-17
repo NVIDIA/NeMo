@@ -54,9 +54,27 @@ python megatron_change_num_partitions_pp.py \
 
 DEBUG_PRINT = False
 
+def compute_tp_splits(
+    param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
+):
+    """
+    Function to compute the splits required for tensor-parallelism.
 
-def compute_tp_splits(param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy):
-    # alias
+    Args:
+        param_name: Name of the current parameter of the current model (TP X PP Y)
+        param: Value of the current parameter of the current model (TP X PP Y)
+        partitions: Partitions of the flattened parameter of the current model (TP 1 PP 1)
+        global_idx: The index used to select the parameter in the global partition.
+        tp_size: Int, tensor-parallelism size.
+        pp_size: Int, pipeline-parallelism size.
+        pp_rank: Int, pipeline-parallelism rank.
+        pp_split_rank: Int, pipeline-parallelism split rank. This should be > 1 if TP is being used with EncDec models (T5)
+        megatron_legacy: Bool, whether the model is a legacy Megatron model or not.
+
+    Returns:
+        List of torch tensors, each of which is a split of the current parameter.
+    """
+    # alias the global index to idx
     idx = global_idx
 
     if param.shape == partitions[0][idx].shape:
@@ -202,6 +220,8 @@ def split_partition(
         duplicate_word_embedding_offset = 0
     idx += duplicate_word_embedding_offset  # add duplicate embedding offset to index
 
+    # Special case for T5 models - where the embeddings are shared between encoder and decoder
+    # and the rank of decoder split is arbitrary.
     # Megatron T5 check for pipeline_model_parallel_split_rank in order to inject encoder embeddings
     shared_enc_dec_embeddings = (
         pp_split_rank > 0
@@ -209,14 +229,16 @@ def split_partition(
         and 'share_token_embeddings' in model.cfg
         and model.cfg.share_token_embeddings
     )
+    # If embedding sharing is active, both vocab and position embeddings are shared
     if shared_enc_dec_embeddings:
         enc_dec_share_token_embeddings_count = 2
     else:
         enc_dec_share_token_embeddings_count = 0
     idx += enc_dec_share_token_embeddings_count
 
-    print(pp_split_rank, pp_rank, shared_enc_dec_embeddings, enc_dec_share_token_embeddings_count)
-
+    # Special case for T5 models - where the embeddings are shared between encoder and decoder
+    # For all decoder ranks which are not the pp_split_rank, we need to inject the vocab embeddings only at
+    # an intermediate location of the model (usually second last location).
     # Megatron T5 check for pipeline_model_parallel_split_rank in order to inject encoder embeddings
     # when the pipeline_model_parallel_split_rank is not the last PP rank
     shared_enc_dec_embeddings_intermediate = (
@@ -229,7 +251,7 @@ def split_partition(
     if shared_enc_dec_embeddings_intermediate:
         # Loop until we get the location of this tensor
         intermediate_shared_embedding_location = -1
-        for param_name, param in model.named_parameters():
+        for param_name, param in model.named_parameters():  # special case for T5
             if param_name == 'enc_dec_model.word_embeddings.weight':
                 intermediate_shared_embedding_location += 1
                 break
@@ -237,12 +259,15 @@ def split_partition(
     else:
         intermediate_shared_embedding_location = -1
 
+    # Re-evaluate the intermediate shared embedding flag
     shared_enc_dec_embeddings_intermediate = shared_enc_dec_embeddings_intermediate and (
         intermediate_shared_embedding_location >= 0
     )
+    # If module is present, add a module offset to the index
     if shared_enc_dec_embeddings_intermediate:
         idx += 1
 
+    # Print some debug info
     print("Start Layer Idx:", idx, "Number of layers in current rank:", num_params, "Offset:", offset)
     if duplicate_word_embedding_offset > 0:
         print("GPT duplicate_word_embedding_offset", duplicate_word_embedding_offset)
@@ -253,6 +278,8 @@ def split_partition(
     print()
 
     splits = []
+
+    # Backup index when EncDec models reset the index to fill in the first embedding matrices (when pp split rank == pp rank)
     computed_index = idx
 
     # This is the PP X TP Y model with partial parameters present in correct order.
@@ -268,14 +295,30 @@ def split_partition(
             print("Found duplicate embedding copy for GPT model, resetting index")
             idx = 0  # reset idx parameter to 0 if we have duplicate embedding copy
 
+        # Since we are moving forward, we may reach the end of the global map
+        # but T5 has an additional word embedding as its first two parameter when pp split rank == pp rank
+        # Therefore we check for this, and update the index to the parameter of the PP 0 TP 0 rank
+        # which holds the parameters of the embedding.
         if enc_dec_share_token_embeddings_count:
             print("EncDec models decoder shares embedding with encoder, resetting index")
-            idx = 2 - enc_dec_share_token_embeddings_count  # 0th index is vocab embedding, 1 is pos embedding
+            idx = (
+                2 - enc_dec_share_token_embeddings_count
+            )  # 0th index is vocab embedding, 1 is pos embedding, 2 is embedding count
 
+        # Since we are moving forward, we may reach the end of the global map
+        # but T5 has an additional word embedding as randomly located in the decoder when
+        # when pp rank > pp_split_rank.
+        # Therefore we check for this, and skip the parameter of the current TP X PP Y module
+        # and fill this parameter later.
         if shared_enc_dec_embeddings_intermediate and param_name == 'enc_dec_model.word_embeddings.weight':
-            print("EncDec models decoder shares embedding with encoder in intermediate pos, skipping module for later update")
+            print(
+                "EncDec models decoder shares embedding with encoder in intermediate pos, skipping module for later update"
+            )
             continue
 
+        # Log some useful comparison of tensors that are being mapped.
+        # Note that the global param index for layers and modules may be different but the shapes
+        # and semantics of the layer should match.
         if DEBUG_PRINT:
             print(
                 "Index:", idx, "Model param  :", param_name, param.shape,
@@ -285,11 +328,15 @@ def split_partition(
             )
 
         # Tensor Parallel Splitting
-        split = compute_tp_splits(param_name, param, partitions, idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy)
+        split = compute_tp_splits(
+            param_name, param, partitions, idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
+        )
 
         splits.append(split)
         idx += 1
 
+        # When pp split rank is equal to current pp rank, we need to first inject the encoder embeddings
+        # and then reset the index to the originally computed index
         if enc_dec_share_token_embeddings_count > 0:
             if enc_dec_share_token_embeddings_count - 1 == 0:
                 idx = computed_index
@@ -297,11 +344,16 @@ def split_partition(
             enc_dec_share_token_embeddings_count -= 1
 
     # Inject the EncDec shared embeddings intermediate tensor
+    # at one random location in the decoder of this TP PP rank.
+    # Note that usually it is the second last tensor, but to avoid specific index we search for it
+    # again.
     if shared_enc_dec_embeddings_intermediate:
         for param_name, param in model.named_parameters():
             if param_name == 'enc_dec_model.word_embeddings.weight':
                 print("Found intermediate shared embedding, injecting")
-                split = compute_tp_splits(param_name, param, partitions, 0, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy)
+                split = compute_tp_splits(
+                    param_name, param, partitions, 0, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
+                )
                 splits.insert(intermediate_shared_embedding_location, split)
                 break
 
@@ -311,12 +363,14 @@ def split_partition(
     # GPT offset correction
     if pp_size > 1 and pp_rank == (pp_size - 1) and pp_split_rank == 0:
         offset_diff += 1
-    # T5 offset correction
+    # T5 offset correction for shared embedding when pp split rank == pp rank
     if shared_enc_dec_embeddings:
         offset_diff += 2
-    # T5 offset correction for intermediate shared embedding
+    # T5 offset correction for intermediate shared embedding when pp rank > pp split rank
     if shared_enc_dec_embeddings_intermediate:
         offset_diff += 1
+
+    # Finalize the new offset
     new_offset = offset_diff
 
     # Save each of the TP ranks in reverse order
