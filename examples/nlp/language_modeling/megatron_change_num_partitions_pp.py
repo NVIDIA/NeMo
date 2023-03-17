@@ -39,6 +39,8 @@ python megatron_change_num_partitions.py \
 
 """
 
+DEBUG_PRINT = False
+
 
 def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], write_path: str = None):
     # Extract the pp_rank and number of modules per tp rank in each pp rank
@@ -64,7 +66,8 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
         # Extract all TP ranks out of current PP rank
         partitions_pp = partitions[pp_rank]
 
-        # print("model p", name, param.shape, "part", [p[idx].shape for p in partitions_pp])
+        if DEBUG_PRINT:
+            print("Model Param:", name, param.shape, "Partition Params:", [p[idx].shape for p in partitions_pp])
 
         # Logic from original TP rank change
         if param.shape == partitions_pp[0][idx].shape:
@@ -135,11 +138,19 @@ def split_partition(
     ), f"idx = {idx}, num_params = {num_params}, sum = {idx + num_params}, offset = {offset}"
 
     # Special case for GPT models - whose last PP TP rank has a duplicate embedding tensor
-    if pp_rank == (pp_size - 1) and hasattr(model.model, 'word_embeddings'):  # duplicate embedding copy (tied weights)
+
+    # Megatron GPT check for final PP rank duplicated embeddings
+    if (
+        pp_rank == (pp_size - 1) and hasattr(model, 'mode') and hasattr(model.model, 'word_embeddings')
+    ):  # duplicate embedding copy (tied weights)
         duplicate_word_embedding_offset = 1
     else:
         duplicate_word_embedding_offset = 0
     idx += duplicate_word_embedding_offset  # add duplicate embedding offset to index
+
+    print("Start Layer Idx:", idx, "Num Remaining layers:", num_params, "Offset:", offset)
+    print("duplicate_word_embedding_offset", duplicate_word_embedding_offset)
+    print()
 
     splits = []
 
@@ -156,7 +167,8 @@ def split_partition(
             print("Found duplicate embedding copy for GPT model, resetting index")
             idx = 0  # reset idx parameter to 0 if we have duplicate embedding copy
 
-        # print("model p", param_name, param.shape, "idx", idx, "global p", partitions[1][idx], partitions[0][idx].shape)
+        if DEBUG_PRINT:
+            print("Model param:", param_name, param.shape, "Layer Idx:", idx, "Global params:", partitions[1][idx], partitions[0][idx].shape)
 
         # Tensor Parallel Splitting
         if param.shape == partitions[0][idx].shape:
@@ -321,7 +333,7 @@ def main():
             for tp_rank in range(tp_size):
                 app_state.tensor_model_parallel_rank = tp_rank
 
-                # print("------------", pp_rank, tp_rank)
+                print("------------", pp_rank, tp_rank)
 
                 # Override flag that forces Model to use AppState instead of Trainer
                 # to determine the world size, global and local rank
@@ -410,7 +422,7 @@ def main():
         old_global_batch_size = model.cfg.global_batch_size
 
         global_offset = len(global_params[0]) - 1  # -1 cause this indexes the array, range [0, L-1]
-        # print("Global offset: ", global_offset)
+        print("Global offset of layers: ", global_offset)
 
         for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
 
@@ -454,7 +466,9 @@ def main():
                 )
                 model.cfg.global_batch_size = new_global_batch_size
 
-            # print("Global rank: ", global_rank, "Local rank: ", app_state.local_rank, "World size: ", world_size)
+            print("Global rank: ", global_rank, "Local rank: ", app_state.local_rank, "World size: ", world_size)
+            print("PP rank: ", pp_rank, "TP rank: ", 0)
+            print()
 
             global_offset = split_partition(
                 model,
