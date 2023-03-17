@@ -279,7 +279,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
             decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-            self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary))
+            self.decoding = CTCDecoding(
+                decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary)
+            )
 
             self._wer = WER(
                 decoding=self.decoding,
@@ -321,7 +323,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary))
+        self.decoding = CTCDecoding(
+            decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary)
+        )
 
         self._wer = WER(
             decoding=self.decoding,
