@@ -423,33 +423,15 @@ class T5Dataset(Dataset):
 
 
 class SyntheticT5Dataset(Dataset):
-    # account for added tokens
-    # MAX_SEQ_LENGTH_DELTA = 2
-
     def __init__(
         self,
         cfg,
-        # trainer,
         tokenizer,
         name,
         num_samples,
-        # indexed_dataset,
-        # data_prefix,
-        # num_epochs,
-        # max_num_samples,
         max_seq_length,
         max_seq_length_dec,
         seed,
-        # masked_lm_prob=0.15,
-        # short_seq_prob=0.1,
-        # max_ngram_size=10,
-        # mean_ngram_size=None,
-        # geometric_dist=True,
-        # permutation=False,
-        # whole_word_masking=True,
-        # favor_long_ngrams=False,
-        # respect_document_boundaries=True,
-        # documents=None,
     ):
         super().__init__()
         self.name = name
@@ -467,8 +449,7 @@ class SyntheticT5Dataset(Dataset):
         return [sample], self.max_seq_length
 
     def __getitem__(self, idx):
-        # sample, seq_length = self._get_sample(idx)
-
+        # Generate output values randomly with the expected size and datatype
         tokens_enc = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
         tokens_dec_in = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
         labels = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)

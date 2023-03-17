@@ -884,21 +884,24 @@ def build_train_valid_test_datasets(
         )
 
     if data_impl in ["synthetic"]:
+        logging.info(f'Initializing synthetic dataset, type {dataset_type}, for train, validate, and test')
         if len(data_prefix) != 0:
-            raise ValueError(f"With data_impl=synthetic, data_prefix=[] is expected; instead, received {data_prefix}")
+            # Files from this location will not be read; synthetic data will be generated instead.
+            logging.warning(f"Requested data_impl=synthetic, so ignoring data_prefix setting: {data_prefix}")
         if dataset_type == DSET_TYPE_T5:
             from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import SyntheticT5Dataset
 
             if tokenizer is None:
+                # Tokenizer is used to infer vocabulary size for synthetic data.
                 raise ValueError("Tokenizer is required for a synthetic T5 dataset")
             train_ds = SyntheticT5Dataset(
-                cfg, tokenizer, "train", train_valid_test_num_samples[0], max_seq_length, max_seq_length_dec, seed,
+                cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), max_seq_length, max_seq_length_dec, seed,
             )
             valid_ds = SyntheticT5Dataset(
-                cfg, tokenizer, "valid", train_valid_test_num_samples[1], max_seq_length, max_seq_length_dec, seed,
+                cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), max_seq_length, max_seq_length_dec, seed,
             )
             test_ds = SyntheticT5Dataset(
-                cfg, tokenizer, "train", train_valid_test_num_samples[2], max_seq_length, max_seq_length_dec, seed,
+                cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), max_seq_length, max_seq_length_dec, seed,
             )
             return train_ds, valid_ds, test_ds
         else:

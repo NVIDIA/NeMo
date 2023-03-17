@@ -93,13 +93,20 @@ def build_train_valid_test_datasets(
 ):
     if data_impl in ['synthetic']:
         logging.info('Initializing synthetic GPT dataset for train, validate, and test')
-        train_ds = SyntheticGPTDataset(cfg, tokenizer, "train", train_valid_test_num_samples[0], seq_length, seed,)
+        if len(data_prefix) != 0:
+            # Synthetic data will be generated instead of loading files.
+            logging.warning(f"Requested data_impl=synthetic, so ignoring data_prefix setting: {data_prefix}")
+        if tokenizer is None:
+            # Vocabulary size is inferred from tokenizer.
+            raise ValueError("Tokenizer is required for a synthetic GPT dataset")
+        train_ds = SyntheticGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
         validation_ds = SyntheticGPTDataset(
-            cfg, tokenizer, "valid", train_valid_test_num_samples[1], seq_length, seed,
+            cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,
         )
-        test_ds = SyntheticGPTDataset(cfg, tokenizer, "test", train_valid_test_num_samples[2], seq_length, seed,)
+        test_ds = SyntheticGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
         return train_ds, validation_ds, test_ds
-    elif isinstance(data_prefix, DictConfig):
+
+    if isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None
             and data_prefix.get('test') is not None
@@ -439,25 +446,15 @@ class SyntheticGPTDataset(Dataset):
         return self.np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
 
     def __getitem__(self, idx):
-        # Retain superficial structure of data (similar to actual GPTDataset).
-        text = torch.from_numpy(self._get_text(idx))
-        tokens = text
-        labels = torch.roll(text, shifts=-1, dims=0)
-        labels[-1] = -1
+        # Generate data of the expected size and datatype (based on GPTDataset).
+        tokens = torch.from_numpy(self._get_text(idx))
+        labels = torch.from_numpy(self._get_text(idx))
 
-        # These tensors have the correct shape, but skipping the more detailed handling.
-        attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-        loss_mask = torch.ones(self.seq_length, dtype=torch.float)
-        position_ids = torch.arange(self.seq_length, dtype=torch.int64)
-        attention_mask = attention_mask < 0.5
-        loss_mask[labels == -1] = 0.0
-        tokens[tokens == -1] = 0
-        labels[labels == -1] = 0
-
-        # As in GPTDataset, skip loss from invalid samples at the end of the batch.
-        if idx == -1:
-            logging.info('WARNING: Got -1 as item index. Masking loss from this sample')
-            loss_mask = torch.zeros_like(loss_mask)
+        with torch.no_grad():
+            attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+            attention_mask = attention_mask < 0.5
+            loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+            position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
         return {
             'tokens': tokens,
