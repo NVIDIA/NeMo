@@ -307,3 +307,52 @@ class TestASRModulesBasicTests:
 
         # assert vocab size
         assert jointnet.num_classes_with_blank == vocab_size + 1
+
+    @pytest.mark.unit
+    def test_HATJoint(self):
+        vocab = list(range(10))
+        vocab = [str(x) for x in vocab]
+        vocab_size = len(vocab)
+
+        batchsize = 4
+        encoder_hidden = 64
+        pred_hidden = 32
+        joint_hidden = 16
+
+        joint_cfg = OmegaConf.create(
+            {
+                '_target_': 'nemo.collections.asr.modules.HATJoint',
+                'num_classes': vocab_size,
+                'vocabulary': vocab,
+                'jointnet': {
+                    'encoder_hidden': encoder_hidden,
+                    'pred_hidden': pred_hidden,
+                    'joint_hidden': joint_hidden,
+                    'activation': 'relu',
+                },
+            }
+        )
+
+        jointnet = modules.HATJoint.from_config_dict(joint_cfg)
+
+        enc = torch.zeros(batchsize, encoder_hidden, 48)  # [B, D1, T]
+        dec = torch.zeros(batchsize, pred_hidden, 24)  # [B, D2, U]
+
+        # forward call test
+        out = jointnet(encoder_outputs=enc, decoder_outputs=dec)
+        assert out.shape == torch.Size([batchsize, 48, 24, vocab_size + 1])  # [B, T, U, V + 1]
+
+        # joint() step test
+        enc2 = enc.transpose(1, 2)  # [B, T, D1]
+        dec2 = dec.transpose(1, 2)  # [B, U, D2]
+        out2, ilm = jointnet.joint(enc2, dec2)  # [B, T, U, V + 1]
+        assert (out - out2).abs().sum() <= 1e-5
+        assert ilm == None
+
+        # joint() step test for internal LM subtraction
+        out3, ilm = jointnet.joint(enc2, dec2, return_ilm=True)  # [B, T, U, V + 1]
+        assert (out - out3).abs().sum() <= 1e-5
+        assert ilm.shape == torch.Size([batchsize, 1, 24, vocab_size])  # [B, T, U, V] without blank simbol
+
+        # assert vocab size
+        assert jointnet.num_classes_with_blank == vocab_size + 1
