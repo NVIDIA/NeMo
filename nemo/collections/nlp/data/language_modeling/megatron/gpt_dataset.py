@@ -99,7 +99,9 @@ def build_train_valid_test_datasets(
         if tokenizer is None:
             # Vocabulary size is inferred from tokenizer.
             raise ValueError("Tokenizer is required for a synthetic GPT dataset")
-        train_ds = SyntheticGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
+        train_ds = SyntheticGPTDataset(
+            cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,
+        )
         validation_ds = SyntheticGPTDataset(
             cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,
         )

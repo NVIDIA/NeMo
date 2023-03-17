@@ -895,10 +895,22 @@ def build_train_valid_test_datasets(
                 # Tokenizer is used to infer vocabulary size for synthetic data.
                 raise ValueError("Tokenizer is required for a synthetic T5 dataset")
             train_ds = SyntheticT5Dataset(
-                cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), max_seq_length, max_seq_length_dec, seed,
+                cfg,
+                tokenizer,
+                "train",
+                int(train_valid_test_num_samples[0]),
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
             )
             valid_ds = SyntheticT5Dataset(
-                cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), max_seq_length, max_seq_length_dec, seed,
+                cfg,
+                tokenizer,
+                "valid",
+                int(train_valid_test_num_samples[1]),
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
             )
             test_ds = SyntheticT5Dataset(
                 cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), max_seq_length, max_seq_length_dec, seed,
