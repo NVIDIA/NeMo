@@ -427,15 +427,15 @@ class IPAG2P(BaseG2p):
             # represents the pronunciation variant of that word.
             phoneme_dict_obj = defaultdict(list)
             _alt_re = re.compile(r"\([0-9]+\)")
-            with open(phoneme_dict, "r") as fdict:
+            with open(phoneme_dict, "r", encoding="utf-8") as fdict:
                 for line in fdict:
                     # skip the empty lines
                     if len(line) == 0:
                         continue
 
                     # Note that latin character pattern should be consistent with
-                    # nemo.collections.tts.g2p.data.data_utils.LATIN_CHARS_ALL. It is advised to extend its character
-                    # coverage if adding the support of new languages.
+                    # nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils.LATIN_CHARS_ALL. It is advised
+                    # to extend its character coverage if adding the support of new languages.
                     # TODO @xueyang: unify hardcoded range of characters with LATIN_CHARS_ALL to avoid duplicates.
                     line = normalize_unicode_text(line)
 

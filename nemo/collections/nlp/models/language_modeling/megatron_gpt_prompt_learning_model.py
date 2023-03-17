@@ -23,6 +23,7 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -164,7 +165,15 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
-        self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+        if isinstance(self.tokenizer, SentencePieceTokenizer):
+            if not self.tokenizer.legacy:
+                self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.pad_id])[0]
+                self.tokenizer.bos_token = self.tokenizer.ids_to_tokens([self.tokenizer.bos_id])[0]
+                self.tokenizer.eos_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
+                self.tokenizer.legacy = True
+            self.tokenizer.add_special_tokens(self.pseudo_tokens)
+        else:
+            self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
@@ -394,10 +403,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
+            max_seq_length = self.frozen_model.cfg.encoder_seq_length
+            if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
+                max_seq_length = self.cfg.data.max_seq_length
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
+                max_seq_length=max_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
@@ -412,10 +424,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def setup_validation_data(self, validation_data_config=None):
         if self.cfg.data.get('validation_ds', None):
+            max_seq_length = self.frozen_model.cfg.encoder_seq_length
+            if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
+                max_seq_length = self.cfg.data.max_seq_length
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
                 batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
+                max_seq_length=max_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
