@@ -230,7 +230,6 @@ class MultiSpeakerSimulator(object):
         # creating manifests during online data simulation
         self.base_manifest_filepath = None
         self.segment_manifest_filepath = None
-        # self.unit_count_for_loading = self._params.data_simulator.session_params.unit_count_for_loading
         self.max_audio_read_sec = self._params.data_simulator.session_params.max_audio_read_sec
 
         self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
@@ -1036,8 +1035,8 @@ class MultiSpeakerSimulator(object):
             buffer_dict (dict): Hash-table that saves loaded audio files.
             offset_index (int): Index of the offset for the audio file.
             read_subset (bool): whether to read a subset of the audio file.
-                                To control the length of the audio file, use data_simulator.session_params.unit_count_for_loading.
-                                Note that using high value for `unit_count_for_loading` will slow down the generation process.
+                                To control the length of the audio file, use data_simulator.session_params.max_audio_read_sec.
+                                Note that using large value (greater than 3~4 sec) for `max_audio_read_sec` will slow down the generation process.
                                 If False, read the entire audio file.
 
         Returns:
