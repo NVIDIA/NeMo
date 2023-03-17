@@ -222,6 +222,8 @@ class MultiSpeakerSimulator(object):
         self._text = ""
         self._words = []
         self._alignments = []
+        # Minimum number of alignments for a manifest to be considered valid
+        self.min_alignment_count = 2
         self._merged_speech_intervals = []
         # keep track of furthest sample per speaker to avoid overlapping same speaker
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
@@ -1013,8 +1015,8 @@ class MultiSpeakerSimulator(object):
         alignment_array = np.array(audio_manifest['alignments'])
         alignment_array_pr = np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
         subset_alignments = alignment_array_pr[alignment_array_pr < self.max_audio_read_sec]
-        if len(subset_alignments) < 2:
-            raise ValueError(f"subset_alignments length: {len(subset_alignments)} is less than 2.")
+        if len(subset_alignments) < self.min_alignment_count:
+            raise ValueError(f"subset_alignments length: {len(subset_alignments)} is less than {self.min_alignment_count}.")
         audio_manifest['offset'], audio_manifest['duration'] = (
             alignment_array[offset_index],
             subset_alignments[-1] - subset_alignments[0],
@@ -1066,7 +1068,7 @@ class MultiSpeakerSimulator(object):
             buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
         return audio_file, sr, audio_manifest
 
-    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count: int=2) -> int:
+    def _get_random_offset_index(self, audio_manifest: dict) -> int:
         """
         Get an index for randomly accessing the silence in alignment timestamps. 
 
@@ -1077,15 +1079,15 @@ class MultiSpeakerSimulator(object):
         Returns: 
             (int): Random offset index smaller than `offset_count`.
         """
-        if len(audio_manifest['alignments']) <= min_alignment_count:
+        if len(audio_manifest['alignments']) <= self.min_alignment_count:
             raise ValueError(
-                f"Audio file {audio_manifest['audio_filepath']} has less than {min_alignment_count} alignment timestamps."
+                f"Audio file {audio_manifest['audio_filepath']} has less than {self.min_alignment_count} alignment timestamps."
             )
         # Find all silence indices
         sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
         # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
         if (
-            len(sil_inds) <= min_alignment_count
+            len(sil_inds) <= self.min_alignment_count
             or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < self.max_audio_read_sec
         ):
             return 0
