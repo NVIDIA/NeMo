@@ -123,8 +123,21 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
         max_len = max([len(x) for x in partition_pp])  # Perform max as we need to iterate through all modules
         pp_lens.append(max_len)
 
+    total_params_merged = len([p for p in model.parameters()])
+    pp_total_len = sum(pp_lens)
+    print("Total parameters in Merged Model:", total_params_merged)
+
+    og_pp_split_rank = 0
+    if pp_total_len > total_params_merged:
+        if 'share_token_embeddings' in model.cfg and model.cfg.share_token_embeddings:
+            og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
+        else:
+            og_pp_split_rank = 0
+
     idx = 0
     pp_rank = 0
+    global_idx = 0
+
     # During merge - model is TP 1 PP 1 model with all parameters present in correct order.
     # Merge the parameters of the various PP X TP Y models into the TP 1 PP 1 model.
     for name, param in model.named_parameters():
@@ -135,11 +148,42 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
             pp_rank += 1
             idx = 0
 
+            # For EncDec models, after the encoder-decoder PP split occurs,
+            # the vocab and positional embeddings are duplicated across the PP ranks at the
+            # beginning of the decoder rank. We can skip them during the merge step.
+            if pp_total_len > total_params_merged:
+                if og_pp_split_rank > 0 and og_pp_split_rank == pp_rank:
+                    print(
+                        "Skipping duplicate vocab and positional embeddings for EncDec model "
+                        "at the pp split rank: ",
+                        og_pp_split_rank,
+                    )
+                    idx += 2
+
+        # For EncDec models, after the pp split occurs, final pp rank of the decoder
+        # has an intermediate embedding tensor at the penultimate positon, skip that.
+        if og_pp_split_rank > 0 and global_idx == total_params_merged - 1:
+            print(
+                "Skipping intermediate embedding tensor for EncDec model at the final pp split rank: ",
+                og_pp_split_rank,
+            )
+            idx = pp_lens[pp_rank] - 1
+
         # Extract all TP ranks out of current PP rank
         partitions_pp = partitions[pp_rank]
 
         if DEBUG_PRINT:
-            print("Model Param:", name, param.shape, "Partition Params:", [p[idx].shape for p in partitions_pp])
+            print(
+                "Global idx:",
+                global_idx,
+                "Index:",
+                idx,
+                "Model Param:",
+                name,
+                param.shape,
+                "Partition Params:",
+                [p[idx].shape for p in partitions_pp],
+            )
 
         # Logic from original TP rank change
         if param.shape == partitions_pp[0][idx].shape:
@@ -163,6 +207,7 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
                 )
         param.data = concated
         idx += 1
+        global_idx += 1
 
     # Save the file iff the original file was PP 1 TP 1
     if write_path is not None:
@@ -515,6 +560,7 @@ def main():
                 app_state.local_rank = global_rank % num_gpu_per_node
                 app_state.pipeline_model_parallel_size = pp_size
                 app_state.tensor_model_parallel_size = tp_size
+                app_state.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
                 app_state.model_parallel_size = (
                     app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
                 )
