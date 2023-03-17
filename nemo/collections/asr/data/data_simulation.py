@@ -98,6 +98,31 @@ def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
     """
     return [min(x, max_val) for x in target_list]
 
+def binary_search_alignments(inds: List[int], max_audio_read_sec: float, min_alignment_count: int, audio_manifest: dict) -> int:
+    """
+    Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
+    `max_audio_read_sec`. This is used to avoid reading the short audio files.
+    NOTE: `offset_max` should be at least 1 to avoid feeding max=0 to random sampling function.
+
+    Args:
+        inds (list): List of indices to search from
+        audio_manifest (dict): Dictionary containing the audio file's alignments
+
+    Returns:
+        offset_max (int) Index of the alignment that satisfies the maximum audio read duration
+    """
+    left, right = 0, len(inds) - min_alignment_count
+    while left < right:
+        mid = left + (right - left) // 2
+        dur_left = audio_manifest['alignments'][-1*min_alignment_count] - audio_manifest['alignments'][inds[mid]]
+        if  dur_left < max_audio_read_sec:
+            right = mid - 1
+        elif dur_left > max_audio_read_sec:
+            left = mid + 1
+        else:
+            break
+    offset_max = max(left + (right - left) // 2, 1)
+    return offset_max
 
 class MultiSpeakerSimulator(object):
     """
@@ -223,7 +248,7 @@ class MultiSpeakerSimulator(object):
         self._words = []
         self._alignments = []
         # Minimum number of alignments for a manifest to be considered valid
-        self.min_alignment_count = 2
+        self._min_alignment_count = 2
         self._merged_speech_intervals = []
         # keep track of furthest sample per speaker to avoid overlapping same speaker
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
@@ -232,7 +257,7 @@ class MultiSpeakerSimulator(object):
         # creating manifests during online data simulation
         self.base_manifest_filepath = None
         self.segment_manifest_filepath = None
-        self.max_audio_read_sec = self._params.data_simulator.session_params.max_audio_read_sec
+        self._max_audio_read_sec = self._params.data_simulator.session_params.max_audio_read_sec
 
         self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
         # variable speaker volume
@@ -276,13 +301,13 @@ class MultiSpeakerSimulator(object):
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
             all_speaker_ids=self._speaker_samples.keys(),
-        )
+            random_seed=self._params.data_simulator.random_seed)
         # Intialize multiprocessing related variables
         self.num_workers = self._params.get("num_workers", 1)
         self.multiprocessing_chunksize = self._params.data_simulator.get('multiprocessing_chunksize', 10000)
         self.chunk_count = self._init_chunk_count()
 
-    def _init_speaker_permutations(self, num_sess, num_speakers, all_speaker_ids):
+    def _init_speaker_permutations(self, num_sess: int, num_speakers: int, all_speaker_ids: List, random_seed: int):
         """
         Initialize the speaker permutations for the number of speakers in the session.
         When generating the simulated sessions, we want to include as many speakers as possible.
@@ -300,6 +325,7 @@ class MultiSpeakerSimulator(object):
                 Array of permuted speaker indices to use for each session
                 Dimensions: (num_sess, num_speakers)
         """
+        np.random.seed(random_seed)
         all_speaker_id_counts = len(list(all_speaker_ids))
 
         # Calculate how many permutations are needed
@@ -320,7 +346,8 @@ class MultiSpeakerSimulator(object):
                 permuted_inds = np.hstack((permuted_inds, np.random.permutation(len(all_speaker_ids))[:seq_len]))
             target_count -= seq_len
 
-        # Make dimension (num_sess, num_speakers)
+        logging.info(f"Total {all_speaker_id_counts} speakers in the source dataset.")
+        logging.info(f"Initialized speaker permutations for {num_sess} sessions with {num_speakers} speakers each.")
         return permuted_inds.reshape(num_sess, num_speakers)
 
     def _init_chunk_count(self):
@@ -870,10 +897,12 @@ class MultiSpeakerSimulator(object):
         sentence_word_count: int,
         max_word_count_in_sentence: int,
         max_samples_in_sentence: int,
+        random_offset: bool = False,
     ) -> Tuple[int, torch.Tensor]:
         """
         Add audio file to current sentence (up to the desired number of words). 
         Uses the alignments to segment the audio file.
+        NOTE: 0 index is always silence in `audio_manifest['words']`, so we choose `offset_idx=1` as the first word
 
         Args:
             audio_manifest (dict): Line from manifest file for current audio file
@@ -886,15 +915,18 @@ class MultiSpeakerSimulator(object):
             sentence_word_count+current_word_count (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
         """
-        # Randomly select a word to start in the given alignments
-        offset_idx = np.random.randint(low=1, high=len(audio_manifest['words']))
+        # In general, random offset is not needed since random silence index has already been chosen 
+        if random_offset:
+            offset_idx = np.random.randint(low=1, high=len(audio_manifest['words']))
+        else:
+            offset_idx = 1 
 
         first_alignment = int(audio_manifest['alignments'][offset_idx - 1] * self._params.data_simulator.sr)
         start_cutoff, start_window_amount = self._get_start_buffer_and_window(first_alignment)
         if not self._params.data_simulator.session_params.start_window:  # cut off the start of the sentence
             start_window_amount = 0
 
-        # ensure the desired number of words are added and the length of the output session isn't exceeded
+        # Ensure the desired number of words are added and the length of the output session isn't exceeded
         sentence_samples = len(self._sentence)
 
         remaining_dur_samples = max_samples_in_sentence - sentence_samples
@@ -1014,9 +1046,16 @@ class MultiSpeakerSimulator(object):
         """
         alignment_array = np.array(audio_manifest['alignments'])
         alignment_array_pr = np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
-        subset_alignments = alignment_array_pr[alignment_array_pr < self.max_audio_read_sec]
-        if len(subset_alignments) < self.min_alignment_count:
-            raise ValueError(f"subset_alignments length: {len(subset_alignments)} is less than {self.min_alignment_count}.")
+        subset_alignments = alignment_array_pr[alignment_array_pr < self._max_audio_read_sec]
+        if len(subset_alignments) < self._min_alignment_count:
+            # Cases where the word next to the offset is longer than the max_audio_read_sec.
+            logging.warning(f"subset_alignments of {audio_manifest['audio_filepath']} \n" 
+                            f"has subset alignment length:{len(subset_alignments)} at offset_index:{offset_index}, " 
+                            f"word:{audio_manifest['words'][offset_index:offset_index+self._min_alignment_count]}, " 
+                            f"alignments:{alignment_array_pr[:self._min_alignment_count]} which is longer than _max_audio_read_sec:{[0, self._max_audio_read_sec]}."
+                            " Truncating the alignements.")
+            # Attach the `_max_audio_read_sec` to the `subset_alignments` to truncate the alignment timestamp.
+            subset_alignments = np.concatenate([subset_alignments, np.array([self._max_audio_read_sec])])
         audio_manifest['offset'], audio_manifest['duration'] = (
             alignment_array[offset_index],
             subset_alignments[-1] - subset_alignments[0],
@@ -1068,7 +1107,7 @@ class MultiSpeakerSimulator(object):
             buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
         return audio_file, sr, audio_manifest
 
-    def _get_random_offset_index(self, audio_manifest: dict) -> int:
+    def _get_random_offset_index(self, audio_manifest: dict, offset_min: int = 0) -> int:
         """
         Get an index for randomly accessing the silence in alignment timestamps. 
 
@@ -1079,20 +1118,37 @@ class MultiSpeakerSimulator(object):
         Returns: 
             (int): Random offset index smaller than `offset_count`.
         """
-        if len(audio_manifest['alignments']) <= self.min_alignment_count:
+        if len(audio_manifest['alignments']) <= self._min_alignment_count:
             raise ValueError(
-                f"Audio file {audio_manifest['audio_filepath']} has less than {self.min_alignment_count} alignment timestamps."
+                f"Audio file {audio_manifest['audio_filepath']} has less than {self._min_alignment_count} alignment timestamps."
             )
-        # Find all silence indices
-        sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
+        index_file_id = f"{audio_manifest['audio_filepath']}#index"
+        
+        # Avoid multiple indexings of the same audio file by using a hash-table.
+        if index_file_id in self._audio_read_buffer_dict:
+            (sil_inds, offset_max) = self._audio_read_buffer_dict[index_file_id]
+        else:
+            # Find all silence indices
+            sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
+            if audio_manifest['alignments'][-1] - audio_manifest['alignments'][0] < self._max_audio_read_sec:
+                # The total duration is already short, therefore skip range search.
+                offset_max = 1
+            else:
+                # Find the range that satisfies `self._max_audio_read_sec` duration.
+                offset_max = binary_search_alignments(inds=sil_inds, 
+                                                      max_audio_read_sec=self._max_audio_read_sec,
+                                                      min_alignment_count=self._min_alignment_count,
+                                                      audio_manifest=audio_manifest)
+            self._audio_read_buffer_dict[index_file_id] = (sil_inds, offset_max)
+        
         # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
         if (
-            len(sil_inds) <= self.min_alignment_count
-            or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < self.max_audio_read_sec
+            len(sil_inds) <= self._min_alignment_count
+            or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < self._max_audio_read_sec
         ):
-            return 0
+            return offset_min
         else:
-            offset_index = np.random.randint(len(sil_inds) - 1)
+            offset_index = np.random.randint(offset_min, offset_max)
             return sil_inds[offset_index]
 
     def _get_split_points_in_alignments(
@@ -1643,6 +1699,9 @@ class MultiSpeakerSimulator(object):
             device (torch.device): Device to use for generating this session.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
+        random_seed = self._params.data_simulator.random_seed
+        np.random.seed(random_seed + idx)
+
         self._device = device
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
@@ -1825,7 +1884,7 @@ class MultiSpeakerSimulator(object):
         if random_seed is None:
             random_seed = self._params.data_simulator.random_seed
         np.random.seed(random_seed)
-        torch.manual_seed(random_seed)
+        
         output_dir = self._params.data_simulator.outputs.output_dir
 
         basepath = self._get_cleaned_base_path(output_dir)
@@ -2179,6 +2238,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             device (torch.device): Device to use for generating this session.
             enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
+        random_seed = self._params.data_simulator.random_seed
+        np.random.seed(random_seed + idx)
+
         self._device = device
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
         base_speaker_dominance = np.copy(speaker_dominance)
@@ -2606,7 +2668,7 @@ class ArrayGeometry(object):
 
 
 def convert_placement_to_range(
-    placement: Dict, room_dim: Iterable[float], object_radius: float = 0
+    placement: dict, room_dim: Iterable[float], object_radius: float = 0
 ) -> List[List[float]]:
     """Given a placement dictionary, return ranges for each dimension.
 
