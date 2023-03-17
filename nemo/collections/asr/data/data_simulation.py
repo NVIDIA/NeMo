@@ -1066,7 +1066,7 @@ class MultiSpeakerSimulator(object):
             buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
         return audio_file, sr, audio_manifest
 
-    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count: int=2) -> int:
+    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count: int = 2) -> int:
         """
         Get an index for randomly accessing the silence in alignment timestamps. 
 
