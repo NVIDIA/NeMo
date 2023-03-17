@@ -69,10 +69,10 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the joint net.
 
         num_classes: int, specifying the vocabulary size that the joint network must predict,
-            excluding the RNNT blank token.
+            excluding the HAT blank token.
 
         vocabulary: Optional list of strings/tokens that comprise the vocabulary of the joint network.
-            Unused and kept only for easy access for character based encoding RNNT models.
+            Unused and kept only for easy access for character based encoding HAT models.
 
         log_softmax: Optional bool, set to None by default. If set as None, will compute the log_softmax()
             based on the value provided.
@@ -132,7 +132,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         """
         if not self._fuse_loss_wer:
             return {
-                "outputs": NeuralType(('B', 'T', 'U', 'D'), LogprobsType()),
+                "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             }
 
         else:
@@ -378,7 +378,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         U = Target sequence length
         H1, H2 = Hidden dimensions of the Encoder / Decoder respectively
         H = Hidden dimension of the Joint hidden step.
-        V = Vocabulary size of the Decoder (excluding the RNNT blank token).
+        V = Vocabulary size of the Decoder (excluding the HAT blank token).
 
         NOTE:
             The implementation of this model is slightly modified from the original paper.
@@ -397,7 +397,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
 
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
-            Internal LM probs (B, T, U, V).
+            Internal LM probabili (B, 1, U, V).
         """
         # f = [B, T, H1]
         f = self.enc(f)
@@ -426,8 +426,8 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
 
         ilm_logprob = None
         if return_ilm:
-            ilm_logit = self.joint_net(g)
-            ilm_logprob = ilm_logit.log_softmax(dim=-1)
+            ilm_logit = self.joint_net(g)  # [B, 1, U, V]
+            ilm_logprob = ilm_logit.log_softmax(dim=-1) 
 
         res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous() # [B, T, U, V+1]
 
