@@ -33,6 +33,7 @@ from scipy.signal.windows import cosine, hamming, hann
 from scipy.spatial.transform import Rotation
 from scipy.stats import beta, gamma
 from tqdm import tqdm
+import copy
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor, process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
@@ -115,6 +116,8 @@ class MultiSpeakerSimulator(object):
         - Added support for segment-level gain perturbation and session-level white-noise perturbation
         - Modified speaker sampling mechanism to include as many speakers as possible in each data-generation run
         - Added chunking mechanism to avoid freezing in multiprocessing processes
+    v1.0.3 March 2023
+        - Faster audio-file loading with maximum audio duration parameter
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -227,6 +230,9 @@ class MultiSpeakerSimulator(object):
         # creating manifests during online data simulation
         self.base_manifest_filepath = None
         self.segment_manifest_filepath = None
+        # self.unit_count_for_loading = self._params.data_simulator.session_params.unit_count_for_loading
+        self.max_audio_read_sec = self._params.data_simulator.session_params.max_audio_read_sec
+
         self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
         # variable speaker volume
         self._volume = None
@@ -335,6 +341,11 @@ class MultiSpeakerSimulator(object):
             or self._params.data_simulator.session_params.turn_prob > 1
         ):
             raise Exception("Turn probability is outside of [0,1]")
+        if (
+            self._params.data_simulator.session_params.turn_prob < 0
+            or self._params.data_simulator.session_params.turn_prob > 1
+        ):
+            raise Exception("Turn probability is outside of [0,1]")
         elif (
             self._params.data_simulator.session_params.turn_prob < self._turn_prob_min
             and self._params.data_simulator.speaker_enforcement.enforce_num_speakers == True
@@ -343,7 +354,8 @@ class MultiSpeakerSimulator(object):
                 "Turn probability is less than {self._turn_prob_min} while enforce_num_speakers=True, which may result in excessive session lengths. Forcing turn_prob to 0.5."
             )
             self._params.data_simulator.session_params.turn_prob = self._turn_prob_min
-
+        if self._params.data_simulator.session_params.max_audio_read_sec < 2.5:
+            raise Exception("Max audio read time must be greater than 2.5 seconds")
         if self._params.data_simulator.session_params.sentence_length_params[0] <= 0:
             raise Exception(
                 "k (number of success until the exp. ends) in Sentence length parameter value must be a positive number"
@@ -419,6 +431,9 @@ class MultiSpeakerSimulator(object):
             raise Exception("Manifest file is empty. Check that the source path is correct.")
 
     def clean_up(self):
+        """
+        Clear the system memory. Cache data for audio files and alignments are removed.
+        """
         self._sentence = None
         self._words = []
         self._alignments = []
@@ -531,11 +546,15 @@ class MultiSpeakerSimulator(object):
         file_id = np.random.randint(0, max(len(speaker_wav_align_map[str(speaker_id)]) - 1, 1))
         file_dict = speaker_wav_align_map[str(speaker_id)][file_id]
 
+        # Check if the alignment file has at least 2 words.
+        if len(file_dict['alignments']) < 2:
+            raise ValueError(f"Alignment file {file_dict['audio_filepath']} has an inappropriate length of {len(file_dict['alignments'])} < 2.")
+
         # Check whether the first word is silence and insert a silence token if the first token is not silence.
         if file_dict['words'][0] != "":
             file_dict['words'].insert(0, "")
             file_dict['alignments'].insert(0, 1 / (10 ** self._params.data_simulator.outputs.output_precision))
-
+        file_dict = copy.deepcopy(file_dict)
         return file_dict
 
     def _get_speaker_dominance(self) -> List[float]:
@@ -859,13 +878,12 @@ class MultiSpeakerSimulator(object):
             sentence_word_count (int): Running count for number of words in sentence
             max_word_count_in_sentence (int): Maximum count for number of words in sentence
             max_samples_in_sentence (int): Maximum length for sentence in terms of samples
+        
         Returns:
             sentence_word_count+current_word_count (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
         """
-        if len(audio_manifest['alignments']) <= 1:
-            raise ValueError(f"Alignment file has inappropriate length of {len(audio_manifest['alignments'])}")
-
+        # Randomly select a word to start in the given alignments
         offset_idx = np.random.randint(low=1, high=len(audio_manifest['words']))
 
         first_alignment = int(audio_manifest['alignments'][offset_idx - 1] * self._params.data_simulator.sr)
@@ -979,6 +997,150 @@ class MultiSpeakerSimulator(object):
         del audio_file
         return sentence_word_count + current_word_count, len(self._sentence)
 
+    def _get_subset_of_audio_manifest(self, audio_manifest: dict, offset_index: int) -> dict:
+        """
+        Get a subset of `audio_manifest` for faster audio-file reading.
+
+        Args:
+            audio_manifest (dict): Audio manifest dictionary.
+                keys: 'offset', 'duration', 'alignments', 'words'
+            offset_index (int): Index of the offset.
+
+        Returns:
+            audio_manifest (dict): Subset of `audio_manifest` is returned for `words` and `alignments` keys.
+        """
+        alignment_array = np.array(audio_manifest['alignments'])
+        alignment_array_pr = np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
+        subset_alignments = alignment_array_pr[alignment_array_pr < self.max_audio_read_sec]
+        if len(subset_alignments) < 2:
+            raise ValueError(f"subset_alignments length: {len(subset_alignments)} is less than 2.")
+        audio_manifest['offset'], audio_manifest['duration'] = alignment_array[offset_index], subset_alignments[-1] - subset_alignments[0]
+        audio_manifest['alignments'] = subset_alignments.tolist()
+        audio_manifest['words'] = audio_manifest['words'][offset_index:offset_index+len(subset_alignments)]
+        return audio_manifest
+
+    def _read_audio_from_buffer(
+        self, 
+        audio_manifest: dict, 
+        buffer_dict: dict, 
+        offset_index: int, 
+        read_subset: bool=True
+        ) -> Tuple[torch.Tensor, int, dict]:
+        """
+        Read from the provided file path while maintaining a hash-table that saves loading time.
+        Also, this function only reads a subset of the audio file if `read_subset` is True for faster audio-file reading.
+
+        Args:
+            audio_manifest (dict): Audio manifest dictionary.
+                keys: 'audio_filepath', 'duration', 'alignments', 'words'
+            buffer_dict (dict): Hash-table that saves loaded audio files.
+            offset_index (int): Index of the offset for the audio file.
+            read_subset (bool): whether to read a subset of the audio file.
+                                To control the length of the audio file, use data_simulator.session_params.unit_count_for_loading.
+                                Note that using high value for `unit_count_for_loading` will slow down the generation process.
+                                If False, read the entire audio file.
+
+        Returns:
+            audio_file (torch.Tensor): Time-series audio data in a tensor.
+            sr (int): Sample rate of the audio file.
+            audio_manifest (dict): (modified) audio manifest dictionary.
+        """
+        audio_file_id = f"{audio_manifest['audio_filepath']}#{offset_index}"
+        if audio_file_id in buffer_dict:
+            audio_file, sr, audio_manifest = buffer_dict[audio_file_id]
+        else:
+            import time; start = time.time()
+            if read_subset:
+                audio_manifest = self._get_subset_of_audio_manifest(audio_manifest, offset_index)
+                segment = AudioSegment.from_file(audio_manifest['audio_filepath'], offset=audio_manifest['offset'], duration=audio_manifest['duration'])
+            else:
+                segment = AudioSegment.from_file(audio_manifest['audio_filepath'])
+            audio_file, sr = torch.from_numpy(segment.samples).to(self._device), segment.sample_rate
+            if read_subset and segment.duration < (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]):
+                audio_manifest['alignments'][-1] = min(segment.duration, audio_manifest['alignments'][-1])
+            if audio_file.ndim > 1:
+                audio_file = torch.mean(audio_file, 1, False).to(self._device)
+            buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
+        return audio_file, sr, audio_manifest
+
+    def _get_random_offset_index(self, audio_manifest: dict, min_alignment_count=2) -> int:
+        """
+        Get an index for randomly accessing the silence in alignment timestamps. 
+
+        Args:
+            audio_manifest (dict): Audio manifest dictionary.
+                keys: 'audio_filepath', 'duration', 'alignments', 'words'
+
+        Returns: 
+            (int): Random offset index smaller than `offset_count`.
+        """
+        if len(audio_manifest['alignments']) <= min_alignment_count:
+            raise ValueError(f"Audio file {audio_manifest['audio_filepath']} has less than {min_alignment_count} alignment timestamps.")
+        # Find all the silence indices 
+        sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
+        # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
+        if len(sil_inds) <= 2 or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < self.max_audio_read_sec:
+            return 0
+        else:
+            offset_index = np.random.randint(len(sil_inds)-1) 
+            return sil_inds[offset_index]
+
+    def _get_split_points_in_alignments(
+        self, 
+        words: List[str], 
+        alignments: List[float], 
+        split_buffer: float, 
+        sr: int, 
+        sentence_audio_len: int,
+        new_start: float=0):
+        """
+        Collect split points in the alignment based on silence.
+        Silence is defined as a blank symbol between two words that is longer than 2 * split_buffer.
+
+        Args:
+            words (List[str]): List of words in the sentence.
+            alignments (List[float]): List of alignment timestamps in the sentence.
+            split_buffer (float): Buffer length in seconds.
+            sr (int): Sample rate of the audio.
+            sentence_audio_len (int): Length of the sentence audio in samples.
+            new_start (float): Start of the sentence audio in seconds.
+
+        Returns:
+            splits (List[List[int]]): List of integer split points in the sentence audio.
+        """
+        splits = []
+        for i in range(len(words)):
+            if words[i] == "" and i != 0 and i != len(words) - 1:
+                silence_length = alignments[i] - alignments[i - 1]
+                if (silence_length > 2 * split_buffer):  # split utterance on silence
+                    new_end = alignments[i - 1] + split_buffer
+                    splits.append([int(new_start * sr),int(new_end * sr),])
+                    new_start = alignments[i] - split_buffer
+        # The last split point should be added
+        splits.append([int(new_start * sr), sentence_audio_len])
+        return splits
+
+    def _per_speaker_normalize(self, sentence_audio: torch.Tensor, splits: List[List[int]], speaker_turn: int) -> torch.Tensor:
+        """
+        Normalize time-series audio signal per speaker.
+
+        Args:
+            sentence_audio (torch.Tensor): Time-series audio signal.
+            splits (List[List[int]]): List of integer split points in the sentence audio.
+            speaker_turn (int): Speaker ID of the current speaker.
+
+        Returns:
+            sentence_audio (torch.Tensor): Normalized time-series audio signal.
+        """
+        split_length = torch.tensor(0).to(self._device).double()
+        split_sum = torch.tensor(0).to(self._device).double()
+        for split in splits:
+            split_length += len(sentence_audio[split[0] : split[1]])
+            split_sum += torch.sum(sentence_audio[split[0] : split[1]] ** 2)
+        average_rms = torch.sqrt(split_sum * 1.0 / split_length)
+        sentence_audio = sentence_audio / (1.0 * average_rms) * self._volume[speaker_turn]
+        return sentence_audio  
+
     def _build_sentence(
         self,
         speaker_turn: int,
@@ -1008,22 +1170,18 @@ class MultiSpeakerSimulator(object):
         # initialize sentence, text, words, alignments
         self._sentence = torch.zeros(0, dtype=torch.float64, device=self._device)
         self._text = ""
-        self._words = []
-        self._alignments = []
-        sentence_word_count = 0
-        sentence_samples = 0
+        self._words, self._alignments = [], []
+        sentence_word_count, sentence_samples = 0, 0
 
         # build sentence
         while sentence_word_count < sl and sentence_samples < max_samples_in_sentence:
             audio_manifest = self._load_speaker_sample(speaker_wav_align_map, speaker_ids, speaker_turn)
-            if audio_manifest['audio_filepath'] in self._audio_read_buffer_dict:
-                audio_file, sr = self._audio_read_buffer_dict[audio_manifest['audio_filepath']]
-            else:
-                audio_file, sr = sf.read(audio_manifest['audio_filepath'])
-                audio_file = torch.from_numpy(audio_file).to(self._device)
-                if audio_file.ndim > 1:
-                    audio_file = torch.mean(audio_file, 1, False).to(self._device)
-                self._audio_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
+            offset_index = self._get_random_offset_index(audio_manifest)
+            audio_file, sr, audio_manifest = self._read_audio_from_buffer(audio_manifest, 
+                                                                          buffer_dict=self._audio_read_buffer_dict,
+                                                                          offset_index=offset_index, 
+                                                                          read_subset=True
+                                                                          )
 
             # audio perturbation, such as gain, impulse response, and white noise
             audio_file = self._perturb_audio(audio_file, sr, self.segment_augmentor)
@@ -1032,36 +1190,17 @@ class MultiSpeakerSimulator(object):
                 audio_manifest, audio_file, sentence_word_count, sl, max_samples_in_sentence
             )
 
-        # look for split locations
-        splits = []
-        new_start = 0
-        for i in range(len(self._words)):
-            if self._words[i] == "" and i != 0 and i != len(self._words) - 1:
-                silence_length = self._alignments[i] - self._alignments[i - 1]
-                if (
-                    silence_length > 2 * self._params.data_simulator.session_params.split_buffer
-                ):  # split utterance on silence
-                    new_end = self._alignments[i - 1] + self._params.data_simulator.session_params.split_buffer
-                    splits.append(
-                        [
-                            int(new_start * self._params.data_simulator.sr),
-                            int(new_end * self._params.data_simulator.sr),
-                        ]
-                    )
-                    new_start = self._alignments[i] - self._params.data_simulator.session_params.split_buffer
-
-        splits.append([int(new_start * self._params.data_simulator.sr), len(self._sentence)])
-
         # per-speaker normalization (accounting for active speaker time)
-        if self._params.data_simulator.session_params.normalize:
-            if torch.max(torch.abs(self._sentence)) > 0:
-                split_length = torch.tensor(0).to(self._device).double()
-                split_sum = torch.tensor(0).to(self._device).double()
-                for split in splits:
-                    split_length += len(self._sentence[split[0] : split[1]])
-                    split_sum += torch.sum(self._sentence[split[0] : split[1]] ** 2)
-                average_rms = torch.sqrt(split_sum * 1.0 / split_length)
-                self._sentence = self._sentence / (1.0 * average_rms) * self._volume[speaker_turn]
+        if self._params.data_simulator.session_params.normalize and torch.max(torch.abs(self._sentence)) > 0:
+            splits = self._get_split_points_in_alignments(words=self._words, 
+                                                          alignments=self._alignments, 
+                                                          split_buffer=self._params.data_simulator.session_params.split_buffer, 
+                                                          sr=self._params.data_simulator.sr,
+                                                          sentence_audio_len=len(self._sentence),
+                                                        )
+            self._sentence = self._per_speaker_normalize(sentence_audio=self._sentence,
+                                                         splits=splits, 
+                                                         speaker_turn=speaker_turn)
 
     def _silence_vs_overlap_selector(self, running_len_samples: int, non_silence_len_samples: int) -> bool:
         """
@@ -1086,7 +1225,6 @@ class MultiSpeakerSimulator(object):
         add_overlap = self.overlap_discrepancy <= self.silence_discrepancy
         return add_overlap
 
-    # returns new overlapped (or shifted) start position
     def _add_silence_or_overlap(
         self,
         speaker_turn: int,
@@ -1182,19 +1320,16 @@ class MultiSpeakerSimulator(object):
             desired_snr = self._params.data_simulator.background_noise.snr
         ratio = 10 ** (desired_snr / 20)
         desired_avg_power_noise = (power_array / ratio).to(self._device)
-        running_len_samples, file_id = 0, 0
+        running_len_samples = 0
+        
         while running_len_samples < len_array:  # build background audio stream (the same length as the full file)
-            audio_manifest = self._noise_samples[file_id % len(self._noise_samples)]
-            file_id += 1
-
-            if audio_manifest['audio_filepath'] in self._noise_read_buffer_dict:
-                audio_file, sr = self._noise_read_buffer_dict[audio_manifest['audio_filepath']]
-            else:
-                audio_file, sr = sf.read(audio_manifest['audio_filepath'])
-                audio_file = torch.from_numpy(audio_file).to(self._device)
-                if audio_file.ndim > 1:
-                    audio_file = torch.mean(audio_file, 1, False)
-                self._noise_read_buffer_dict[audio_manifest['audio_filepath']] = (audio_file, sr)
+            file_id = np.random.randint(0, len(self._noise_samples))
+            audio_manifest = self._noise_samples[file_id]
+            
+            audio_file, sr, audio_manifest = self._read_audio_from_buffer(audio_manifest, 
+                                                                          buffer_dict=self._noise_read_buffer_dict,
+                                                                          offset_index=0, 
+                                                                          read_subset=False)
 
             if running_len_samples + len(audio_file) < len_array:
                 end_audio_file = running_len_samples + len(audio_file)
@@ -1677,6 +1812,7 @@ class MultiSpeakerSimulator(object):
         if random_seed is None:
             random_seed = self._params.data_simulator.random_seed
         np.random.seed(random_seed)
+        torch.manual_seed(random_seed)
         output_dir = self._params.data_simulator.outputs.output_dir
 
         basepath = self._get_cleaned_base_path(output_dir)

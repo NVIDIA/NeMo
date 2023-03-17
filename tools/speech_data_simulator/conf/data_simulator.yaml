@@ -11,6 +11,7 @@ data_simulator:
     session_length: 600 # Length of each simulated multispeaker audio session (seconds)
 
   session_params:
+    max_audio_read_sec: 20 # The maximum audio length in second when loading an audio file. The bigger the number, the slower the reading speed. Should be greater than 2.5 second.
     sentence_length_params: # k,p values for a negative_binomial distribution which is sampled to get the sentence length (in number of words)
     - 0.4 # k (Number of successes until the experiment is stopped) value must be a positive integer.
     - 0.05 # p (Success probability) must be in the range (0, 1]. The average sentence length will be k*(1-p)/p
