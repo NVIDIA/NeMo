@@ -11,7 +11,7 @@ do_testing: False
 pretrained_model: null # path to .nemo file or model name from list_available_models()
 
 model:
-  wordids: ??? # path to CPP wordids in WikiHomograph dataset format
+  wordids: ??? # path to CPP wordids in WikiHomograph dataset format e.g. ./cpp_manifest/wordid.tsv
   max_seq_length: 256 # the maximum length BERT supports is 512
   label_ids: null # will be filled during training
   class_labels:

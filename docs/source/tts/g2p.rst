@@ -223,10 +223,10 @@ To train a model with `Chinese Polyphones with Pinyin (CPP) <https://github.com/
     # model training and evaluation
     python3 heteronym_classification_train_and_evaluate.py \
         --config-name "heteronym_classification_zh.yaml" \
-        train_manifest="/mnt/samsung-t7/yuekai/tts/cpp_manifest/train.json" \
-        validation_manifest="/mnt/samsung-t7/yuekai/tts/cpp_manifest/dev.json" \
-        model.test_ds.dataset.manifest="/mnt/samsung-t7/yuekai/tts/cpp_manifest/test.json" \
-        model.wordids="/mnt/samsung-t7/yuekai/tts/cpp_manifest/wordid.tsv" \
+        train_manifest="./cpp_manifest/train.json" \
+        validation_manifest="./cpp_manifest/dev.json" \
+        model.test_ds.dataset.manifest="./cpp_manifest/test.json" \
+        model.wordids="./cpp_manifest/wordid.tsv" \
         do_training=False \
         do_testing=True
 
