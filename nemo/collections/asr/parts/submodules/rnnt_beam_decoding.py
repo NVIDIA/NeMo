@@ -466,7 +466,10 @@ class BeamRNNTInfer(Typing):
 
             # TODO: Figure out how to remove this hard coding afterwords
             while not_blank and (symbols_added < 5):
-                ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
+                if isinstance(self.joint, HATJoint):
+                    ytu, _ = self.joint.joint(hi, y)
+                else:
+                    ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # max() requires float
@@ -566,7 +569,10 @@ class BeamRNNTInfer(Typing):
                 y, state, lm_tokens = self.decoder.score_hypothesis(max_hyp, cache)  # [1, 1, D]
 
                 # get next token
-                ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
+                if isinstance(self.joint, HATJoint):
+                    ytu, _ = self.joint.joint(hi, y)
+                else:
+                    ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # preserve alignments
@@ -713,9 +719,12 @@ class BeamRNNTInfer(Typing):
                 beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(
-                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
-                )  # [B, 1, 1, V + 1]
+                if isinstance(self.joint, HATJoint):
+                    beam_logp, _ = self.joint.joint(h_enc, beam_y)
+                else:
+                    beam_logp = torch.log_softmax(
+                        self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                    )  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
@@ -927,9 +936,12 @@ class BeamRNNTInfer(Typing):
                 h_enc = h_enc.unsqueeze(1)  # [B=beam, T=1, D]; batch over the beams
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(
-                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
-                )  # [B=beam, 1, 1, V + 1]
+                if isinstance(self.joint, HATJoint):
+                    beam_logp, _ = self.joint.joint(h_enc, beam_y)
+                else:
+                    beam_logp = torch.log_softmax(
+                        self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                    )  # [B=beam, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
