@@ -98,7 +98,10 @@ def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
     """
     return [min(x, max_val) for x in target_list]
 
-def binary_search_alignments(inds: List[int], max_audio_read_sec: float, min_alignment_count: int, audio_manifest: dict) -> int:
+
+def binary_search_alignments(
+    inds: List[int], max_audio_read_sec: float, min_alignment_count: int, audio_manifest: dict
+) -> int:
     """
     Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
     `max_audio_read_sec`. This is used to avoid reading the short audio files.
@@ -114,8 +117,8 @@ def binary_search_alignments(inds: List[int], max_audio_read_sec: float, min_ali
     left, right = 0, len(inds) - min_alignment_count
     while left < right:
         mid = left + (right - left) // 2
-        dur_left = audio_manifest['alignments'][-1*min_alignment_count] - audio_manifest['alignments'][inds[mid]]
-        if  dur_left < max_audio_read_sec:
+        dur_left = audio_manifest['alignments'][-1 * min_alignment_count] - audio_manifest['alignments'][inds[mid]]
+        if dur_left < max_audio_read_sec:
             right = mid - 1
         elif dur_left > max_audio_read_sec:
             left = mid + 1
@@ -123,6 +126,7 @@ def binary_search_alignments(inds: List[int], max_audio_read_sec: float, min_ali
             break
     offset_max = max(left + (right - left) // 2, 1)
     return offset_max
+
 
 class MultiSpeakerSimulator(object):
     """
@@ -301,7 +305,8 @@ class MultiSpeakerSimulator(object):
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
             all_speaker_ids=self._speaker_samples.keys(),
-            random_seed=self._params.data_simulator.random_seed)
+            random_seed=self._params.data_simulator.random_seed,
+        )
         # Intialize multiprocessing related variables
         self.num_workers = self._params.get("num_workers", 1)
         self.multiprocessing_chunksize = self._params.data_simulator.get('multiprocessing_chunksize', 10000)
@@ -916,11 +921,11 @@ class MultiSpeakerSimulator(object):
             sentence_word_count+current_word_count (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
         """
-        # In general, random offset is not needed since random silence index has already been chosen 
+        # In general, random offset is not needed since random silence index has already been chosen
         if random_offset:
             offset_idx = np.random.randint(low=1, high=len(audio_manifest['words']))
         else:
-            offset_idx = 1 
+            offset_idx = 1
 
         first_alignment = int(audio_manifest['alignments'][offset_idx - 1] * self._params.data_simulator.sr)
         start_cutoff, start_window_amount = self._get_start_buffer_and_window(first_alignment)
@@ -1050,11 +1055,13 @@ class MultiSpeakerSimulator(object):
         subset_alignments = alignment_array_pr[alignment_array_pr < self._max_audio_read_sec]
         if len(subset_alignments) < self._min_alignment_count:
             # Cases where the word next to the offset is longer than the max_audio_read_sec.
-            logging.warning(f"subset_alignments of {audio_manifest['audio_filepath']} \n" 
-                            f"has subset alignment length:{len(subset_alignments)} at offset_index:{offset_index}, " 
-                            f"word:{audio_manifest['words'][offset_index:offset_index+self._min_alignment_count]}, " 
-                            f"alignments:{alignment_array_pr[:self._min_alignment_count]} which is longer than _max_audio_read_sec:{[0, self._max_audio_read_sec]}."
-                            " Truncating the alignements.")
+            logging.warning(
+                f"subset_alignments of {audio_manifest['audio_filepath']} \n"
+                f"has subset alignment length:{len(subset_alignments)} at offset_index:{offset_index}, "
+                f"word:{audio_manifest['words'][offset_index:offset_index+self._min_alignment_count]}, "
+                f"alignments:{alignment_array_pr[:self._min_alignment_count]} which is longer than _max_audio_read_sec:{[0, self._max_audio_read_sec]}."
+                " Truncating the alignements."
+            )
             # Attach the `_max_audio_read_sec` to the `subset_alignments` to truncate the alignment timestamp.
             subset_alignments = np.concatenate([subset_alignments, np.array([self._max_audio_read_sec])])
         audio_manifest['offset'], audio_manifest['duration'] = (
@@ -1124,7 +1131,7 @@ class MultiSpeakerSimulator(object):
                 f"Audio file {audio_manifest['audio_filepath']} has less than {self._min_alignment_count} alignment timestamps."
             )
         index_file_id = f"{audio_manifest['audio_filepath']}#index"
-        
+
         # Avoid multiple indexings of the same audio file by using a hash-table.
         if index_file_id in self._audio_read_buffer_dict:
             (sil_inds, offset_max) = self._audio_read_buffer_dict[index_file_id]
@@ -1136,12 +1143,14 @@ class MultiSpeakerSimulator(object):
                 offset_max = 1
             else:
                 # Find the range that satisfies `self._max_audio_read_sec` duration.
-                offset_max = binary_search_alignments(inds=sil_inds, 
-                                                      max_audio_read_sec=self._max_audio_read_sec,
-                                                      min_alignment_count=self._min_alignment_count,
-                                                      audio_manifest=audio_manifest)
+                offset_max = binary_search_alignments(
+                    inds=sil_inds,
+                    max_audio_read_sec=self._max_audio_read_sec,
+                    min_alignment_count=self._min_alignment_count,
+                    audio_manifest=audio_manifest,
+                )
             self._audio_read_buffer_dict[index_file_id] = (sil_inds, offset_max)
-        
+
         # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
         if (
             len(sil_inds) <= self._min_alignment_count
@@ -1885,7 +1894,7 @@ class MultiSpeakerSimulator(object):
         if random_seed is None:
             random_seed = self._params.data_simulator.random_seed
         np.random.seed(random_seed)
-        
+
         output_dir = self._params.data_simulator.outputs.output_dir
 
         basepath = self._get_cleaned_base_path(output_dir)
