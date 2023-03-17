@@ -1016,7 +1016,9 @@ class MultiSpeakerSimulator(object):
         alignment_array_pr = np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
         subset_alignments = alignment_array_pr[alignment_array_pr < self.max_audio_read_sec]
         if len(subset_alignments) < self.min_alignment_count:
-            raise ValueError(f"subset_alignments length: {len(subset_alignments)} is less than {self.min_alignment_count}.")
+            raise ValueError(
+                f"subset_alignments length: {len(subset_alignments)} is less than {self.min_alignment_count}."
+            )
         audio_manifest['offset'], audio_manifest['duration'] = (
             alignment_array[offset_index],
             subset_alignments[-1] - subset_alignments[0],
