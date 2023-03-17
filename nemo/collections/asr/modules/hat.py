@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ from nemo.utils import logging
 
 class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
     """A Hybrid Autoregressive Transducer Joint Network (HAT Joint Network).
-    An HAT Joint network, comprised of a feedforward model.
+    A HAT Joint network, comprised of a feedforward model.
 
     Args:
         jointnet: A dict-like object which contains the following key-value pairs.
@@ -132,7 +132,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         """
         if not self._fuse_loss_wer:
             return {
-                "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+                "outputs": NeuralType(('B', 'T', 'U', 'D'), LogprobsType()),
             }
 
         else:
@@ -218,7 +218,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         dropout = jointnet.get('dropout', 0.0)
 
         self.pred, self.enc, self.joint_net, self.blank_pred = self._joint_net_modules(
-            num_classes=self._vocab_size,  # non blank symbols
+            num_classes=self._vocab_size,  # non blank symbol
             pred_n_hidden=self.pred_hidden,
             enc_n_hidden=self.encoder_hidden,
             joint_n_hidden=self.joint_hidden,
@@ -409,7 +409,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
 
         inp = f + g  # [B, T, U, H]
 
-        del f, g
+        del f
 
         # Forward adapter modules on joint hidden
         if self.is_adapter_available():
@@ -421,7 +421,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         del inp
 
         label_logprob = label_logit.log_softmax(dim=-1)
-        scale_prob = torch.clamp(1-torch.exp(blank_logprob), min=1e-6)
+        scale_prob = torch.clamp(1 - torch.exp(blank_logprob), min=1e-6)
         label_logprob_scaled = torch.log(scale_prob) + label_logprob   # [B, T, U, V]
 
         ilm_logprob = None
@@ -431,7 +431,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
 
         res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous() # [B, T, U, V+1]
 
-        del blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
+        del g, blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
 
         if self.preserve_memory:
             torch.cuda.empty_cache()
@@ -453,7 +453,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         pred = torch.nn.Linear(pred_n_hidden, joint_n_hidden)
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
         blank_pred = torch.nn.Sequential(
-            torch.nn.Tanh(),             # [ReLU or Tanh]
+            torch.nn.Tanh(),
             torch.nn.Dropout(p=dropout),
             torch.nn.Linear(joint_n_hidden, 1),
             torch.nn.LogSigmoid()
