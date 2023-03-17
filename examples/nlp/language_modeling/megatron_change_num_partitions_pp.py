@@ -47,11 +47,52 @@ python megatron_change_num_partitions_pp.py \
     --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=1 \
     --pipeline_model_parallel_size=1 \
-    --target_pipeline_model_parallel_size=1
+    --target_pipeline_model_parallel_size=1 \
+    --target_pipeline_model_parallel_split_rank=0
 
 """
 
 DEBUG_PRINT = False
+
+
+def compute_tp_splits(param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy):
+    # alias
+    idx = global_idx
+
+    if param.shape == partitions[0][idx].shape:
+        split = [partitions[0][idx].data] * tp_size
+        print(">> Perfect match, no splitting needed")
+    elif param.shape[0] == partitions[0][idx].shape[0]:
+        split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
+    else:
+        # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
+        if 'query_key_value.weight' in param_name and megatron_legacy:
+            split_dim = partitions[0][idx].data.shape[0]
+            if split_dim % (tp_size * 3) != 0:
+                raise ValueError(
+                    f"Can not split Q,K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 3}."
+                )
+            tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 3, dim=0)
+            split = []
+            for i in range(tp_size):
+                tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 3, tp_size)])
+                split.append(tp_qkv)
+        elif 'key_value.weight' in param_name and megatron_legacy:
+            split_dim = partitions[0][idx].data.shape[0]
+            if split_dim % (tp_size * 2) != 0:
+                raise ValueError(
+                    f"Can not split K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 2}."
+                )
+            tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 2, dim=0)
+            split = []
+            for i in range(tp_size):
+                tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
+                split.append(tp_qkv)
+        # Regular split for Megatron and NeMo-Megatron models.
+        else:
+            split = torch.split(partitions[0][idx].data, param.shape[0], dim=0)
+
+    return split
 
 
 def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], write_path: str = None):
@@ -116,6 +157,7 @@ def split_partition(
     tp_size: int,
     pp_rank: int,
     offset: int,
+    pp_split_rank: int = 0,
     write_path: str = None,
     megatron_legacy: bool = False,
 ):
@@ -160,11 +202,58 @@ def split_partition(
         duplicate_word_embedding_offset = 0
     idx += duplicate_word_embedding_offset  # add duplicate embedding offset to index
 
-    print("Start Layer Idx:", idx, "Num Remaining layers:", num_params, "Offset:", offset)
-    print("Duplicate_word_embedding_offset", duplicate_word_embedding_offset)
+    # Megatron T5 check for pipeline_model_parallel_split_rank in order to inject encoder embeddings
+    shared_enc_dec_embeddings = (
+        pp_split_rank > 0
+        and pp_split_rank == pp_rank
+        and 'share_token_embeddings' in model.cfg
+        and model.cfg.share_token_embeddings
+    )
+    if shared_enc_dec_embeddings:
+        enc_dec_share_token_embeddings_count = 2
+    else:
+        enc_dec_share_token_embeddings_count = 0
+    idx += enc_dec_share_token_embeddings_count
+
+    print(pp_split_rank, pp_rank, shared_enc_dec_embeddings, enc_dec_share_token_embeddings_count)
+
+    # Megatron T5 check for pipeline_model_parallel_split_rank in order to inject encoder embeddings
+    # when the pipeline_model_parallel_split_rank is not the last PP rank
+    shared_enc_dec_embeddings_intermediate = (
+        pp_split_rank > 0
+        and pp_split_rank < pp_size
+        and hasattr(model, 'enc_dec_model')
+        and hasattr(model.enc_dec_model, 'word_embeddings')
+    )
+
+    if shared_enc_dec_embeddings_intermediate:
+        # Loop until we get the location of this tensor
+        intermediate_shared_embedding_location = -1
+        for param_name, param in model.named_parameters():
+            if param_name == 'enc_dec_model.word_embeddings.weight':
+                intermediate_shared_embedding_location += 1
+                break
+            intermediate_shared_embedding_location += 1
+    else:
+        intermediate_shared_embedding_location = -1
+
+    shared_enc_dec_embeddings_intermediate = shared_enc_dec_embeddings_intermediate and (
+        intermediate_shared_embedding_location >= 0
+    )
+    if shared_enc_dec_embeddings_intermediate:
+        idx += 1
+
+    print("Start Layer Idx:", idx, "Number of layers in current rank:", num_params, "Offset:", offset)
+    if duplicate_word_embedding_offset > 0:
+        print("GPT duplicate_word_embedding_offset", duplicate_word_embedding_offset)
+    if enc_dec_share_token_embeddings_count:
+        print("EncDec share_token_embeddings_count", enc_dec_share_token_embeddings_count)
+    if shared_enc_dec_embeddings_intermediate:
+        print("EncDec share_enc_dec_embeddings_intermediate", intermediate_shared_embedding_location)
     print()
 
     splits = []
+    computed_index = idx
 
     # This is the PP X TP Y model with partial parameters present in correct order.
     # We need to extract the parameters from the global map in reverse order to fill in the
@@ -179,59 +268,54 @@ def split_partition(
             print("Found duplicate embedding copy for GPT model, resetting index")
             idx = 0  # reset idx parameter to 0 if we have duplicate embedding copy
 
+        if enc_dec_share_token_embeddings_count:
+            print("EncDec models decoder shares embedding with encoder, resetting index")
+            idx = 2 - enc_dec_share_token_embeddings_count  # 0th index is vocab embedding, 1 is pos embedding
+
+        if shared_enc_dec_embeddings_intermediate and param_name == 'enc_dec_model.word_embeddings.weight':
+            print("EncDec models decoder shares embedding with encoder in intermediate pos, skipping module for later update")
+            continue
+
         if DEBUG_PRINT:
             print(
-                "Index",
-                idx,
-                "Model param:",
-                param_name,
-                param.shape,
-                "Layer Idx:",
-                idx,
-                "Global params:",
-                partitions[1][idx],
-                partitions[0][idx].shape,
+                "Index:", idx, "Model param  :", param_name, param.shape,
+            )
+            print(
+                "Index:", idx, "Global params:", partitions[1][idx], partitions[0][idx].shape,
             )
 
         # Tensor Parallel Splitting
-        if param.shape == partitions[0][idx].shape:
-            split = [partitions[0][idx].data] * tp_size
-        elif param.shape[0] == partitions[0][idx].shape[0]:
-            split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
-        else:
-            # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
-            if 'query_key_value.weight' in param_name and megatron_legacy:
-                split_dim = partitions[0][idx].data.shape[0]
-                if split_dim % (tp_size * 3) != 0:
-                    raise ValueError(
-                        f"Can not split Q,K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 3}."
-                    )
-                tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 3, dim=0)
-                split = []
-                for i in range(tp_size):
-                    tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 3, tp_size)])
-                    split.append(tp_qkv)
-            elif 'key_value.weight' in param_name and megatron_legacy:
-                split_dim = partitions[0][idx].data.shape[0]
-                if split_dim % (tp_size * 2) != 0:
-                    raise ValueError(
-                        f"Can not split K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 2}."
-                    )
-                tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 2, dim=0)
-                split = []
-                for i in range(tp_size):
-                    tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
-                    split.append(tp_qkv)
-            # Regular split for Megatron and NeMo-Megatron models.
-            else:
-                split = torch.split(partitions[0][idx].data, param.shape[0], dim=0)
+        split = compute_tp_splits(param_name, param, partitions, idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy)
+
         splits.append(split)
         idx += 1
+
+        if enc_dec_share_token_embeddings_count > 0:
+            if enc_dec_share_token_embeddings_count - 1 == 0:
+                idx = computed_index
+
+            enc_dec_share_token_embeddings_count -= 1
+
+    # Inject the EncDec shared embeddings intermediate tensor
+    if shared_enc_dec_embeddings_intermediate:
+        for param_name, param in model.named_parameters():
+            if param_name == 'enc_dec_model.word_embeddings.weight':
+                print("Found intermediate shared embedding, injecting")
+                split = compute_tp_splits(param_name, param, partitions, 0, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy)
+                splits.insert(intermediate_shared_embedding_location, split)
+                break
 
     # Compute the new offset for the next PP rank in reverse order
     # Add 1 to offset to account for last PP rank's duplicated Embedding
     offset_diff = offset - num_params
-    if pp_rank == (pp_size - 1) and pp_size > 1:
+    # GPT offset correction
+    if pp_size > 1 and pp_rank == (pp_size - 1) and pp_split_rank == 0:
+        offset_diff += 1
+    # T5 offset correction
+    if shared_enc_dec_embeddings:
+        offset_diff += 2
+    # T5 offset correction for intermediate shared embedding
+    if shared_enc_dec_embeddings_intermediate:
         offset_diff += 1
     new_offset = offset_diff
 
@@ -284,6 +368,9 @@ def main():
         '--target_pipeline_model_parallel_size', type=int, required=True, help='PP size of target model'
     )
     parser.add_argument(
+        '--target_pipeline_model_parallel_split_rank', type=int, default=0, help='PP rank to split for Enc-Dec models'
+    )
+    parser.add_argument(
         "--model_class",
         type=str,
         default="nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel",
@@ -329,6 +416,7 @@ def main():
     tgt_tp_size = args.target_tensor_model_parallel_size
     pp_size = args.pipeline_model_parallel_size
     tgt_pp_size = args.target_pipeline_model_parallel_size
+    pipeline_model_parallel_split_rank = args.target_pipeline_model_parallel_split_rank
     cls = model_utils.import_class_by_path(args.model_class)
 
     trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
@@ -438,6 +526,11 @@ def main():
         global_params.append([p for n, p in model.named_parameters()])  # params
         global_params.append([n for n, p in model.named_parameters()])  # names
 
+        if DEBUG_PRINT:
+            print("Global parameters:")
+            for idx, (name, p) in enumerate(zip(global_params[1], global_params[0])):
+                print(name, p.shape)
+
         print("TP 1 PP 1 Number of Parameters :", len(global_params[0]))
 
         world_size = (
@@ -453,6 +546,21 @@ def main():
 
             model.cfg.pipeline_model_parallel_size = tgt_pp_size
             model.cfg.tensor_model_parallel_size = tgt_tp_size
+
+            if 'pipeline_model_parallel_split_rank' in model.cfg:
+                if pipeline_model_parallel_split_rank > 0:
+                    model.cfg.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
+                elif pp_size > 1:
+                    logging.warning(
+                        f"Model config has `pipeline_model_parallel_split_rank` set to "
+                        f"{model.cfg.pipeline_model_parallel_split_rank} and target PP "
+                        f"size is {tgt_pp_size}. "
+                        f"Provided `pipeline_model_parallel_split_rank` is "
+                        f"{pipeline_model_parallel_split_rank}. "
+                        f"Be careful that the model config is correct "
+                        f"if encoder-decoder models are being converted."
+                    )
+
             model.cfg.global_batch_size = old_global_batch_size  # Used for restoration
 
             # Override flag that forces Model to use AppState instead of Trainer
@@ -504,6 +612,7 @@ def main():
                 tgt_tp_size,
                 pp_rank,
                 global_offset,
+                pipeline_model_parallel_split_rank,
                 args.target_file,
                 args.megatron_legacy,
             )
