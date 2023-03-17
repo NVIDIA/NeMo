@@ -384,6 +384,7 @@ class MultiSpeakerSimulator(object):
             self._params.data_simulator.session_params.turn_prob = self._turn_prob_min
         if self._params.data_simulator.session_params.max_audio_read_sec < 2.5:
             raise Exception("Max audio read time must be greater than 2.5 seconds")
+
         if self._params.data_simulator.session_params.sentence_length_params[0] <= 0:
             raise Exception(
                 "k (number of success until the exp. ends) in Sentence length parameter value must be a positive number"
