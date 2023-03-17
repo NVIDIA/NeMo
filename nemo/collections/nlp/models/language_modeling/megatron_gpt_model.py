@@ -27,7 +27,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
@@ -67,6 +66,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module
 
     HAVE_MEGATRON_CORE = True
 
@@ -109,8 +109,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
+        # creates transformer config based on nemo model config
+        self.set_transformer_config()
+
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self.model = build_model(
+        self._model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
             virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
@@ -118,26 +121,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
-            self.model = self.model[0]
+            self._model = self._model[0]
 
         if self.megatron_amp_o2:
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                if isinstance(self.model, list):
-                    for module in self.model:
+                if isinstance(self._model, list):
+                    for module in self._model:
                         module.cuda(torch.cuda.current_device())
                 else:
-                    self.model.cuda(torch.cuda.current_device())
+                    self._model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            if isinstance(self.model, list):
+            if isinstance(self._model, list):
                 converted_model = []
-                for module in self.model:
+                for module in self._model:
                     converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
+                    self._model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self._model = Float16Module(config=self.get_transformer_config(), module=self._model)
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -161,15 +164,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
+    @property
+    def model(self):
+        if isinstance(self._model, Float16Module):
+            return self._model.module
+        else:
+            return self._model
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
     def get_inference_config(self):
         return self._inference_config
 
-    def model_provider_func(self, pre_process, post_process):
-        """Dynamically build the model depending on the pipeline stage."""
-
+    def set_transformer_config(self):
         if self.cfg.get('kv_channels', None) is None:
             assert (
                 self.cfg.hidden_size % self.cfg.num_attention_heads == 0
@@ -212,14 +220,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             recompute_method=self.cfg.get('activations_checkpoint_method', None),
             recompute_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
         )
+
+        self._transformer_config = transformer_config
+
+    def get_transformer_config(self):
+        return self._transformer_config
+
+    def model_provider_func(self, pre_process, post_process):
+        """Dynamically build the model depending on the pipeline stage."""
+
         model = GPTModel(
-            config=transformer_config,
+            config=self.get_transformer_config(),
             vocab_size=self.padded_vocab_size,
             max_sequence_length=self.cfg.get('encoder_seq_length', 512),
             pre_process=pre_process,
             post_process=post_process,
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             parallel_output=True,
+            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
         )
 
         return model
@@ -500,7 +518,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = self.model[-1]  # only the last virtual rank has the embeddings
                 else:
                     module = self.model
-            if module.share_token_embeddings:
+            if module.share_embeddings_and_output_weights:
                 word_embeddings_weight = module.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads

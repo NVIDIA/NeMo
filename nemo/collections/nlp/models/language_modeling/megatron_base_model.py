@@ -47,6 +47,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.transformer.module import Float16Module
 
     HAVE_MEGATRON_CORE = True
 
