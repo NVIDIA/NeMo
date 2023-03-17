@@ -39,7 +39,6 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypothe
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.collections.asr.modules.rnnt import RNNTDecoder, StatelessTransducerDecoder
 
 try:
     import kenlm
@@ -815,6 +814,9 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
+        # delay this import here instead of at the beginning to avoid circular imports.
+        from nemo.collections.asr.modules.rnnt import RNNTDecoder, StatelessTransducerDecoder
+            
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
