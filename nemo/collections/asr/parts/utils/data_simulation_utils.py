@@ -24,9 +24,7 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.manifest_utils import (
-    read_manifest,
-)
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.utils import logging
 
 
@@ -59,6 +57,7 @@ def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
     """
     return [min(x, max_val) for x in target_list]
 
+
 def get_cleaned_base_path(self, output_dir: str) -> str:
     """
     Delete output directory if it exists or throw warning.
@@ -87,11 +86,10 @@ def get_cleaned_base_path(self, output_dir: str) -> str:
         basepath = output_dir
     return basepath
 
+
 def binary_search_alignments(
-    inds: List[int], 
-    max_audio_read_sec: float, 
-    min_alignment_count: int, 
-    audio_manifest: dict) -> int:
+    inds: List[int], max_audio_read_sec: float, min_alignment_count: int, audio_manifest: dict
+) -> int:
     """
     Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
     `max_audio_read_sec`. This is used to avoid reading the short audio files.
@@ -107,8 +105,8 @@ def binary_search_alignments(
     left, right = 0, len(inds) - min_alignment_count
     while left < right:
         mid = left + (right - left) // 2
-        dur_left = audio_manifest['alignments'][-1*min_alignment_count] - audio_manifest['alignments'][inds[mid]]
-        if  dur_left < max_audio_read_sec:
+        dur_left = audio_manifest['alignments'][-1 * min_alignment_count] - audio_manifest['alignments'][inds[mid]]
+        if dur_left < max_audio_read_sec:
             right = mid - 1
         elif dur_left > max_audio_read_sec:
             left = mid + 1
@@ -117,12 +115,10 @@ def binary_search_alignments(
     offset_max = max(left + (right - left) // 2, 1)
     return offset_max
 
+
 def get_subset_of_audio_manifest(
-    audio_manifest: dict, 
-    offset_index: int,
-    max_audio_read_sec: float,
-    min_alignment_count: int,
-    ) -> dict:
+    audio_manifest: dict, offset_index: int, max_audio_read_sec: float, min_alignment_count: int,
+) -> dict:
     """
     Get a subset of `audio_manifest` for faster audio-file reading.
 
@@ -139,11 +135,13 @@ def get_subset_of_audio_manifest(
     subset_alignments = alignment_array_pr[alignment_array_pr < max_audio_read_sec]
     if len(subset_alignments) < min_alignment_count:
         # Cases where the word next to the offset is longer than the max_audio_read_sec.
-        logging.warning(f"subset_alignments of {audio_manifest['audio_filepath']} \n" 
-                        f"has subset alignment length:{len(subset_alignments)} at offset_index:{offset_index}, " 
-                        f"word:{audio_manifest['words'][offset_index:offset_index+min_alignment_count]}, " 
-                        f"alignments:{alignment_array_pr[:min_alignment_count]} which is longer than _max_audio_read_sec:{[0, max_audio_read_sec]}."
-                        " Truncating the alignements.")
+        logging.warning(
+            f"subset_alignments of {audio_manifest['audio_filepath']} \n"
+            f"has subset alignment length:{len(subset_alignments)} at offset_index:{offset_index}, "
+            f"word:{audio_manifest['words'][offset_index:offset_index+min_alignment_count]}, "
+            f"alignments:{alignment_array_pr[:min_alignment_count]} which is longer than _max_audio_read_sec:{[0, max_audio_read_sec]}."
+            " Truncating the alignements."
+        )
         # Attach the `_max_audio_read_sec` to the `subset_alignments` to truncate the alignment timestamp.
         subset_alignments = np.concatenate([subset_alignments, np.array([max_audio_read_sec])])
     audio_manifest['offset'], audio_manifest['duration'] = (
@@ -154,14 +152,15 @@ def get_subset_of_audio_manifest(
     audio_manifest['words'] = audio_manifest['words'][offset_index : offset_index + len(subset_alignments)]
     return audio_manifest
 
+
 def read_audio_from_buffer(
-    audio_manifest: dict, 
-    buffer_dict: dict, 
-    offset_index: int, 
+    audio_manifest: dict,
+    buffer_dict: dict,
+    offset_index: int,
     device: torch.device,
     max_audio_read_sec: float = 2.5,
     min_alignment_count: int = 2,
-    read_subset: bool = True, 
+    read_subset: bool = True,
 ) -> Tuple[torch.Tensor, int, dict]:
     """
     Read from the provided file path while maintaining a hash-table that saves loading time.
@@ -187,10 +186,12 @@ def read_audio_from_buffer(
         audio_file, sr, audio_manifest = buffer_dict[audio_file_id]
     else:
         if read_subset:
-            audio_manifest = get_subset_of_audio_manifest(audio_manifest=audio_manifest, 
-                                                          offset_index=offset_index, 
-                                                          max_audio_read_sec=max_audio_read_sec, 
-                                                          min_alignment_count=min_alignment_count)
+            audio_manifest = get_subset_of_audio_manifest(
+                audio_manifest=audio_manifest,
+                offset_index=offset_index,
+                max_audio_read_sec=max_audio_read_sec,
+                min_alignment_count=min_alignment_count,
+            )
             segment = AudioSegment.from_file(
                 audio_file=audio_manifest['audio_filepath'],
                 offset=audio_manifest['offset'],
@@ -205,6 +206,7 @@ def read_audio_from_buffer(
             audio_file = torch.mean(audio_file, 1, False).to(device)
         buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
     return audio_file, sr, audio_manifest
+
 
 def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, device: torch.device) -> torch.Tensor:
     """
@@ -227,13 +229,14 @@ def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, devic
     audio_segment = torch.from_numpy(audio_segment.samples).to(device)
     return audio_segment
 
+
 def get_random_offset_index(
-    audio_manifest: dict, 
+    audio_manifest: dict,
     audio_read_buffer_dict: dict,
-    offset_min: int = 0, 
+    offset_min: int = 0,
     max_audio_read_sec: float = 2.5,
-    min_alignment_count: int = 2, 
-    ) -> int:
+    min_alignment_count: int = 2,
+) -> int:
     """
     Get an index for randomly accessing the silence in alignment timestamps. 
 
@@ -249,7 +252,7 @@ def get_random_offset_index(
             f"Audio file {audio_manifest['audio_filepath']} has less than {min_alignment_count} alignment timestamps."
         )
     index_file_id = f"{audio_manifest['audio_filepath']}#index"
-    
+
     # Avoid multiple indexings of the same audio file by using a hash-table.
     if index_file_id in audio_read_buffer_dict:
         (sil_inds, offset_max) = audio_read_buffer_dict[index_file_id]
@@ -261,12 +264,14 @@ def get_random_offset_index(
             offset_max = 1
         else:
             # Find the range that satisfies `max_audio_read_sec` duration.
-            offset_max = binary_search_alignments(inds=sil_inds, 
-                                                    max_audio_read_sec=max_audio_read_sec,
-                                                    min_alignment_count=min_alignment_count,
-                                                    audio_manifest=audio_manifest)
+            offset_max = binary_search_alignments(
+                inds=sil_inds,
+                max_audio_read_sec=max_audio_read_sec,
+                min_alignment_count=min_alignment_count,
+                audio_manifest=audio_manifest,
+            )
         audio_read_buffer_dict[index_file_id] = (sil_inds, offset_max)
-    
+
     # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
     if (
         len(sil_inds) <= min_alignment_count
@@ -276,6 +281,7 @@ def get_random_offset_index(
     else:
         offset_index = np.random.randint(offset_min, offset_max)
         return sil_inds[offset_index]
+
 
 def get_speaker_ids(sess_idx, speaker_samples, permutated_speaker_inds) -> List[str]:
     """
@@ -288,6 +294,7 @@ def get_speaker_ids(sess_idx, speaker_samples, permutated_speaker_inds) -> List[
     idx_list = permutated_speaker_inds[sess_idx, :]
     speaker_ids = [all_speaker_ids[i] for i in idx_list]
     return speaker_ids
+
 
 def build_speaker_samples_map(manifest) -> Dict:
     """
@@ -303,6 +310,7 @@ def build_speaker_samples_map(manifest) -> Dict:
         speaker_id = sample['speaker_id']
         speaker_samples[speaker_id].append(sample)
     return speaker_samples
+
 
 def sample_noise_manifest(noise_manifest: Dict, num_noise_files: int) -> list:
     """
@@ -323,6 +331,7 @@ def sample_noise_manifest(noise_manifest: Dict, num_noise_files: int) -> list:
         for k in selected_noise_ids:
             sampled_noise_manifest.append(noise_manifest[k])
     return sampled_noise_manifest
+
 
 def read_noise_manifest(add_bg, background_manifest):
     """
@@ -348,6 +357,7 @@ def read_noise_manifest(add_bg, background_manifest):
             )
     return noise_manifest
 
+
 def get_speaker_samples(speaker_ids: List[str], speaker_samples: list) -> Dict[str, list]:
     """
     Get a list of the samples for each of the specified speakers.
@@ -362,6 +372,7 @@ def get_speaker_samples(speaker_ids: List[str], speaker_samples: list) -> Dict[s
     for sid in speaker_ids:
         speaker_wav_align_map[sid] = speaker_samples[sid]
     return speaker_wav_align_map
+
 
 def load_speaker_sample(
     speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int, output_precision: int
@@ -394,6 +405,7 @@ def load_speaker_sample(
         file_dict['alignments'].insert(0, 1 / (10 ** output_precision))
     file_dict = copy.deepcopy(file_dict)
     return file_dict
+
 
 def get_split_points_in_alignments(
     words: List[str],
@@ -432,12 +444,9 @@ def get_split_points_in_alignments(
     splits.append([int(new_start * sr), sentence_audio_len])
     return splits
 
+
 def per_speaker_normalize(
-    sentence_audio: torch.Tensor, 
-    splits: List[List[int]], 
-    speaker_turn: int, 
-    volume: List[float],
-    device: torch.device
+    sentence_audio: torch.Tensor, splits: List[List[int]], speaker_turn: int, volume: List[float], device: torch.device
 ) -> torch.Tensor:
     """
     Normalize time-series audio signal per speaker.
@@ -458,6 +467,7 @@ def per_speaker_normalize(
     average_rms = torch.sqrt(split_sum * 1.0 / split_length)
     sentence_audio = sentence_audio / (1.0 * average_rms) * volume[speaker_turn]
     return sentence_audio
+
 
 def get_session_silence_mean(mean: float, var: float = 0.0) -> float:
     """
@@ -486,7 +496,8 @@ def get_session_silence_mean(mean: float, var: float = 0.0) -> float:
         silence_mean = mean
     return silence_mean
 
-def get_session_overlap_mean(mean: float, var: float=0.0) -> float:
+
+def get_session_overlap_mean(mean: float, var: float = 0.0) -> float:
     """
     Get the target mean overlap for current session using re-parameterized Beta distribution.
     The following constraints are applied to make a > 0 and b > 0:
@@ -512,6 +523,7 @@ def get_session_overlap_mean(mean: float, var: float=0.0) -> float:
     else:
         overlap_mean = mean
     return overlap_mean
+
 
 def sample_from_overlap_model(
     non_silence_len_samples: int,
@@ -557,16 +569,15 @@ def sample_from_overlap_model(
             if overlap_var > 0
             else int(overlap_mean)
         )
-        desired_overlap_amount = max(
-            per_overlap_min_len, min(desired_overlap_amount, per_overlap_max_len)
-        )
+        desired_overlap_amount = max(per_overlap_min_len, min(desired_overlap_amount, per_overlap_max_len))
     else:
         desired_overlap_amount = 0
 
     return desired_overlap_amount
 
+
 def sample_from_silence_model(
-    running_len_samples: int, 
+    running_len_samples: int,
     session_len_samples: int,
     sess_silence_mean: float,
     running_silence_len_samples: int,
@@ -595,9 +606,7 @@ def sample_from_silence_model(
         silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
     """
     running_ratio = running_len_samples / session_len_samples
-    silence_mean = (
-        session_len_samples * (sess_silence_mean) - running_silence_len_samples
-    ) * running_ratio
+    silence_mean = (session_len_samples * (sess_silence_mean) - running_silence_len_samples) * running_ratio
     silence_mean = max(per_silence_min_len, min(silence_mean, per_silence_max_len))
     if silence_mean > 0:
         silence_var = per_silence_var
@@ -612,11 +621,14 @@ def sample_from_silence_model(
 
     return silence_amount
 
+
 class AnnotationGenerator(object):
     def __init__(self, cfg):
         self._params = cfg
 
-    def _create_new_rttm_entry(self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int) -> List[str]:
+    def _create_new_rttm_entry(
+        self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
+    ) -> List[str]:
         """
         Create new RTTM entries (to write to output rttm file)
 
@@ -649,7 +661,14 @@ class AnnotationGenerator(object):
         return rttm_list
 
     def _create_new_json_entry(
-        self, text: List[str], wav_filename: str, start: int, length: int, speaker_id: int, rttm_filepath: str, ctm_filepath: str
+        self,
+        text: List[str],
+        wav_filename: str,
+        start: int,
+        length: int,
+        speaker_id: int,
+        rttm_filepath: str,
+        ctm_filepath: str,
     ) -> dict:
         """
         Create new JSON entries (to write to output json file).
@@ -680,7 +699,9 @@ class AnnotationGenerator(object):
         }
         return meta
 
-    def _create_new_ctm_entry(self, words: List[str], alignments: List[float], session_name: str, speaker_id: int, start: int) -> List[str]:
+    def _create_new_ctm_entry(
+        self, words: List[str], alignments: List[float], session_name: str, speaker_id: int, start: int
+    ) -> List[str]:
         """
         Create new CTM entry (to write to output ctm file)
 
