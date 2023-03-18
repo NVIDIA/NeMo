@@ -22,15 +22,14 @@ from torch import Tensor, nn
 from torch.cuda import amp
 from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
-from torch.nn.utils.rnn import PackedSequence
 
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, sort_tensor, unsort_tensor
-from nemo.collections.tts.helpers.splines import (
+from nemo.collections.tts.modules.submodules import ConvMultires, ConvNorm, LinearNorm, MaskedInstanceNorm1d
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, sort_tensor, unsort_tensor
+from nemo.collections.tts.parts.utils.splines import (
     piecewise_linear_inverse_transform,
     piecewise_linear_transform,
     unbounded_piecewise_quadratic_transform,
 )
-from nemo.collections.tts.modules.submodules import ConvMultires, ConvNorm, LinearNorm, MaskedInstanceNorm1d
 
 
 @torch.jit.script
@@ -643,6 +642,12 @@ class AffineTransformationLayer(torch.nn.Module):
                 kernel_size=kernel_size,
                 use_partial_padding=use_partial_padding,
             )
+        else:
+            raise ValueError(
+                f"Affine model is not supported: {affine_model}. Please choose either 'wavenet' or"
+                f"'simple_conv' instead."
+            )
+
         self.n_mel_channels = n_mel_channels
 
     def get_scaling_and_logs(self, scale_unconstrained):
@@ -679,6 +684,11 @@ class AffineTransformationLayer(torch.nn.Module):
                 log_s_list.append(log_s_i[:, None])
             s = torch.cat(s_list, dim=1)
             log_s = torch.cat(log_s_list, dim=1)
+        else:
+            raise ValueError(
+                f"Scaling function is not supported: {self.scaling_fn}. Please choose either 'translate', "
+                f"'exp', 'tanh', or 'sigmoid' instead."
+            )
         return s, log_s
 
     def forward(self, z, context, inverse=False, seq_lens=None):
@@ -689,6 +699,11 @@ class AffineTransformationLayer(torch.nn.Module):
         elif self.affine_model == 'simple_conv':
             z_w_context = torch.cat((z_0, context), 1)
             affine_params = self.affine_param_predictor(z_w_context, seq_lens=seq_lens)
+        else:
+            raise ValueError(
+                f"Affine model is not supported: {self.affine_model}. Please choose either 'wavenet' or "
+                f"'simple_conv' instead."
+            )
 
         scale_unconstrained = affine_params[:, :n_half, :]
         b = affine_params[:, n_half:, :]
