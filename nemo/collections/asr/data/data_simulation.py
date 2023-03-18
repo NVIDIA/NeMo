@@ -37,41 +37,22 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
-<<<<<<< HEAD
     DataAnnotator,
+    SpeechSampler,
     read_audio_from_buffer,
-    perturb_audio,
-    get_cleaned_base_path,
-=======
-    AnnotationGenerator,
     build_speaker_samples_map,
-    clamp_max_list,
-    clamp_min_list,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
+    read_noise_manifest,
+    perturb_audio,
+    load_speaker_sample,
+    per_speaker_normalize,
+    get_cleaned_base_path,
     get_random_offset_index,
-    get_session_overlap_mean,
-    get_session_silence_mean,
     get_speaker_ids,
     get_speaker_samples,
-<<<<<<< HEAD
-    load_speaker_sample,
-    per_speaker_normalize,
     get_background_noise,
     get_split_points_in_alignments,
-    get_session_overlap_mean,
-    get_session_silence_mean,
-=======
-    get_split_points_in_alignments,
-    load_speaker_sample,
-    per_speaker_normalize,
-    perturb_audio,
-    read_audio_from_buffer,
-    read_noise_manifest,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
-    sample_from_overlap_model,
-    sample_from_silence_model,
-    sample_noise_manifest,
 )
+
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_overlap_range,
@@ -95,10 +76,6 @@ try:
 except ImportError:
     GPURIR = False
 
-<<<<<<< HEAD
-=======
-
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
 class MultiSpeakerSimulator(object):
     """
     Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and 
@@ -146,8 +123,7 @@ class MultiSpeakerSimulator(object):
       min_dominance (float): Minimum percentage of speaking time per speaker (note that this can cause the dominance of 
                              the other speakers to be slightly reduced)
       turn_prob (float): Probability of switching speakers after each utterance
-      mean_overlap (float): Mean proportion of overlap in the overall speaking time (overlap lengths are sampled from 
-                            half normal distribution)
+
       mean_silence (float): Mean proportion of silence to speaking time in the audio session. Should be in range [0, 1).
       mean_silence_var (float): Variance for mean silence in all audio sessions. 
                                 This value should be 0 <= mean_silence_var < mean_silence * (1 - mean_silence).
@@ -219,6 +195,7 @@ class MultiSpeakerSimulator(object):
     def __init__(self, cfg):
         self._params = cfg
         self.annotator = DataAnnotator(cfg)
+        self.sampler = SpeechSampler(cfg)
         # internal params
         self._manifest = read_manifest(self._params.data_simulator.manifest_filepath)
         self._speaker_samples = build_speaker_samples_map(self._manifest)
@@ -259,6 +236,7 @@ class MultiSpeakerSimulator(object):
         self.sess_overlap_mean = 0
         self.per_overlap_min_len = 0
         self.per_overlap_max_len = 0
+        ###
 
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
@@ -281,13 +259,8 @@ class MultiSpeakerSimulator(object):
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
             all_speaker_ids=self._speaker_samples.keys(),
-<<<<<<< HEAD
             random_seed=self._params.data_simulator.random_seed)
         
-=======
-            random_seed=self._params.data_simulator.random_seed,
-        )
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
         # Intialize multiprocessing related variables
         self.num_workers = self._params.get("num_workers", 1)
         self.multiprocessing_chunksize = self._params.data_simulator.get('multiprocessing_chunksize', 10000)
@@ -526,41 +499,6 @@ class MultiSpeakerSimulator(object):
             dominance = base_speaker_dominance
             enforce = False
         return dominance, enforce
-
-    def _init_silence_params(self):
-        """
-        Initialize parameters for silence insertion in the current session.
-        """
-        self.running_silence_len_samples = 0
-        self.running_speech_len_samples = 0
-        self.per_silence_min_len = int(
-            max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
-        )
-        if self._params.data_simulator.session_params.per_silence_max > 0:
-            self.per_silence_max_len = int(
-                self._params.data_simulator.session_params.per_silence_max * self._params.data_simulator.sr
-            )
-        else:
-            self.per_silence_max_len = int(
-                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
-            )
-
-    def _init_overlap_params(self):
-        """
-        Initialize parameters for overlap insertion in the current session.
-        """
-        self.running_overlap_len_samples = 0
-        self.per_overlap_min_len = int(
-            max(0, self._params.data_simulator.session_params.per_overlap_min) * self._params.data_simulator.sr
-        )
-        if self._params.data_simulator.session_params.per_overlap_max > 0:
-            self.per_overlap_max_len = int(
-                self._params.data_simulator.session_params.per_overlap_max * self._params.data_simulator.sr
-            )
-        else:
-            self.per_overlap_max_len = int(
-                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
-            )
 
     def _set_speaker_volume(self):
         """
@@ -868,7 +806,6 @@ class MultiSpeakerSimulator(object):
 
         # build sentence
         while sentence_word_count < sl and sentence_samples < max_samples_in_sentence:
-<<<<<<< HEAD
             audio_manifest = load_speaker_sample(speaker_wav_align_map=speaker_wav_align_map, 
                                                  speaker_ids=speaker_ids, 
                                                  speaker_turn=speaker_turn, 
@@ -888,32 +825,6 @@ class MultiSpeakerSimulator(object):
                                                                     max_audio_read_sec=self._max_audio_read_sec,
                                                                     min_alignment_count=self._min_alignment_count,
                                                                     read_subset=True)
-=======
-            audio_manifest = load_speaker_sample(
-                speaker_wav_align_map=speaker_wav_align_map,
-                speaker_ids=speaker_ids,
-                speaker_turn=speaker_turn,
-                output_precision=self._params.data_simulator.outputs.output_precision,
-            )
-
-            offset_index = get_random_offset_index(
-                audio_manifest=audio_manifest,
-                audio_read_buffer_dict=self._audio_read_buffer_dict,
-                offset_min=0,
-                max_audio_read_sec=self._max_audio_read_sec,
-                min_alignment_count=self._min_alignment_count,
-            )
-
-            audio_file, sr, audio_manifest = read_audio_from_buffer(
-                audio_manifest=audio_manifest,
-                buffer_dict=self._audio_read_buffer_dict,
-                offset_index=offset_index,
-                device=self._device,
-                max_audio_read_sec=self._max_audio_read_sec,
-                min_alignment_count=self._min_alignment_count,
-                read_subset=True,
-            )
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
 
             # audio perturbation, such as gain, impulse response, and white noise
             audio_file = perturb_audio(audio_file, sr, self.segment_augmentor, device=self._device)
@@ -995,16 +906,7 @@ class MultiSpeakerSimulator(object):
 
         # choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
-            desired_overlap_amount = sample_from_overlap_model(
-                non_silence_len_samples=non_silence_len_samples,
-                sess_overlap_mean=self.sess_overlap_mean,
-                running_overlap_len_samples=self.running_overlap_len_samples,
-                per_overlap_min_len=self.per_overlap_min_len,
-                per_overlap_max_len=self.per_overlap_max_len,
-                missing_overlap=self._missing_overlap,
-                per_overlap_var=self._params.data_simulator.session_params.per_overlap_var,
-                add_missing_overlap=self.add_missing_overlap,
-            )
+            desired_overlap_amount = self.sampler.sample_from_overlap_model(non_silence_len_samples)
             new_start = start - desired_overlap_amount
 
             # avoid overlap at start of clip
@@ -1035,16 +937,7 @@ class MultiSpeakerSimulator(object):
 
         # if we are not adding overlap, add silence
         else:
-            silence_amount = sample_from_silence_model(
-                running_len_samples=running_len_samples,
-                session_len_samples=session_len_samples,
-                sess_silence_mean=self.sess_silence_mean,
-                running_silence_len_samples=self.running_silence_len_samples,
-                per_silence_min_len=self.per_silence_min_len,
-                per_silence_max_len=self.per_silence_max_len,
-                per_silence_var=self._params.data_simulator.session_params.per_silence_var,
-            )
-            # truncate the silence if it is going beyond the session length.
+            silence_amount = self.sampler.sample_from_silence_model(running_len_samples, session_len_samples)
             if start + length + silence_amount > session_len_samples and not enforce:
                 new_start = max(session_len_samples - length, start)
             else:
@@ -1052,57 +945,6 @@ class MultiSpeakerSimulator(object):
 
         return new_start
 
-<<<<<<< HEAD
-=======
-    def _get_background(self, len_array: int, power_array: float):
-        """
-        Augment with background noise (inserting ambient background noise up to the desired SNR for the full clip).
-
-        Args:
-            len_array (int): Length of background noise required.
-            avg_power_array (float): Average power of the audio file.
-        
-        Returns:
-            bg_array (tensor): Tensor containing background noise
-        """
-        bg_array = torch.zeros(len_array).to(self._device)
-        snr_min = self._params.data_simulator.background_noise.snr_min
-        snr_max = self._params.data_simulator.background_noise.snr_max
-        if (snr_min is not None) and (snr_max is not None) and (0 <= snr_min <= snr_max):
-            desired_snr = np.random.uniform(snr_min, snr_max)
-        else:
-            desired_snr = self._params.data_simulator.background_noise.snr
-        ratio = 10 ** (desired_snr / 20)
-        desired_avg_power_noise = (power_array / ratio).to(self._device)
-        running_len_samples = 0
-
-        while running_len_samples < len_array:  # build background audio stream (the same length as the full file)
-            file_id = np.random.randint(0, len(self._noise_samples))
-            audio_manifest = self._noise_samples[file_id]
-
-            audio_file, sr, audio_manifest = read_audio_from_buffer(
-                audio_manifest,
-                buffer_dict=self._audio_read_buffer_dict,
-                offset_index=0,
-                device=self._device,
-                read_subset=False,
-            )
-            if running_len_samples + len(audio_file) < len_array:
-                end_audio_file = running_len_samples + len(audio_file)
-            else:
-                end_audio_file = len_array
-
-            pow_audio_file = torch.mean(audio_file[: end_audio_file - running_len_samples] ** 2).to(self._device)
-            scaled_audio_file = audio_file[: end_audio_file - running_len_samples] * torch.sqrt(
-                desired_avg_power_noise / pow_audio_file
-            ).to(self._device)
-
-            bg_array[running_len_samples:end_audio_file] = scaled_audio_file
-            running_len_samples = end_audio_file
-
-        return bg_array, desired_snr
-
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
     def _get_session_silence_from_rttm(self, rttm_list: List[str], running_len_samples: int):
         """
         Calculate the total speech and silence duration in the current session using RTTM file.
@@ -1184,16 +1026,8 @@ class MultiSpeakerSimulator(object):
         array = torch.zeros(session_len_samples).to(self._device)
         is_speech = torch.zeros(session_len_samples).to(self._device)
 
-        self._init_silence_params()
-        self._init_overlap_params()
-        self.sess_silence_mean = get_session_silence_mean(
-            mean=float(self._params.data_simulator.session_params.mean_silence),
-            var=float(self._params.data_simulator.session_params.mean_silence_var),
-        )
-        self.sess_overlap_mean = get_session_overlap_mean(
-            mean=float(self._params.data_simulator.session_params.mean_overlap),
-            var=float(self._params.data_simulator.session_params.mean_overlap_var),
-        )
+        self.sess_silence_mean = self.sampler.get_session_silence_mean()
+        self.sess_overlap_mean = self.sampler.get_session_overlap_mean()
 
         while running_len_samples < session_len_samples or enforce:
             # enforce num_speakers
@@ -1239,13 +1073,8 @@ class MultiSpeakerSimulator(object):
             is_speech[start:end] = 1
 
             # Step 5: Build entries for output files
-<<<<<<< HEAD
             new_rttm_entries = self.annotator.create_new_rttm_entry(
                 self._words, 
-=======
-            new_rttm_entries = self.annotator._create_new_rttm_entry(
-                self._words,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
                 self._alignments,
                 start / self._params.data_simulator.sr,
                 end / self._params.data_simulator.sr,
@@ -1265,18 +1094,14 @@ class MultiSpeakerSimulator(object):
                 os.path.join(basepath, filename + '.ctm'),
             )
             json_list.append(new_json_entry)
-<<<<<<< HEAD
+
             new_ctm_entries = self.annotator.create_new_ctm_entry(
-                self._words, self._alignments,
-                filename, speaker_ids[speaker_turn], start / self._params.data_simulator.sr
-=======
-            new_ctm_entries = self.annotator._create_new_ctm_entry(
                 self._words,
                 self._alignments,
                 filename,
                 speaker_ids[speaker_turn],
                 start / self._params.data_simulator.sr,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
+
             )
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
@@ -1381,15 +1206,8 @@ class MultiSpeakerSimulator(object):
                 permutated_speaker_inds=self._permutated_speaker_inds,
             )
             speaker_wav_align_map = get_speaker_samples(speaker_ids=speaker_ids, speaker_samples=self._speaker_samples)
-<<<<<<< HEAD
-            noise_samples = sample_noise_manifest(noise_manifest=source_noise_manifest, num_noise_files=self._params.data_simulator.background_noise.num_noise_files)
-=======
-            # noise_samples = self._sample_noise_manifest(source_noise_manifest)
-            noise_samples = sample_noise_manifest(
-                noise_manifest=source_noise_manifest,
-                num_noise_files=self._params.data_simulator.background_noise.num_noise_files,
-            )
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
+            noise_samples = self.sampler.sample_noise_manifest(noise_manifest=source_noise_manifest)
+
             if torch.cuda.is_available():
                 device = torch.device(f"cuda:{sess_idx % torch.cuda.device_count()}")
             else:
@@ -1462,7 +1280,6 @@ class MultiSpeakerSimulator(object):
         metalist.close()
 
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
-
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
@@ -1804,13 +1621,9 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 array[start : start + len_ch, channel] += augmented_sentence[channel]
 
             # build entries for output files
-<<<<<<< HEAD
             new_rttm_entries = self.annotator.create_new_rttm_entry(
                 self._words, 
-=======
-            new_rttm_entries = self.annotator._create_new_rttm_entry(
-                self._words,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
+
                 self._alignments,
                 start / self._params.data_simulator.sr,
                 end / self._params.data_simulator.sr,

@@ -57,7 +57,6 @@ def get_cleaned_base_path(output_dir: str, overwrite_output: bool=True) -> str:
         basepath = output_dir
     return basepath
 
-
 def binary_search_alignments(
     inds: List[int], 
     max_audio_read_sec: float, 
@@ -81,7 +80,6 @@ def binary_search_alignments(
         mid = left + (right - left) // 2
         dur_left = alignments[-1*min_alignment_count] - alignments[inds[mid]]
         if  dur_left < max_audio_read_sec:
-
             right = mid - 1
         elif dur_left > max_audio_read_sec:
             left = mid + 1
@@ -410,26 +408,6 @@ def build_speaker_samples_map(manifest: dict) -> dict:
         speaker_samples[speaker_id].append(sample)
     return speaker_samples
 
-def sample_noise_manifest(noise_manifest: dict, num_noise_files: int) -> list:
-    """
-    Sample noise manifest to a specified count `num_noise_files` for the current simulated audio session.
-
-    Args:
-        noise_manifest (list): 
-            List of noise source samples to be sampled from.
-
-    Returns:
-        sampled_noise_manifest (list):
-            List of noise samples to be used for the current session.
-    """
-    num_noise_files = min(len(noise_manifest), num_noise_files)
-    sampled_noise_manifest = []
-    if num_noise_files > 0:
-        selected_noise_ids = np.random.choice(range(len(noise_manifest)), num_noise_files, replace=False)
-        for k in selected_noise_ids:
-            sampled_noise_manifest.append(noise_manifest[k])
-    return sampled_noise_manifest
-
 def read_noise_manifest(add_bg: bool, background_manifest: str):
     """
     Read the noise manifest file and sample the noise manifest.
@@ -470,6 +448,20 @@ def get_speaker_samples(speaker_ids: List[str], speaker_samples: list) -> Dict[s
         speaker_wav_align_map[sid] = speaker_samples[sid]
     return speaker_wav_align_map
 
+def add_silence_to_alignments(audio_manifest: dict, output_precision: int) -> dict:
+    """
+    Add silence to the beginning of the alignments and words.
+
+    Args:
+        audio_manifest (dict): Audio manifest dictionary.
+            keys: 'audio_filepath', 'duration', 'alignments', 'words'
+
+    Returns:
+        audio_manifest (dict): Audio manifest dictionary with silence added to the beginning.
+    """
+    audio_manifest['words'].insert(0, "")
+    audio_manifest['alignments'].insert(0, 1 / (10 ** output_precision)) 
+    return audio_manifest
 
 def load_speaker_sample(
     speaker_wav_align_map: List[dict], 
@@ -492,20 +484,20 @@ def load_speaker_sample(
     """
     speaker_id = speaker_ids[speaker_turn]
     file_id = np.random.randint(0, max(len(speaker_wav_align_map[str(speaker_id)]) - 1, 1))
-    file_dict = speaker_wav_align_map[str(speaker_id)][file_id]
+    audio_manifest = speaker_wav_align_map[str(speaker_id)][file_id]
 
     # Check if the alignment file has at least 2 words.
-    if len(file_dict['alignments']) < min_alignment_count:
+    if len(audio_manifest['alignments']) < min_alignment_count:
         raise ValueError(
-            f"Alignment file {file_dict['audio_filepath']} has an inappropriate length of {len(file_dict['alignments'])} < 2."
+            f"Alignment file {audio_manifest['audio_filepath']} has an inappropriate length of {len(audio_manifest['alignments'])} < 2."
         )
 
     # Check whether the first word is silence and insert a silence token if the first token is not silence.
-    if file_dict['words'][0] != "":
-        file_dict['words'].insert(0, "")
-        file_dict['alignments'].insert(0, 1 / (10 ** output_precision))
-    file_dict = copy.deepcopy(file_dict)
-    return file_dict
+    if audio_manifest['words'][0] != "":
+        audio_manifest = add_silence_to_alignments(audio_manifest, output_precision)
+
+    audio_manifest = copy.deepcopy(audio_manifest)
+    return audio_manifest
 
 
 def get_split_points_in_alignments(
@@ -569,161 +561,23 @@ def per_speaker_normalize(
     sentence_audio = sentence_audio / (1.0 * average_rms) * volume[speaker_turn]
     return sentence_audio
 
-def get_session_silence_mean(mean: float, var: float = 0.0) -> float:
-    """
-    Get the target mean silence for current session using re-parameterized Beta distribution.
-    The following constraints are applied to make a > 0 and b > 0:
-
-        0 < mean_silence < 1
-        0 < mean_silence_var < mean_silence * (1 - mean_silence)
-
-    Args:
-        silence_mean (float): 
-            Target mean silence for the current session
-    """
-    if var > 0:
-        a = mean ** 2 * (1 - mean) / var - mean
-        b = mean * (1 - mean) ** 2 / var - (1 - mean)
-        if a < 0 or b < 0:
-            raise ValueError(
-                f"Beta(a, b), a = {a:.3f} and b = {b:.3f} should be both greater than 0. "
-                f"Invalid `mean_silence_var` value {var} for sampling from Beta distribution. "
-                f"`mean_silence_var` should be less than `mean_silence * (1 - mean_silence)`. "
-                f"Please check `mean_silence_var` and try again."
-            )
-        silence_mean = beta(a, b).rvs()
-    else:
-        silence_mean = mean
-    return silence_mean
-
-
-def get_session_overlap_mean(mean: float, var: float = 0.0) -> float:
-    """
-    Get the target mean overlap for current session using re-parameterized Beta distribution.
-    The following constraints are applied to make a > 0 and b > 0:
-
-        0 < mean_overlap < 1
-        0 < mean_overlap_var < mean_overlap * (1 - mean_overlap)
-
-    Returns:
-        overlap_mean (float):
-            Target mean overlap for the current session
-    """
-    if var > 0:
-        a = mean ** 2 * (1 - mean) / var - mean
-        b = mean * (1 - mean) ** 2 / var - (1 - mean)
-        if a < 0 or b < 0:
-            raise ValueError(
-                f"Beta(a, b), a = {a:.3f} and b = {b:.3f} should be both greater than 0. "
-                f"Invalid `mean_overlap_var` value {var} for sampling from Beta distribution. "
-                f"`mean_overlap_var` should be less than `mean_overlap * (1 - mean_overlap)`. "
-                f"Please check `mean_overlap_var` and try again."
-            )
-        overlap_mean = beta(a, b).rvs()
-    else:
-        overlap_mean = mean
-    return overlap_mean
-
-
-def sample_from_overlap_model(
-    non_silence_len_samples: int,
-    sess_overlap_mean: float,
-    running_overlap_len_samples: int,
-    per_overlap_min_len: int,
-    per_overlap_max_len: int,
-    missing_overlap: int,
-    per_overlap_var: float,
-    add_missing_overlap: bool,
-) -> int:
-    """
-    Sample from the overlap model to determine the amount of overlap between segments.
-    Gamma distribution is employed for modeling  the highly skewed distribution of overlap length distribution.
-    When we add an overlap occurrence, we want to meet the desired overlap ratio defined by `sess_overlap_mean`.
-    Let `overlap_mean` be the desired overlap amount, then the mean and variance of the gamma distribution is given by:
-
-        sess_overlap_mean = (overlap_mean + running_overlap_len_samples) / (overlap_mean + non_silence_len_samples)
-
-    The above equation is setting `overlap_mean` to yield the desired overlap ratio `sess_overlap_mean`. 
-    We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
-    
-    Args:
-        non_silence_len_samples (int): 
-            The total amount of non-silence (speech) region regardless of overlap status
-
-    Returns:
-        desired_overlap_amount (int): 
-            Amount of overlap between segments (in terms of number of samples).
-    """
-    overlap_mean = ((sess_overlap_mean * non_silence_len_samples) - running_overlap_len_samples) / (
-        1 - sess_overlap_mean
-    )
-    overlap_mean = max(per_overlap_min_len, min(max(0, overlap_mean), per_overlap_max_len))
-    if add_missing_overlap:
-        overlap_mean += missing_overlap
-
-    if overlap_mean > 0:
-        overlap_var = per_overlap_var
-
-        desired_overlap_amount = (
-            int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
-            if overlap_var > 0
-            else int(overlap_mean)
-        )
-        desired_overlap_amount = max(per_overlap_min_len, min(desired_overlap_amount, per_overlap_max_len))
-    else:
-        desired_overlap_amount = 0
-
-    return desired_overlap_amount
-
-
-def sample_from_silence_model(
-    running_len_samples: int,
-    session_len_samples: int,
-    sess_silence_mean: float,
-    running_silence_len_samples: int,
-    per_silence_min_len: int,
-    per_silence_max_len: int,
-    per_silence_var: float,
-) -> int:
-    """
-    Sample from the silence model to determine the amount of silence to add between sentences.
-    Gamma distribution is employed for modeling the highly skewed distribution of silence length distribution.
-    When we add silence between sentences, we want to ensure that the proportion of silence meets the `sess_silence_mean`.
-    Thus, we employ the following formula to determine the amount of silence to add:
-
-        running_ratio = running_len_samples / session_len_samples
-        silence_mean = (session_len_samples * (sess_silence_mean) - running_silence_len_samples) * running_ratio
-
-    `running_ratio` is the proportion of the created session compared to the targeted total session length.
-
-    Args:
-        running_len_samples (int): 
-            Running length of the session (in terms of number of samples).
-        session_len_samples (int):
-            Targeted total session length (in terms of number of samples).
-
-    Returns:
-        silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
-    """
-    running_ratio = running_len_samples / session_len_samples
-    silence_mean = (session_len_samples * (sess_silence_mean) - running_silence_len_samples) * running_ratio
-    silence_mean = max(per_silence_min_len, min(silence_mean, per_silence_max_len))
-    if silence_mean > 0:
-        silence_var = per_silence_var
-        silence_amount = (
-            int(gamma(a=(silence_mean ** 2) / silence_var, scale=silence_var / silence_mean).rvs())
-            if silence_var > 0
-            else int(silence_mean)
-        )
-        silence_amount = max(per_silence_min_len, min(silence_amount, per_silence_max_len))
-    else:
-        silence_amount = 0
-
-    return silence_amount
-
 class DataAnnotator(object):
     """
     Class containing the functions that create RTTM, CTM, JSON files.
+
+    Arguments in config:
+    
+    data_simulator:
+        session_config:
+            num_speakers (int): Number of unique speakers per multispeaker audio session
+            session_params:
+            split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between 
+                                    utterances as being labelled as speech)
+        outputs:
+            output_dir (str): Output directory for audio sessions and corresponding label files
+            output_filename (str): Output filename for the wav and RTTM files
+            overwrite_output (bool): If true, delete the output directory if it exists
+            output_precision (int): Number of decimal places in output files
     """
     def __init__(self, cfg):
         """
@@ -846,3 +700,244 @@ class DataAnnotator(object):
                 text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
                 arr.append((align1, text))
         return arr
+    
+
+class SpeechSampler(object):
+    """
+    Class for sampling speech samples for Multispeaker Audio Session Simulator 
+
+    Args:
+        cfg: OmegaConf configuration loaded from yaml file.
+
+    Attributes in config:
+
+    data_simulator: 
+        session_params: 
+            mean_silence (float): Mean proportion of silence to speaking time in the audio session. Should be in range [0, 1).
+            mean_silence_var (float): Variance for mean silence in all audio sessions. 
+                                    This value should be 0 <= mean_silence_var < mean_silence * (1 - mean_silence).
+            per_silence_var (float):  Variance for each silence in an audio session, set large values (e.g., 20) for de-correlation.
+            per_silence_min (float): Minimum duration for each silence, default to 0.
+            per_silence_max (float): Maximum duration for each silence, default to -1 for no maximum.
+            mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and 
+                                recommend [0, 0.15] range for accurate results.
+            mean_overlap_var (float): Variance for mean overlap in all audio sessions. 
+                                    This value should be 0 <= mean_overlap_var < mean_overlap * (1 - mean_overlap).
+            per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths 
+                                    with the latest speech segment lengths
+            per_overlap_min (float): Minimum per overlap duration in seconds
+            per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum 
+    """
+    def __init__(self, cfg):
+        """
+        Args:
+            cfg: OmegaConf configuration loaded from yaml file.
+        """
+        self._params = cfg
+
+        self.running_speech_len_samples = 0
+        self.running_silence_len_samples = 0
+        self.running_overlap_len_samples = 0
+
+        self.sess_silence_mean = 0
+        self.per_silence_min_len = 0
+        self.per_silence_max_len = 0
+
+        self.sess_overlap_mean = 0
+        self.per_overlap_min_len = 0
+        self.per_overlap_max_len = 0
+
+    def _init_silence_params(self):
+        """
+        Initialize parameters for silence insertion in the current session.
+        """
+        self.running_silence_len_samples = 0
+        self.running_speech_len_samples = 0
+        self.per_silence_min_len = int(
+            max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
+        )
+        if self._params.data_simulator.session_params.per_silence_max > 0:
+            self.per_silence_max_len = int(
+                self._params.data_simulator.session_params.per_silence_max * self._params.data_simulator.sr
+            )
+        else:
+            self.per_silence_max_len = int(
+                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
+            )
+
+    def _init_overlap_params(self):
+        """
+        Initialize parameters for overlap insertion in the current session.
+        """
+        self.running_overlap_len_samples = 0
+        self.per_overlap_min_len = int(
+            max(0, self._params.data_simulator.session_params.per_overlap_min) * self._params.data_simulator.sr
+        )
+        if self._params.data_simulator.session_params.per_overlap_max > 0:
+            self.per_overlap_max_len = int(
+                self._params.data_simulator.session_params.per_overlap_max * self._params.data_simulator.sr
+            )
+        else:
+            self.per_overlap_max_len = int(
+                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
+            )
+
+    def get_session_silence_mean(self):
+        """
+        Get the target mean silence for current session using re-parameterized Beta distribution.
+        The following constraints are applied to make a > 0 and b > 0:
+
+            0 < mean_silence < 1
+            0 < mean_silence_var < mean_silence * (1 - mean_silence)
+
+        Args:
+            silence_mean (float): 
+                Target mean silence for the current session
+        """
+        self._init_silence_params()
+        mean = float(self._params.data_simulator.session_params.mean_silence)
+        var = float(self._params.data_simulator.session_params.mean_silence_var)
+        if var > 0:
+            a = mean ** 2 * (1 - mean) / var - mean
+            b = mean * (1 - mean) ** 2 / var - (1 - mean)
+            if a < 0 or b < 0:
+                raise ValueError(
+                    f"Beta(a, b), a = {a:.3f} and b = {b:.3f} should be both greater than 0. "
+                    f"Invalid `mean_silence_var` value {var} for sampling from Beta distribution. "
+                    f"`mean_silence_var` should be less than `mean_silence * (1 - mean_silence)`. "
+                    f"Please check `mean_silence_var` and try again."
+                )
+            silence_mean = beta(a, b).rvs()
+        else:
+            silence_mean = mean
+        return silence_mean
+
+    def get_session_overlap_mean(self):
+        """
+        Get the target mean overlap for current session using re-parameterized Beta distribution.
+        The following constraints are applied to make a > 0 and b > 0:
+
+            0 < mean_overlap < 1
+            0 < mean_overlap_var < mean_overlap * (1 - mean_overlap)
+
+        Returns:
+            overlap_mean (float):
+                Target mean overlap for the current session
+        """
+        self._init_overlap_params()
+        mean = float(self._params.data_simulator.session_params.mean_overlap)
+        var = float(self._params.data_simulator.session_params.mean_overlap_var)
+        if var > 0:
+            a = mean ** 2 * (1 - mean) / var - mean
+            b = mean * (1 - mean) ** 2 / var - (1 - mean)
+            if a < 0 or b < 0:
+                raise ValueError(
+                    f"Beta(a, b), a = {a:.3f} and b = {b:.3f} should be both greater than 0. "
+                    f"Invalid `mean_overlap_var` value {var} for sampling from Beta distribution. "
+                    f"`mean_overlap_var` should be less than `mean_overlap * (1 - mean_overlap)`. "
+                    f"Please check `mean_overlap_var` and try again."
+                )
+            overlap_mean = beta(a, b).rvs()
+        else:
+            overlap_mean = mean
+        return overlap_mean
+    
+    def sample_from_silence_model(self, running_len_samples: int, session_len_samples: int) -> int:
+        """
+        Sample from the silence model to determine the amount of silence to add between sentences.
+        Gamma distribution is employed for modeling the highly skewed distribution of silence length distribution.
+        When we add silence between sentences, we want to ensure that the proportion of silence meets the `self.sess_silence_mean`.
+        Thus, we employ the following formula to determine the amount of silence to add:
+
+            running_ratio = running_len_samples / session_len_samples
+            silence_mean = (session_len_samples*(self.sess_silence_mean) - self.running_silence_len_samples) * running_ratio.
+
+        `running_ratio` is the proportion of the created session compared to the targeted total session length.
+
+        Args:
+            running_len_samples (int): 
+                Running length of the session (in terms of number of samples).
+            session_len_samples (int):
+                Targeted total session length (in terms of number of samples).
+
+        Returns:
+            silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
+        """
+        running_ratio = running_len_samples / session_len_samples
+        silence_mean = (
+            session_len_samples * (self.sess_silence_mean) - self.running_silence_len_samples
+        ) * running_ratio
+        silence_mean = max(self.per_silence_min_len, min(silence_mean, self.per_silence_max_len))
+        if silence_mean > 0:
+            silence_var = self._params.data_simulator.session_params.per_silence_var
+            silence_amount = (
+                int(gamma(a=(silence_mean ** 2) / silence_var, scale=silence_var / silence_mean).rvs())
+                if silence_var > 0
+                else int(silence_mean)
+            )
+            silence_amount = max(self.per_silence_min_len, min(silence_amount, self.per_silence_max_len))
+        else:
+            silence_amount = 0
+
+        return silence_amount
+
+    def sample_from_overlap_model(self, non_silence_len_samples: int):
+        """
+        Sample from the overlap model to determine the amount of overlap between segments.
+        Gamma distribution is employed for modeling  the highly skewed distribution of overlap length distribution.
+        When we add an overlap occurrence, we want to meet the desired overlap ratio defined by `self.sess_overlap_mean`.
+        Let `overlap_mean` be the desired overlap amount, then the mean and variance of the gamma distribution is given by:
+
+            self.sess_overlap_mean = (overlap_mean + self.running_overlap_len_samples) / (overlap_mean + non_silence_len_samples)
+
+        The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`. 
+        We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
+        
+        Args:
+            non_silence_len_samples (int): 
+                The total amount of non-silence (speech) region regardless of overlap status
+
+        Returns:
+            desired_overlap_amount (int): 
+                Amount of overlap between segments (in terms of number of samples).
+        """
+        overlap_mean = ((self.sess_overlap_mean * non_silence_len_samples) - self.running_overlap_len_samples) / (
+            1 - self.sess_overlap_mean
+        )
+        overlap_mean = max(self.per_overlap_min_len, min(max(0, overlap_mean), self.per_overlap_max_len))
+
+        if overlap_mean > 0:
+            overlap_var = self._params.data_simulator.session_params.per_overlap_var
+
+            desired_overlap_amount = (
+                int(gamma(a=overlap_mean ** 2 / overlap_var, scale=overlap_var / overlap_mean).rvs())
+                if overlap_var > 0
+                else int(overlap_mean)
+            )
+            desired_overlap_amount = max(
+                self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len)
+            )
+        else:
+            desired_overlap_amount = 0
+
+        return desired_overlap_amount
+    
+    def sample_noise_manifest(self, noise_manifest: dict) -> list:
+        """
+        Sample noise manifest to a specified count `num_noise_files` for the current simulated audio session.
+
+        Args:
+            noise_manifest (list): 
+                List of noise source samples to be sampled from.
+
+        Returns:
+            sampled_noise_manifest (list):
+                List of noise samples to be used for the current session.
+        """
+        num_noise_files = min(len(noise_manifest), self._params.data_simulator.background_noise.num_noise_files)
+        sampled_noise_manifest = []
+        if num_noise_files > 0:
+            selected_noise_ids = np.random.choice(range(len(noise_manifest)), num_noise_files, replace=False)
+            for k in selected_noise_ids:
+                sampled_noise_manifest.append(noise_manifest[k])
+        return sampled_noise_manifest
