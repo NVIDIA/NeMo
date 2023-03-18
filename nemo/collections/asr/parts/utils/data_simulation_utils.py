@@ -14,13 +14,12 @@
 
 import copy
 import os
+import shutil
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import shutil
-
 from scipy.stats import beta, gamma
 from tqdm import tqdm
 
@@ -29,7 +28,8 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.utils import logging
 
-def get_cleaned_base_path(output_dir: str, overwrite_output: bool=True) -> str:
+
+def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str:
     """
     Delete output directory if it exists or throw warning.
 
@@ -62,7 +62,7 @@ def binary_search_alignments(
     max_audio_read_sec: float, 
     min_alignment_count: int, 
     alignments: dict
-    ) -> int:
+) -> int:
     """
     Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
     `max_audio_read_sec`. This is used to avoid reading the short audio files.
@@ -180,12 +180,8 @@ def read_audio_from_buffer(
         buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
     return audio_file, sr, audio_manifest
 
-def perturb_audio(
-    audio: torch.Tensor, 
-    sr: int, 
-    augmentor: AudioAugmentor, 
-    device: torch.device
-    ) -> torch.Tensor:
+
+def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, device: torch.device) -> torch.Tensor:
 
     """
     Perturb the audio (segment or session) using audio augmentor.
@@ -207,6 +203,7 @@ def perturb_audio(
     audio_segment = torch.from_numpy(audio_segment.samples).to(device)
     return audio_segment
 
+
 def get_power_of_audio_file(audio_file, end_audio_file, running_len_samples, device):
     """
     Calculate the power of the audio signal.
@@ -222,13 +219,14 @@ def get_power_of_audio_file(audio_file, end_audio_file, running_len_samples, dev
     """
     return torch.mean(audio_file[: end_audio_file - running_len_samples] ** 2).to(device)
 
+
 def get_scaled_audio_signal(
-    audio_file: torch.Tensor, 
-    end_audio_file: int, 
-    running_len_samples: int, 
-    desired_avg_power_noise: float, 
+    audio_file: torch.Tensor,
+    end_audio_file: int,
+    running_len_samples: int,
+    desired_avg_power_noise: float,
     device: torch.device,
-    ):
+):
     """
     Scale the audio signal to the desired average power.
 
@@ -242,21 +240,18 @@ def get_scaled_audio_signal(
     Returns:
         scaled_audio_file (torch.Tensor): Scaled audio signal.
     """
-    pow_audio_file = get_power_of_audio_file(audio_file=audio_file, 
-                                             end_audio_file=end_audio_file, 
-                                             running_len_samples=running_len_samples, 
-                                             device=device)
+    pow_audio_file = get_power_of_audio_file(
+        audio_file=audio_file, end_audio_file=end_audio_file, running_len_samples=running_len_samples, device=device
+    )
     scaled_audio_file = audio_file[: end_audio_file - running_len_samples] * torch.sqrt(
         desired_avg_power_noise / pow_audio_file
     ).to(device)
     return scaled_audio_file
 
+
 def get_desired_avg_power_noise(
-    power_array: float,
-    snr_min: float,
-    snr_max: float,
-    background_noise_snr: float,
-    ):
+    power_array: float, snr_min: float, snr_max: float, background_noise_snr: float,
+):
     """
     Calculate the desired average power of the noise.
 
@@ -274,11 +269,12 @@ def get_desired_avg_power_noise(
     else:
         desired_snr = background_noise_snr
     ratio = 10 ** (desired_snr / 20)
-    desired_avg_power_noise = (power_array / ratio)
+    desired_avg_power_noise = power_array / ratio
     return desired_avg_power_noise, desired_snr
 
+
 def get_background_noise(
-    len_array: int, 
+    len_array: int,
     power_array: float,
     noise_samples: list,
     audio_read_buffer_dict: dict,
@@ -287,7 +283,7 @@ def get_background_noise(
     background_noise_snr: float,
     seed: int,
     device: torch.device,
-    ):
+):
     """
     Augment with background noise (inserting ambient background noise up to the desired SNR for the full clip).
 
@@ -300,34 +296,37 @@ def get_background_noise(
     """
     np.random.seed(seed)
     bg_array = torch.zeros(len_array).to(device)
-    desired_avg_power_noise, desired_snr = get_desired_avg_power_noise(power_array=power_array, 
-                                                          snr_min=snr_min, 
-                                                          snr_max=snr_max, 
-                                                          background_noise_snr=background_noise_snr)
+    desired_avg_power_noise, desired_snr = get_desired_avg_power_noise(
+        power_array=power_array, snr_min=snr_min, snr_max=snr_max, background_noise_snr=background_noise_snr
+    )
     running_len_samples = 0
 
     while running_len_samples < len_array:  # build background audio stream (the same length as the full file)
         file_id = np.random.randint(len(noise_samples))
-        audio_file, sr, audio_manifest = read_audio_from_buffer(audio_manifest=noise_samples[file_id], 
-                                                                buffer_dict=audio_read_buffer_dict, 
-                                                                offset_index=0, 
-                                                                device=device,
-                                                                read_subset=False
+        audio_file, sr, audio_manifest = read_audio_from_buffer(
+            audio_manifest=noise_samples[file_id],
+            buffer_dict=audio_read_buffer_dict,
+            offset_index=0,
+            device=device,
+            read_subset=False,
         )
         if running_len_samples + len(audio_file) < len_array:
             end_audio_file = running_len_samples + len(audio_file)
         else:
             end_audio_file = len_array
-        scaled_audio_file = get_scaled_audio_signal(audio_file=audio_file, 
-                                                    end_audio_file=end_audio_file, 
-                                                    running_len_samples=running_len_samples, 
-                                                    desired_avg_power_noise=desired_avg_power_noise, 
-                                                    device=device)
+        scaled_audio_file = get_scaled_audio_signal(
+            audio_file=audio_file,
+            end_audio_file=end_audio_file,
+            running_len_samples=running_len_samples,
+            desired_avg_power_noise=desired_avg_power_noise,
+            device=device,
+        )
 
         bg_array[running_len_samples:end_audio_file] = scaled_audio_file
         running_len_samples = end_audio_file
 
     return bg_array, desired_snr
+
 
 def get_random_offset_index(
     audio_manifest: dict,
@@ -363,10 +362,12 @@ def get_random_offset_index(
             offset_max = 1
         else:
             # Find the range that satisfies `max_audio_read_sec` duration.
-            offset_max = binary_search_alignments(inds=sil_inds, 
-                                                  max_audio_read_sec=max_audio_read_sec,
-                                                  min_alignment_count=min_alignment_count,
-                                                  alignments=audio_manifest['alignments'])
+            offset_max = binary_search_alignments(
+                inds=sil_inds,
+                max_audio_read_sec=max_audio_read_sec,
+                min_alignment_count=min_alignment_count,
+                alignments=audio_manifest['alignments'],
+            )
 
         audio_read_buffer_dict[index_file_id] = (sil_inds, offset_max)
 
@@ -380,6 +381,7 @@ def get_random_offset_index(
         offset_index = np.random.randint(offset_min, offset_max)
         return sil_inds[offset_index]
 
+
 def get_speaker_ids(sess_idx: int, speaker_samples: dict, permutated_speaker_inds: list) -> List[str]:
     """
     Randomly select speaker IDs from the loaded manifest file.
@@ -391,6 +393,7 @@ def get_speaker_ids(sess_idx: int, speaker_samples: dict, permutated_speaker_ind
     idx_list = permutated_speaker_inds[sess_idx, :]
     speaker_ids = [all_speaker_ids[i] for i in idx_list]
     return speaker_ids
+
 
 def build_speaker_samples_map(manifest: dict) -> dict:
 
@@ -464,10 +467,10 @@ def add_silence_to_alignments(audio_manifest: dict, output_precision: int) -> di
     return audio_manifest
 
 def load_speaker_sample(
-    speaker_wav_align_map: List[dict], 
-    speaker_ids: List[str], 
-    speaker_turn: int, 
-    output_precision: int, 
+    speaker_wav_align_map: List[dict],
+    speaker_ids: List[str],
+    speaker_turn: int,
+    output_precision: int,
     min_alignment_count: int,
 ) -> str:
     """
@@ -579,6 +582,7 @@ class DataAnnotator(object):
             overwrite_output (bool): If true, delete the output directory if it exists
             output_precision (int): Number of decimal places in output files
     """
+
     def __init__(self, cfg):
         """
         Args:
@@ -587,13 +591,8 @@ class DataAnnotator(object):
         self._params = cfg
 
     def create_new_rttm_entry(
-        self, 
-        words: List[str], 
-        alignments: List[float], 
-        start: int, 
-        end: int, 
-        speaker_id: int
-        ) -> List[str]:
+        self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
+    ) -> List[str]:
 
         """
         Create new RTTM entries (to write to output rttm file)
@@ -627,15 +626,14 @@ class DataAnnotator(object):
         return rttm_list
 
     def create_new_json_entry(
-        self, 
-        text: List[str], 
-        wav_filename: str, 
-        start: int, 
-        length: int, 
-        speaker_id: int, 
-        rttm_filepath: str, 
-        ctm_filepath: str
-
+        self,
+        text: List[str],
+        wav_filename: str,
+        start: int,
+        length: int,
+        speaker_id: int,
+        rttm_filepath: str,
+        ctm_filepath: str,
     ) -> dict:
         """
         Create new JSON entries (to write to output json file).
@@ -667,13 +665,8 @@ class DataAnnotator(object):
         return meta
 
     def create_new_ctm_entry(
-        self, 
-        words: List[str], 
-        alignments: List[float], 
-        session_name: str, 
-        speaker_id: int, 
-        start: int
-        ) -> List[str]:
+        self, words: List[str], alignments: List[float], session_name: str, speaker_id: int, start: int
+    ) -> List[str]:
         """
         Create new CTM entry (to write to output ctm file)
 
@@ -700,7 +693,6 @@ class DataAnnotator(object):
                 text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
                 arr.append((align1, text))
         return arr
-    
 
 class SpeechSampler(object):
     """
