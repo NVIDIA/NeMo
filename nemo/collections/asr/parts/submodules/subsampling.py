@@ -89,6 +89,10 @@ class ConvSubsampling(torch.nn.Module):
 
         in_channels = 1
         layers = []
+        self.post_norm = None
+        self.post_postnorm = None
+        if 'swish' in subsampling:
+            activation = nn.SiLU()
 
         if subsampling == 'vggnet':
             self._stride = 2
@@ -121,7 +125,7 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 in_channels = conv_channels
 
-        elif subsampling == 'dw_striding':
+        elif 'dw_striding' in subsampling:
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
@@ -166,7 +170,7 @@ class ConvSubsampling(torch.nn.Module):
                 layers.append(activation)
                 in_channels = conv_channels
 
-        elif subsampling == 'striding':
+        elif 'striding' in subsampling:
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
@@ -215,8 +219,17 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
-        self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
+
         self.conv = torch.nn.Sequential(*layers)
+
+        if "_postnorm" in subsampling:
+            self.post_norm = nn.LayerNorm(conv_channels * int(out_length))
+
+        self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
+
+        if "_postpostnorm" in subsampling:
+            self.post_postnorm = nn.LayerNorm(feat_out)
+
 
     def get_sampling_frames(self):
         return [1, self.subsampling_factor]
@@ -235,7 +248,7 @@ class ConvSubsampling(torch.nn.Module):
         )
         x = x.unsqueeze(1)
 
-        if self._subsampling in ['striding', 'dw_striding']:
+        if 'striding' in self._subsampling:
             # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
             # to be removed once the above is fixed in cudnn
             with avoid_bfloat16_autocast_context():
@@ -244,7 +257,12 @@ class ConvSubsampling(torch.nn.Module):
             x = self.conv(x)
 
         b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).reshape(b, t, -1))
+        x = x.transpose(1, 2).reshape(b, t, -1)
+        if self.post_norm is not None:
+            x = self.post_norm(x)
+        x = self.out(x)
+        if self.post_postnorm is not None:
+            x = self.post_postnorm(x)
         return x, lengths
 
     def reset_parameters(self):
