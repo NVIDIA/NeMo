@@ -37,37 +37,29 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
-<<<<<<< HEAD
-    DataAnnotator,
-    read_audio_from_buffer,
-    perturb_audio,
-    get_cleaned_base_path,
-=======
+    HEAD,
     AnnotationGenerator,
+    DataAnnotator,
+    <<<<<<<,
+    =======,
+    >>>>>>>,
     build_speaker_samples_map,
     clamp_max_list,
     clamp_min_list,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
+    d8c409d1aeb300b1f948260a930023f301b8c113,
+    get_background_noise,
+    get_cleaned_base_path,
     get_random_offset_index,
     get_session_overlap_mean,
     get_session_silence_mean,
     get_speaker_ids,
     get_speaker_samples,
-<<<<<<< HEAD
-    load_speaker_sample,
-    per_speaker_normalize,
-    get_background_noise,
-    get_split_points_in_alignments,
-    get_session_overlap_mean,
-    get_session_silence_mean,
-=======
     get_split_points_in_alignments,
     load_speaker_sample,
     per_speaker_normalize,
     perturb_audio,
     read_audio_from_buffer,
     read_noise_manifest,
->>>>>>> d8c409d1aeb300b1f948260a930023f301b8c113
     sample_from_overlap_model,
     sample_from_silence_model,
     sample_noise_manifest,
