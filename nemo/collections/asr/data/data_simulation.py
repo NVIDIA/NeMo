@@ -1048,8 +1048,6 @@ class MultiSpeakerSimulator(object):
 
         return bg_array, desired_snr
 
-
-
     def _get_session_silence_from_rttm(self, rttm_list: List[str], running_len_samples: int):
         """
         Calculate the total speech and silence duration in the current session using RTTM file.
@@ -1256,34 +1254,6 @@ class MultiSpeakerSimulator(object):
         del array
         self.clean_up()
         return basepath, filename
-
-    def _get_cleaned_base_path(self, output_dir: str) -> str:
-        """
-        Delete output directory if it exists or throw warning.
-
-        Args:
-            output_dir (str): Path to output directory
-
-        Returns:
-            basepath (str): Path to base-path directory for writing output files
-        """
-        if os.path.isdir(output_dir) and os.listdir(output_dir):
-            if self._params.data_simulator.outputs.overwrite_output:
-                if os.path.exists(output_dir):
-                    shutil.rmtree(output_dir)
-                os.mkdir(output_dir)
-            else:
-                raise Exception("Output directory is nonempty and overwrite_output = false")
-        elif not os.path.isdir(output_dir):
-            os.makedirs(output_dir)
-
-        # only add root if paths are relative
-        if not os.path.isabs(output_dir):
-            ROOT = os.getcwd()
-            basepath = os.path.join(ROOT, output_dir)
-        else:
-            basepath = output_dir
-        return basepath
 
     def generate_sessions(self, random_seed: int = None):
         """

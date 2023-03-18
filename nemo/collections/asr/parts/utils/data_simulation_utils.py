@@ -59,6 +59,34 @@ def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
     """
     return [min(x, max_val) for x in target_list]
 
+def get_cleaned_base_path(self, output_dir: str) -> str:
+    """
+    Delete output directory if it exists or throw warning.
+
+    Args:
+        output_dir (str): Path to output directory
+
+    Returns:
+        basepath (str): Path to base-path directory for writing output files
+    """
+    if os.path.isdir(output_dir) and os.listdir(output_dir):
+        if self._params.data_simulator.outputs.overwrite_output:
+            if os.path.exists(output_dir):
+                shutil.rmtree(output_dir)
+            os.mkdir(output_dir)
+        else:
+            raise Exception("Output directory is nonempty and overwrite_output = false")
+    elif not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+
+    # only add root if paths are relative
+    if not os.path.isabs(output_dir):
+        ROOT = os.getcwd()
+        basepath = os.path.join(ROOT, output_dir)
+    else:
+        basepath = output_dir
+    return basepath
+
 def binary_search_alignments(
     inds: List[int], 
     max_audio_read_sec: float, 
