@@ -43,6 +43,8 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     perturb_audio,
     normalize_audio,
     load_speaker_sample,
+    read_audio_from_buffer,
+    get_background_noise,
     per_speaker_normalize,
     get_cleaned_base_path,
     get_random_offset_index,
@@ -768,23 +770,10 @@ class MultiSpeakerSimulator(object):
 
             if end_window_amount > 0:  # include window
                 window = self._get_window(end_window_amount, start=False)
-                self._sentence = torch.cat(
-                    (
-                        self._sentence,
-                        torch.multiply(
-                            audio_file[
-                                start_cutoff
-                                + prev_dur_samples
-                                + release_buffer : start_cutoff
-                                + prev_dur_samples
-                                + release_buffer
-                                + end_window_amount
-                            ],
-                            window,
-                        ),
-                    ),
-                    0,
-                ).to(self._device)
+                sig_start = start_cutoff + prev_dur_samples + release_buffer 
+                sig_end = start_cutoff + prev_dur_samples + release_buffer + end_window_amount
+                windowed_audio_file = torch.multiply(audio_file[sig_start:sig_end], window)
+                self._sentence = torch.cat((self._sentence, windowed_audio_file), 0).to(self._device)
 
         del audio_file
         return sentence_word_count + current_word_count, len(self._sentence)
