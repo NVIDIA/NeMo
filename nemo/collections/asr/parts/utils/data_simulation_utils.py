@@ -827,7 +827,6 @@ class SpeechSampler(object):
         self._params = cfg
 
         self.running_speech_len_samples = 0
-
         self.running_silence_len_samples = 0
         self.running_overlap_len_samples = 0
 
