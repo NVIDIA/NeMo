@@ -827,6 +827,7 @@ class SpeechSampler(object):
         self._params = cfg
 
         self.running_speech_len_samples = 0
+
         self.running_silence_len_samples = 0
         self.running_overlap_len_samples = 0
 
@@ -842,8 +843,6 @@ class SpeechSampler(object):
         """
         Initialize parameters for silence insertion in the current session.
         """
-        self.running_silence_len_samples = 0
-        self.running_speech_len_samples = 0
         self.per_silence_min_len = int(
             max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
         )
@@ -872,6 +871,29 @@ class SpeechSampler(object):
             self.per_overlap_max_len = int(
                 self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
             )
+
+    def silence_vs_overlap_selector(self, running_len_samples: int, non_silence_len_samples: int) -> bool:
+        """
+        Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
+        to the amount of the gap between current ratio and session mean in config.
+
+        Args:
+            running_len_samples (int): Length of the current session in samples.
+            non_silence_len_samples (int): Length of the signal that is not silence in samples.
+
+        Returns:
+            add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
+        """
+        if running_len_samples > 0:
+            self.current_silence_ratio = (running_len_samples - self.running_speech_len_samples) / running_len_samples
+            self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
+        else:
+            self.current_silence_ratio, self.current_overlap_ratio = 0, 0
+
+        self.silence_discrepancy = self.current_silence_ratio - self.sess_silence_mean
+        self.overlap_discrepancy = self.current_overlap_ratio - self.sess_overlap_mean
+        add_overlap = self.overlap_discrepancy <= self.silence_discrepancy
+        return add_overlap
 
     def get_session_silence_mean(self):
         """

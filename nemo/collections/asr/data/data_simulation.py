@@ -221,21 +221,6 @@ class MultiSpeakerSimulator(object):
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
         self._audio_read_buffer_dict = {}
-        self._noise_read_buffer_dict = {}
-
-        # Initialize the audio processing varialbes to zero
-        self.running_speech_len_samples = 0
-        self.running_silence_len_samples = 0
-        self.running_overlap_len_samples = 0
-
-        self.sess_silence_mean = 0
-        self.per_silence_min_len = 0
-        self.per_silence_max_len = 0
-
-        self.sess_overlap_mean = 0
-        self.per_overlap_min_len = 0
-        self.per_overlap_max_len = 0
-        ###
 
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
@@ -426,7 +411,6 @@ class MultiSpeakerSimulator(object):
         self._words = []
         self._alignments = []
         self._audio_read_buffer_dict = {}
-        self._noise_read_buffer_dict = {}
         torch.cuda.empty_cache()
 
     def _get_speaker_dominance(self) -> List[float]:
@@ -612,7 +596,6 @@ class MultiSpeakerSimulator(object):
             release_buffer (int): Amount after the end of the last alignment to include
             window_amount (int): Window length
         """
-
         window_amount = int(self._params.data_simulator.session_params.window_size * self._params.data_simulator.sr)
         release_buffer = int(
             self._params.data_simulator.session_params.release_buffer * self._params.data_simulator.sr
@@ -862,28 +845,6 @@ class MultiSpeakerSimulator(object):
                 device=self._device,
             )
 
-    def _silence_vs_overlap_selector(self, running_len_samples: int, non_silence_len_samples: int) -> bool:
-        """
-        Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
-        to the amount of the gap between current ratio and session mean in config.
-
-        Args:
-            running_len_samples (int): Length of the current session in samples.
-            non_silence_len_samples (int): Length of the signal that is not silence in samples.
-
-        Returns:
-            add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
-        """
-        if running_len_samples > 0:
-            self.current_silence_ratio = (running_len_samples - self.running_speech_len_samples) / running_len_samples
-            self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
-        else:
-            self.current_silence_ratio, self.current_overlap_ratio = 0, 0
-
-        self.silence_discrepancy = self.current_silence_ratio - self.sess_silence_mean
-        self.overlap_discrepancy = self.current_overlap_ratio - self.sess_overlap_mean
-        add_overlap = self.overlap_discrepancy <= self.silence_discrepancy
-        return add_overlap
 
     def _add_silence_or_overlap(
         self,
@@ -910,11 +871,11 @@ class MultiSpeakerSimulator(object):
             new_start (int): New starting position in the session accounting for overlap or silence
         """
         running_len_samples = start + length
-        # `length` is the length of the current sentence to be added, so not included in self.running_speech_len_samples
-        non_silence_len_samples = self.running_speech_len_samples + length
+        # `length` is the length of the current sentence to be added, so not included in self.sampler.running_speech_len_samples
+        non_silence_len_samples = self.sampler.running_speech_len_samples + length
 
         # compare silence and overlap ratios
-        add_overlap = self._silence_vs_overlap_selector(running_len_samples, non_silence_len_samples)
+        add_overlap = self.sampler.silence_vs_overlap_selector(running_len_samples, non_silence_len_samples)
 
         # choose overlap if this speaker is not the same as the previous speaker and add_overlap is True.
         if prev_speaker != speaker_turn and prev_speaker is not None and add_overlap:
@@ -945,7 +906,7 @@ class MultiSpeakerSimulator(object):
 
             if overlap_amount < desired_overlap_amount:
                 self._missing_overlap += desired_overlap_amount - overlap_amount
-            self.running_overlap_len_samples += overlap_amount
+            self.sampler.running_overlap_len_samples += overlap_amount
 
         # if we are not adding overlap, add silence
         else:
@@ -1137,7 +1098,7 @@ class MultiSpeakerSimulator(object):
                 ctm_list.append(entry)
 
             running_len_samples = np.maximum(running_len_samples, end)
-            self.running_speech_len_samples, self.running_silence_len_samples = self._get_session_silence_from_rttm(
+            self.sampler.running_speech_len_samples, self.sampler.running_silence_len_samples = self._get_session_silence_from_rttm(
                 rttm_list, running_len_samples
             )
 
