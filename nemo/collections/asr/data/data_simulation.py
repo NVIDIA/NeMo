@@ -34,22 +34,22 @@ from tqdm import tqdm
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
     build_speaker_samples_map,
-    read_noise_manifest,
-    perturb_audio,
-    normalize_audio,
-    load_speaker_sample,
-    per_speaker_normalize,
     get_cleaned_base_path,
     get_random_offset_index,
     get_speaker_ids,
     get_speaker_samples,
     get_split_points_in_alignments,
+    load_speaker_sample,
+    normalize_audio,
+    per_speaker_normalize,
+    perturb_audio,
+    read_noise_manifest,
 )
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_overlap_range,
     is_overlap,
@@ -629,7 +629,7 @@ class MultiSpeakerSimulator(object):
             window_amount = remaining_len_audio_file - release_buffer
 
         return release_buffer, window_amount
-    
+
     def _check_missing_speakers(self, num_missing: int = 0):
         """
         Check if any speakers were not included in the clip and display a warning.
@@ -642,7 +642,7 @@ class MultiSpeakerSimulator(object):
                 num_missing += 1
         if num_missing != 0:
             warnings.warn(
-                f"{self._params.data_simulator.session_config.num_speakers - num_missing}" 
+                f"{self._params.data_simulator.session_config.num_speakers - num_missing}"
                 f"speakers were included in the clip instead of the requested amount of "
                 f"{self._params.data_simulator.session_config.num_speakers}"
             )
@@ -967,7 +967,7 @@ class MultiSpeakerSimulator(object):
                 new_start = start + silence_amount
 
         return new_start
-    
+
     def _get_session_meta_data(self, array: np.ndarray, snr: float) -> dict:
         """
         Get meta data for the current session.
@@ -1187,18 +1187,19 @@ class MultiSpeakerSimulator(object):
             array = array.cpu().numpy()
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
 
-        self.annotator.write_annotation_files(basepath=basepath, 
-                                              filename=filename, 
-                                              meta_data=self._get_session_meta_data(array=array, snr=snr),
-                                              rttm_list=rttm_list, 
-                                              json_list=json_list, 
-                                              ctm_list=ctm_list)
+        self.annotator.write_annotation_files(
+            basepath=basepath,
+            filename=filename,
+            meta_data=self._get_session_meta_data(array=array, snr=snr),
+            rttm_list=rttm_list,
+            json_list=json_list,
+            ctm_list=ctm_list,
+        )
 
         # Step 8: Clean up memory
         del array
         self.clean_up()
         return basepath, filename
-
 
     def generate_sessions(self, random_seed: int = None):
         """
@@ -1282,16 +1283,13 @@ class MultiSpeakerSimulator(object):
                 if self.num_workers > 1:
                     basepath, filename = future.result()
                 else:
-                    self._noise_samples = self.sampler.sample_noise_manifest(
-                        noise_manifest=source_noise_manifest,
-                    )
+                    self._noise_samples = self.sampler.sample_noise_manifest(noise_manifest=source_noise_manifest,)
                     basepath, filename = self._generate_session(*future)
 
                 self.annotator.write_files(basepath=basepath, filename=filename)
 
                 # throw warning if number of speakers is less than requested
                 self._check_missing_speakers()
-
 
         tp.shutdown()
         self.annotator.close_files()
