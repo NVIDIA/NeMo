@@ -135,7 +135,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
                 tag="eval",
                 mel_fb=self.audio_to_melspec_precessor.fb,
                 n_fft=self.audio_to_melspec_precessor.n_fft,
-                hop_length=self.audio_to_melspec_precessor.hop_length, 
+                hop_length=self.audio_to_melspec_precessor.hop_length,
             )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         self.log('val_loss', avg_loss)
