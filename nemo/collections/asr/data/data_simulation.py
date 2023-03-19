@@ -16,7 +16,6 @@ import concurrent
 import multiprocessing
 import os
 import warnings
-from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import h5py
@@ -30,12 +29,12 @@ from omegaconf import DictConfig, OmegaConf
 from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.spatial.transform import Rotation
-from scipy.stats import beta, gamma
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
@@ -43,6 +42,7 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     build_speaker_samples_map,
     read_noise_manifest,
     perturb_audio,
+    normalize_audio,
     load_speaker_sample,
     per_speaker_normalize,
     get_cleaned_base_path,
@@ -51,10 +51,8 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     get_speaker_samples,
     get_background_noise,
     get_split_points_in_alignments,
-
 )
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_overlap_range,
     is_overlap,
@@ -630,6 +628,23 @@ class MultiSpeakerSimulator(object):
             window_amount = remaining_len_audio_file - release_buffer
 
         return release_buffer, window_amount
+    
+    def _check_missing_speakers(self, num_missing: int = 0):
+        """
+        Check if any speakers were not included in the clip and display a warning.
+
+        Args:
+            num_missing (int): Number of missing speakers.
+        """
+        for k in range(len(self._furthest_sample)):
+            if self._furthest_sample[k] == 0:
+                num_missing += 1
+        if num_missing != 0:
+            warnings.warn(
+                f"{self._params.data_simulator.session_config.num_speakers - num_missing}" 
+                f"speakers were included in the clip instead of the requested amount of "
+                f"{self._params.data_simulator.session_config.num_speakers}"
+            )
 
     def _add_file(
         self,
@@ -945,6 +960,25 @@ class MultiSpeakerSimulator(object):
                 new_start = start + silence_amount
 
         return new_start
+    
+    def _get_session_meta_data(self, array: np.ndarray, snr: float) -> dict:
+        """
+        Get meta data for the current session.
+
+        Args:
+            array (np.ndarray): audio array
+            snr (float): signal-to-noise ratio
+
+        Returns:
+            dict: meta data 
+        """
+        meta_data = {
+            "duration": array.shape[0] / self._params.data_simulator.sr,
+            "session_silence_mean": self.sess_silence_mean,
+            "session_overlap_mean": self.sess_overlap_mean,
+            "session_snr": snr,
+        }
+        return meta_data
 
     def _get_session_silence_from_rttm(self, rttm_list: List[str], running_len_samples: int):
         """
@@ -1141,28 +1175,24 @@ class MultiSpeakerSimulator(object):
         array = perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor, device=self._device)
 
         # Step 7: Normalize and write to disk
-        array = array / (1.0 * torch.max(torch.abs(array)))  # normalize wav file to avoid clipping
+        array = normalize_audio(array)
+
         if torch.is_tensor(array):
             array = array.cpu().numpy()
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
 
-        labels_to_rttmfile(rttm_list, filename, self._params.data_simulator.outputs.output_dir)
-        write_manifest(os.path.join(basepath, filename + '.json'), json_list)
-        write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
-        write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
-
-        meta_data = {
-            "duration": array.shape[0] / self._params.data_simulator.sr,
-            "session_silence_mean": self.sess_silence_mean,
-            "session_overlap_mean": self.sess_overlap_mean,
-            "session_snr": snr,
-        }
-        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+        self.annotator.write_annotation_files(basepath=basepath, 
+                                              filename=filename, 
+                                              meta_data=self._get_session_meta_data(array=array, snr=snr),
+                                              rttm_list=rttm_list, 
+                                              json_list=json_list, 
+                                              ctm_list=ctm_list)
 
         # Step 8: Clean up memory
         del array
         self.clean_up()
         return basepath, filename
+
 
     def generate_sessions(self, random_seed: int = None):
         """
@@ -1181,12 +1211,7 @@ class MultiSpeakerSimulator(object):
         basepath = get_cleaned_base_path(output_dir, overwrite_output=self._params.data_simulator.outputs.overwrite_output)
         OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
 
-        wavlist = open(os.path.join(basepath, "synthetic_wav.list"), "w")
-        rttmlist = open(os.path.join(basepath, "synthetic_rttm.list"), "w")
-        jsonlist = open(os.path.join(basepath, "synthetic_json.list"), "w")
-        ctmlist = open(os.path.join(basepath, "synthetic_ctm.list"), "w")
-        textlist = open(os.path.join(basepath, "synthetic_txt.list"), "w")
-        metalist = open(os.path.join(basepath, "synthetic_meta.list"), "w")
+        self.annotator.open_files(basepath=basepath)
 
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         futures = []
@@ -1220,6 +1245,7 @@ class MultiSpeakerSimulator(object):
             self._manifest = None
             self._speaker_samples = None
 
+        # Chunk the sessions into smaller chunks for very large number of sessions (10K+ sessions)
         for chunk_idx in range(self.chunk_count):
             futures = []
             stt_idx, end_idx = (
@@ -1248,38 +1274,19 @@ class MultiSpeakerSimulator(object):
                 if self.num_workers > 1:
                     basepath, filename = future.result()
                 else:
-                    self._noise_samples = sample_noise_manifest(
+                    self._noise_samples = self.sampler.sample_noise_manifest(
                         noise_manifest=source_noise_manifest,
-                        num_noise_files=self._params.data_simulator.background_noise.num_noise_files,
                     )
                     basepath, filename = self._generate_session(*future)
 
-                wavlist.write(os.path.join(basepath, filename + '.wav\n'))
-                rttmlist.write(os.path.join(basepath, filename + '.rttm\n'))
-                jsonlist.write(os.path.join(basepath, filename + '.json\n'))
-                ctmlist.write(os.path.join(basepath, filename + '.ctm\n'))
-                textlist.write(os.path.join(basepath, filename + '.txt\n'))
-                metalist.write(os.path.join(basepath, filename + '.meta\n'))
+                self.annotator.write_files(basepath=basepath, filename=filename)
 
                 # throw warning if number of speakers is less than requested
-                num_missing = 0
-                for k in range(len(self._furthest_sample)):
-                    if self._furthest_sample[k] == 0:
-                        num_missing += 1
-                if num_missing != 0:
-                    warnings.warn(
-                        f"{self._params.data_simulator.session_config.num_speakers-num_missing} speakers were included in the clip instead of the requested amount of {self._params.data_simulator.session_config.num_speakers}"
-                    )
+                self._check_missing_speakers()
+
 
         tp.shutdown()
-
-        wavlist.close()
-        rttmlist.close()
-        jsonlist.close()
-        ctmlist.close()
-        textlist.close()
-        metalist.close()
-
+        self.annotator.close_files()
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):

@@ -16,7 +16,7 @@ import copy
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, IO
 
 import numpy as np
 import torch
@@ -25,9 +25,9 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.utils import logging
-
+from nemo.collections.asr.parts.utils.speaker_utils import labels_to_rttmfile
 
 def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str:
     """
@@ -202,6 +202,18 @@ def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, devic
     augmentor.perturb(audio_segment)
     audio_segment = torch.from_numpy(audio_segment.samples).to(device)
     return audio_segment
+
+def normalize_audio(array: torch.Tensor) -> torch.Tensor:
+    """
+    Normalize the audio signal to avoid clipping.
+
+    Args:
+        array (torch.Tensor): Time-series audio data in a tensor.
+
+    Returns:
+        (torch.Tensor): Normalized audio signal.
+    """
+    return array / (1.0 * torch.max(torch.abs(array)))  
 
 
 def get_power_of_audio_file(audio_file, end_audio_file, running_len_samples, device):
@@ -396,7 +408,6 @@ def get_speaker_ids(sess_idx: int, speaker_samples: dict, permutated_speaker_ind
 
 
 def build_speaker_samples_map(manifest: dict) -> dict:
-
     """
     Build a dictionary for mapping speaker ID to their list of samples
 
@@ -589,6 +600,8 @@ class DataAnnotator(object):
             cfg: OmegaConf configuration loaded from yaml file.
         """
         self._params = cfg
+        self._files = {}
+        self._init_file_write()
 
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
@@ -615,13 +628,13 @@ class DataAnnotator(object):
                     silence_length > 2 * self._params.data_simulator.session_params.split_buffer
                 ):  # split utterance on silence
                     new_end = start + alignments[i - 1] + self._params.data_simulator.session_params.split_buffer
-                    t_stt = float(round(new_start, self._params.data_simulator.outputs.output_precision))
-                    t_end = float(round(new_end, self._params.data_simulator.outputs.output_precision))
+                    t_stt = round(float(new_start), self._params.data_simulator.outputs.output_precision)
+                    t_end = round(float(new_end), self._params.data_simulator.outputs.output_precision)
                     rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
                     new_start = start + alignments[i] - self._params.data_simulator.session_params.split_buffer
 
-        t_stt = float(round(new_start, self._params.data_simulator.outputs.output_precision))
-        t_end = float(round(end, self._params.data_simulator.outputs.output_precision))
+        t_stt = round(float(new_start), self._params.data_simulator.outputs.output_precision)
+        t_end = round(float(end), self._params.data_simulator.outputs.output_precision)
         rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
         return rttm_list
 
@@ -629,8 +642,8 @@ class DataAnnotator(object):
         self,
         text: List[str],
         wav_filename: str,
-        start: int,
-        length: int,
+        start: float,
+        length: float,
         speaker_id: int,
         rttm_filepath: str,
         ctm_filepath: str,
@@ -639,18 +652,19 @@ class DataAnnotator(object):
         Create new JSON entries (to write to output json file).
 
         Args:
-            wav_filename (str): Output wav filepath.
-            start (int): Current start of the audio file being inserted.
-            length (int): Length of the audio file being inserted.
-            speaker_id (int): LibriSpeech speaker ID for the current entry.
-            rttm_filepath (str): Output rttm filepath.
-            ctm_filepath (str): Output ctm filepath.
-        
+            text (list): string of text for the current entry.
+            wav_filename (str): Filename of the wav file.
+            start (float): Start time of the current entry.
+            length (float): Length of the current entry.
+            speaker_id (int): speaker ID for the current entry.
+            rttm_filepath (str): Path to the RTTM file.
+            ctm_filepath (str): Path to the CTM file.
+
         Returns:
-            dict (dict): JSON entry
+            meta (dict): JSON entry dictionary.
         """
-        start = float(round(start, self._params.data_simulator.outputs.output_precision))
-        length = float(round(length, self._params.data_simulator.outputs.output_precision))
+        start = round(float(start), self._params.data_simulator.outputs.output_precision)
+        length = round(float(length), self._params.data_simulator.outputs.output_precision)
         meta = {
             "audio_filepath": wav_filename,
             "offset": start,
@@ -686,13 +700,107 @@ class DataAnnotator(object):
                 word != ""
             ):  # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
                 prev_align = 0 if i == 0 else alignments[i - 1]
-                align1 = float(round(prev_align + start, self._params.data_simulator.outputs.output_precision))
-                align2 = float(
-                    round(alignments[i] - prev_align, self._params.data_simulator.outputs.output_precision,)
-                )
+                align1 = round(float(prev_align + start), self._params.data_simulator.outputs.output_precision)
+                align2 = round(float(alignments[i] - prev_align), self._params.data_simulator.outputs.output_precision)
                 text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
                 arr.append((align1, text))
         return arr
+
+    def _init_file_write(self):
+        """
+        Initialize file writing.
+        """
+        self._file_base_str = "synthetic"
+        self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
+    
+    def _open_list_file(self, basepath: str, file_type: str) -> IO:
+        """
+        Open files for writing.
+
+        Args:
+            basepath (str): Basepath for output files.
+            file_type (str): Type of file to open.
+
+        Returns:
+            (IO): File object.
+        """
+        return open(os.path.join(basepath, f"{self._file_base_str}_{file_type}.list"), "w")
+
+    def _write_list_file(
+        self, 
+        file_handle: IO, 
+        basepath: str,
+        filename: str,
+        file_type: str
+        ):
+        """
+        Write an entry to a list file.
+
+        Args:
+            basepath (str): Basepath for output files.
+            file_type (str): Type of file to open.
+
+        Returns:
+            file (IO): File object.
+        """
+        file_handle.write(os.path.join(basepath, filename + f'.{file_type}\n'))
+    
+    def open_files(self, basepath: str):
+        """
+        Open all files for writing.
+
+        Args:
+            basepath (str): Basepath for output files.
+        """
+        for file_type in self._file_types:
+            self._files[file_type] = self._open_list_file(basepath, file_type)
+
+    def write_files(self, basepath: str, filename: str=""):
+        """
+        Write all files.
+
+        Args:
+            basepath (str): Basepath for output files.
+            filename (str): Base filename for all output files.
+        """
+        for file_type in self._file_types:
+            self._write_list_file(self._files[file_type], basepath, filename, file_type)
+
+
+    def close_files(self):
+        """
+        Close all open list files.
+        """
+        for file_type in self._file_types:
+            self._files[file_type].close()
+
+    def write_annotation_files(
+        self,
+        basepath: str,
+        filename: str,
+        meta_data: dict,
+        rttm_list: list,
+        json_list: list,
+        ctm_list: list,
+    ):
+        """
+        Write all annotation files: RTTM, JSON, CTM, TXT, and META.
+
+        Args:
+            basepath (str): Basepath for output files.
+            filename (str): Base filename for all output files.
+            meta_data (dict): Metadata for the current session.
+            rttm_list (list): List of RTTM entries.
+            json_list (list): List of JSON entries.
+            ctm_list (list): List of CTM entries.
+        """
+        labels_to_rttmfile(rttm_list, filename, self._params.data_simulator.outputs.output_dir)
+        write_manifest(os.path.join(basepath, filename + '.json'), json_list)
+        write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
+        write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
+        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+
+    
 
 class SpeechSampler(object):
     """
