@@ -57,11 +57,9 @@ def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str
         basepath = output_dir
     return basepath
 
+
 def binary_search_alignments(
-    inds: List[int], 
-    max_audio_read_sec: float, 
-    min_alignment_count: int, 
-    alignments: dict
+    inds: List[int], max_audio_read_sec: float, min_alignment_count: int, alignments: dict
 ) -> int:
     """
     Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
@@ -78,8 +76,8 @@ def binary_search_alignments(
     left, right = 0, len(inds) - min_alignment_count
     while left < right:
         mid = left + (right - left) // 2
-        dur_left = alignments[-1*min_alignment_count] - alignments[inds[mid]]
-        if  dur_left < max_audio_read_sec:
+        dur_left = alignments[-1 * min_alignment_count] - alignments[inds[mid]]
+        if dur_left < max_audio_read_sec:
             right = mid - 1
         elif dur_left > max_audio_read_sec:
             left = mid + 1
@@ -422,6 +420,7 @@ def build_speaker_samples_map(manifest: dict) -> dict:
         speaker_samples[speaker_id].append(sample)
     return speaker_samples
 
+
 def read_noise_manifest(add_bg: bool, background_manifest: str):
     """
     Read the noise manifest file and sample the noise manifest.
@@ -462,6 +461,7 @@ def get_speaker_samples(speaker_ids: List[str], speaker_samples: list) -> Dict[s
         speaker_wav_align_map[sid] = speaker_samples[sid]
     return speaker_wav_align_map
 
+
 def add_silence_to_alignments(audio_manifest: dict, output_precision: int) -> dict:
     """
     Add silence to the beginning of the alignments and words.
@@ -474,8 +474,9 @@ def add_silence_to_alignments(audio_manifest: dict, output_precision: int) -> di
         audio_manifest (dict): Audio manifest dictionary with silence added to the beginning.
     """
     audio_manifest['words'].insert(0, "")
-    audio_manifest['alignments'].insert(0, 1 / (10 ** output_precision)) 
+    audio_manifest['alignments'].insert(0, 1 / (10 ** output_precision))
     return audio_manifest
+
 
 def load_speaker_sample(
     speaker_wav_align_map: List[dict],
@@ -574,6 +575,7 @@ def per_speaker_normalize(
     average_rms = torch.sqrt(split_sum * 1.0 / split_length)
     sentence_audio = sentence_audio / (1.0 * average_rms) * volume[speaker_turn]
     return sentence_audio
+
 
 class DataAnnotator(object):
     """
@@ -800,8 +802,6 @@ class DataAnnotator(object):
         write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
         write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
 
-    
-
 class SpeechSampler(object):
     """
     Class for sampling speech samples for Multispeaker Audio Session Simulator 
@@ -828,6 +828,7 @@ class SpeechSampler(object):
             per_overlap_min (float): Minimum per overlap duration in seconds
             per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum 
     """
+
     def __init__(self, cfg):
         """
         Args:
@@ -941,7 +942,7 @@ class SpeechSampler(object):
         else:
             overlap_mean = mean
         return overlap_mean
-    
+
     def sample_from_silence_model(self, running_len_samples: int, session_len_samples: int) -> int:
         """
         Sample from the silence model to determine the amount of silence to add between sentences.
@@ -1021,7 +1022,7 @@ class SpeechSampler(object):
             desired_overlap_amount = 0
 
         return desired_overlap_amount
-    
+
     def sample_noise_manifest(self, noise_manifest: dict) -> list:
         """
         Sample noise manifest to a specified count `num_noise_files` for the current simulated audio session.

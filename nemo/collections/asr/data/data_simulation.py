@@ -38,7 +38,6 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
-    read_audio_from_buffer,
     build_speaker_samples_map,
     read_noise_manifest,
     perturb_audio,
@@ -49,10 +48,8 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     get_random_offset_index,
     get_speaker_ids,
     get_speaker_samples,
-    get_background_noise,
     get_split_points_in_alignments,
 )
-
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_overlap_range,
     is_overlap,
@@ -74,6 +71,7 @@ try:
     GPURIR = True
 except ImportError:
     GPURIR = False
+
 
 class MultiSpeakerSimulator(object):
     """
@@ -258,8 +256,9 @@ class MultiSpeakerSimulator(object):
             num_sess=self._params.data_simulator.session_config.num_sessions,
             num_speakers=self._params.data_simulator.session_config.num_speakers,
             all_speaker_ids=self._speaker_samples.keys(),
-            random_seed=self._params.data_simulator.random_seed)
-        
+            random_seed=self._params.data_simulator.random_seed,
+        )
+
         # Intialize multiprocessing related variables
         self.num_workers = self._params.get("num_workers", 1)
         self.multiprocessing_chunksize = self._params.data_simulator.get('multiprocessing_chunksize', 10000)
@@ -511,9 +510,11 @@ class MultiSpeakerSimulator(object):
                 scale=self._params.data_simulator.session_params.normalization_var,
                 size=self._params.data_simulator.session_config.num_speakers,
             )
-            self._volume = np.clip(np.array(self._volume), 
-                                   a_min=self._params.data_simulator.session_params.min_volume, 
-                                   a_max=self._params.data_simulator.session_params.max_volume).tolist()
+            self._volume = np.clip(
+                np.array(self._volume),
+                a_min=self._params.data_simulator.session_params.min_volume,
+                a_max=self._params.data_simulator.session_params.max_volume,
+            ).tolist()
 
     def _get_next_speaker(self, prev_speaker: int, dominance: List[float]) -> int:
         """
@@ -822,25 +823,31 @@ class MultiSpeakerSimulator(object):
 
         # build sentence
         while sentence_word_count < sl and sentence_samples < max_samples_in_sentence:
-            audio_manifest = load_speaker_sample(speaker_wav_align_map=speaker_wav_align_map, 
-                                                 speaker_ids=speaker_ids, 
-                                                 speaker_turn=speaker_turn, 
-                                                 output_precision=self._params.data_simulator.outputs.output_precision,
-                                                 min_alignment_count=self._min_alignment_count)
+            audio_manifest = load_speaker_sample(
+                speaker_wav_align_map=speaker_wav_align_map,
+                speaker_ids=speaker_ids,
+                speaker_turn=speaker_turn,
+                output_precision=self._params.data_simulator.outputs.output_precision,
+                min_alignment_count=self._min_alignment_count,
+            )
 
-            offset_index = get_random_offset_index(audio_manifest=audio_manifest,
-                                                   audio_read_buffer_dict=self._audio_read_buffer_dict,
-                                                   offset_min=0,
-                                                   max_audio_read_sec=self._max_audio_read_sec,
-                                                   min_alignment_count=self._min_alignment_count)
+            offset_index = get_random_offset_index(
+                audio_manifest=audio_manifest,
+                audio_read_buffer_dict=self._audio_read_buffer_dict,
+                offset_min=0,
+                max_audio_read_sec=self._max_audio_read_sec,
+                min_alignment_count=self._min_alignment_count,
+            )
 
-            audio_file, sr, audio_manifest = read_audio_from_buffer(audio_manifest=audio_manifest, 
-                                                                    buffer_dict=self._audio_read_buffer_dict, 
-                                                                    offset_index=offset_index, 
-                                                                    device=self._device,
-                                                                    max_audio_read_sec=self._max_audio_read_sec,
-                                                                    min_alignment_count=self._min_alignment_count,
-                                                                    read_subset=True)
+            audio_file, sr, audio_manifest = read_audio_from_buffer(
+                audio_manifest=audio_manifest,
+                buffer_dict=self._audio_read_buffer_dict,
+                offset_index=offset_index,
+                device=self._device,
+                max_audio_read_sec=self._max_audio_read_sec,
+                min_alignment_count=self._min_alignment_count,
+                read_subset=True,
+            )
 
             # audio perturbation, such as gain, impulse response, and white noise
             audio_file = perturb_audio(audio_file, sr, self.segment_augmentor, device=self._device)
@@ -1109,7 +1116,7 @@ class MultiSpeakerSimulator(object):
 
             # Step 5: Build entries for output files
             new_rttm_entries = self.annotator.create_new_rttm_entry(
-                self._words, 
+                self._words,
                 self._alignments,
                 start / self._params.data_simulator.sr,
                 end / self._params.data_simulator.sr,
@@ -1136,7 +1143,6 @@ class MultiSpeakerSimulator(object):
                 filename,
                 speaker_ids[speaker_turn],
                 start / self._params.data_simulator.sr,
-
             )
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
@@ -1155,14 +1161,14 @@ class MultiSpeakerSimulator(object):
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
                 bg, snr = get_background_noise(
-                    len_array=len(array), 
+                    len_array=len(array),
                     power_array=avg_power_array,
                     noise_samples=self._noise_samples,
                     audio_read_buffer_dict=self._audio_read_buffer_dict,
                     snr_min=self._params.data_simulator.background_noise.snr_min,
                     snr_max=self._params.data_simulator.background_noise.snr_max,
                     background_noise_snr=self._params.data_simulator.background_noise.snr,
-                    seed=(random_seed+idx),
+                    seed=(random_seed + idx),
                     device=self._device,
                 )
                 array += bg
@@ -1208,7 +1214,9 @@ class MultiSpeakerSimulator(object):
 
         output_dir = self._params.data_simulator.outputs.output_dir
 
-        basepath = get_cleaned_base_path(output_dir, overwrite_output=self._params.data_simulator.outputs.overwrite_output)
+        basepath = get_cleaned_base_path(
+            output_dir, overwrite_output=self._params.data_simulator.outputs.overwrite_output
+        )
         OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
 
         self.annotator.open_files(basepath=basepath)
@@ -1288,6 +1296,7 @@ class MultiSpeakerSimulator(object):
         tp.shutdown()
         self.annotator.close_files()
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
+
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
@@ -1630,8 +1639,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
             # build entries for output files
             new_rttm_entries = self.annotator.create_new_rttm_entry(
-                self._words, 
-
+                self._words,
                 self._alignments,
                 start / self._params.data_simulator.sr,
                 end / self._params.data_simulator.sr,
