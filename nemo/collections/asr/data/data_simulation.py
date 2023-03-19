@@ -39,9 +39,6 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     SpeechSampler,
     build_speaker_samples_map,
     read_noise_manifest,
-    perturb_audio,
-    normalize_audio,
-    load_speaker_sample,
     read_audio_from_buffer,
     get_background_noise,
     per_speaker_normalize,
@@ -54,7 +51,6 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     normalize_audio,
     per_speaker_normalize,
     perturb_audio,
-    read_noise_manifest,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.speaker_utils import (
