@@ -1097,9 +1097,10 @@ class MultiSpeakerSimulator(object):
                 ctm_list.append(entry)
 
             running_len_samples = np.maximum(running_len_samples, end)
-            self.sampler.running_speech_len_samples, self.sampler.running_silence_len_samples = self._get_session_silence_from_rttm(
-                rttm_list, running_len_samples
-            )
+            (
+                self.sampler.running_speech_len_samples,
+                self.sampler.running_silence_len_samples,
+            ) = self._get_session_silence_from_rttm(rttm_list, running_len_samples)
 
             self._furthest_sample[speaker_turn] = running_len_samples
             prev_speaker = speaker_turn
