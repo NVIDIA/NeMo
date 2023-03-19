@@ -169,7 +169,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
             offset += 1
         if len(tokenized_input) + len(answer_ids) > self.max_seq_length - offset:
             cut_tokens = len(tokenized_input) + len(answer_ids) - self.max_seq_length + offset
-            if len(tokenized_input) - cut_tokens > 0:
+            if len(tokenized_input) - assit_end_idx - cut_tokens > 0:
                 # cut the input by default
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_tokens]
             elif len(answer_ids) - cut_tokens > 0:
