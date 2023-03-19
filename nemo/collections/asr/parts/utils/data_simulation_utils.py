@@ -16,7 +16,7 @@ import copy
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List, Tuple, IO
+from typing import IO, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -26,8 +26,9 @@ from tqdm import tqdm
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
-from nemo.utils import logging
 from nemo.collections.asr.parts.utils.speaker_utils import labels_to_rttmfile
+from nemo.utils import logging
+
 
 def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str:
     """
@@ -201,6 +202,7 @@ def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, devic
     audio_segment = torch.from_numpy(audio_segment.samples).to(device)
     return audio_segment
 
+
 def normalize_audio(array: torch.Tensor) -> torch.Tensor:
     """
     Normalize the audio signal to avoid clipping.
@@ -211,7 +213,7 @@ def normalize_audio(array: torch.Tensor) -> torch.Tensor:
     Returns:
         (torch.Tensor): Normalized audio signal.
     """
-    return array / (1.0 * torch.max(torch.abs(array)))  
+    return array / (1.0 * torch.max(torch.abs(array)))
 
 
 def get_power_of_audio_file(audio_file, end_audio_file, running_len_samples, device):
@@ -714,7 +716,7 @@ class DataAnnotator(object):
         """
         self._file_base_str = "synthetic"
         self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
-    
+
     def _open_list_file(self, basepath: str, file_type: str) -> IO:
         """
         Open files for writing.
@@ -728,13 +730,7 @@ class DataAnnotator(object):
         """
         return open(os.path.join(basepath, f"{self._file_base_str}_{file_type}.list"), "w")
 
-    def _write_list_file(
-        self, 
-        file_handle: IO, 
-        basepath: str,
-        filename: str,
-        file_type: str
-        ):
+    def _write_list_file(self, file_handle: IO, basepath: str, filename: str, file_type: str):
         """
         Write an entry to a list file.
 
@@ -746,7 +742,7 @@ class DataAnnotator(object):
             file (IO): File object.
         """
         file_handle.write(os.path.join(basepath, filename + f'.{file_type}\n'))
-    
+
     def open_files(self, basepath: str):
         """
         Open all files for writing.
@@ -757,7 +753,7 @@ class DataAnnotator(object):
         for file_type in self._file_types:
             self._files[file_type] = self._open_list_file(basepath, file_type)
 
-    def write_files(self, basepath: str, filename: str=""):
+    def write_files(self, basepath: str, filename: str = ""):
         """
         Write all files.
 
@@ -768,7 +764,6 @@ class DataAnnotator(object):
         for file_type in self._file_types:
             self._write_list_file(self._files[file_type], basepath, filename, file_type)
 
-
     def close_files(self):
         """
         Close all open list files.
@@ -777,13 +772,7 @@ class DataAnnotator(object):
             self._files[file_type].close()
 
     def write_annotation_files(
-        self,
-        basepath: str,
-        filename: str,
-        meta_data: dict,
-        rttm_list: list,
-        json_list: list,
-        ctm_list: list,
+        self, basepath: str, filename: str, meta_data: dict, rttm_list: list, json_list: list, ctm_list: list,
     ):
         """
         Write all annotation files: RTTM, JSON, CTM, TXT, and META.
@@ -801,6 +790,7 @@ class DataAnnotator(object):
         write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
         write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
         write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+
 
 class SpeechSampler(object):
     """
