@@ -148,6 +148,9 @@ the transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-
 
 Note that both configs are subword-based (BPE).
 
+You can also train these models with longformer-style attention using the following configs: CTC config at
+``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer-long_ctc_bpe.yaml`` and transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer-long_transducer_bpe.yaml``
+
 Cache-aware Streaming Conformer
 -------------------------------
 

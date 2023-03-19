@@ -569,7 +569,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
-            w (int): The window size.
+            w (int): Chunk overlap size
 
         Returns:
             torch.Tensor: (batch, time, head, head_dim) The computed attention output with global indices.
