@@ -38,8 +38,6 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
     build_speaker_samples_map,
-    read_noise_manifest,
-    read_audio_from_buffer,
     get_background_noise,
     get_cleaned_base_path,
     get_random_offset_index,
@@ -50,6 +48,8 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     normalize_audio,
     per_speaker_normalize,
     perturb_audio,
+    read_audio_from_buffer,
+    read_noise_manifest,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
 from nemo.collections.asr.parts.utils.speaker_utils import (
