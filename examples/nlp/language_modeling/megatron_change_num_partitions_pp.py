@@ -126,14 +126,15 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
 
     total_params_merged = len([p for p in model.parameters()])
     pp_total_len = sum(pp_lens)
-    print("Total parameters in Merged Model:", total_params_merged)
+    print("Total layers in Merged Model:", total_params_merged)
 
     og_pp_split_rank = 0
     if pp_total_len > total_params_merged:
-        if 'share_token_embeddings' in model.cfg and model.cfg.share_token_embeddings:
-            og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
-        else:
-            og_pp_split_rank = 0
+        og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
+        # if 'share_token_embeddings' in model.cfg and model.cfg.share_token_embeddings:
+        #     og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
+        # else:
+        #     og_pp_split_rank = 0
 
     idx = 0
     pp_rank = 0
