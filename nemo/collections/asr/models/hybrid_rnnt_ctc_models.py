@@ -186,7 +186,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                         logits, encoded_len, return_hypotheses=return_hypotheses,
                     )
                     logits = logits.cpu()
-                    
+
                     if return_hypotheses:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
