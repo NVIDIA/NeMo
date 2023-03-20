@@ -203,7 +203,7 @@ class MultiSpeakerSimulator(object):
         self._text = ""
         self._words = []
         self._alignments = []
-        # Minimum number of alignments for a manifest to be considered valid
+        # minimum number of alignments for a manifest to be considered valid
         self._min_alignment_count = 2
         self._merged_speech_intervals = []
         # keep track of furthest sample per speaker to avoid overlapping same speaker
@@ -214,14 +214,11 @@ class MultiSpeakerSimulator(object):
         self.base_manifest_filepath = None
         self.segment_manifest_filepath = None
         self._max_audio_read_sec = self._params.data_simulator.session_params.max_audio_read_sec
-
         self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
         # variable speaker volume
         self._volume = None
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
         self._audio_read_buffer_dict = {}
-
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
 
         self.segment_augmentor = (
@@ -1619,7 +1616,20 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
         # background noise augmentation
         if self._params.data_simulator.background_noise.add_bg:
-            avg_power_array = torch.mean(array[is_speech == 1] ** 2)
+            if len(self._noise_samples) > 0:
+                avg_power_array = torch.mean(array[is_speech == 1] ** 2)
+                bg, snr = get_background_noise(
+                    len_array=len(array),
+                    power_array=avg_power_array,
+                    noise_samples=self._noise_samples,
+                    audio_read_buffer_dict=self._audio_read_buffer_dict,
+                    snr_min=self._params.data_simulator.background_noise.snr_min,
+                    snr_max=self._params.data_simulator.background_noise.snr_max,
+                    background_noise_snr=self._params.data_simulator.background_noise.snr,
+                    seed=(random_seed + idx),
+                    device=self._device,
+                )
+                array += bg
             length = array.shape[0]
             bg, snr = self._get_background(length, avg_power_array)
             augmented_bg, _ = self._convolve_rir(bg, -1, RIR)
@@ -1631,20 +1641,22 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         # Add optional perturbations to the whole session, such as white noise, reverb, etc.
         array = self._perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor)
 
-        meta_data = {
-            "duration": array.shape[0] / self._params.data_simulator.sr,
-            "session_silence_mean": self.sess_silence_mean,
-            "session_overlap_mean": self.sess_overlap_mean,
-            "session_snr": snr,
-        }
-        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+        # normalize wav file to avoid clipping
+        array = normalize_audio(array)
 
-        array = array / (1.0 * torch.max(torch.abs(array)))  # normalize wav file to avoid clipping
+        if torch.is_tensor(array):
+            array = array.cpu().numpy()
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
-        labels_to_rttmfile(rttm_list, filename, self._params.data_simulator.outputs.output_dir)
-        write_manifest(os.path.join(basepath, filename + '.json'), json_list)
-        write_ctm(os.path.join(basepath, filename + '.ctm'), ctm_list)
-        write_text(os.path.join(basepath, filename + '.txt'), ctm_list)
+        
+        self.annotator.write_annotation_files(
+            basepath=basepath,
+            filename=filename,
+            meta_data=self._get_session_meta_data(array=array, snr=snr),
+            rttm_list=rttm_list,
+            json_list=json_list,
+            ctm_list=ctm_list,
+        )
+        
         del array
         self.clean_up()
         return basepath, filename
