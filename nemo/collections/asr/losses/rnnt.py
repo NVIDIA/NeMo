@@ -41,7 +41,7 @@ from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossTy
 from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.core.utils import numba_utils
-from nemo.utils import logging, model_utils
+from nemo.utils import logging, logging_mode, model_utils
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -414,6 +414,7 @@ class RNNTLoss(Loss):
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
         self._force_float32 = RNNT_LOSS_RESOLVER[loss_name].force_float32
+        self._fp16_compat_checked = False
 
     def reduce(self, losses, target_lengths):
 
@@ -445,8 +446,19 @@ class RNNTLoss(Loss):
         # Force cast joint to float32
         if not self._force_float32 and numba_utils.NUMBA_FP16_SUPPORTED:
             # Execute the kernel in fp16
+            logging.info(f"RNNT Loss will be calculated in fp16 on Numba CUDA.", mode=logging_mode.ONCE)
             pass
         elif self._force_float32 and log_probs.dtype != torch.float32:
+            # Log just once if fp16 tensor was passed and fp16 Numba CUDA loss could not be used.
+            if log_probs.dtype == torch.float16 and not self._fp16_compat_checked:
+                _, reason = numba_utils.is_numba_cuda_fp16_supported(return_reason=True)
+                logging.warning(
+                    f"Provided RNNT Joint tensor is of dtype {log_probs.dtype}, but RNNT loss could not be calculated "
+                    f"in fp16 due to following reason stated below. Loss will be calculated in fp32. \n\n"
+                    f"{reason}"
+                )
+                self._fp16_compat_checked = True
+
             # Upcast the activation tensor and compute loss and grads in fp32
             logits_orig = log_probs
             log_probs = log_probs.float()

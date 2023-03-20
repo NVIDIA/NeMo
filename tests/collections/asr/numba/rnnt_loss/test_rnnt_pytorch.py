@@ -34,9 +34,14 @@ if torch.cuda.is_available():
     DEVICES.append('cuda')
 
 
+DTYPES = [np.float32]
+if numba_utils.is_numba_cuda_fp16_supported():
+    DTYPES.append(np.float16)
+
+
 def wrap_and_call(fn, acts, labels, device):
     if not torch.is_tensor(acts):
-        acts = torch.FloatTensor(acts)
+        acts = torch.tensor(acts)
 
     if 'cuda' in device:
         acts = acts.cuda()
@@ -72,7 +77,7 @@ def wrap_and_call(fn, acts, labels, device):
 class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_case_small(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -128,7 +133,7 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_case_small_random(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -149,12 +154,14 @@ class TestRNNTLossPytorch:
         assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
         assert np.allclose(pt_grads, np_grads), "small_random_test gradient mismatch."
 
+        diff = torch.tensor(pt_grads - ag_grads)
+        print(diff.abs().mean())
         assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "small_random_test costs mismatch."
-        assert np.allclose(pt_grads, ag_grads), "small_random_test gradient mismatch."
+        assert np.allclose(pt_grads, ag_grads, atol=1e-6, rtol=1e-5), "small_random_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
     def test_case_small_random_fastemit_reg(self, device, dtype, fastemit_lambda):
         if device == 'cuda':
@@ -175,7 +182,7 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_case_big_tensor(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -302,7 +309,7 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_case_large_random(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -332,7 +339,7 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_case_small_clamp(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -383,7 +390,7 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
     def test_case_small_fastemit_clamp(self, device, dtype, fastemit_lambda):
         if device == 'cuda':

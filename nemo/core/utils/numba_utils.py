@@ -153,14 +153,33 @@ def numba_cuda_is_supported(min_version: str) -> bool:
         return False
 
 
-def is_numba_cuda_fp16_supported():
+def is_numba_cuda_fp16_supported(return_reason: bool = False) -> (bool, str):
     """
     Utility method that returns a bool, stating if FP16 is supported for numba cuda kernels or not.
 
     Returns:
         bool, whether Numba CUDA will support fp16 or not.
     """
-    return NUMBA_FP16_SUPPORTED
+    reason = ""
+    use_nvidia_binding = os.environ.get('NUMBA_CUDA_USE_NVIDIA_BINDING', None)
+    if use_nvidia_binding is not None:
+        use_nvidia_binding = use_nvidia_binding.lower() == "1"
+        reason += "Env variable `NUMBA_CUDA_USE_NVIDIA_BINDING` is available and set to `1`. "
+    else:
+        use_nvidia_binding = False
+        reason += "Env variable `NUMBA_CUDA_USE_NVIDIA_BINDING` is not available or has not set to `1`."
+
+    if NUMBA_FP16_SUPPORTED:
+        reason += f"Numba CUDA FP16 is supported in installed numba version."
+    else:
+        reason += f"Numba CUDA FP16 is not supported in installed numba version."
+
+    result = use_nvidia_binding and NUMBA_FP16_SUPPORTED
+
+    if return_reason:
+        return result, reason
+    else:
+        return result
 
 
 def skip_numba_cuda_test_if_unsupported(min_version: str):
