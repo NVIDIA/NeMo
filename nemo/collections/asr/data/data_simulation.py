@@ -52,11 +52,7 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     read_noise_manifest,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_overlap_range,
-    is_overlap,
-    merge_float_intervals,
-)
+from nemo.collections.asr.parts.utils.speaker_utils import get_overlap_range, is_overlap, merge_float_intervals
 from nemo.utils import logging
 
 try:
