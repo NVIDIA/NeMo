@@ -23,6 +23,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -53,7 +54,7 @@ class MegatronUGPTModel(MegatronGPTModel):
                 "add_sentinel_tokens_in_reverse_order", False
             ),
             add_sentinel_tokens_first=self._cfg.tokenizer.get("add_sentinel_tokens_first", False),
-            add_base_tokens=True
+            add_base_tokens=True,
         )
         # NOTE: This should only happen for the GPT2 tokenizer.
         if self.tokenizer.pad_id is None:
@@ -94,12 +95,13 @@ class MegatronUGPTModel(MegatronGPTModel):
                     len(self.tokenizer.vocab), self.model.word_embeddings_weight().size(1)
                 )
                 new_embeddings.normal_(mean=mean, std=std)
-                new_embeddings[: -num_added_tokens] = self.model.word_embeddings_weight()
+                new_embeddings[:-num_added_tokens] = self.model.word_embeddings_weight()
                 self.model.word_embeddings_weight().set_(new_embeddings)
                 # Broadcast the embeddings from rank 0 to all other embedding ranks.
                 torch.distributed.all_reduce(
-                    self.model.word_embeddings_weight().data, group=parallel_state.get_embedding_group(),
-                    op=torch.distributed.ReduceOp.AVG
+                    self.model.word_embeddings_weight().data,
+                    group=parallel_state.get_embedding_group(),
+                    op=torch.distributed.ReduceOp.AVG,
                 )
 
     def _maybe_resize_output_layer(self):
@@ -107,7 +109,9 @@ class MegatronUGPTModel(MegatronGPTModel):
         if not self.cfg.get('share_embeddings_and_output_weights', True):
             # Resize the model embedding layer.
             if self.cfg.megatron_amp_O2:
-                num_added_tokens = len(self.tokenizer.vocab) - self.model.module.language_model.output_layer.weight.size(0)
+                num_added_tokens = len(
+                    self.tokenizer.vocab
+                ) - self.model.module.language_model.output_layer.weight.size(0)
                 output_layer_weight = self.model.module.language_model.output_layer.weight
             else:
                 num_added_tokens = len(self.tokenizer.vocab) - self.model.language_model.output_layer.weight.size(0)
@@ -121,7 +125,7 @@ class MegatronUGPTModel(MegatronGPTModel):
                         len(self.tokenizer.vocab), output_layer_weight.size(1)
                     )
                     new_output_layer.normal_(mean=mean, std=std)
-                    new_output_layer[: -num_added_tokens] = output_layer_weight
+                    new_output_layer[:-num_added_tokens] = output_layer_weight
                     # TODO: Fix this later.
                     # self.model.module.language_model.output_layer.weight.set_(new_output_layer)
                     # Broadcast the embeddings from rank 0 to all other embedding ranks.
@@ -181,7 +185,7 @@ class MegatronUGPTModel(MegatronGPTModel):
             favor_long_ngrams=self.cfg.data.get('favor_long_ngrams', False),
             respect_document_boundaries=self.cfg.data.get('respect_document_boundaries', False),
             data_impl_kwargs=self.cfg.data.get('data_impl_kwargs', {}),
-            sentinel_tokens=self.sentinel_tokens
+            sentinel_tokens=self.sentinel_tokens,
         )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -192,4 +196,3 @@ class MegatronUGPTModel(MegatronGPTModel):
         logging.info(f'Finished building U-GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
-

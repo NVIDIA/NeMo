@@ -71,7 +71,15 @@ DSET_TYPE_BART = 'bart'
 DSET_TYPE_UL2 = 'ul2'
 DSET_TYPE_UGPT = 'u_gpt'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2, DSET_TYPE_UGPT]
+DSET_TYPES = [
+    DSET_TYPE_BERT,
+    DSET_TYPE_ICT,
+    DSET_TYPE_T5,
+    DSET_TYPE_T5_LM,
+    DSET_TYPE_BART,
+    DSET_TYPE_UL2,
+    DSET_TYPE_UGPT,
+]
 
 
 def compile_helper():
@@ -617,7 +625,7 @@ def get_dataset(
     from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
     from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, UGPTDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UGPTDataset, UL2Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
@@ -932,7 +940,7 @@ def build_train_valid_test_datasets(
     delete_mask_prob=0,
     respect_document_boundaries=True,
     data_impl_kwargs={},
-    sentinel_tokens=None
+    sentinel_tokens=None,
 ):
     # for VSC and text memmap we need to provide a tokenizer, if not given
     if data_impl in ["text_mmap", "csv_mmap"]:
@@ -983,7 +991,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
-            sentinel_tokens=sentinel_tokens
+            sentinel_tokens=sentinel_tokens,
         )
         validation_ds = build_dataset(
             cfg,
@@ -1010,7 +1018,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
-            sentinel_tokens=sentinel_tokens
+            sentinel_tokens=sentinel_tokens,
         )
         test_ds = build_dataset(
             cfg,
@@ -1037,7 +1045,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
-            sentinel_tokens=sentinel_tokens
+            sentinel_tokens=sentinel_tokens,
         )
         return train_ds, validation_ds, test_ds
 
@@ -1069,7 +1077,7 @@ def build_train_valid_test_datasets(
                 delete_mask_prob=delete_mask_prob,
                 respect_document_boundaries=respect_document_boundaries,
                 data_impl_kwargs=data_impl_kwargs,
-                sentinel_tokens=sentinel_tokens
+                sentinel_tokens=sentinel_tokens,
             )
         # Blending dataset.
         # Parse the values.
@@ -1107,7 +1115,7 @@ def build_train_valid_test_datasets(
                 delete_mask_prob=delete_mask_prob,
                 respect_document_boundaries=respect_document_boundaries,
                 data_impl_kwargs=data_impl_kwargs,
-                sentinel_tokens=sentinel_tokens
+                sentinel_tokens=sentinel_tokens,
             )
             if train_ds:
                 train_datasets.append(train_ds)
@@ -1155,7 +1163,7 @@ def _build_train_valid_test_datasets(
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
     respect_document_boundaries=True,
     data_impl_kwargs={},
-    sentinel_tokens=None
+    sentinel_tokens=None,
 ):
 
     # Indexed dataset.
@@ -1196,7 +1204,7 @@ def _build_train_valid_test_datasets(
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, UGPTDataset
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UGPTDataset, UL2Dataset
 
         dataset = None
         if splits[index + 1] > splits[index]:
