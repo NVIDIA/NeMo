@@ -16,7 +16,7 @@ import copy
 import os
 import shutil
 from collections import defaultdict
-from typing import IO, Dict, List, Tuple
+from typing import IO, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -193,7 +193,7 @@ def read_audio_from_buffer(
     return audio_file, sr, audio_manifest
 
 
-def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, device: torch.device) -> torch.Tensor:
+def perturb_audio(audio: torch.Tensor, sr: int, augmentor: Optional[AudioAugmentor] = None, device: Optional[torch.device] = None) -> torch.Tensor:
 
     """
     Perturb the audio (segment or session) using audio augmentor.
@@ -209,6 +209,7 @@ def perturb_audio(audio: torch.Tensor, sr: int, augmentor: AudioAugmentor, devic
     """
     if augmentor is None:
         return audio
+    device = device if device is not None else torch.device('cpu')
     if isinstance(audio, torch.Tensor):
         audio = audio.cpu().numpy()
     audio_segment = AudioSegment(audio, sample_rate=sr)
@@ -290,7 +291,7 @@ def get_desired_avg_power_noise(
     Returns:
         desired_avg_power_noise (float): Desired average power of the noise.
     """
-    if (snr_min is not None) and (snr_max is not None) and (0 <= snr_min <= snr_max):
+    if (snr_min is not None) and (snr_max is not None) and (snr_min <= snr_max):
         desired_snr = np.random.uniform(snr_min, snr_max)
     else:
         desired_snr = background_noise_snr
