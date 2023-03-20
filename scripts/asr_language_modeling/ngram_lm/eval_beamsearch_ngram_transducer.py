@@ -156,11 +156,9 @@ def main():
         "--maes_expansion_gamma", default=2.3, type=float, help="Maximum prefix length in prefix search"
     )
     parser.add_argument(
-        "--hat_subtract_ilm",  action="store_true", help="Subtract internal LM from the final HAT logprobs"
+        "--hat_subtract_ilm", action="store_true", help="Subtract internal LM from the final HAT logprobs"
     )
-    parser.add_argument(
-        "--hat_ilm_weight", default=0.0, type=float, help="lamda2 weight for HAT ILM subsrtact"
-    )
+    parser.add_argument("--hat_ilm_weight", default=0.0, type=float, help="lamda2 weight for HAT ILM subsrtact")
 
     args = parser.parse_args()
 

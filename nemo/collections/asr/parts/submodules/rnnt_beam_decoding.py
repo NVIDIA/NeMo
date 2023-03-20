@@ -469,7 +469,9 @@ class BeamRNNTInfer(Typing):
                 if isinstance(self.joint, HATJoint):
                     ytu, _ = self.joint.joint(hi, y)
                 else:
-                    ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
+                    ytu = torch.log_softmax(
+                        self.joint.joint(hi, y) / self.softmax_temperature, dim=-1
+                    )  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # max() requires float
@@ -572,7 +574,9 @@ class BeamRNNTInfer(Typing):
                 if isinstance(self.joint, HATJoint):
                     ytu, _ = self.joint.joint(hi, y)
                 else:
-                    ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
+                    ytu = torch.log_softmax(
+                        self.joint.joint(hi, y) / self.softmax_temperature, dim=-1
+                    )  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # preserve alignments
@@ -1219,7 +1223,9 @@ class BeamRNNTInfer(Typing):
                                         hyp.ngram_lm_state, int(k)
                                     )
                                     if isinstance(self.joint, HATJoint) and self.hat_subtract_ilm:
-                                        new_hyp.score += self.ngram_lm_alpha * lm_score - float(self.hat_ilm_weight * ilm_ytm[i, 0, 0, k])
+                                        new_hyp.score += self.ngram_lm_alpha * lm_score - float(
+                                            self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
+                                        )
                                     else:
                                         new_hyp.score += self.ngram_lm_alpha * lm_score
 
@@ -1422,13 +1428,17 @@ class BeamRNNTInfer(Typing):
                             hyp_i.ngram_lm_state, int(hyp_j.y_sequence[pref_id])
                         )
                         if isinstance(self.joint, HATJoint) and self.hat_subtract_ilm:
-                            curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(ilm_logp[0, 0, hyp_j.y_sequence[pref_id]])
+                            curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(
+                                ilm_logp[0, 0, hyp_j.y_sequence[pref_id]]
+                            )
                         else:
                             curr_score += self.ngram_lm_alpha * lm_score
 
                     for k in range(pref_id, (curr_id - 1)):
                         if isinstance(self.joint, HATJoint):
-                            logp, ilm_logp = self.joint.joint(enc_out, hyp_j.dec_out[k], return_ilm=self.hat_subtract_ilm)
+                            logp, ilm_logp = self.joint.joint(
+                                enc_out, hyp_j.dec_out[k], return_ilm=self.hat_subtract_ilm
+                            )
                         else:
                             logp = torch.log_softmax(
                                 self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature, dim=-1,
@@ -1439,7 +1449,9 @@ class BeamRNNTInfer(Typing):
                         if self.ngram_lm:
                             lm_score, next_state = self.compute_ngram_score(next_state, int(hyp_j.y_sequence[k + 1]))
                             if isinstance(self.joint, HATJoint) and self.hat_subtract_ilm:
-                                curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(ilm_logp[0, 0, hyp_j.y_sequence[k + 1]])
+                                curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(
+                                    ilm_logp[0, 0, hyp_j.y_sequence[k + 1]]
+                                )
                             else:
                                 curr_score += self.ngram_lm_alpha * lm_score
 

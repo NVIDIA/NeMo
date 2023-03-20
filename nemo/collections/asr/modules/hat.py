@@ -31,8 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.modules import rnnt
-from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.modules import rnnt, rnnt_abstract
 from nemo.collections.asr.parts.submodules import stateless_net
 from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
 from nemo.collections.common.parts import rnn
@@ -416,20 +415,20 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
             inp = self.forward_enabled_adapters(inp)
 
         blank_logprob = self.blank_pred(inp)  # [B, T, U, 1]
-        label_logit = self.joint_net(inp)     # [B, T, U, V]
+        label_logit = self.joint_net(inp)  # [B, T, U, V]
 
         del inp
 
         label_logprob = label_logit.log_softmax(dim=-1)
         scale_prob = torch.clamp(1 - torch.exp(blank_logprob), min=1e-6)
-        label_logprob_scaled = torch.log(scale_prob) + label_logprob   # [B, T, U, V]
+        label_logprob_scaled = torch.log(scale_prob) + label_logprob  # [B, T, U, V]
 
         ilm_logprob = None
         if return_ilm:
             ilm_logit = self.joint_net(g)  # [B, 1, U, V]
-            ilm_logprob = ilm_logit.log_softmax(dim=-1) 
+            ilm_logprob = ilm_logit.log_softmax(dim=-1)
 
-        res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous() # [B, T, U, V+1]
+        res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous()  # [B, T, U, V+1]
 
         del g, blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
 
@@ -453,10 +452,7 @@ class HATJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
         pred = torch.nn.Linear(pred_n_hidden, joint_n_hidden)
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
         blank_pred = torch.nn.Sequential(
-            torch.nn.Tanh(),
-            torch.nn.Dropout(p=dropout),
-            torch.nn.Linear(joint_n_hidden, 1),
-            torch.nn.LogSigmoid()
+            torch.nn.Tanh(), torch.nn.Dropout(p=dropout), torch.nn.Linear(joint_n_hidden, 1), torch.nn.LogSigmoid()
         )
 
         if activation not in ['relu', 'sigmoid', 'tanh']:
