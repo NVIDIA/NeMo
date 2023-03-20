@@ -130,8 +130,15 @@ class ConvSubsampling(torch.nn.Module):
             self._kernel_size = 3
             self._ceil_mode = False
 
-            self._left_padding = (self._kernel_size - 1) // 2
-            self._right_padding = (self._kernel_size - 1) // 2
+            if self.is_causal:
+                self._left_padding = self._kernel_size - 1
+                self._right_padding = self._stride - 1
+                self._max_cache_len = subsampling_factor + 1
+            else:
+                self._left_padding = (self._kernel_size - 1) // 2
+                self._right_padding = (self._kernel_size - 1) // 2
+                self._max_cache_len = 0
+
 
             # Layer 1
             layers.append(
