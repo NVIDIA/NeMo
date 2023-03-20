@@ -51,8 +51,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.models.gpt.gpt_model import GPTModel
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -67,6 +65,8 @@ try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.models.gpt.gpt_model import GPTModel
 
     HAVE_MEGATRON_CORE = True
 
@@ -137,7 +137,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self._model, list):
                 converted_model = []
                 for module in self._model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    converted_model.append(Float16Module(config=self.get_transformer_config(), module=module))
                     self._model = converted_model
             else:
                 self._model = Float16Module(config=self.get_transformer_config(), module=self._model)
@@ -166,6 +166,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     @property
     def model(self):
+        if isinstance(self._model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self._model]
         if isinstance(self._model, Float16Module):
             return self._model.module
         else:
@@ -380,7 +382,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,
-            model=[self.model],
+            model=self._model if isinstance(self._model, list) else [self._model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
