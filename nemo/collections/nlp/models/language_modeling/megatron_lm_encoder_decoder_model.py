@@ -320,7 +320,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
 
-        tensor_shape = [self.cfg.seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -331,7 +331,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
-            decoder_seq_length=self.decoder_seq_length,
+            decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
         )
@@ -397,8 +397,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     @property
-    def decoder_seq_length(self) -> int:
+    def max_decoder_seq_length(self) -> int:
         return self._cfg.data.seq_length_dec
+
+    @property
+    def max_encoder_seq_length(self) -> int:
+        return self.cfg.seq_length
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -626,7 +630,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        tensor_shape = [self.cfg.seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
         fwd_bwd_func = get_forward_backward_func()
         losses_reduced_per_micro_batch = fwd_bwd_func(
             forward_step_func=self.get_forward_output_and_loss_func(),
@@ -635,7 +639,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             forward_only=True,
             tensor_shape=tensor_shape,
             num_microbatches=get_num_microbatches(),
-            decoder_seq_length=self.decoder_seq_length,
+            decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
         )
