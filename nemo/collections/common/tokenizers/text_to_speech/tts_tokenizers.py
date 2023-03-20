@@ -568,8 +568,8 @@ class IPATokenizer(BaseTokenizer):
                     "Did not replace G2P valid symbol set since the given set is equivalent to the existing one."
                 )
                 self.set_fixed_vocab = False
-                break
-            g2p.replace_symbols(tokens)
+            else:
+                g2p.replace_symbols(tokens)
         else:
             tokens = set(g2p.symbols)
             self.set_fixed_vocab = False
