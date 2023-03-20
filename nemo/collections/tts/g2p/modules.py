@@ -549,14 +549,11 @@ class IPAG2P(BaseG2p):
         Args:
             symbols (List, Set): User-provided set of valid symbols, both graphemes and phonemes
             keep_alternate (bool): Whether to keep the other pronunciation(s) of a word if not all contain
-                illegal phonemes (and the word doesn't containi illegal graphemes).
+                illegal phonemes (and the word doesn't contain illegal graphemes).
                 Warning: this may change a word from being ambiguous to having only one valid pronunciation.
                 Defaults to True.
         """
         new_symbols = set(symbols)
-        if self.symbols == new_symbols:
-            logging.info("Did not replace G2P valid symbol set since the given set is equivalent to the existing one.")
-            return
 
         # Keep track of what will need to be deleted or (if keep_alternate=True) replaced
         deletion_words = []

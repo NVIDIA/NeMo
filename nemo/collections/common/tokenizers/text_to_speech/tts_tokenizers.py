@@ -562,6 +562,13 @@ class IPATokenizer(BaseTokenizer):
         if fixed_vocab:
             tokens = {self.text_preprocessing_func(c) for c in fixed_vocab}
             self.set_fixed_vocab = True  # Used to check whether dataset entries need filtering
+
+            if g2p.symbols == tokens:
+                logging.info(
+                    "Did not replace G2P valid symbol set since the given set is equivalent to the existing one."
+                )
+                self.set_fixed_vocab = False
+                break
             g2p.replace_symbols(tokens)
         else:
             tokens = set(g2p.symbols)
