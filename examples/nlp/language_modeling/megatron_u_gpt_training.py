@@ -57,7 +57,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.restore_from_path = cfg.model.restore_from_path
         gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
         gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-        gpt_cfg.tokenizer.num_sentinel_tokens = 1000 # Hard-coded for now.
+        gpt_cfg.tokenizer.num_sentinel_tokens = 1000  # Hard-coded for now.
         gpt_cfg.tokenizer.sentencepiece_legacy = True
         gpt_cfg.attn_mask_type = cfg.model.attn_mask_type
 
@@ -175,15 +175,15 @@ def main(cfg) -> None:
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
         gpt_cfg = MegatronUGPTModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            return_config=True,
             save_restore_connector=save_restore_connector,
         )
         model = load_from_nemo(MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(
-            MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config
-        )
+        model = load_from_checkpoint_dir(MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     trainer.fit(model)
 
 
