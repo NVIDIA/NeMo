@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
 from nemo.core import Dataset
+from nemo.utils import logging
 
 
 class T5Dataset(Dataset):
@@ -57,6 +58,7 @@ class T5Dataset(Dataset):
         respect_document_boundaries=True,
         documents=None,
         skip_masking_id=None,
+        sentinel_tokens=None,
     ):
         super().__init__()
         # Params to store.
@@ -74,6 +76,7 @@ class T5Dataset(Dataset):
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
         self.skip_masking_id = skip_masking_id
+        self.sentinel_tokens = sentinel_tokens
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
@@ -137,8 +140,13 @@ class T5Dataset(Dataset):
         """
         Class-specific build method to be overridden by child classes.
         """
-        self.sentinel_tokens = self.tokenizer.additional_special_tokens_ids
-        assert len(self.sentinel_tokens) > 0
+        if self.sentinel_tokens is None:
+            logging.info(f"Using tokenizer's additional_special_tokens_ids as sentinel tokens.")
+            self.sentinel_tokens = self.tokenizer.additional_special_tokens_ids
+            assert len(self.sentinel_tokens) > 0
+        else:
+            logging.info(f"Using provided {len(self.sentinel_tokens)} sentinel tokens.")
+            assert len(self.sentinel_tokens) > 0
 
     def __len__(self):
         if self.respect_document_boundaries:

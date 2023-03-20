@@ -605,6 +605,7 @@ def get_dataset(
     favor_long_ngrams=False,
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
     respect_document_boundaries=True,
+    sentinel_tokens=None,
     **kwargs,
 ):
 
@@ -650,6 +651,7 @@ def get_dataset(
             favor_long_ngrams=favor_long_ngrams,
             documents=documents,
             respect_document_boundaries=respect_document_boundaries,
+            sentinel_tokens=sentinel_tokens,
             **kwargs,
         )
     elif dataset_type == DSET_TYPE_BERT:
@@ -750,6 +752,7 @@ def get_dataset(
             },
             respect_document_boundaries=respect_document_boundaries,
             documents=documents,
+            sentinel_tokens=sentinel_tokens,
             **kwargs,
         )
     elif dataset_type == DSET_TYPE_UGPT:
@@ -803,7 +806,8 @@ def get_dataset(
             },
             respect_document_boundaries=False,
             documents=documents,
-            use_prefix_noncausal_mask=cfg.data.get("attn_mask_type", "padding") == "padding",
+            use_prefix_noncausal_mask=cfg.get("attn_mask_type", "causal") == "padding",
+            sentinel_tokens=sentinel_tokens,
             **kwargs,
         )
     else:
@@ -928,6 +932,7 @@ def build_train_valid_test_datasets(
     delete_mask_prob=0,
     respect_document_boundaries=True,
     data_impl_kwargs={},
+    sentinel_tokens=None
 ):
     # for VSC and text memmap we need to provide a tokenizer, if not given
     if data_impl in ["text_mmap", "csv_mmap"]:
@@ -978,6 +983,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
+            sentinel_tokens=sentinel_tokens
         )
         validation_ds = build_dataset(
             cfg,
@@ -1004,6 +1010,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
+            sentinel_tokens=sentinel_tokens
         )
         test_ds = build_dataset(
             cfg,
@@ -1030,6 +1037,7 @@ def build_train_valid_test_datasets(
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
+            sentinel_tokens=sentinel_tokens
         )
         return train_ds, validation_ds, test_ds
 
@@ -1061,6 +1069,7 @@ def build_train_valid_test_datasets(
                 delete_mask_prob=delete_mask_prob,
                 respect_document_boundaries=respect_document_boundaries,
                 data_impl_kwargs=data_impl_kwargs,
+                sentinel_tokens=sentinel_tokens
             )
         # Blending dataset.
         # Parse the values.
@@ -1098,6 +1107,7 @@ def build_train_valid_test_datasets(
                 delete_mask_prob=delete_mask_prob,
                 respect_document_boundaries=respect_document_boundaries,
                 data_impl_kwargs=data_impl_kwargs,
+                sentinel_tokens=sentinel_tokens
             )
             if train_ds:
                 train_datasets.append(train_ds)
@@ -1145,6 +1155,7 @@ def _build_train_valid_test_datasets(
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
     respect_document_boundaries=True,
     data_impl_kwargs={},
+    sentinel_tokens=None
 ):
 
     # Indexed dataset.
@@ -1230,6 +1241,7 @@ def _build_train_valid_test_datasets(
                 favor_long_ngrams,
                 delete_mask_prob,
                 respect_document_boundaries,
+                sentinel_tokens,
                 **kwargs,
             )
 

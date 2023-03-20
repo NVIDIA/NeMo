@@ -58,7 +58,7 @@ class UL2Dataset(T5Dataset):
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
         permutation=False,
-        whole_word_masking=True,
+        whole_word_masking=False,
         favor_long_ngrams=False,
         respect_document_boundaries=True,
         documents=None,
@@ -70,6 +70,7 @@ class UL2Dataset(T5Dataset):
             'x-masking-longspan-largeprob': 0.11, # Extreme span masking with large probabilities and small ngram sizes.
             'x-masking-shortspan-largeprob': 0.11, # Extreme span masking with large probabilities and small ngram sizes.
         },
+        sentinel_tokens=None
     ):
         """ Args:
         cfg: Omegaconf config object.
@@ -101,6 +102,7 @@ class UL2Dataset(T5Dataset):
         respect_document_boundaries: Whether to respect document boundaries when constructing a single training example. If True will pad the document to max_seq_length.
         documents: np.arange of document indices to indicate the number of documents in the dataset.
         skip_masking_id: Token ID that will never be masked. Typically used to prevent masking the end-of-document token with respect_document_boundaries=False.
+        sentinel_tokens: A list of Token IDs that correspond to mask tokens. If None, will add tokens to the tokenizer automatically.
         """
         super().__init__(
             cfg=cfg,
@@ -120,11 +122,12 @@ class UL2Dataset(T5Dataset):
             mean_ngram_size=None,  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
             geometric_dist=ngram_span_length_distribution == LengthDistribution.geometric,
             permutation=permutation,
-            whole_word_masking=whole_word_masking,
+            whole_word_masking=False,
             favor_long_ngrams=favor_long_ngrams,
             respect_document_boundaries=respect_document_boundaries,
             documents=documents,
             skip_masking_id=tokenizer.eos_id if skip_masking_id is None else skip_masking_id,
+            sentinel_tokens=sentinel_tokens
         )
         self.mean_ngram_size = mean_ngram_size
         self.min_ngram_size = min_ngram_size
@@ -571,7 +574,7 @@ class UGPTDataset(UL2Dataset):
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
         permutation=False,
-        whole_word_masking=True,
+        whole_word_masking=False,
         favor_long_ngrams=False,
         respect_document_boundaries=False,
         documents=None,
@@ -584,6 +587,7 @@ class UGPTDataset(UL2Dataset):
             'x-masking-shortspan-largeprob': 0.11, # Extreme span masking with large probabilities and small ngram sizes.
         },
         use_prefix_noncausal_mask=True,
+        sentinel_tokens=None,
     ):
         """ Args:
         cfg: Omegaconf config object.
@@ -615,8 +619,9 @@ class UGPTDataset(UL2Dataset):
         respect_document_boundaries: Whether to respect document boundaries when constructing a single training example. If True will pad the document to max_seq_length.
         documents: np.arange of document indices to indicate the number of documents in the dataset.
         skip_masking_id: Token ID that will never be masked. Typically used to prevent masking the end-of-document token with respect_document_boundaries=False.
-        use_prefix_noncausal_mask: Whether to use a non-causal mask over the prefix for all masking types."""
-        
+        use_prefix_noncausal_mask: Whether to use a non-causal mask over the prefix for all masking types.
+        sentinel_tokens: A list of Token IDs that correspond to mask tokens. If None, will add tokens to the tokenizer automatically."""
+
         super().__init__(
             cfg=cfg,
             trainer=trainer,
@@ -648,14 +653,16 @@ class UGPTDataset(UL2Dataset):
             extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,
             skip_masking_id=tokenizer.eos_id if skip_masking_id is None else skip_masking_id,
             sampling_probabilities=sampling_probabilities,
+            sentinel_tokens=sentinel_tokens,
         )
         self.use_prefix_noncausal_mask = use_prefix_noncausal_mask
 
     def __getitem__(self, idx):
         example = super().__getitem__(idx, decoder_only=True)
-        assert (example['text_enc'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in encoder input.'
-        assert (example['text_dec'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in decoder input.'
-        assert (example['labels'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in labels.'
+        if not self.respect_document_boundaries:
+            assert (example['text_enc'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in encoder input.'
+            assert (example['text_dec'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in decoder input.'
+            assert (example['labels'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in labels.'
         # Adapt the example to the UGPT format.
         tokens = np.concatenate([example['text_enc'], example['labels']])
         assert len(tokens) <= self.max_seq_length, f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length}'

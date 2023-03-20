@@ -156,6 +156,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         dataset_type="t5",
         add_sentinel_tokens_in_reverse_order=False,
         add_sentinel_tokens_first=False,
+        add_base_tokens=True
     ):
         # T5-related construction
         if tokenizer_cfg.library == 'huggingface' or tokenizer_cfg.library == 'megatron':
@@ -179,9 +180,11 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                     cls._add_sentinel_tokens(
                         tokenizer, tokenizer_cfg.num_sentinel_tokens, add_sentinel_tokens_in_reverse_order
                     )
-                cls._add_base_special_tokens(tokenizer, is_huggingface_converted_model=True)
+                if add_base_tokens:
+                    cls._add_base_special_tokens(tokenizer, is_huggingface_converted_model=True)
             else:
-                cls._add_base_special_tokens(tokenizer, is_huggingface_converted_model=False)
+                if add_base_tokens:
+                    cls._add_base_special_tokens(tokenizer, is_huggingface_converted_model=False)
                 if tokenizer_cfg.get('num_sentinel_tokens', 0) > 0:
                     cls._add_sentinel_tokens(
                         tokenizer, tokenizer_cfg.num_sentinel_tokens, add_sentinel_tokens_in_reverse_order
