@@ -1,6 +1,13 @@
 """finetune a Fastpitch model on a new dataset
 
-example usage: TODO
+example usage:
+
+python finetune_fastpitch.py \
+    --train_dataset_path 'data/NickyData/clean_train_manifest.json' \
+    --validation_dataset_path 'data/NickyData/validation_manifest.json' \
+    --sup_data_path 'data/NickyData/train_data_cache' \
+    --dest './nicky_model'
+
 """
 
 import yaml
@@ -8,7 +15,7 @@ from omegaconf import OmegaConf
 from hydra.utils import instantiate
 import torch
 from tqdm import tqdm
-import json
+import argparse
 import subprocess
 
 
@@ -64,20 +71,36 @@ def get_pitch_stats(dataset_path, sup_data_path):
 
 
 if __name__ == '__main__':
-    train_dataset_path = 'data/nichole/train_manifest_0316.json'
-    validation_dataset_path = 'data/nichole/validation_manifest_0316.json'
-    sup_data_path = 'data/nichole/train_data_cache_2'
-    dest = './nichole_model'
-    train_dataset_path = 'data/NickyData/clean_train_manifest.json'
-    validation_dataset_path = 'data/NickyData/validation_manifest.json'
-    sup_data_path = 'data/NickyData/train_data_cache'
-    dest = './nicky_model'
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--train_dataset_path', type=str, required=True,
+        help='A path to class "module.submodule.class" (if given)',
+    )
+    parser.add_argument(
+        '--validation_dataset_path', type=str, required=True,
+        help='A path to class "module.submodule.class" (if given)',
+    )
+    parser.add_argument(
+        '--sup_data_path', type=str, required=True,
+        help='A path to class "module.submodule.class" (if given)',
+    )
+    parser.add_argument(
+        '--dest', type=str, required=True,
+        help='A path to class "module.submodule.class" (if given)',
+    )
+    args = parser.parse_args()
+
+    train_dataset_path = args.train_dataset_path
+    validation_dataset_path = args.validation_dataset_path
+    sup_data_path = args.sup_data_path
+    dest = args.dest
 
     pitch_mean, pitch_std, pitch_fmin, pitch_fmax, duration = get_pitch_stats(
         train_dataset_path, sup_data_path)
 
+    print('pitch_mean, pitch_std, pitch_fmin, pitch_fmax')
     print(pitch_mean, pitch_std, pitch_fmin, pitch_fmax)
-    print(duration / 60)
+    print(f'total duration of training data (mins): {duration / 60}')
     # 1000 - steps per minute of audio
     max_steps = (duration / 60) * 1000
 
