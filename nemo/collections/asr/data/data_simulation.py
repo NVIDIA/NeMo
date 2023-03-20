@@ -960,6 +960,34 @@ class MultiSpeakerSimulator(object):
         sess_silence_len = int(total_silence_in_secs * self._params.data_simulator.sr)
         return sess_speech_len, sess_silence_len
 
+    def _add_sentence_to_array(
+        self, 
+        start: int, 
+        length: int, 
+        array: torch.Tensor, 
+        is_speech: torch.Tensor
+        ) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        """
+        Add a sentence to the session array containing time-series signal.
+
+        Args:
+            start (int): Starting position in the session
+            length (int): Length of the sentence
+            array (torch.Tensor): Session array
+            is_speech (torch.Tensor): Session array containing speech/non-speech labels
+
+        Returns:
+            array (torch.Tensor): Session array in torch.Tensor format
+            is_speech (torch.Tensor): Session array containing speech/non-speech labels in torch.Tensor format
+        """
+        end = start + length
+        if end > len(array):  # only occurs in enforce mode
+            array = torch.nn.functional.pad(array, (0, end - len(array)))
+            is_speech = torch.nn.functional.pad(is_speech, (0, end - len(is_speech)))
+        array[start:end] += self._sentence
+        is_speech[start:end] = 1
+        return array, is_speech, end
+
     def _generate_session(
         self,
         idx: int,
@@ -1042,52 +1070,52 @@ class MultiSpeakerSimulator(object):
 
             # Step 3: Generate a timestamp for either silence or overlap
             start = self._add_silence_or_overlap(
-                speaker_turn,
-                prev_speaker,
-                running_len_samples,
-                length,
-                session_len_samples,
-                prev_len_samples,
-                enforce,
+                speaker_turn=speaker_turn,
+                prev_speaker=prev_speaker,
+                start=running_len_samples,
+                length=length,
+                session_len_samples=session_len_samples,
+                prev_len_samples=prev_len_samples,
+                enforce=enforce,
             )
 
             # Step 4: Add sentence to array
-            end = start + length
-            if end > len(array):  # only occurs in enforce mode
-                array = torch.nn.functional.pad(array, (0, end - len(array)))
-                is_speech = torch.nn.functional.pad(is_speech, (0, end - len(is_speech)))
-            array[start:end] += self._sentence
-            is_speech[start:end] = 1
+            array, is_speech, end = self._add_sentence_to_array(
+                start=start,
+                length=length,
+                array=array,
+                is_speech=is_speech,
+            )
 
             # Step 5: Build entries for output files
             new_rttm_entries = self.annotator.create_new_rttm_entry(
-                self._words,
-                self._alignments,
-                start / self._params.data_simulator.sr,
-                end / self._params.data_simulator.sr,
-                speaker_ids[speaker_turn],
+                words=self._words,
+                alignments=self._alignments,
+                start=start / self._params.data_simulator.sr,
+                end=end / self._params.data_simulator.sr,
+                speaker_id=speaker_ids[speaker_turn],
             )
 
             for entry in new_rttm_entries:
                 rttm_list.append(entry)
-
+            
             new_json_entry = self.annotator.create_new_json_entry(
-                self._text,
-                os.path.join(basepath, filename + '.wav'),
-                start / self._params.data_simulator.sr,
-                length / self._params.data_simulator.sr,
-                speaker_ids[speaker_turn],
-                os.path.join(basepath, filename + '.rttm'),
-                os.path.join(basepath, filename + '.ctm'),
+                text=self._text,
+                wav_filename=os.path.join(basepath, filename + '.wav'),
+                start=start / self._params.data_simulator.sr,
+                length=length / self._params.data_simulator.sr,
+                speaker_id=speaker_ids[speaker_turn],
+                rttm_filepath=os.path.join(basepath, filename + '.rttm'),
+                ctm_filepath=os.path.join(basepath, filename + '.ctm'),
             )
             json_list.append(new_json_entry)
 
             new_ctm_entries = self.annotator.create_new_ctm_entry(
-                self._words,
-                self._alignments,
-                filename,
-                speaker_ids[speaker_turn],
-                start / self._params.data_simulator.sr,
+                words=self._words,
+                alignments=self._alignments,
+                session_name=filename,
+                speaker_id=speaker_ids[speaker_turn],
+                start=int(start / self._params.data_simulator.sr),
             )
             for entry in new_ctm_entries:
                 ctm_list.append(entry)
@@ -1562,13 +1590,13 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
             # Step 2: Generate a time-stamp for either silence or overlap
             start = self._add_silence_or_overlap(
-                speaker_turn,
-                prev_speaker,
-                running_len_samples,
-                length,
-                session_len_samples,
-                prev_len_samples,
-                enforce,
+                speaker_turn=speaker_turn,
+                prev_speaker=prev_speaker,
+                start=running_len_samples,
+                length=length,
+                session_len_samples=session_len_samples,
+                prev_len_samples=prev_len_samples,
+                enforce=enforce,
             )
             end = start + length
             if end > len(array):

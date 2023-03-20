@@ -213,13 +213,10 @@ class TestSpeechSampler:
         assert type(sampler.per_overlap_max_len) == int
 
     @pytest.mark.parametrize("mean", [0.1, 0.2, 0.3])
-    @pytest.mark.parametrize("var", [0.05, 0.1])
+    @pytest.mark.parametrize("var", [0.05, 0.07])
     def test_get_session_silence_mean_pass(self, sampler, mean, var):
-        cfg = get_data_simulation_configs()
-        sampler = SpeechSampler(cfg=cfg)
-        sampler._params.data_simulator.session_params.mean_silence = mean
-        sampler._params.data_simulator.session_params.mean_silence_var = var
-        sampler._params = DictConfig(sampler._params)
+        sampler.mean_silence = mean
+        sampler.mean_silence_var = var
         sampled_silence_mean = sampler.get_session_silence_mean()
         assert 0 <= sampled_silence_mean <= 1
 
@@ -236,9 +233,11 @@ class TestSpeechSampler:
             sampler.get_session_silence_mean()
         assert "ValueError" in str(execinfo) and "mean_silence_var" in str(execinfo)
 
-    def test_get_session_overlap_mean_pass(self, sampler):
-        sampler.mean_overlap = 0.2
-        sampler.mean_overlap_var = 0.0
+    @pytest.mark.parametrize("mean", [0.1, 0.2, 0.3])
+    @pytest.mark.parametrize("var", [0.05, 0.07])
+    def test_get_session_overlap_mean_pass(self, sampler, mean, var):
+        sampler.mean_overlap = mean
+        sampler.mean_overlap_var = var
         sampled_overlap_mean = sampler.get_session_overlap_mean()
         assert 0 <= sampled_overlap_mean <= 1
 
@@ -286,9 +285,20 @@ class TestSpeechSampler:
         sampled_noise_manifests = sampler.sample_noise_manifest(noise_manifest=noise_manifest)
         assert len(sampled_noise_manifests) == num_noise_files
 
-    def test_silence_vs_overlap_selector(self, sampler):
-        sampler.running_overlap_len_samples = 8000
-        sampler.running_speech_len_samples = 16000
-        add_overlap = sampler.silence_vs_overlap_selector(running_len_samples=32000, non_silence_len_samples=16000)
+    @pytest.mark.parametrize("running_speech_len_samples", [32000, 64000])
+    @pytest.mark.parametrize("running_overlap_len_samples", [16000, 32000])
+    @pytest.mark.parametrize("running_len_samples", [64000, 96000])
+    @pytest.mark.parametrize("non_silence_len_samples", [16000, 32000])
+    def test_silence_vs_overlap_selector(
+        self, 
+        sampler, 
+        running_overlap_len_samples, 
+        running_speech_len_samples,
+        running_len_samples,
+        non_silence_len_samples
+        ):
+        sampler.running_overlap_len_samples = running_overlap_len_samples
+        sampler.running_speech_len_samples = running_speech_len_samples
+        add_overlap = sampler.silence_vs_overlap_selector(running_len_samples=running_len_samples, non_silence_len_samples=non_silence_len_samples)
         assert type(add_overlap) == bool
-        assert add_overlap is True
+

@@ -77,7 +77,7 @@ def binary_search_alignments(
     Returns:
         offset_max (int) Index of the alignment that satisfies the maximum audio read duration
     """
-    # Start from the left end (0)../../nemo/collections/asr/parts/utils/data_simulation_utils.py and -1 * min_alignment_count for the right end
+    # Start from the left end (at index 0) and -1 * min_alignment_count for the right end
     left, right = 0, len(inds) - 1 - min_alignment_count
     while left < right:
         mid = left + (right - left) // 2
