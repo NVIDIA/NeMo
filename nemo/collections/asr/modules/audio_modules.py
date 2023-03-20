@@ -251,14 +251,14 @@ class MaskEstimatorRNN(NeuralModule):
         else:
             raise ValueError(f'Unknown rnn_type: {rnn_type}')
 
+        self.fc = torch.nn.Linear(
+            in_features=2 * num_features if bidirectional else num_features, out_features=num_features
+        )
+        self.norm = torch.nn.LayerNorm(num_features)
+
         # Each output shares the RNN and has a separate projection
         self.output_projections = torch.nn.ModuleList(
-            [
-                torch.nn.Linear(
-                    in_features=2 * num_features if bidirectional else num_features, out_features=num_subbands
-                )
-                for _ in range(num_outputs)
-            ]
+            [torch.nn.Linear(in_features=num_features, out_features=num_subbands) for _ in range(num_outputs)]
         )
         self.output_nonlinearity = torch.nn.Sigmoid()
 
@@ -310,14 +310,17 @@ class MaskEstimatorRNN(NeuralModule):
         ).to(input.device)
         self.rnn.flatten_parameters()
         input_packed, _ = self.rnn(input_packed)
-        input, input_length = torch.nn.utils.rnn.pad_packed_sequence(input_packed, batch_first=True)
-        input_length = input_length.to(input.device)
+        output, output_length = torch.nn.utils.rnn.pad_packed_sequence(input_packed, batch_first=True)
+        output_length = output_length.to(input.device)
+
+        # Layer normalization and skip connection
+        output = self.norm(self.fc(output)) + input
 
         # Create `num_outputs` masks
-        output = []
+        masks = []
         for output_projection in self.output_projections:
             # Output projection
-            mask = output_projection(input)
+            mask = output_projection(output)
             mask = self.output_nonlinearity(mask)
 
             # Back to the original format
@@ -325,18 +328,18 @@ class MaskEstimatorRNN(NeuralModule):
             mask = mask.transpose(2, 1)
 
             # Append to the output
-            output.append(mask)
+            masks.append(mask)
 
         # Stack along channel dimension to get (B, M, F, N)
-        output = torch.stack(output, axis=1)
+        masks = torch.stack(masks, axis=1)
 
-        # Mask frames beyond input length
+        # Mask frames beyond output length
         length_mask: torch.Tensor = make_seq_mask_like(
-            lengths=input_length, like=output, time_dim=-1, valid_ones=False
+            lengths=output_length, like=masks, time_dim=-1, valid_ones=False
         )
-        output = output.masked_fill(length_mask, 0.0)
+        masks = masks.masked_fill(length_mask, 0.0)
 
-        return output, input_length
+        return masks, output_length
 
 
 class MaskReferenceChannel(NeuralModule):

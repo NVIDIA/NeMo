@@ -316,7 +316,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             "input_signal": NeuralType(
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
-            "input_length": NeuralType(tuple('B'), LengthsType()),
+            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -325,7 +325,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             "output_signal": NeuralType(
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
-            "output_length": NeuralType(tuple('B'), LengthsType()),
+            "output_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def match_batch_length(self, input: torch.Tensor, batch_length: int):
@@ -346,7 +346,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         return torch.nn.functional.pad(input, pad, 'constant', 0)
 
     @typecheck()
-    def forward(self, input_signal, input_length):
+    def forward(self, input_signal, input_length=None):
         """
         Forward pass of the model.
 
