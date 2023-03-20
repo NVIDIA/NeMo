@@ -61,10 +61,7 @@ def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str
 
 
 def binary_search_alignments(
-    inds: List[int], 
-    max_audio_read_sec: float, 
-    min_alignment_count: int, 
-    alignments: List[float],
+    inds: List[int], max_audio_read_sec: float, min_alignment_count: int, alignments: List[float],
 ) -> int:
     """
     Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
@@ -93,7 +90,7 @@ def binary_search_alignments(
             break
     mid_out = left + (right - left) // 2
     # If mid_out is on the boundary, move it to the left.
-    if  alignments[-1 * min_alignment_count] - alignments[inds[mid_out]] < max_audio_read_sec:
+    if alignments[-1 * min_alignment_count] - alignments[inds[mid_out]] < max_audio_read_sec:
         mid_out -= 1
     offset_max = max(mid_out, 1)
     return offset_max
@@ -279,10 +276,7 @@ def get_scaled_audio_signal(
 
 
 def get_desired_avg_power_noise(
-    power_array: float, 
-    snr_min: float, 
-    snr_max: float, 
-    background_noise_snr: float,
+    power_array: float, snr_min: float, snr_max: float, background_noise_snr: float,
 ):
     """
     Calculate the desired average power of the noise.
@@ -601,11 +595,7 @@ def get_split_points_in_alignments(
 
 
 def per_speaker_normalize(
-    sentence_audio: torch.Tensor, 
-    splits: List[List[int]], 
-    speaker_turn: int, 
-    volume: List[float], 
-    device: torch.device
+    sentence_audio: torch.Tensor, splits: List[List[int]], speaker_turn: int, volume: List[float], device: torch.device
 ) -> torch.Tensor:
     """
     Normalize time-series audio signal per speaker.
@@ -659,12 +649,7 @@ class DataAnnotator(object):
         self._init_file_write()
 
     def create_new_rttm_entry(
-        self, 
-        words: List[str], 
-        alignments: List[float], 
-        start: int, 
-        end: int, 
-        speaker_id: int
+        self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
     ) -> List[str]:
 
         """
@@ -741,12 +726,7 @@ class DataAnnotator(object):
         return meta
 
     def create_new_ctm_entry(
-        self, 
-        words: List[str], 
-        alignments: List[float], 
-        session_name: str, 
-        speaker_id: int, 
-        start: int
+        self, words: List[str], alignments: List[float], session_name: str, speaker_id: int, start: int
     ) -> List[str]:
         """
         Create new CTM entry (to write to output ctm file)
@@ -919,7 +899,7 @@ class SpeechSampler(object):
 
         self.mean_overlap = float(self._params.data_simulator.session_params.mean_overlap)
         self.mean_overlap_var = float(self._params.data_simulator.session_params.mean_overlap_var)
-        
+
         self.mean_silence = float(self._params.data_simulator.session_params.mean_silence)
         self.mean_silence_var = float(self._params.data_simulator.session_params.mean_silence_var)
 
@@ -942,7 +922,6 @@ class SpeechSampler(object):
         a = mean ** 2 * (1 - mean) / var - mean
         b = mean * (1 - mean) ** 2 / var - (1 - mean)
         return a, b
-
 
     def _init_silence_params(self):
         """
@@ -1084,7 +1063,11 @@ class SpeechSampler(object):
         if silence_mean > 0:
             self.per_silence_var = self._params.data_simulator.session_params.per_silence_var
             silence_amount = (
-                int(gamma(a=(silence_mean ** 2) / self.per_silence_var, scale=self.per_silence_var / silence_mean).rvs())
+                int(
+                    gamma(
+                        a=(silence_mean ** 2) / self.per_silence_var, scale=self.per_silence_var / silence_mean
+                    ).rvs()
+                )
                 if self.per_silence_var > 0
                 else int(silence_mean)
             )
