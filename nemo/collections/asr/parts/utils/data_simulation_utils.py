@@ -193,7 +193,9 @@ def read_audio_from_buffer(
     return audio_file, sr, audio_manifest
 
 
-def perturb_audio(audio: torch.Tensor, sr: int, augmentor: Optional[AudioAugmentor] = None, device: Optional[torch.device] = None) -> torch.Tensor:
+def perturb_audio(
+    audio: torch.Tensor, sr: int, augmentor: Optional[AudioAugmentor] = None, device: Optional[torch.device] = None
+) -> torch.Tensor:
 
     """
     Perturb the audio (segment or session) using audio augmentor.
