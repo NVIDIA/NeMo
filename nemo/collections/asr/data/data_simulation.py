@@ -158,7 +158,9 @@ class MultiSpeakerSimulator(object):
     background_noise: 
       add_bg (bool): Add ambient background noise if true
       background_manifest (str): Path to background noise manifest file
-      snr (int): SNR for background noise (using average speaker power)
+      snr (int): SNR for background noise (using average speaker power), set `snr_min` and `snr_max` values to enable random SNR
+      snr_min (int):  Min random SNR for background noise (using average speaker power), set `null` to use fixed SNR
+      snr_max (int):  Max random SNR for background noise (using average speaker power), set `null` to use fixed SNR
     
     add_seg_aug (bool): False  # set True to enable augmentation on each speech segment
     segment_augmentor:
