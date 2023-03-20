@@ -1647,7 +1647,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         if torch.is_tensor(array):
             array = array.cpu().numpy()
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
-        
+
         self.annotator.write_annotation_files(
             basepath=basepath,
             filename=filename,
@@ -1656,7 +1656,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             json_list=json_list,
             ctm_list=ctm_list,
         )
-        
+
         del array
         self.clean_up()
         return basepath, filename

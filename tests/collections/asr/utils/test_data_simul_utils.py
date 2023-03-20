@@ -21,18 +21,17 @@ import numpy as np
 import pytest
 import scipy
 import torch
-
-from omegaconf import OmegaConf, DictConfig
-
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
-    read_noise_manifest,
     binary_search_alignments,
     get_random_offset_index,
     normalize_audio,
+    read_noise_manifest,
 )
+
 
 @pytest.fixture()
 def annotator():
@@ -40,96 +39,75 @@ def annotator():
     annotator = DataAnnotator(cfg)
     return annotator
 
+
 @pytest.fixture()
 def sampler():
     cfg = get_data_simulation_configs()
     sampler = SpeechSampler(cfg)
     return sampler
 
+
 def get_data_simulation_configs():
     config_dict = {
-    'data_simulator': {
-        'manifest_filepath': '???',
-        'sr': 16000,
-        'random_seed': 42,
-        'multiprocessing_chunksize': 10000,
-        'session_config': {
-            'num_speakers': 4,
-            'num_sessions': 60,
-            'session_length': 600
-        },
-        'session_params': {
-            'max_audio_read_sec': 20,
-            'sentence_length_params': [0.4, 0.05],
-            'dominance_var': 0.11,
-            'min_dominance': 0.05,
-            'turn_prob': 0.875,
-            'min_turn_prob': 0.5,
-            'mean_silence': 0.15,
-            'mean_silence_var': 0.01,
-            'per_silence_var': 900,
-            'per_silence_min': 0.0,
-            'per_silence_max': -1,
-            'mean_overlap': 0.1,
-            'mean_overlap_var': 0.01,
-            'per_overlap_var': 900,
-            'per_overlap_min': 0.0,
-            'per_overlap_max': -1,
-            'start_window': True,
-            'window_type': 'hamming',
-            'window_size': 0.05,
-            'start_buffer': 0.1,
-            'split_buffer': 0.1,
-            'release_buffer': 0.1,
-            'normalize': True,
-            'normalization_type': 'equal',
-            'normalization_var': 0.1,
-            'min_volume': 0.75,
-            'max_volume': 1.25,
-            'end_buffer': 0.5
-        },
-        'outputs': {
-            'output_dir': '???',
-            'output_filename': 'multispeaker_session',
-            'overwrite_output': True,
-            'output_precision': 3
-        },
-        'background_noise': {
-            'add_bg': False,
-            'background_manifest': None,
-            'num_noise_files': 10,
-            'snr': 60,
-            'snr_min': None
-        },
-        'add_seg_aug': False,
-        'segment_augmentor': {
-            'gain': {
-                'prob': 0.5,
-                'min_gain_dbfs': -10.0,
-                'max_gain_dbfs': 10.0
-            }
-        },
-        'add_sess_aug': False,
-        'session_augmentor': {
-            'white_noise': {
-                'prob': 1.0,
-                'min_level': -90,
-                'max_level': -46
-            }
-        },
-        'speaker_enforcement': {
-            'enforce_num_speakers': True,
-            'enforce_time': [0.25, 0.75]
-        },
-        'segment_manifest': {
-            'window': 0.5,
-            'shift': 0.25,
-            'step_count': 50,
-            'deci': 3
-        }
+        'data_simulator': {
+            'manifest_filepath': '???',
+            'sr': 16000,
+            'random_seed': 42,
+            'multiprocessing_chunksize': 10000,
+            'session_config': {'num_speakers': 4, 'num_sessions': 60, 'session_length': 600},
+            'session_params': {
+                'max_audio_read_sec': 20,
+                'sentence_length_params': [0.4, 0.05],
+                'dominance_var': 0.11,
+                'min_dominance': 0.05,
+                'turn_prob': 0.875,
+                'min_turn_prob': 0.5,
+                'mean_silence': 0.15,
+                'mean_silence_var': 0.01,
+                'per_silence_var': 900,
+                'per_silence_min': 0.0,
+                'per_silence_max': -1,
+                'mean_overlap': 0.1,
+                'mean_overlap_var': 0.01,
+                'per_overlap_var': 900,
+                'per_overlap_min': 0.0,
+                'per_overlap_max': -1,
+                'start_window': True,
+                'window_type': 'hamming',
+                'window_size': 0.05,
+                'start_buffer': 0.1,
+                'split_buffer': 0.1,
+                'release_buffer': 0.1,
+                'normalize': True,
+                'normalization_type': 'equal',
+                'normalization_var': 0.1,
+                'min_volume': 0.75,
+                'max_volume': 1.25,
+                'end_buffer': 0.5,
+            },
+            'outputs': {
+                'output_dir': '???',
+                'output_filename': 'multispeaker_session',
+                'overwrite_output': True,
+                'output_precision': 3,
+            },
+            'background_noise': {
+                'add_bg': False,
+                'background_manifest': None,
+                'num_noise_files': 10,
+                'snr': 60,
+                'snr_min': None,
+            },
+            'add_seg_aug': False,
+            'segment_augmentor': {'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0}},
+            'add_sess_aug': False,
+            'session_augmentor': {'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46}},
+            'speaker_enforcement': {'enforce_num_speakers': True, 'enforce_time': [0.25, 0.75]},
+            'segment_manifest': {'window': 0.5, 'shift': 0.25, 'step_count': 50, 'deci': 3},
         }
     }
     return DictConfig(config_dict)
+
 
 def generate_words_and_alignments(sample_index):
     if sample_index == 0:
@@ -143,6 +121,7 @@ def generate_words_and_alignments(sample_index):
     speaker_id = 'speaker_0'
     return words, alignments, speaker_id
 
+
 class TestDataSimulatorUtils:
     # TODO: add tests for all util functions
     @pytest.mark.parametrize("max_audio_read_sec", [2.5, 3.5, 4.5])
@@ -151,9 +130,9 @@ class TestDataSimulatorUtils:
         inds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
         alignments = [0.5, 11.0, 11.5, 12.0, 13.0, 14.0, 14.5, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 30, 40.0]
         offset_max = binary_search_alignments(inds, max_audio_read_sec, min_alignment_count, alignments)
-        assert max_audio_read_sec <= alignments[-1* min_alignment_count] - alignments[inds[offset_max]] 
-    
-    @pytest.mark.parametrize("sample_len", [100, 16000]) 
+        assert max_audio_read_sec <= alignments[-1 * min_alignment_count] - alignments[inds[offset_max]]
+
+    @pytest.mark.parametrize("sample_len", [100, 16000])
     @pytest.mark.parametrize("gain", [0.1, 0.5, 1.0, 2.0, 5.0])
     def test_normalize_audio(self, sample_len, gain):
         array_raw = np.random.randn(sample_len)
@@ -161,6 +140,7 @@ class TestDataSimulatorUtils:
         norm_array = normalize_audio(array_input)
         assert torch.max(torch.abs(norm_array)) == 1.0
         assert torch.min(torch.abs(norm_array)) < 1.0
+
 
 class TestDataAnnotator:
     """
@@ -177,13 +157,16 @@ class TestDataAnnotator:
         'write_annotation_files', 
         'write_files'
     """
+
     def test_init(self, annotator):
         assert isinstance(annotator, DataAnnotator)
 
     def test_create_new_rttm_entry(self, annotator):
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
         start, end = alignments[0], alignments[-1]
-        rttm_list = annotator.create_new_rttm_entry(words=words, alignments=alignments, start=start, end=end, speaker_id=speaker_id)
+        rttm_list = annotator.create_new_rttm_entry(
+            words=words, alignments=alignments, start=start, end=end, speaker_id=speaker_id
+        )
         assert rttm_list[0] == f"{start} {end} {speaker_id}"
 
     def test_create_new_json_entry(self, annotator):
@@ -193,18 +176,18 @@ class TestDataAnnotator:
         test_rttm_filename = '/path/to/test_rttm_filename.rttm'
         test_ctm_filename = '/path/to/test_ctm_filename.ctm'
         text = " ".join(words)
-        
+
         one_line_json_dict = annotator.create_new_json_entry(
             text=text,
             wav_filename=test_wav_filename,
             start=start,
-            length=end-start,
+            length=end - start,
             speaker_id=speaker_id,
             rttm_filepath=test_rttm_filename,
             ctm_filepath=test_ctm_filename,
         )
         start = round(float(start), annotator._params.data_simulator.outputs.output_precision)
-        length = round(float(end-start), annotator._params.data_simulator.outputs.output_precision)
+        length = round(float(end - start), annotator._params.data_simulator.outputs.output_precision)
         meta = {
             "audio_filepath": test_wav_filename,
             "offset": start,
@@ -222,10 +205,18 @@ class TestDataAnnotator:
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
         start = alignments[0]
         session_name = 'test_session'
-        ctm_list = annotator.create_new_ctm_entry(words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=start)
-        assert ctm_list[0] == (alignments[1], f"{session_name} {speaker_id} {alignments[1]} {alignments[1]-alignments[0]} {words[1]} 0\n")
-        assert ctm_list[1] == (alignments[2], f"{session_name} {speaker_id} {alignments[2]} {alignments[2]-alignments[1]} {words[2]} 0\n")
-        
+        ctm_list = annotator.create_new_ctm_entry(
+            words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=start
+        )
+        assert ctm_list[0] == (
+            alignments[1],
+            f"{session_name} {speaker_id} {alignments[1]} {alignments[1]-alignments[0]} {words[1]} 0\n",
+        )
+        assert ctm_list[1] == (
+            alignments[2],
+            f"{session_name} {speaker_id} {alignments[2]} {alignments[2]-alignments[1]} {words[2]} 0\n",
+        )
+
 
 class TestSpeechSampler:
     def test_init(self, sampler):
@@ -244,7 +235,7 @@ class TestSpeechSampler:
         assert sampler.per_overlap_max_len is not None
         assert type(sampler.per_overlap_min_len) == int
         assert type(sampler.per_overlap_max_len) == int
-    
+
     @pytest.mark.parametrize("mean", [0.1, 0.2, 0.3])
     @pytest.mark.parametrize("var", [0.05, 0.1])
     def test_get_session_silence_mean_pass(self, sampler, mean, var):
@@ -255,7 +246,7 @@ class TestSpeechSampler:
         sampler._params = DictConfig(sampler._params)
         sampled_silence_mean = sampler.get_session_silence_mean()
         assert 0 <= sampled_silence_mean <= 1
-        
+
     @pytest.mark.parametrize("mean", [0.5])
     @pytest.mark.parametrize("var", [0.5, 0.6])
     def test_get_session_silence_mean_fail(self, sampler, mean, var):
@@ -274,7 +265,7 @@ class TestSpeechSampler:
         sampler.mean_overlap_var = 0.0
         sampled_overlap_mean = sampler.get_session_overlap_mean()
         assert 0 <= sampled_overlap_mean <= 1
-    
+
     @pytest.mark.parametrize("mean", [0.4, 0.5])
     @pytest.mark.parametrize("var", [0.3, 0.8])
     def test_get_session_overlap_mean_fail(self, sampler, mean, var):
@@ -295,19 +286,23 @@ class TestSpeechSampler:
         sampler.running_overlap_len_samples = running_overlap_len_samples
         overlap_amount = sampler.sample_from_overlap_model(non_silence_len_samples=non_silence_len_samples)
         assert type(overlap_amount) == int
-        assert 0 <= overlap_amount 
-    
+        assert 0 <= overlap_amount
+
     @pytest.mark.parametrize("running_len_samples", [8000, 16000])
     @pytest.mark.parametrize("session_len_samples", [16000, 32000])
     @pytest.mark.parametrize("running_overlap_len_samples", [8000, 12000])
-    def test_sample_from_silence_model(self, sampler, running_len_samples, session_len_samples, running_overlap_len_samples):
+    def test_sample_from_silence_model(
+        self, sampler, running_len_samples, session_len_samples, running_overlap_len_samples
+    ):
         self.running_overlap_len_samples = running_overlap_len_samples
-        silence_amount = sampler.sample_from_silence_model(running_len_samples=running_len_samples, session_len_samples=session_len_samples)
+        silence_amount = sampler.sample_from_silence_model(
+            running_len_samples=running_len_samples, session_len_samples=session_len_samples
+        )
         assert type(silence_amount) == int
-        assert 0 <= silence_amount 
+        assert 0 <= silence_amount
 
     @pytest.mark.with_downloads()
-    @pytest.mark.parametrize("num_noise_files", [1,2,4])
+    @pytest.mark.parametrize("num_noise_files", [1, 2, 4])
     def test_sample_noise_manifest(self, sampler, num_noise_files, test_data_dir):
         sampler.num_noise_files = num_noise_files
         print("test_data_dir: ", test_data_dir)
