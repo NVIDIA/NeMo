@@ -38,6 +38,7 @@ def sampler():
     cfg = get_data_simulation_configs()
     return SpeechSampler(cfg)
 
+
 def get_data_simulation_configs():
     config_dict = {
         'data_simulator': {
