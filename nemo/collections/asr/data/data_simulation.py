@@ -51,11 +51,10 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     read_audio_from_buffer,
     read_noise_manifest,
 )
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, write_text
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_overlap_range,
     is_overlap,
-    labels_to_rttmfile,
     merge_float_intervals,
 )
 from nemo.utils import logging

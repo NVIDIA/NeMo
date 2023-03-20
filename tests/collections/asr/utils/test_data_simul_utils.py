@@ -13,21 +13,15 @@
 # limitations under the License.
 
 import os
-from typing import List, Type, Union
-
-import librosa
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-import scipy
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
     binary_search_alignments,
-    get_random_offset_index,
     normalize_audio,
     read_noise_manifest,
 )
@@ -36,16 +30,13 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
 @pytest.fixture()
 def annotator():
     cfg = get_data_simulation_configs()
-    annotator = DataAnnotator(cfg)
-    return annotator
+    return DataAnnotator(cfg)
 
 
 @pytest.fixture()
 def sampler():
     cfg = get_data_simulation_configs()
-    sampler = SpeechSampler(cfg)
-    return sampler
-
+    return SpeechSampler(cfg)
 
 def get_data_simulation_configs():
     config_dict = {
@@ -143,21 +134,6 @@ class TestDataSimulatorUtils:
 
 
 class TestDataAnnotator:
-    """
-    Methods:
-
-        '_init_file_write', 
-        '_open_list_file', 
-        '_write_list_file', 
-        'close_files', 
-        'create_new_ctm_entry', 
-        'create_new_json_entry', 
-        'create_new_rttm_entry', 
-        'open_files', 
-        'write_annotation_files', 
-        'write_files'
-    """
-
     def test_init(self, annotator):
         assert isinstance(annotator, DataAnnotator)
 
@@ -257,7 +233,7 @@ class TestSpeechSampler:
         sampler.mean_silence = mean
         sampler.mean_silence_var = var
         with pytest.raises(ValueError) as execinfo:
-            silence_mean = sampler.get_session_silence_mean()
+            sampler.get_session_silence_mean()
         assert "ValueError" in str(execinfo) and "mean_silence_var" in str(execinfo)
 
     def test_get_session_overlap_mean_pass(self, sampler):
@@ -277,7 +253,7 @@ class TestSpeechSampler:
         sampler.mean_overlap_var = var
         sampler._params = DictConfig(sampler._params)
         with pytest.raises(ValueError) as execinfo:
-            overlap_mean = sampler.get_session_overlap_mean()
+            sampler.get_session_overlap_mean()
         assert "ValueError" in str(execinfo) and "mean_overlap_var" in str(execinfo)
 
     @pytest.mark.parametrize("non_silence_len_samples", [16000, 32000])
@@ -305,7 +281,6 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("num_noise_files", [1, 2, 4])
     def test_sample_noise_manifest(self, sampler, num_noise_files, test_data_dir):
         sampler.num_noise_files = num_noise_files
-        print("test_data_dir: ", test_data_dir)
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
         noise_manifest = read_noise_manifest(add_bg=True, background_manifest=manifest_path)
         sampled_noise_manifests = sampler.sample_noise_manifest(noise_manifest=noise_manifest)
