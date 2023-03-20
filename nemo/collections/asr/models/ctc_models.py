@@ -196,7 +196,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     logits, logits_len, greedy_predictions = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    logits = logits.cpu()
+
                     if logprobs:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
@@ -206,6 +206,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
                             logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
                         )
+                        logits = logits.cpu()
 
                         if return_hypotheses:
                             # dump log probs per file
