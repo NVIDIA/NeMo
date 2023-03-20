@@ -60,21 +60,13 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     vocoder = HifiGanModel.from_pretrained("tts_hifigan")
-
     vocoder = vocoder.eval()
-    last_ckpt = "nemo_results/FastPitch/nichole_20230316/checkpoints/FastPitch--val_loss=1.2200-epoch=174.ckpt"
-    dest = 'nemo_results/FastPitch/nichole_20230316/generated_recordings'
+
     last_ckpt = args.tts_ckpt
     dest = args.dest
 
     spec_model = FastPitchModel.load_from_checkpoint(last_ckpt)
     spec_model.eval()
-
-    # Only need to set speaker_id if there is more than one speaker
-    speaker_id = None
-    mixing = False
-    if mixing:
-        speaker_id = 1
 
     folder_names, manifest_names = [], []
     for dataset_str in args.data:
@@ -90,10 +82,8 @@ if __name__ == '__main__':
 
         for record in tqdm(records):
             filepath = record['audio_filepath']
-            print(f"Real {folder_name} audio {filepath}")
             filename = record['text'][:200] + '.wav'
             file_path = f'{folder_dest}/{filename}'
             start = time.time()
-            spec, audio = infer(
-                spec_model, vocoder, record['text'], speaker=speaker_id)
+            spec, audio = infer(spec_model, vocoder, record['text'])
             sf.write(file_path, audio[0], 22050)
