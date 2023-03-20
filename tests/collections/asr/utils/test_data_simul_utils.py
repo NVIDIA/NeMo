@@ -291,15 +291,16 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("running_len_samples", [64000, 96000])
     @pytest.mark.parametrize("non_silence_len_samples", [16000, 32000])
     def test_silence_vs_overlap_selector(
-        self, 
-        sampler, 
-        running_overlap_len_samples, 
+        self,
+        sampler,
+        running_overlap_len_samples,
         running_speech_len_samples,
         running_len_samples,
-        non_silence_len_samples
-        ):
+        non_silence_len_samples,
+    ):
         sampler.running_overlap_len_samples = running_overlap_len_samples
         sampler.running_speech_len_samples = running_speech_len_samples
-        add_overlap = sampler.silence_vs_overlap_selector(running_len_samples=running_len_samples, non_silence_len_samples=non_silence_len_samples)
+        add_overlap = sampler.silence_vs_overlap_selector(
+            running_len_samples=running_len_samples, non_silence_len_samples=non_silence_len_samples
+        )
         assert type(add_overlap) == bool
-

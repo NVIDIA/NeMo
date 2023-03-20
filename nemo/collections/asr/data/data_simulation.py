@@ -957,12 +957,8 @@ class MultiSpeakerSimulator(object):
         return sess_speech_len, sess_silence_len
 
     def _add_sentence_to_array(
-        self, 
-        start: int, 
-        length: int, 
-        array: torch.Tensor, 
-        is_speech: torch.Tensor
-        ) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        self, start: int, length: int, array: torch.Tensor, is_speech: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, int]:
         """
         Add a sentence to the session array containing time-series signal.
 
@@ -1077,10 +1073,7 @@ class MultiSpeakerSimulator(object):
 
             # Step 4: Add sentence to array
             array, is_speech, end = self._add_sentence_to_array(
-                start=start,
-                length=length,
-                array=array,
-                is_speech=is_speech,
+                start=start, length=length, array=array, is_speech=is_speech,
             )
 
             # Step 5: Build entries for output files
@@ -1094,7 +1087,7 @@ class MultiSpeakerSimulator(object):
 
             for entry in new_rttm_entries:
                 rttm_list.append(entry)
-            
+
             new_json_entry = self.annotator.create_new_json_entry(
                 text=self._text,
                 wav_filename=os.path.join(basepath, filename + '.wav'),
