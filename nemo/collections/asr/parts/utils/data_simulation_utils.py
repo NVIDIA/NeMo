@@ -80,7 +80,7 @@ def binary_search_alignments(
     Returns:
         offset_max (int) Index of the alignment that satisfies the maximum audio read duration
     """
-    # Start from the left end (0) and -1 * min_alignment_count for the right end
+    # Start from the left end (0)../../nemo/collections/asr/parts/utils/data_simulation_utils.py and -1 * min_alignment_count for the right end
     left, right = 0, len(inds) - 1 - min_alignment_count
     while left < right:
         mid = left + (right - left) // 2
@@ -866,18 +866,18 @@ class SpeechSampler(object):
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
 
-    Attributes in config:
-        running_speech_len_samples = 0
-        self.running_silence_len_samples = 0
-        self.running_overlap_len_samples = 0
+    Variables for sampling speech:
+        self.running_speech_len_samples (int): Running total of speech samples in the current audio session.
+        self.running_silence_len_samples (int): Running total of silence samples in the current audio session.
+        self.running_overlap_len_samples (int): Running total of overlap samples in the current audio session.
 
-        self.sess_silence_mean = 0
-        self.per_silence_min_len = 0
-        self.per_silence_max_len = 0
+        self.sess_silence_mean (int) : Targeted mean number of silence samples in the current audio session.
+        self.per_silence_min_len (int): Minimum number of silence samples in the silence segment.
+        self.per_silence_max_len (int): Maximum number of silence samples in the silence segment.
 
-        self.sess_overlap_mean = 0
-        self.per_overlap_min_len = 0
-        self.per_overlap_max_len = 0
+        self.sess_overlap_mean (int): Targeted mean number of overlap samples in the current audio session.
+        self.per_overlap_min_len (int): Minimum number of overlap samples in the overlap segment.
+        self.per_overlap_max_len (int): Maximum number of overlap samples in the overlap segment.
 
     data_simulator: 
         session_params: 
