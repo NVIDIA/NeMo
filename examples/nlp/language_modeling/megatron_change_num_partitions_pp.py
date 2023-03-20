@@ -274,8 +274,8 @@ def split_partition(
     shared_enc_dec_embeddings = (
         pp_split_rank > 0
         and pp_split_rank == pp_rank
-        and 'share_token_embeddings' in model.cfg
-        and model.cfg.share_token_embeddings
+        # and 'share_token_embeddings' in model.cfg
+        and model.cfg.get('share_token_embeddings', True)
     )
     # If embedding sharing is active, both vocab and position embeddings are shared
     if shared_enc_dec_embeddings:
