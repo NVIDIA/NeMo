@@ -35,9 +35,8 @@ class MegatronUGPTModel(MegatronGPTModel):
     """
     Megatron GPT with a FIM/UL2 loss. References:
 
-    1. FIM - https://arxiv.org/abs/2207.14255
-    2. UL2 - https://arxiv.org/abs/2205.05131
-    3. U-PaLM - https://arxiv.org/abs/2210.11399
+    1. UL2 - https://arxiv.org/abs/2205.05131
+    2. U-PaLM - https://arxiv.org/abs/2210.11399
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
