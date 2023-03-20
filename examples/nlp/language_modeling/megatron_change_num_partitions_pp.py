@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 from typing import Dict, List
 
 import torch
+from omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -490,6 +491,13 @@ def main():
         default=None,
         help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
     )
+    parser.add_argument(
+        "--tokenizer_vocab_file",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
+    )
 
     args = parser.parse_args()
 
@@ -600,8 +608,12 @@ def main():
         app_state.model_parallel_size = 1
 
         trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
-        if args.tokenizer_model_path is not None:
-            model.cfg.tokenizer.model = args.tokenizer_model_path
+
+        with open_dict(model.cfg):
+            if args.tokenizer_model_path is not None:
+                model.cfg.tokenizer.model = args.tokenizer_model_path
+            if args.tokenizer_vocab_file is not None:
+                model.cfg.tokenizer.vocab_file = args.tokenizer_vocab_file
 
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
