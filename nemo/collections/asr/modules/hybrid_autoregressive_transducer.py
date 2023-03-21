@@ -145,8 +145,9 @@ class HATJoint(rnnt.RNNTJoint):
             dropout=jointnet.get('dropout', 0.0),
         )
 
-
-    def joint(self, f: torch.Tensor, g: torch.Tensor, return_ilm: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def joint(
+        self, f: torch.Tensor, g: torch.Tensor, return_ilm: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Compute the joint step of the network.
 

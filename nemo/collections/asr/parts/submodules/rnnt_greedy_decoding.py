@@ -33,7 +33,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.modules import rnnt_abstract, hybrid_autoregressive_transducer
+from nemo.collections.asr.modules import hybrid_autoregressive_transducer, rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
 from nemo.collections.common.parts.rnn import label_collate
