@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class GPTSFTDataset(Dataset):
         assistant_prompt: str = None,
     ):
         """
-        file_path: Path to a JSONL GPT supervised fine-tuning dataset.
+        file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
@@ -93,7 +93,6 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            # TODO: double-check this for decoder-only GPT
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -187,12 +186,8 @@ class GPTSFTDataset(Dataset):
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
-        # We return None if the example fails in the min_seq_length and max_seq_length checks
-        # TODO: verify on the dataloader how to skip Nones and keep constant batch size
-        # Right now this is handled offline before the training step
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
             input_ids = input_ids[: self.max_seq_length]
-            # return None
 
         processed_example = {
             'input_ids': input_ids,

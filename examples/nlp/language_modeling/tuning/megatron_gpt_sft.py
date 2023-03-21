@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 import os
 import tempfile
 
-import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -39,7 +38,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
-    This function modifies the original gpt pre-training config (t5_cfg) with attributes from the finetuning config (cfg).
+    This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
     The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
     """
     OmegaConf.set_struct(gpt_cfg, True)
@@ -173,23 +172,23 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    if hasattr(cfg.model.data.train_ds, 'file_names'):
-        if cfg.model.restore_from_path:
-            save_restore_connector = NLPSaveRestoreConnector()
-            if os.path.isdir(cfg.model.restore_from_path):
-                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-            gpt_cfg = MegatronGPTSFTModel.restore_from(
-                restore_path=cfg.model.restore_from_path,
-                trainer=trainer,
-                return_config=True,
-                save_restore_connector=save_restore_connector,
-            )
-            model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
-        else:
-            validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-            model = load_from_checkpoint_dir(
-                MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config
-            )
+    if cfg.model.restore_from_path:
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.model.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        gpt_cfg = MegatronGPTSFTModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
+        )
+        model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+    else:
+        validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
+        model = load_from_checkpoint_dir(
+            MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config
+        )
+
     trainer.fit(model)
 
 

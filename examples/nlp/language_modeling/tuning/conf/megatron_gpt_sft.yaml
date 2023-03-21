@@ -67,6 +67,13 @@ model:
 
   data:
     train_ds:
+      # Example of how to specify paths to multiple datasets
+      # file_names: 
+      #   - /path/to/squad.jsonl
+      #   - /path/to/mnli.jsonl
+      #   - /path/to/boolq.jsonl
+      # Example of how each dataset is formatted
+      # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
       file_names: ??? # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
@@ -76,6 +83,11 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: True
+      # Example of how to specify concat_sampling_probabilities
+      # concat_sampling_probabilities:
+      #   - 0.5
+      #   - 0.25
+      #   - 0.25
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'
@@ -88,7 +100,7 @@ model:
       assistant_prompt: null # Options: ['long', 'short', 'long_nv', null]
 
     validation_ds:
-      file_names: ??? # Path to a list of JSONL files corresponding to the source data.
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
@@ -111,12 +123,12 @@ model:
       assistant_prompt: null # Options: ['long', 'short', 'long_nv', null]
 
       metric:
-        name: "exact_string_match" # Name of the evaluation metric to use.
+        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
     test_ds:
-      file_names: ??? # Path to a list of JSONL files corresponding to the source data.
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
@@ -139,12 +151,12 @@ model:
       assistant_prompt: null # Options: ['long', 'short', 'long_nv', null]
 
       metric:
-        name: "exact_string_match" # Name of the evaluation metric to use.
+        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
   optim:
-    name: fused_adam
+    name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
     lr: 3e-5
     weight_decay: 0.01 
     betas: 

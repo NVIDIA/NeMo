@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -270,15 +270,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         # Call parent validation step to get the loss.
         loss = super().validation_step(dataloader_iter, batch_idx)
-        # NOTE: This is a hack to to sidestep inference when the user wants to just monitor the loss only.
-        # TODO (sandeepsub): This should be a better check.
         return {
             'loss': loss,
             'preds': None,
             'labels': None,
             'inputs': None,
         }
-
+        # TODO (sandeepsub): Figure out the subsequent decode bits.
         length_params: LengthParam = {
             "min_length": 0,
             "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
