@@ -435,18 +435,20 @@ class MockGPTDataset(Dataset):
         self.seq_length = seq_length
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
-        self.np_gen = np.random.default_rng(seed=seed)
+        self.seed = seed
 
     def __len__(self):
         return self.length
 
     def _get_text(self, idx: int) -> np.ndarray:
-        return self.np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        return np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
 
     def __getitem__(self, idx):
         # Generate data of the expected size and datatype (based on GPTDataset).
-        tokens = torch.from_numpy(self._get_text(idx))
-        labels = torch.from_numpy(self._get_text(idx))
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
         with torch.no_grad():
             attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)

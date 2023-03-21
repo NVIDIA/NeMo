@@ -432,20 +432,22 @@ class MockT5Dataset(Dataset):
         self.max_seq_length_dec = max_seq_length_dec
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
-        self.np_gen = np.random.default_rng(seed=seed)
+        self.seed = seed
 
     def __len__(self):
         return self.length
 
     def _get_sample(self, idx):
-        sample = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        sample = np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
         return [sample], self.max_seq_length
 
     def __getitem__(self, idx):
         # Generate output values randomly with the expected size and datatype
-        tokens_enc = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
-        tokens_dec_in = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
-        labels = self.np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens_enc = np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
+        tokens_dec_in = np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
+        labels = np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
         enc_mask = np.ones(shape=[self.max_seq_length], dtype=np.int64)
         dec_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
         loss_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
