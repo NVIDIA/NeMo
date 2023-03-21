@@ -91,22 +91,18 @@ def build_train_valid_test_datasets(
     skip_warmup,
     tokenizer,
 ):
-    if data_impl in ['synthetic']:
-        logging.info('Initializing synthetic GPT dataset for train, validate, and test')
+    if data_impl in ['mock']:
+        logging.info('Initializing mock GPT dataset for train, validate, and test')
         if len(data_prefix) != 0:
-            # Synthetic data will be generated instead of loading files.
-            logging.warning(f"Requested data_impl=synthetic, so ignoring data_prefix setting: {data_prefix}")
+            # Mock data will be generated instead of loading files.
+            logging.warning(f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}")
         if tokenizer is None:
             # Vocabulary size is inferred from tokenizer.
-            raise ValueError("Tokenizer is required for a synthetic GPT dataset")
-        train_ds = SyntheticGPTDataset(
-            cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,
-        )
-        validation_ds = SyntheticGPTDataset(
-            cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,
-        )
-        test_ds = SyntheticGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
-        return train_ds, validation_ds, test_ds
+            raise ValueError("Tokenizer is required for a mock GPT dataset")
+        train_ds = MockGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
+        valid_ds = MockGPTDataset(cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,)
+        test_ds = MockGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
+        return train_ds, valid_ds, test_ds
 
     if isinstance(data_prefix, DictConfig):
         assert (
@@ -425,7 +421,7 @@ class GPTDataset(Dataset):
         }
 
 
-class SyntheticGPTDataset(Dataset):
+class MockGPTDataset(Dataset):
     def __init__(
         self, cfg, tokenizer, name, num_samples, seq_length, seed,
     ):

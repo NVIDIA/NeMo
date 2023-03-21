@@ -422,7 +422,7 @@ class T5Dataset(Dataset):
         return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
 
 
-class SyntheticT5Dataset(Dataset):
+class MockT5Dataset(Dataset):
     def __init__(
         self, cfg, tokenizer, name, num_samples, max_seq_length, max_seq_length_dec, seed,
     ):
