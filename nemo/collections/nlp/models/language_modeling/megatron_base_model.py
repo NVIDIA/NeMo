@@ -522,7 +522,7 @@ class MegatronBaseModel(NLPModel):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
             )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_first_stage(
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
                 ignore_virtual=True
             ):
                 # substract the embedding weights on the last virtual stage
@@ -530,7 +530,7 @@ class MegatronBaseModel(NLPModel):
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_first_stage(
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
                 ignore_virtual=True
             ):
                 # substract the embedding weights on the last stage

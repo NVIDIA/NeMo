@@ -378,6 +378,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
+        # to work with megatron core interleaved API we'll create a list of pointers to our data iterator
+        if isinstance(self.model, list):
+            dataloader_iter = [dataloader_iter for _ in range(len(self.model))]
+
         # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
@@ -634,10 +638,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside validation_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
+        # to work with megatron core interleaved API we'll create a list of pointers to our data iterator
+        if isinstance(self.model, list):
+            dataloader_iter = [dataloader_iter for _ in range(len(self.model))]
+
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
             data_iterator=dataloader_iter,
-            model=[self.model],
+            model=self._model if isinstance(self._model, list) else [self._model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
@@ -825,11 +833,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     if self.cfg.get('share_embeddings_and_output_weights', True):
-                        module.sync_initial_word_embeddings()
+                        module.sync_first_and_last_stage_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 if self.cfg.get('share_embeddings_and_output_weights', True):
-                    self.model.sync_initial_word_embeddings()
+                    self.model.sync_first_and_last_stage_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()

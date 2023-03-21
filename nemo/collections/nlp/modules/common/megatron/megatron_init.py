@@ -39,21 +39,12 @@ try:
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
         set_virtual_pipeline_model_parallel_rank,
+        set_virtual_pipeline_model_parallel_world_size,
     )
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
-try:
-    # TODO @akhattar: add this to megatron core
-    from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
-
-    HAVE_INTERLEAVED = True
-
-except:
-
-    HAVE_INTERLEAVED = False
 
 
 def initialize_model_parallel_for_nemo(
@@ -69,9 +60,6 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
 ):
-
-    if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
-        raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in Apex for interleaved.")
 
     # updating NeMo globals
     app_state = AppState()
@@ -102,8 +90,7 @@ def initialize_model_parallel_for_nemo(
     set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
 
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    if HAVE_INTERLEAVED:
-        set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
+    set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
     set_virtual_pipeline_model_parallel_rank(app_state.virtual_pipeline_model_parallel_rank)
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
