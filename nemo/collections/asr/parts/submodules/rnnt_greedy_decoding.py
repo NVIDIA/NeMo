@@ -33,8 +33,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.modules.hat import HATJoint
+from nemo.collections.asr.modules import rnnt_abstract, hybrid_autoregressive_transducer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
 from nemo.collections.common.parts.rnn import label_collate
@@ -227,10 +226,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
              logits of shape (B, T=1, U=1, V + 1)
         """
         with torch.no_grad():
-            if isinstance(self.joint, HATJoint):
-                logits, _ = self.joint.joint(enc, pred)
-            else:
-                logits = self.joint.joint(enc, pred)
+            logits = self.joint.joint(enc, pred)
 
             if log_normalize is None:
                 if not logits.is_cuda:  # Use log softmax only if on CPU
