@@ -116,7 +116,7 @@ class IpaG2p(BaseG2p):
 
         # verify if phoneme dict obj is empty
         if phoneme_dict_obj:
-            self.phoneme_dict, self.symbols = self._normalize_dict(phoneme_dict_obj)
+            _phoneme_dict, self.symbols = self._normalize_dict(phoneme_dict_obj)
         else:
             raise ValueError(f"{phoneme_dict} contains no entries!")
 
@@ -137,7 +137,7 @@ class IpaG2p(BaseG2p):
             word_tokenize_func = any_locale_word_tokenize
 
         super().__init__(
-            phoneme_dict=self.phoneme_dict,
+            phoneme_dict=_phoneme_dict,
             word_tokenize_func=word_tokenize_func,
             apply_to_oov_word=apply_to_oov_word,
             mapping_file=mapping_file,
