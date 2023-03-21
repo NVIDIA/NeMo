@@ -345,9 +345,8 @@ class TestASRModulesBasicTests:
         # joint() step test
         enc2 = enc.transpose(1, 2)  # [B, T, D1]
         dec2 = dec.transpose(1, 2)  # [B, U, D2]
-        out2, ilm = jointnet.joint(enc2, dec2)  # [B, T, U, V + 1]
+        out2 = jointnet.joint(enc2, dec2)  # [B, T, U, V + 1]
         assert (out - out2).abs().sum() <= 1e-5
-        assert ilm == None
 
         # joint() step test for internal LM subtraction
         out3, ilm = jointnet.joint(enc2, dec2, return_ilm=True)  # [B, T, U, V + 1]
