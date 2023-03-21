@@ -185,9 +185,7 @@ def main(cfg) -> None:
         model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(
-            MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config
-        )
+        model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
     trainer.fit(model)
 
