@@ -30,6 +30,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+# the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
 
 
