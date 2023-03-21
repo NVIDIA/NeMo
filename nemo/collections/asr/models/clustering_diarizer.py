@@ -169,7 +169,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         vad_dl_config = {
             'manifest_filepath': manifest_vad_input,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': self._cfg.get('batch_size'),
+            'batch_size': 1,
             'vad_stream': True,
             'labels': ['infer',],
             'window_length_in_sec': self._vad_window_length_in_sec,
