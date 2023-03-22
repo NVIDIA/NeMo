@@ -32,16 +32,17 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessor
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
-TOKEN_OFFSET = 100
 # List of the supported models to be used with N-gram LM and beam search decoding
 SUPPORTED_MODELS = {
-    'EncDecCTCModelBPE': ('subword', True),
-    'EncDecRNNTBPEModel': ('subword', False),
-    'EncDecCTCModel': ('char', True),
-    'EncDecRNNTModel': ('char', False),
+    'EncDecCTCModelBPE': 'subword',
+    'EncDecCTCModel': 'char',
+    'EncDecRNNTBPEModel': 'subword',
+    'EncDecRNNTModel': 'char',
 }
-
+CHUNK_SIZE = 8192
+CHUNK_BUFFER_SIZE = 512
 
 def softmax(x):
     e = np.exp(x - np.max(x))
@@ -76,9 +77,8 @@ def setup_tokenizer(tokenizer_model_file):
 
     if tokenizer_model_file.endswith('.model'):
         encoding_level = 'subword'
-        offset_encoding = True
     else:
-        encoding_level, offset_encoding = SUPPORTED_MODELS.get(type(model).__name__, None)
+        encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
         if not encoding_level:
             logging.warning(
                 f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
@@ -88,13 +88,13 @@ def setup_tokenizer(tokenizer_model_file):
         tokenizer_nemo = model.tokenizer
         del model
 
-    return tokenizer_nemo, encoding_level, offset_encoding
+    return tokenizer_nemo, encoding_level
 
 
 def iter_files(
     train_path, tokenizer_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation
 ):
-    tokenizer, encoding_level, offset_encoding = setup_tokenizer(tokenizer_model_file)
+    tokenizer, encoding_level = setup_tokenizer(tokenizer_model_file)
     for fname in train_path:
         dataset = read_train_file(
             fname, do_lowercase, punctuation_to_preserve, separate_punctuation, clean_text, verbose=0
@@ -103,9 +103,9 @@ def iter_files(
             dataset,
             tokenizer,
             path='',
-            chunk_size=8192,
-            buffer_size=32,
-            token_offset=TOKEN_OFFSET if offset_encoding else -1,
+            chunk_size=CHUNK_SIZE,
+            buffer_size=CHUNK_BUFFER_SIZE,
+            token_offset=DEFAULT_TOKEN_OFFSET,
         )
 
 
@@ -172,7 +172,6 @@ def tokenize_str(texts, tokenizer, offset):
 
 def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_offset=100):
     dataset_len = len(data)
-    # print(f"Chunking {dataset_len} rows into {dataset_len / float(chunk_size):0.4f} tasks (each chunk contains {chunk_size} elements)")
 
     current_step = 0
     if path and os.path.exists(path):

@@ -41,17 +41,16 @@ import sys
 from glob import glob
 
 import kenlm_utils
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
+from kenlm_utils import CHUNK_SIZE, CHUNK_BUFFER_SIZE
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
 use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
-TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
+DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
 the required memory significantly, and the LM and its binary blob format require less storage space.
 """
-TOKEN_OFFSET = kenlm_utils.TOKEN_OFFSET
-CHUNK_SIZE = 8192
-CHUNK_BUFFER_SIZE = 512
 
 
 def main():
@@ -91,6 +90,8 @@ def main():
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
+
+    parser.add_argument('--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.')
     parser.add_argument(
         "--punctuation_to_preserve",
         required=False,
@@ -121,7 +122,7 @@ def main():
     if type(args.ngram_prun) == str:
         args.ngram_prun = [args.ngram_prun]
 
-    tokenizer, encoding_level, offset_encoding = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
+    tokenizer, encoding_level = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
     encoded_train_files = []
 
     if args.cache_path:
@@ -155,7 +156,7 @@ def main():
                         path=encoded_train_file,
                         chunk_size=CHUNK_SIZE,
                         buffer_size=CHUNK_BUFFER_SIZE,
-                        token_offset=TOKEN_OFFSET if offset_encoding else -1,
+                        token_offset=DEFAULT_TOKEN_OFFSET,
                     )
                 else:
                     with open(encoded_train_file, 'w', encoding='utf-8') as f:
@@ -220,6 +221,10 @@ def main():
 
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
+    
+    if not args.preserve_arpa:
+        os.remove(arpa_file)
+        logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
 if __name__ == '__main__':
