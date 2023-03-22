@@ -499,6 +499,7 @@ def main():
         default=None,
         help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
     )
+    parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to extracted model directory')
 
     args = parser.parse_args()
 
@@ -555,7 +556,7 @@ def main():
             for tp_rank in range(tp_size):
                 app_state.tensor_model_parallel_rank = tp_rank
 
-                print("------------", pp_rank, tp_rank)
+                print("Loading ------------", "PP Rank:", pp_rank, "TP Rank:", tp_rank)
 
                 # Override flag that forces Model to use AppState instead of Trainer
                 # to determine the world size, global and local rank
@@ -576,11 +577,17 @@ def main():
                     app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
                 )
 
+                save_restore_connector = NLPSaveRestoreConnector()
+
+                if args.model_extracted_dir is not None:
+                    print("Using extracted model directory: ", args.model_extracted_dir)
+                    save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
                 model = cls.restore_from(
                     restore_path=args.model_file,
                     trainer=trainer,
                     map_location=torch.device("cpu"),
-                    save_restore_connector=NLPSaveRestoreConnector(),
+                    save_restore_connector=save_restore_connector,
                 )
                 model.to(dtype=dtype)
 
