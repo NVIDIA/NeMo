@@ -29,10 +29,10 @@ from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessor
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
 # List of the supported models to be used with N-gram LM and beam search decoding
 SUPPORTED_MODELS = {
@@ -43,6 +43,7 @@ SUPPORTED_MODELS = {
 }
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
+
 
 def softmax(x):
     e = np.exp(x - np.max(x))

@@ -41,9 +41,10 @@ import sys
 from glob import glob
 
 import kenlm_utils
+from kenlm_utils import CHUNK_BUFFER_SIZE, CHUNK_SIZE
+
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
-from kenlm_utils import CHUNK_SIZE, CHUNK_BUFFER_SIZE
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
@@ -91,7 +92,9 @@ def main():
     )
     parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
 
-    parser.add_argument('--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.')
+    parser.add_argument(
+        '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
+    )
     parser.add_argument(
         "--punctuation_to_preserve",
         required=False,
@@ -221,7 +224,7 @@ def main():
 
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
-    
+
     if not args.preserve_arpa:
         os.remove(arpa_file)
         logging.info(f"Deleted the arpa file '{arpa_file}'.")
