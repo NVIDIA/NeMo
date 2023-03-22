@@ -780,6 +780,7 @@ class AutocastTransformerLayer(TransformerLayer):
         drop_path_rate: float = 0,
         use_emha: bool = False,
         autocast_dtype: Any = 16,
+        zero_centered_gamma: bool = False,
     ) -> None:
         super().__init__(
             hidden_size=hidden_size,
@@ -809,6 +810,7 @@ class AutocastTransformerLayer(TransformerLayer):
             drop_path_rate=drop_path_rate,
             set_parallel_mode=tp_size > 1,
             fuse_qkv_params=True,
+            zero_centered_gamma=zero_centered_gamma,
         )
         # use_emha=use_emha,
 
@@ -1048,6 +1050,7 @@ class ParallelTransformer(MegatronModule):
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
+                    zero_centered_gamma=normalization == 'layernorm1p',
                 )
             else:
                 return ParallelTransformerLayer(
@@ -1416,8 +1419,8 @@ class ParallelTransformer(MegatronModule):
         with rng_context:
             # fp8_autocast will not do anything if TE or FP8 isn't used
             fp8_group = None
-            if parallel_state.model_parallel_is_initialized():
-                fp8_group = parallel_state.get_data_parallel_group()
+            if self.fp8 and parallel_state.model_parallel_is_initialized():
+                fp8_group = parallel_state.get_amax_reduction_group()
 
             if HAVE_TE:
                 # if TE is installed but fp8 is not available then this will do nothing
