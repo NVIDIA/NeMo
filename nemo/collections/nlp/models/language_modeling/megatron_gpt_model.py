@@ -424,7 +424,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-        torch.distributed.broadcast(loss_mean, get_last_rank())
+        if self.cfg.get('broadcast_loss', True):
+            torch.distributed.broadcast(loss_mean, get_last_rank())
 
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
@@ -694,7 +695,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        if self.cfg.get('broadcast_loss', True):
+            torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
