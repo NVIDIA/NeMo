@@ -192,6 +192,8 @@ class InterCTCMixin:
         metrics = {f"{log_prefix}final_ctc_loss": loss_value}
         captured_tensors = self.get_captured_interctc_tensors()
 
+        loss_value *= self._main_loss_weight
+
         for layer_idx, intermediate_result, loss_weight in zip(
             self._apply_at_layers, captured_tensors, self._intermediate_loss_weights
         ):
@@ -201,7 +203,7 @@ class InterCTCMixin:
                 target_lengths=transcript_len,
                 input_lengths=intermediate_result[1],
             )
-            metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}"] = loss_value.detach()
+            metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}"] = inter_loss_value.detach()
             loss_value += inter_loss_value * loss_weight
             if compute_wer:
                 self._wer.update(
