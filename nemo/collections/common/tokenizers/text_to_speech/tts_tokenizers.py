@@ -505,6 +505,7 @@ class IPATokenizer(BaseTokenizer):
         locale="en-US",
         punct=True,
         non_default_punct_list=None,
+        fixed_vocab=None,
         *,
         space=' ',
         silence=None,
@@ -516,12 +517,18 @@ class IPATokenizer(BaseTokenizer):
     ):
         """General-purpose IPA-based tokenizer.
         Args:
-            g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
+            g2p: Grapheme to phoneme module, should be IpaG2p or some subclass thereof.
             locale: Locale used to determine default text processing logic and punctuation.
                 Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
                 Specify None if implementing custom logic for a new locale.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
+            fixed_vocab: List of valid grapheme/phoneme tokens for the model.
+                Set only if overriding the default vocab generation process (reading from G2P dict).
+                If set, any dataset entries that have unincluded graphemes will be filtered out, and any words whose
+                pronunciations have unincluded phonemes will be treated as OOV.
+                Please make sure that the grapheme prefixes and cases are consistent with the G2P module's settings.
+                Defaults to None, which means default vocab generation is used.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
             apostrophe: Whether to use apostrophe or not.
@@ -535,7 +542,7 @@ class IPATokenizer(BaseTokenizer):
             logging.error(
                 f"Please make sure the G2P module passed into the IPATokenizer has a `symbols` attribute. "
                 f"This is required in order to build the tokenizer vocabulary.\n"
-                f"Expected e.g. IPAG2P, found {type(g2p)}"
+                f"Expected e.g. IpaG2p, found {type(g2p)}"
             )
             raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
 
@@ -546,8 +553,26 @@ class IPATokenizer(BaseTokenizer):
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
 
-        # Build tokens list
-        tokens = set(g2p.symbols)
+        if locale == "en-US":
+            self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
+        else:
+            self.text_preprocessing_func = any_locale_text_preprocessing
+
+        # Build tokens list if fixed_vocab isn't set
+        if fixed_vocab:
+            tokens = {self.text_preprocessing_func(c) for c in fixed_vocab}
+            self.set_fixed_vocab = True  # Used to check whether dataset entries need filtering
+
+            if g2p.symbols == tokens:
+                logging.info(
+                    "Did not replace G2P valid symbol set since the given set is equivalent to the existing one."
+                )
+                self.set_fixed_vocab = False
+            else:
+                g2p.replace_symbols(tokens)
+        else:
+            tokens = set(g2p.symbols)
+            self.set_fixed_vocab = False
 
         if apostrophe:
             tokens.add("'")
@@ -573,15 +598,12 @@ class IPATokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
+        self.tokens_set = set(self.tokens)  # To save some repeated work when filtering entries
+
         self.punct = punct
         self.pad_with_space = pad_with_space
 
         self.g2p = g2p
-
-        if locale == "en-US":
-            self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
-        else:
-            self.text_preprocessing_func = any_locale_text_preprocessing
 
     def encode(self, text: str) -> List[int]:
         """See base class for more information."""
@@ -604,7 +626,7 @@ class IPATokenizer(BaseTokenizer):
                 of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`, which is the
                 G2P's output of the text "see OOV", where '#' is prepended to each grapheme in order to distinguish
                 graphemes from phonemes if there are overlaps in between. The prefix '#' can be customized in
-                `nemo.collections.tts.g2p.modules.IPAG2P.grapheme_prefix`.
+                `nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p.grapheme_prefix`.
             raw_text (str): the original text after calling `self.text_preprocessing_func`. It is optional. It is only
                 used to deliver a warning message that some graphemes from the original text are skipped.
 
