@@ -623,6 +623,10 @@ def main():
             if args.tokenizer_vocab_file is not None:
                 model.cfg.tokenizer.vocab_file = args.tokenizer_vocab_file
 
+            # temporarily
+            original_cpu_init = model.cfg.get('use_cpu_initialization', False)
+            model.cfg.use_cpu_initialization = True
+
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
@@ -631,6 +635,8 @@ def main():
         else:
             # Write out the PP 1 TP 1 model to disk
             merge_partition(model, partitions, args.target_file)
+
+        model.cfg.use_cpu_initialization = original_cpu_init
 
         # Empty cache memory of all parameters from all PP TP partitions
         partitions.clear()
