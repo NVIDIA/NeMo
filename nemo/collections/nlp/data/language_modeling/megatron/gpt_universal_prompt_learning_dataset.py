@@ -177,7 +177,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
                 answer_ids = answer_ids[: len(answer_ids) - cut_tokens]
             else:
                 # cut both the input and output
-                cut_input_tokens = len(tokenized_input) - 1  # retain at least one token
+                cut_input_tokens = max(len(tokenized_input) - 64 - assit_end_idx, 0)  # retain at least 64 tokens
                 cut_output_tokens = cut_tokens - cut_input_tokens
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_input_tokens]
                 answer_ids = answer_ids[: len(answer_ids) - cut_output_tokens]
