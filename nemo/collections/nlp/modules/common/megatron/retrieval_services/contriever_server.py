@@ -5,6 +5,7 @@ import ftfy
 import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
+from nltk.tokenize import sent_tokenize
 from sentence_transformers import CrossEncoder, SentenceTransformer, util
 from transformers import (
     AutoTokenizer,
@@ -336,11 +337,18 @@ def dpr_sbert_retriever(all_contexts, queries):
     return ranked_docs
 
 
-def chunk_car_manual(manual, chunk_by_words=True, chunk_size=300, tokenizer=None, chunk_by_dpr_tokenizer=False):
-
+def chunk_car_manual(
+    manual,
+    chunk_by_words=False,
+    chunk_by_sents=True,
+    chunk_size=150,
+    tokenizer=None,
+    chunk_by_dpr_tokenizer=False,
+    overlap=False,
+):
     all_chunks = []
     for idx, (text, title) in enumerate(manual):
-        if chunk_by_words:
+        if chunk_by_words and not chunk_by_sents:
             num_words = chunk_size
             words = text.split()
 
@@ -350,7 +358,31 @@ def chunk_car_manual(manual, chunk_by_words=True, chunk_size=300, tokenizer=None
                 chunk_str = " ".join(chunk_words)
                 all_chunks.append((chunk_str, title))
 
-        if chunk_by_dpr_tokenizer:
+        elif chunk_by_sents:
+            sent_list = sent_tokenize(text)
+            chunk = []
+            num_words = 0
+            for sent in sent_list:
+                num_words += len(sent.split())
+                chunk.append(sent)
+                if num_words >= chunk_size:
+                    chunk_str = " ".join(chunk)
+                    all_chunks.append((chunk_str, title))
+
+                    if overlap:
+                        num_words -= len(chunk[0].split())
+                        chunk = chunk[1:]
+                    else:
+                        chunk = []
+                        num_words = 0
+
+            if len(chunk) > 0:
+                chunk_str = " ".join(chunk)
+                all_chunks.append((chunk_str, title))
+                chunk = []
+                num_words = 0
+
+        elif chunk_by_dpr_tokenizer:
             dpr_tokens = 240
             raise ValueError("not implemented")
 
