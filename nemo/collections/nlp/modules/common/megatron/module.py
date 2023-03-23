@@ -259,7 +259,14 @@ class Float16Module(MegatronModule):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__()
+
+        share_token_embeddings = getattr(module, "share_token_embeddings", None)
+
+        if share_token_embeddings is not None:
+            super().__init__(share_token_embeddings=share_token_embeddings)
+        else:
+            super().__init__()
+
         self.precision = precision
 
         if precision == 16:
