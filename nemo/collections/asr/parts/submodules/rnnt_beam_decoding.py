@@ -34,9 +34,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from nemo.collections.asr.modules import hybrid_autoregressive_transducer as hat
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix, select_k_expansions
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, HATJointOutput, NBestHypotheses, is_prefix, select_k_expansions
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -328,6 +327,9 @@ class BeamRNNTInfer(Typing):
         else:
             self.ngram_lm = None
 
+        if hat_subtract_ilm:
+            assert hasattr(self.joint, "return_hat_ilm")
+            assert search_type == "maes"
         self.hat_subtract_ilm = hat_subtract_ilm
         self.hat_ilm_weight = hat_ilm_weight
 
@@ -352,6 +354,12 @@ class BeamRNNTInfer(Typing):
         # Preserve decoder and joint training state
         decoder_training_state = self.decoder.training
         joint_training_state = self.joint.training
+
+        # setup hat outputs mode
+        if self.hat_subtract_ilm:
+            assert hasattr(self.joint, "return_hat_ilm")
+            return_hat_ilm_default = self.joint.return_hat_ilm
+            self.joint.return_hat_ilm = self.hat_subtract_ilm
 
         with torch.no_grad():
             # Apply optional preprocessing
@@ -403,6 +411,8 @@ class BeamRNNTInfer(Typing):
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
+        if self.hat_subtract_ilm:
+            self.joint.return_hat_ilm = return_hat_ilm_default
 
         return (hypotheses,)
 
@@ -1158,13 +1168,8 @@ class BeamRNNTInfer(Typing):
                 beam_dec_out = torch.stack([h.dec_out[-1] for h in hyps])  # [H, 1, D]
 
                 # Extract the log probabilities
-                if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
-                    ytm, ilm_ytm = self.joint.joint(beam_enc_out, beam_dec_out, return_ilm=self.hat_subtract_ilm)
-                    beam_logp, beam_idx = ytm.topk(self.max_candidates, dim=-1)
-                else:
-                    beam_logp, beam_idx = torch.log_softmax(
-                        self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
-                    ).topk(self.max_candidates, dim=-1)
+                ytm, ilm_ytm = self.resolve_joint_output(beam_enc_out, beam_dec_out)
+                beam_logp, beam_idx = ytm.topk(self.max_candidates, dim=-1)
 
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
                 beam_idx = beam_idx[:, 0, 0, :]  # [B, max_candidates]
@@ -1206,7 +1211,7 @@ class BeamRNNTInfer(Typing):
                                     lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
                                         hyp.ngram_lm_state, int(k)
                                     )
-                                    if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
+                                    if self.hat_subtract_ilm:
                                         new_hyp.score += self.ngram_lm_alpha * lm_score - float(
                                             self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
                                         )
@@ -1315,9 +1320,7 @@ class BeamRNNTInfer(Typing):
 
                     else:
                         # Extract the log probabilities
-                        beam_logp = torch.log_softmax(
-                            self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1
-                        )
+                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, beam_dec_out)
                         beam_logp = beam_logp[:, 0, 0, :]
 
                         # For all expansions, add the score for the blank label
@@ -1380,6 +1383,23 @@ class BeamRNNTInfer(Typing):
                 final.append(hyp)
 
         return hypotheses
+    
+    def resolve_joint_output(self, enc_out: torch.Tensor, dec_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Resolve output types for RNNT and HAT joint models
+        """
+
+        joint_output = self.joint.joint(enc_out, dec_out)
+        if torch.is_tensor(joint_output):
+            ytm = torch.log_softmax(joint_output / self.softmax_temperature, dim=-1)
+            ilm_ytm = None
+        elif self.hat_subtract_ilm and isinstance(joint_output, HATJointOutput):
+            ytm, ilm_ytm = joint_output.hat_logprobs, joint_output.ilm_logprobs
+        else:
+            raise TypeError(f"Joint output ({type(joint_output)}) must be torch.Tensor or HATJointOutput in case of HAT joint")
+
+        return ytm, ilm_ytm
+
 
     def prefix_search(
         self, hypotheses: List[Hypothesis], enc_out: torch.Tensor, prefix_alpha: int
@@ -1395,12 +1415,7 @@ class BeamRNNTInfer(Typing):
                 pref_id = len(hyp_i.y_sequence)
 
                 if is_prefix(hyp_j.y_sequence, hyp_i.y_sequence) and (curr_id - pref_id) <= prefix_alpha:
-                    if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
-                        logp, ilm_logp = self.joint.joint(enc_out, hyp_i.dec_out[-1], return_ilm=self.hat_subtract_ilm)
-                    else:
-                        logp = torch.log_softmax(
-                            self.joint.joint(enc_out, hyp_i.dec_out[-1]) / self.softmax_temperature, dim=-1,
-                        )
+                    logp, ilm_logp = self.resolve_joint_output(enc_out, hyp_i.dec_out[-1])
                     logp = logp[0, 0, 0, :]
                     curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
                     # Setup ngram LM:
@@ -1408,7 +1423,7 @@ class BeamRNNTInfer(Typing):
                         lm_score, next_state = self.compute_ngram_score(
                             hyp_i.ngram_lm_state, int(hyp_j.y_sequence[pref_id])
                         )
-                        if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
+                        if self.hat_subtract_ilm:
                             curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(
                                 ilm_logp[0, 0, hyp_j.y_sequence[pref_id]]
                             )
@@ -1416,20 +1431,13 @@ class BeamRNNTInfer(Typing):
                             curr_score += self.ngram_lm_alpha * lm_score
 
                     for k in range(pref_id, (curr_id - 1)):
-                        if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
-                            logp, ilm_logp = self.joint.joint(
-                                enc_out, hyp_j.dec_out[k], return_ilm=self.hat_subtract_ilm
-                            )
-                        else:
-                            logp = torch.log_softmax(
-                                self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature, dim=-1,
-                            )
+                        logp, ilm_logp = self.resolve_joint_output(enc_out, hyp_j.dec_out[k])
                         logp = logp[0, 0, 0, :]
                         curr_score += float(logp[hyp_j.y_sequence[k + 1]])
                         # Setup ngram LM:
                         if self.ngram_lm:
                             lm_score, next_state = self.compute_ngram_score(next_state, int(hyp_j.y_sequence[k + 1]))
-                            if isinstance(self.joint, hat.HATJoint) and self.hat_subtract_ilm:
+                            if self.hat_subtract_ilm:
                                 curr_score += self.ngram_lm_alpha * lm_score - self.hat_ilm_weight * float(
                                     ilm_logp[0, 0, hyp_j.y_sequence[k + 1]]
                                 )
