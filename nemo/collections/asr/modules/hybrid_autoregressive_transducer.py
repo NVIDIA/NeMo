@@ -38,6 +38,7 @@ from nemo.collections.common.parts import rnn
 from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AdapterModuleMixin
+from nemo.collections.asr.parts.utils.rnnt_utils import HATJointOutput
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ElementType,
@@ -144,10 +145,18 @@ class HATJoint(rnnt.RNNTJoint):
             activation=self.activation,
             dropout=jointnet.get('dropout', 0.0),
         )
+        self._return_hat_ilm = False
 
-    def joint(
-        self, f: torch.Tensor, g: torch.Tensor, return_ilm: bool = False
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    @property
+    def return_hat_ilm(self):
+        return self._return_hat_ilm
+    
+    @return_hat_ilm.setter
+    def return_hat_ilm(self, hat_subtract_ilm):
+        self._return_hat_ilm = hat_subtract_ilm
+
+
+    def joint(self, f: torch.Tensor, g: torch.Tensor) -> Union[torch.Tensor, HATJointOutput]:
         """
         Compute the joint step of the network.
 
@@ -205,10 +214,9 @@ class HATJoint(rnnt.RNNTJoint):
 
         res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous()  # [B, T, U, V+1]
 
-        if return_ilm:
-            ilm_logit = self.joint_net(g)  # [B, 1, U, V]
-            ilm_logprob = ilm_logit.log_softmax(dim=-1)
-            return res, ilm_logprob
+        if self.return_hat_ilm:
+            ilm_logprobs = self.joint_net(g).log_softmax(dim=-1)  # [B, 1, U, V]
+            res = HATJointOutput(hat_logprobs=res, ilm_logprobs=ilm_logprobs)
 
         del g, blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
 
