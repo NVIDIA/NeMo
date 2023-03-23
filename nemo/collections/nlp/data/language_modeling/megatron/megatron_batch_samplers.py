@@ -146,17 +146,18 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
 
     def __iter__(self):
         batch = []
+
+        data_parallel_micro_batch_size = self.data_parallel_size * self.micro_batch_size
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            if len(batch) == self.micro_batch_size:
-                # start_idx, end_idx = self.get_start_end_idx()
+            if len(batch) == data_parallel_micro_batch_size:
                 indices = [
-                    batch[i] for i in range(self.data_parallel_rank, self.micro_batch_size, self.data_parallel_size,)
+                    batch[i]
+                    for i in range(self.data_parallel_rank, data_parallel_micro_batch_size, self.data_parallel_size)
                 ]
                 assert len(indices) == self.micro_batch_size
                 yield indices
-                # yield batch[start_idx:end_idx]
                 batch = []
 
         # Check the last partial batch and see drop_last is set
