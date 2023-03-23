@@ -139,6 +139,7 @@ class ConvSubsampling(torch.nn.Module):
                 self._right_padding = (self._kernel_size - 1) // 2
                 self._max_cache_len = 0
 
+            print("helloinit", self._left_padding , self._right_padding, self._max_cache_len)
 
             # Layer 1
             layers.append(
@@ -232,6 +233,7 @@ class ConvSubsampling(torch.nn.Module):
         if "_postnorm" in subsampling:
             self.post_norm = nn.LayerNorm(conv_channels * int(out_length))
 
+        print("hello", conv_channels, conv_channels, feat_out)
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
 
         if "_postpostnorm" in subsampling:
@@ -267,6 +269,9 @@ class ConvSubsampling(torch.nn.Module):
         x = x.transpose(1, 2).reshape(b, t, -1)
         if self.post_norm is not None:
             x = self.post_norm(x)
+
+        print("hello-forward", x.shape)
+
         x = self.out(x)
         if self.post_postnorm is not None:
             x = self.post_postnorm(x)
