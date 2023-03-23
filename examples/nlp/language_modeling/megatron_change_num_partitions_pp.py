@@ -81,7 +81,8 @@ def compute_tp_splits(
 
     if param.shape == partitions[0][idx].shape:
         split = [partitions[0][idx].data] * tp_size
-        print(">> Perfect match, no splitting needed")
+        if DEBUG_PRINT:
+            print(">> Perfect match, no splitting needed")
     elif param.shape[0] == partitions[0][idx].shape[0]:
         split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
     else:
@@ -625,9 +626,12 @@ def main():
 
             # temporarily
             original_cpu_init = model.cfg.get('use_cpu_initialization', False)
+            original_amp_o2 = model.cfg.get('megatron_amp_O2', False)
             model.cfg.use_cpu_initialization = True
+            model.cfg.megatron_amp_O2 = False
 
-        model = cls(model.cfg, trainer).to('cpu')
+        model = cls(model.cfg, trainer)
+        model = model.to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         if tgt_tp_size > 1 or tgt_pp_size > 1:
@@ -637,6 +641,7 @@ def main():
             merge_partition(model, partitions, args.target_file)
 
         model.cfg.use_cpu_initialization = original_cpu_init
+        model.cfg.megatron_amp_O2 = original_amp_o2
 
         # Empty cache memory of all parameters from all PP TP partitions
         partitions.clear()
