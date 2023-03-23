@@ -83,8 +83,6 @@ python megatron_change_num_partitions_pp.py \
 
 """
 
-DEBUG_PRINT = False
-
 
 def compute_tp_splits(
     param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
@@ -111,8 +109,7 @@ def compute_tp_splits(
 
     if param.shape == partitions[0][idx].shape:
         split = [partitions[0][idx].data] * tp_size
-        if DEBUG_PRINT:
-            print(">> Perfect match, no splitting needed")
+        logging.debug(">> Perfect match, no splitting needed")
     elif param.shape[0] == partitions[0][idx].shape[0]:
         split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
     else:
@@ -157,7 +154,7 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
 
     total_params_merged = len([p for p in model.parameters()])
     pp_total_len = sum(pp_lens)
-    print("Total layers in Merged Model:", total_params_merged)
+    logging.info(f"Total layers in Merged Model: {total_params_merged}")
 
     og_pp_split_rank = 0
     if pp_total_len > total_params_merged:
@@ -186,37 +183,28 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
             # beginning of the decoder rank. We can skip them during the merge step.
             if pp_total_len > total_params_merged:
                 if og_pp_split_rank > 0 and og_pp_split_rank == pp_rank:
-                    print(
-                        "Skipping duplicate vocab and positional embeddings for EncDec model "
-                        "at the pp split rank: ",
-                        og_pp_split_rank,
+                    logging.info(
+                        f"Skipping duplicate vocab and positional embeddings for EncDec model "
+                        f"at the pp split rank: {og_pp_split_rank}"
                     )
                     idx += 2
 
         # For EncDec models, after the pp split occurs, final pp rank of the decoder
         # has an intermediate embedding tensor at the penultimate positon, skip that.
         if og_pp_split_rank > 0 and global_idx == total_params_merged - 1:
-            print(
-                "Skipping intermediate embedding tensor for EncDec model at the final pp split rank: ",
-                og_pp_split_rank,
+            logging.info(
+                f"Skipping intermediate embedding tensor for EncDec model at the final pp split "
+                f"rank: {og_pp_split_rank}",
             )
             idx = pp_lens[pp_rank] - 1
 
         # Extract all TP ranks out of current PP rank
         partitions_pp = partitions[pp_rank]
 
-        if DEBUG_PRINT:
-            print(
-                "Global idx:",
-                global_idx,
-                "Index:",
-                idx,
-                "Model Param:",
-                name,
-                param.shape,
-                "Partition Params:",
-                [p[idx].shape for p in partitions_pp],
-            )
+        logging.debug(
+            f"Global idx: {global_idx} Index: {idx} Model Param: {name} "
+            f"Partition Params: {[p[idx].shape for p in partitions_pp]}"
+        )
 
         # Logic from original TP rank change
         if param.shape == partitions_pp[0][idx].shape:
@@ -347,14 +335,14 @@ def split_partition(
         idx += 1
 
     # Print some debug info
-    print("Start Layer Idx:", idx, "Number of layers in current rank:", num_params, "Offset:", offset)
+    logging.info(f"Start Layer Idx: {idx} Number of layers in current rank: {num_params} Offset: {offset}")
     if duplicate_word_embedding_offset > 0:
-        print("GPT duplicate_word_embedding_offset", duplicate_word_embedding_offset)
+        logging.info(f"GPT duplicate_word_embedding_offset: {duplicate_word_embedding_offset}")
     if enc_dec_share_token_embeddings_count:
-        print("EncDec share_token_embeddings_count", enc_dec_share_token_embeddings_count)
+        logging.info(f"EncDec share_token_embeddings_count: {enc_dec_share_token_embeddings_count}")
     if shared_enc_dec_embeddings_intermediate:
-        print("EncDec share_enc_dec_embeddings_intermediate", intermediate_shared_embedding_location)
-    print()
+        logging.info(f"EncDec share_enc_dec_embeddings_intermediate: {intermediate_shared_embedding_location}")
+    logging.info("\n")
 
     splits = []
 
@@ -371,7 +359,7 @@ def split_partition(
         # Therefore we check for this, and reset the index to the parameter of the PP 0 TP 0 rank
         # which holds the parameters of the embedding.
         if idx == (len(partitions[0])) and duplicate_word_embedding_offset > 0:
-            print("Found duplicate embedding copy for GPT model, resetting index")
+            logging.info("Found duplicate embedding copy for GPT model, resetting index")
             idx = 0  # reset idx parameter to 0 if we have duplicate embedding copy
 
         # Since we are moving forward, we may reach the end of the global map
@@ -379,7 +367,7 @@ def split_partition(
         # Therefore we check for this, and update the index to the parameter of the PP 0 TP 0 rank
         # which holds the parameters of the embedding.
         if enc_dec_share_token_embeddings_count:
-            print("EncDec models decoder shares embedding with encoder, resetting index")
+            logging.info("EncDec models decoder shares embedding with encoder, resetting index")
             idx = (
                 2 - enc_dec_share_token_embeddings_count
             )  # 0th index is vocab embedding, 1 is pos embedding, 2 is embedding count
@@ -390,7 +378,7 @@ def split_partition(
         # Therefore we check for this, and skip the parameter of the current TP X PP Y module
         # and fill this parameter later.
         if shared_enc_dec_embeddings_intermediate and param_name == 'enc_dec_model.word_embeddings.weight':
-            print(
+            logging.info(
                 "EncDec models decoder shares embedding with encoder in intermediate pos, skipping module for later update"
             )
             continue
@@ -398,13 +386,8 @@ def split_partition(
         # Log some useful comparison of tensors that are being mapped.
         # Note that the global param index for layers and modules may be different but the shapes
         # and semantics of the layer should match.
-        if DEBUG_PRINT:
-            print(
-                "Index:", idx, "Model param  :", param_name, param.shape,
-            )
-            print(
-                "Index:", idx, "Global params:", partitions[1][idx], partitions[0][idx].shape,
-            )
+        logging.debug(f"Index: {idx} Model Params : {param_name} - {param.shaoe}")
+        logging.debug(f"Index: {idx} Global params: {partitions[1][idx]} - {partitions[0][idx].shape}")
 
         # Tensor Parallel Splitting
         split = compute_tp_splits(
@@ -429,7 +412,7 @@ def split_partition(
     if shared_enc_dec_embeddings_intermediate:
         for param_name, param in model.named_parameters():
             if param_name == 'enc_dec_model.word_embeddings.weight':
-                print("Found intermediate shared embedding, injecting")
+                logging.info("Found intermediate shared embedding, injecting")
                 split = compute_tp_splits(
                     param_name, param, partitions, 0, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
                 )
@@ -484,7 +467,7 @@ def split_partition(
             idx += 1
 
         if write_path is not None:
-            print(f"Writing pp rank {pp_rank} tp rank {tp_rank} to file {write_path}")
+            logging.info(f"Writing pp rank {pp_rank} tp rank {tp_rank} to file {write_path}")
             model.save_to(write_path)
 
     return new_offset
@@ -587,7 +570,7 @@ def main():
             for tp_rank in range(tp_size):
                 app_state.tensor_model_parallel_rank = tp_rank
 
-                print("Loading ------------", "PP Rank:", pp_rank, "TP Rank:", tp_rank)
+                logging.info(f"Loading ------------ PP Rank: {pp_rank} TP Rank: {tp_rank}")
 
                 # Override flag that forces Model to use AppState instead of Trainer
                 # to determine the world size, global and local rank
@@ -611,7 +594,7 @@ def main():
                 save_restore_connector = NLPSaveRestoreConnector()
 
                 if args.model_extracted_dir is not None:
-                    print("Using extracted model directory: ", args.model_extracted_dir)
+                    logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
                     save_restore_connector.model_extracted_dir = args.model_extracted_dir
 
                 model = cls.restore_from(
@@ -625,7 +608,7 @@ def main():
                 # Reset env flag
                 os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
 
-                print(f"<<<<<<<< LOADED MODEL {pp_rank} {tp_rank} | GLOBAL RANK = {global_rank} >>>>>>>>>")
+                logging.info(f"<<<<<<<< LOADED MODEL {pp_rank} {tp_rank} | GLOBAL RANK = {global_rank} >>>>>>>>>")
                 params = [p for _, p in model.named_parameters()]
                 partitions[pp_rank].append(params)
 
@@ -690,12 +673,11 @@ def main():
         global_params.append([p for n, p in model.named_parameters()])  # params
         global_params.append([n for n, p in model.named_parameters()])  # names
 
-        if DEBUG_PRINT:
-            print("Global parameters:")
-            for idx, (name, p) in enumerate(zip(global_params[1], global_params[0])):
-                print(name, p.shape)
+        logging.debug("Global parameters:")
+        for idx, (name, p) in enumerate(zip(global_params[1], global_params[0])):
+            logging.debug(f"{name} - {p.shape}")
 
-        print("TP 1 PP 1 Number of Parameters :", len(global_params[0]))
+        logging.info(f"TP 1 PP 1 Number of Parameters : {len(global_params[0])}")
 
         world_size = (
             tgt_pp_size * tgt_tp_size
@@ -704,7 +686,7 @@ def main():
         old_global_batch_size = model.cfg.global_batch_size
 
         global_offset = len(global_params[0]) - 1  # -1 cause this indexes the array, range [0, L-1]
-        print("Final layer offset for parameters: ", global_offset)
+        logging.info(f"Final layer offset for parameters: {global_offset}")
 
         for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
 
@@ -763,11 +745,11 @@ def main():
                 )
                 model.cfg.global_batch_size = new_global_batch_size
 
-            print("Global rank: ", global_rank, "Local rank: ", app_state.local_rank, "World size: ", world_size)
-            print("PP rank: ", pp_rank, "TP rank: ", 0)
-            print("TP 1 PP 1 Number of Parameters :", len(global_params[0]))
-            print("Remaining layer offset for parameters: ", global_offset)
-            print()
+            logging.info(f"Global rank: {global_rank} Local rank: {app_state.local_rank} World size: {world_size}")
+            logging.info(f"PP rank: {pp_rank} TP rank: {0}")
+            logging.info(f"TP 1 PP 1 Number of Layers : {len(global_params[0])}")
+            logging.info(f"Remaining layer offset for parameters: {global_offset}")
+            logging.info("\n")
 
             global_offset = split_partition(
                 model,
@@ -792,14 +774,14 @@ def main():
                 f"Currently, seems some parameters were duplicated."
             )
         elif global_offset > -1:
-            print()
-            print("!" * 80)
-            print("Error: Some parameters were not correctly added to model partitions.")
-            print("Below is list of parameters skipped in reverse order: ")
+            logging.error("\n")
+            logging.error("!" * 80)
+            logging.error("Error: Some parameters were not correctly added to model partitions.")
+            logging.error("Below is list of parameters skipped in reverse order: ")
 
             for param_id in range(global_offset, -1, -1):
-                print("Param ID:", param_id, ":", global_params[1][param_id], global_params[0][param_id].shape)
-            print("!" * 80)
+                logging.error(f"Param ID: {param_id} : {global_params[1][param_id]} {global_params[0][param_id].shape}")
+            logging.error("!" * 80)
 
             raise ValueError(
                 f"Invalid global offset {global_offset} found for global rank {app_state.global_rank} "
