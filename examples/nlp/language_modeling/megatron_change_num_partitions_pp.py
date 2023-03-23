@@ -386,7 +386,7 @@ def split_partition(
         # Log some useful comparison of tensors that are being mapped.
         # Note that the global param index for layers and modules may be different but the shapes
         # and semantics of the layer should match.
-        logging.debug(f"Index: {idx} Model Params : {param_name} - {param.shaoe}")
+        logging.debug(f"Index: {idx} Model Params : {param_name} - {param.shape}")
         logging.debug(f"Index: {idx} Global params: {partitions[1][idx]} - {partitions[0][idx].shape}")
 
         # Tensor Parallel Splitting
