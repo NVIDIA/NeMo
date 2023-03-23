@@ -15,8 +15,8 @@
 """Dataloaders."""
 
 import abc
-from typing import Optional
 from itertools import chain
+from typing import Optional
 
 import torch
 
@@ -116,8 +116,9 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
 
         # Check the last partial batch and see drop_last is set
         if len(batch) > 0 and not self.drop_last:
-            assert not self.pad_samples_to_global_batch_size, \
-                'with pad_samples_to_global_batch_size all batches should be complete'
+            assert (
+                not self.pad_samples_to_global_batch_size
+            ), 'with pad_samples_to_global_batch_size all batches should be complete'
             start_idx, end_idx = self.get_start_end_idx()
             yield batch[start_idx:end_idx]
 
