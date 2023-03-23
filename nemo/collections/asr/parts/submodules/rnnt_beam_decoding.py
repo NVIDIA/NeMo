@@ -35,7 +35,13 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, HATJointOutput, NBestHypotheses, is_prefix, select_k_expansions
+from nemo.collections.asr.parts.utils.rnnt_utils import (
+    HATJointOutput,
+    Hypothesis,
+    NBestHypotheses,
+    is_prefix,
+    select_k_expansions,
+)
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -1383,7 +1389,7 @@ class BeamRNNTInfer(Typing):
                 final.append(hyp)
 
         return hypotheses
-    
+
     def resolve_joint_output(self, enc_out: torch.Tensor, dec_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Resolve output types for RNNT and HAT joint models
@@ -1396,10 +1402,11 @@ class BeamRNNTInfer(Typing):
         elif self.hat_subtract_ilm and isinstance(joint_output, HATJointOutput):
             ytm, ilm_ytm = joint_output.hat_logprobs, joint_output.ilm_logprobs
         else:
-            raise TypeError(f"Joint output ({type(joint_output)}) must be torch.Tensor or HATJointOutput in case of HAT joint")
+            raise TypeError(
+                f"Joint output ({type(joint_output)}) must be torch.Tensor or HATJointOutput in case of HAT joint"
+            )
 
         return ytm, ilm_ytm
-
 
     def prefix_search(
         self, hypotheses: List[Hypothesis], enc_out: torch.Tensor, prefix_alpha: int
