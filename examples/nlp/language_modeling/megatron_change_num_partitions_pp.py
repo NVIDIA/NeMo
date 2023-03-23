@@ -31,6 +31,7 @@ from nemo.utils.app_state import AppState
 """
 Usage:
 
+
 # Megatron GPT
 python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
@@ -38,7 +39,8 @@ python megatron_change_num_partitions.py \
     --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=1 \
     --pipeline_model_parallel_size=1 \
-    --target_pipeline_model_parallel_size=1
+    --target_pipeline_model_parallel_size=1 \
+    --precision=bf16
 
 # Megatron T5
 python megatron_change_num_partitions_pp.py \
@@ -49,7 +51,25 @@ python megatron_change_num_partitions_pp.py \
     --target_tensor_model_parallel_size=1 \
     --pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_size=1 \
-    --target_pipeline_model_parallel_split_rank=0
+    --target_pipeline_model_parallel_split_rank=0 \
+    --precision=bf16
+
+# NOTE: When converting large models, always ensure that you pre-extract the nemo model and then only perform conversion
+
+$ mkdir "unpacked_nemo_file"
+$ tar -xvf "<path to nemo file>" -C "<absolute path to pwd>/unpacked_nemo_file/"
+
+python megatron_change_num_partitions_pp.py \
+    ...
+    --model_extracted_dir="<Absolute path to pwd>/unpacked_nemo_file/"
+
+# NOTE: Conversion of other model types. 
+# Default model type is MegatronGPTModel, if you want another model you need to pass classpath of the model
+# For example - MegatronT5Model - 
+
+python megatron_change_num_partitions_pp.py \
+    ...
+    --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model"
 
 """
 
