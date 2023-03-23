@@ -177,6 +177,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         # batch, seq_len, dim
         b, n, dim = encoder_output.shape
+        _, _, _, retrieval_seq_len, _ = enc_input.shape
 
         if set_inference_key_value_memory:
             # run once to setup the cache
@@ -184,7 +185,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             num_seq_chunks = n // self.chunk_size
             num_chunks = inference_max_sequence_len // self.chunk_size
             self.cache_output = self._allocate_memory(
-                b, num_chunks, neighbors, self.chunk_size * 2, dim, dtype=encoder_output.dtype
+                b, num_chunks, neighbors, retrieval_seq_len, dim, dtype=encoder_output.dtype
             )
             self.seq_pos_in_chunk = n
             self.current_chunk = n // self.chunk_size
@@ -514,7 +515,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
                 self_attn_emb = self.rotary_pos_emb(n)
             if retrieved_emb is not None:
                 # -63, -62, ... 63  will be cut into -> [0, ... 63] in the chunk cross attention layer
-                cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, offset=-self.chunk_size + 1)
+                cross_attn_q_pos_emb = self.rotary_pos_emb(rn - 1, offset=-self.chunk_size + 1)
                 if self.version == 1:
                     cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
                 elif self.version > 1:
