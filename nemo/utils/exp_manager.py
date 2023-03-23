@@ -77,7 +77,10 @@ class EarlyStoppingParams:
     min_delta: float = 0.001  # smallest change to consider as improvement.
     patience: int = 10  # how many (continuous) validation cycles to wait with no improvement and stopping training.
     verbose: bool = True
-    strict: bool = True
+    # whether to crash the training if monitor is not found in the validation metrics. strict is made False
+    # by default to avoid monitor metric not found error from the EarlyStopping callback whenever training 
+    # is resumed, as sometimes the monitor metic is not logged immediately upon resume.
+    strict: bool = False 
     check_finite: bool = True
     stopping_threshold: Optional[float] = None
     divergence_threshold: Optional[float] = None
