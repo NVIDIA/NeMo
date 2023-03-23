@@ -70,6 +70,16 @@ python megatron_change_num_partitions_pp.py \
 python megatron_change_num_partitions_pp.py \
     ...
     --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model"
+    
+# Additional arguments:
+
+--num_gpu_per_node: Number of GPUs per node. Default is 8.
+--megatron_legacy: Whether the model is a legacy Megatron model or not. Default is False. May be unsuported for 
+    Pipeline Parallelism change.
+--tokenizer_model_path: Path to tokenizer model. Default is None. When not None, overrides the tokenizer model path
+    in the model config.
+--tokenizer_vocab_file: Path to tokenizer vocab file. Default is None. When not None, overrides the tokenizer vocab
+    file in the model config.
 
 """
 
