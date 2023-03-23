@@ -362,6 +362,7 @@ class BeamRNNTInfer(Typing):
         joint_training_state = self.joint.training
 
         # setup hat outputs mode
+        return_hat_ilm_default = False
         if self.hat_subtract_ilm:
             assert hasattr(self.joint, "return_hat_ilm")
             return_hat_ilm_default = self.joint.return_hat_ilm
