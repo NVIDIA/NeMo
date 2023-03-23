@@ -43,12 +43,10 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-    from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
     from apex.transformer.enums import ModelType
-    from apex.transformer.tensor_parallel.layers import (
-        set_defaults_if_not_set_tensor_model_parallel_attributes,
-    )
+    from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 
@@ -730,9 +728,7 @@ def build_model_cpu(
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
                 if split_rank is None:
-                    raise RuntimeError(
-                        "Split rank needs to be specified for model with both encoder and decoder."
-                    )
+                    raise RuntimeError("Split rank needs to be specified for model with both encoder and decoder.")
                 rank = parallel_state.get_pipeline_model_parallel_rank()
                 world_size = parallel_state.get_pipeline_model_parallel_world_size()
                 pre_process = rank == 0 or rank == split_rank
@@ -764,10 +760,7 @@ def build_model_cpu(
             set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if (
-        parallel_state.model_parallel_is_initialized()
-        and parallel_state.get_data_parallel_rank() == 0
-    ):
+    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
         msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
@@ -779,10 +772,7 @@ def build_model_cpu(
         i = torch.cuda.current_device()
         model = [
             torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module,
-                device_ids=[i],
-                output_device=i,
-                process_group=parallel_state.get_data_parallel_group(),
+                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
             )
             for model_module in model
         ]

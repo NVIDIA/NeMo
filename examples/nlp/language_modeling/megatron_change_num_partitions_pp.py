@@ -780,7 +780,9 @@ def main():
             logging.error("Below is list of parameters skipped in reverse order: ")
 
             for param_id in range(global_offset, -1, -1):
-                logging.error(f"Param ID: {param_id} : {global_params[1][param_id]} {global_params[0][param_id].shape}")
+                logging.error(
+                    f"Param ID: {param_id} : {global_params[1][param_id]} {global_params[0][param_id].shape}"
+                )
             logging.error("!" * 80)
 
             raise ValueError(
