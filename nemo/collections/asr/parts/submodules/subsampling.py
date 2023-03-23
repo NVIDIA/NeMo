@@ -233,7 +233,7 @@ class ConvSubsampling(torch.nn.Module):
         if "_postnorm" in subsampling:
             self.post_norm = nn.LayerNorm(conv_channels * int(out_length))
 
-        print("hello", conv_channels, conv_channels, feat_out)
+        print("hello", conv_channels, out_length, feat_out)
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
 
         if "_postpostnorm" in subsampling:
