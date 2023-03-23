@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 from sentence_transformers import CrossEncoder, SentenceTransformer, util
 from transformers import (
+    AutoTokenizer,
     BertModel,
     BertTokenizer,
     DPRContextEncoder,
@@ -516,12 +517,27 @@ def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, mo
         for query_docsandscores_sorted in all_query_docsandscores_sorted
     ]
 
-    all_query_scores = [
-        list(
-            models[1].predict([(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]])
-        )
-        for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)
-    ]
+    if isinstance(models[1], tuple):
+        rank_model, rank_model_tokenizer = models[1]
+        all_query_scores = []
+        for query_contexts_ranked, query in zip(all_query_docs_sorted, questions):
+            features = rank_model_tokenizer(
+                [query] * 20,
+                [normalization_txt(format(*context)) for context in query_contexts_ranked[:20]],
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+            ).to(0)
+            all_query_scores.append(rank_model(**features).logits.transpose(0, 1)[0])
+    else:
+        all_query_scores = [
+            list(
+                models[1].predict(
+                    [(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]]
+                )
+            )
+            for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)
+        ]
 
     all_query_docsandscores_sorted = [
         sorted(list(zip(query_contexts_ranked[:neighbors], query_scores)), key=lambda x: x[1], reverse=True)
@@ -589,9 +605,7 @@ class ContriverRetrievalServer(object):
     Flask Retrieval server, which helps to get the KNN tokens given the query chunk
     """
 
-    def __init__(
-        self, filepath, tokenizer: TokenizerSpec, max_answer_length,
-    ):
+    def __init__(self, filepath, tokenizer: TokenizerSpec, max_answer_length, cross_encoder=None):
         self.app = Flask(__name__, static_url_path='')
         rows = load_car_manual(filepath)
         manual = []
@@ -602,7 +616,13 @@ class ContriverRetrievalServer(object):
         all_contexts = chunk_car_manual(manual)
         all_contexts_formatted = [normalization_txt(format(*all_context)) for all_context in all_contexts]
         self.distil_model = SentenceTransformer('sentence-transformers/msmarco-distilbert-base-tas-b', device='cuda')
-        self.rank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512, device='cuda')
+        if cross_encoder is not None:
+            self.rank_model = torch.load(cross_encoder).eval().cuda()
+            rank_model_tokenizer = AutoTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
+            reranker = (self.rank_model, rank_model_tokenizer)
+        else:
+            self.rank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512, device='cuda')
+            reranker = self.rank_model
         self.all_contexts_formatted_emb = self.distil_model.encode(all_contexts_formatted)
         self.all_contexts = all_contexts
 
@@ -631,7 +651,7 @@ class ContriverRetrievalServer(object):
                 self.all_contexts_formatted_emb,
                 tokenizer,
                 max_answer_length,
-                (self.distil_model, self.rank_model),
+                (self.distil_model, reranker),
             ],
         )
 

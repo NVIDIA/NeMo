@@ -21,7 +21,14 @@ from nemo.core.config import hydra_runner
 @hydra_runner(config_path="conf", config_name="retro_web_server")
 def main(cfg) -> None:
 
-    demo = RetroQADemoWebApp(cfg.text_service_ip, cfg.text_service_port, cfg.combo_service_ip, cfg.combo_service_port, cfg.qa_service_ip, cfg.qa_service_port)
+    demo = RetroQADemoWebApp(
+        cfg.text_service_ip,
+        cfg.text_service_port,
+        cfg.combo_service_ip,
+        cfg.combo_service_port,
+        cfg.qa_service_ip,
+        cfg.qa_service_port,
+    )
     demo.run_demo(cfg.share, cfg.username, cfg.password, cfg.port)
 
 

@@ -8,4 +8,5 @@ tokenizer:
 service:
   filepath: null
   max_answer_length: 128
+  cross_encoder: null # fine tuned cross encoder
   port: 17111  # server port number

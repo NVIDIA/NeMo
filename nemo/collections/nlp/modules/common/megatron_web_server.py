@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gradio as gr
-import numpy as np
 import time
 
+import gradio as gr
+import numpy as np
+
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
+    convert_qa_evidence_to_md,
     convert_retrieved_to_md,
     request_data,
     request_post_data,
-    convert_qa_evidence_to_md,
 )
 
 
@@ -182,7 +183,9 @@ class RetroDemoWebApp:
 
 
 class RetroQADemoWebApp(RetroDemoWebApp):
-    def __init__(self, text_service_ip, text_service_port, combo_service_ip, combo_service_port, qa_service_ip, qa_service_port):
+    def __init__(
+        self, text_service_ip, text_service_port, combo_service_ip, combo_service_port, qa_service_ip, qa_service_port
+    ):
         super().__init__(text_service_ip, text_service_port, combo_service_ip, combo_service_port)
         self.qa_service_ip = qa_service_ip
         self.qa_service_port = qa_service_port
@@ -213,11 +216,21 @@ class RetroQADemoWebApp(RetroDemoWebApp):
         if self.qa_service_ip is not None:
             while True:
                 try:
-                    better_answer = request_post_data({'question': prompt, 'answer': answer}, ip=self.qa_service_ip, port=self.qa_service_port, path='decontext')['text'].strip()
+                    better_answer = request_post_data(
+                        {'question': prompt, 'answer': answer},
+                        ip=self.qa_service_ip,
+                        port=self.qa_service_port,
+                        path='decontext',
+                    )['text'].strip()
                     break
                 except:
                     time.sleep(5)
-            qscore = request_post_data({'response': better_answer, 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='qsquare')
+            qscore = request_post_data(
+                {'response': better_answer, 'knowledges': knowledges},
+                ip=self.qa_service_ip,
+                port=self.qa_service_port,
+                path='qsquare',
+            )
             # nli_scores = request_post_data({'responses': [better_answer] * len(knowledges), 'knowledges': knowledges}, ip=self.qa_service_ip, port=self.qa_service_port, path='nli')
             # selection = np.array(nli_scores).argmax(axis=1)
             # nli_labels = ['contradiction', 'entailment', 'neutral']
