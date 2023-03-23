@@ -174,8 +174,11 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         logging.info("Done")
         # self.model = self.frozen_model
-        if cfg.eval == True:
-            self.load_adapters(strict=False)
+        # if cfg.eval == True:
+        #     self.load_adapters(strict=False)
+
+        print("HEre")
+        # self.model.freeze()
 
     def add_adapters_init(self, module, adapter_cfg):
         for adapter_key in self.adapter_name_keys:
@@ -183,6 +186,66 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 module.add_adapter(
                     name=adapter_key, cfg=adapter_cfg,
                 )
+
+    # def setup_optimizer_param_groups(self):
+    #     """
+    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
+    #     Makes two optimizer param groups, one for the frozen model params
+    #     and one for the prompt-table/prompt-encoder params. The learning 
+    #     rate for the frozen model's params will always be zero effectively
+    #     freezing the model's params but still allowing for the needed gradients
+    #     to be passed around in pipeline parallel models. The prompt-encoder 
+    #     and/or prompt table will use the learning rate set by the user. 
+    #     """
+    #     self.model.freeze()  # Freeze the entire model
+    #     opt_params = []
+    #     for _, module in self.model.named_modules():
+    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+    #             module.set_enabled_adapters(enabled=True)
+    #             module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
+    #             opt_params += [p for p in module.parameters()]
+
+    #     self._optimizer_param_groups = [{'params': opt_params}]
+    #     logging.info(f'Optimizer groups set:\n{self.model.summarize()}')
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Creates a state_dict using only the adapter parameters.
+        This ensures that this wrapper class will only checkpoint the adapter
+        weights and not the rest of the base GPT Model.
+        """
+        state_dict_ = {}
+        for name, module in self.model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.get_adapter_module(adapter_key)
+                    if adapter_module:
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
+
+                module.set_enabled_adapters(enabled=True)
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Loads a state_dict expecting the state_dict to contain key,values 
+        only for the adapter parameters.
+        """
+        for name, module in self.model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.get_adapter_module(adapter_key)
+                    if adapter_module:
+                        state_adapter_key = '.'.join(["frozen_model", name, "adapter_layer", adapter_key])
+                        temp_stat_dict = {
+                            "layer_norm.weight": state_dict[state_adapter_key + '.layer_norm.weight'],
+                            "layer_norm.bias": state_dict[state_adapter_key + '.layer_norm.bias'],
+                            "linear_in.weight": state_dict[state_adapter_key + '.linear_in.weight'],
+                            "linear_out.weight": state_dict[state_adapter_key + '.linear_out.weight']
+                        }
+                        adapter_module.load_state_dict(temp_stat_dict, strict)
+                        # adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                module.set_enabled_adapters(enabled=True)
 
     def forward(
         self,
@@ -206,7 +269,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
             position_ids=position_ids,
         )
         return output_tensor
-
 
     def create_state_dict(self, destination=None, prefix=None, keep_vars=False):
         """
@@ -241,6 +303,20 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
+
+    @classmethod
+    def list_available_models(cls):
+        pass
 
     # def build_train_valid_test_datasets(self):
     #     logging.info('Building RETRO datasets.')
@@ -289,171 +365,6 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #         dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
     #     )
 
-    # def load_model_state_dict(self, checkpoint) -> None:
-    #     self.load_state_dict(state_dict())
-
-
-    # def state_dict(self, destination=None, prefix=None, keep_vars=False):
-    #     """
-    #     Creates a state_dict using only the adapter parameters.
-    #     This ensures that this wrapper class will only checkpoint the adapter
-    #     weights and not the rest of the base GPT Model.
-    #     """
-    #     state_dict_ = {}
-    #     for name, module in self.frozen_model.named_modules():
-    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-    #             for adapter_key in self.adapter_name_keys:
-    #                 adapter_module = module.get_adapter_module(adapter_key)
-    #                 if adapter_module:
-    #                     state_adapter_key = ':'.join([name, adapter_key])
-    #                     state_dict_[state_adapter_key] = adapter_module.state_dict()
-
-    #             module.set_enabled_adapters(enabled=True)
-    #     return state_dict_
-
-    # def load_state_dict(self, state_dict, strict: bool = True):
-    #     """
-    #     Loads a state_dict expecting the state_dict to contain key,values 
-    #     only for the adapter parameters.
-    #     """
-    #     # state_dict = self.frozen_model.state_dict()
-    #     for name, module in self.frozen_model.named_modules():
-    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-    #             for adapter_key in self.adapter_name_keys:
-    #                 adapter_module = module.get_adapter_module(adapter_key)
-    #                 if adapter_module:
-    #                     state_adapter_key = ':'.join([name, adapter_key])
-    #                     stact_dict_output = state_dict[state_adapter_key]
-    #                     adapter_module.load_state_dict(stact_dict_output, strict)
-    #             module.set_enabled_adapters(enabled=True)
-
-    #     # self.frozen_model.load_state_dict(state_dict)
-    #     print("Loaded state dict")
-
-    # def get_forward_output_only_func(self):
-    #     """
-    #     Used for generate method only.
-    #     """
-
-    #     def fwd_output_only_func(batch, model):
-    #         extra_arg = {}
-    #         (
-    #             tokens,
-    #             attention_mask,
-    #             retrieved,
-    #             retrieved_mask,
-    #             set_inference_key_value_memory,
-    #             inference_max_sequence_len,
-    #             neighbors,
-    #             position_ids,
-    #         ) = batch
-
-    #         if len(retrieved.shape) == 1:
-    #             retrieved = None
-    #             retrieved_mask = None
-    #         else:
-    #             retrieved = retrieved.cuda()
-    #             retrieved_mask = retrieved_mask.cuda()
-
-    #         extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-    #         extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-    #         extra_arg['neighbors'] = neighbors[0].item()
-    #         # extra_arg['position_ids'] = position_ids
-
-    #         output_tensor = model.model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
-
-    #         def id_func(output_tensor):
-    #             return output_tensor, {'logits': output_tensor}
-
-    #         return output_tensor, id_func
-
-    #     return fwd_output_only_func
-
-    def set_input_tensor(self, input_tensor):
-        """Set input tensor to be used instead of forward()'s input.
-
-        When doing pipeline parallelism the input from the previous
-        stage comes from communication, not from the input, so the
-        model's forward_step_func won't have it. This function is thus
-        used by internal code to bypass the input provided by the
-        forward_step_func"""
-        self.input_tensor = input_tensor
-
-    # def setup_optimizer_param_groups(self):
-    #     """
-    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
-    #     Makes two optimizer param groups, one for the frozen model params
-    #     and one for the prompt-table/prompt-encoder params. The learning 
-    #     rate for the frozen model's params will always be zero effectively
-    #     freezing the model's params but still allowing for the needed gradients
-    #     to be passed around in pipeline parallel models. The prompt-encoder 
-    #     and/or prompt table will use the learning rate set by the user. 
-    #     """
-    #     self.frozen_model.freeze()  # Freeze the entire model
-    #     opt_params = []
-    #     for _, module in self.frozen_model.named_modules():
-    #         if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-    #             module.set_enabled_adapters(enabled=True)
-    #             module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
-    #             opt_params += [p for p in module.parameters()]
-
-    #     self._optimizer_param_groups = [{'params': opt_params}]
-    #     logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
-
-    # def training_step(self, batch, batch_idx):
-    #     # we zero grads here because we also call backward in the apex fwd/bwd functions
-    #     self._optimizer.zero_grad()
-    #     loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-    #     self.allreduce_gradients()
-
-    #     ## logging
-    #     # we can only log on one rank if it is rank zero so we broadcast from last rank
-    #     # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-    #     torch.distributed.broadcast(loss_mean, get_last_rank())
-
-    #     if self.cfg.precision == 16:
-    #         loss_scale = self.trainer.precision_plugin.scaler._scale
-    #         if loss_scale is not None:
-    #             self.log('loss_scale', loss_scale)
-
-    #     self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
-    #     lr = self._optimizer.param_groups[0]['lr']
-    #     self.log('lr', lr, rank_zero_only=True)
-    #     self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
-    #     # Need to make sure the frozen model param learning rate stays 0.0
-    #     # so forceing lr to be 0.0 for gpt layers before param update
-    #     return loss_mean
-
-    # def training_step(self, batch, batch_idx):
-    #     # we zero grads here because we also call backward in the apex fwd/bwd functions
-    #     self._optimizer.zero_grad()
-    #     loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-    #     self.allreduce_gradients()
-
-    #     ## logging
-    #     # we can only log on one rank if it is rank zero so we broadcast from last rank
-    #     # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-    #     torch.distributed.broadcast(loss_mean, get_last_rank())
-
-    #     if self.cfg.precision == 16:
-    #         loss_scale = self.trainer.precision_plugin.scaler._scale
-    #         if loss_scale is not None:
-    #             self.log('loss_scale', loss_scale)
-
-    #     self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
-    #     lr = self._optimizer.param_groups[0]['lr']
-    #     self.log('lr', lr, rank_zero_only=True)
-    #     self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
-    #     # Need to make sure the frozen model param learning rate stays 0.0
-    #     # so forceing lr to be 0.0 for gpt layers before param update
-    #     return loss_mean
-
-
-    @classmethod
-    def list_available_models(cls):
-        pass
 
 def build_all_datasets(
     cfg, tokenizer, train_valid_test_num_samples,
