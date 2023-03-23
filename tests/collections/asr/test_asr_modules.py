@@ -349,9 +349,11 @@ class TestASRModulesBasicTests:
         assert (out - out2).abs().sum() <= 1e-5
 
         # joint() step test for internal LM subtraction
-        out3, ilm = jointnet.joint(enc2, dec2, return_ilm=True)  # [B, T, U, V + 1]
+        jointnet.return_hat_ilm = True
+        hat_output = jointnet.joint(enc2, dec2)  # HATJointOutput dataclass
+        out3, ilm = hat_output.hat_logprobs, hat_output.ilm_logprobs # [B, T, U, V + 1] and [B, 1, U, V]
         assert (out - out3).abs().sum() <= 1e-5
-        assert ilm.shape == torch.Size([batchsize, 1, 24, vocab_size])  # [B, T, U, V] without blank simbol
+        assert ilm.shape == torch.Size([batchsize, 1, 24, vocab_size])  # [B, 1, U, V] without blank simbol
 
         # assert vocab size
         assert jointnet.num_classes_with_blank == vocab_size + 1
