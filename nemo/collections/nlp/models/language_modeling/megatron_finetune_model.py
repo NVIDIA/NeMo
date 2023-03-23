@@ -298,7 +298,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             tokens_enc=processed_batch['text_enc'],
             enc_mask=processed_batch['enc_mask'],
             num_tokens_to_generate=30,
-            bos_id=self.tokenizer.pad_id if data_cfg.replace_bos_with_pad else self.tokenizer.bos_id
+            bos_id=self.tokenizer.pad_id if data_cfg.replace_bos_with_pad else self.tokenizer.bos_id,
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
@@ -320,7 +320,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 label=label,
                 metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
                 class_labels=data_cfg.metric.get('class_labels', None),
-                labels_are_strings=data_cfg.metric.get('labels_are_strings', False)
+                labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
             )
             if batch_has_lang_information:
                 _ = metric(pred, label, category)
