@@ -29,27 +29,10 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.modules import rnnt, rnnt_abstract
-from nemo.collections.asr.parts.submodules import stateless_net
-from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
+from nemo.collections.asr.modules import rnnt
 from nemo.collections.asr.parts.utils.rnnt_utils import HATJointOutput
-from nemo.collections.common.parts import rnn
-from nemo.core.classes import adapter_mixins, typecheck
-from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins import AdapterModuleMixin
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    ElementType,
-    EmbeddedTextType,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    LossType,
-    NeuralType,
-    SpectrogramType,
-)
+
 from nemo.utils import logging
 
 
