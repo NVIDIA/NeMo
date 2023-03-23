@@ -714,6 +714,7 @@ def build_model_cpu(
     else:
         cur_args = args
         cur_kwargs = kwargs
+        model = None
         if model_type == ModelType.encoder_or_decoder:
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
@@ -747,7 +748,9 @@ def build_model_cpu(
                 }
             )
             model = model_provider_func(*cur_args, **cur_kwargs)
-        model.model_type = model_type
+
+        if model is not None:
+            model.model_type = model_type
 
     if not isinstance(model, list):
         model = [model]
@@ -771,10 +774,6 @@ def build_model_cpu(
             _calc_number_of_params(model),
         )
         print(msg, flush=True)
-
-    # CPU allocation.
-    # for model_module in model:
-    #     model_module.cuda(torch.cuda.current_device())
 
     if wrap_with_ddp:
         i = torch.cuda.current_device()
