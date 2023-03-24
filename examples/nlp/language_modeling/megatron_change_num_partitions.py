@@ -43,7 +43,7 @@ python megatron_change_num_partitions.py \
     --precision=bf16
 
 # Megatron T5
-python megatron_change_num_partitions_pp.py \
+python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
     --target_file=PATH_TO_TGT_FILE \
     --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model" \
@@ -59,7 +59,7 @@ python megatron_change_num_partitions_pp.py \
 $ mkdir "unpacked_nemo_file"
 $ tar -xvf "<path to nemo file>" -C "<absolute path to pwd>/unpacked_nemo_file/"
 
-python megatron_change_num_partitions_pp.py \
+python megatron_change_num_partitions.py \
     ...
     --model_extracted_dir="<Absolute path to pwd>/unpacked_nemo_file/"
 
@@ -67,7 +67,7 @@ python megatron_change_num_partitions_pp.py \
 # Default model type is MegatronGPTModel, if you want another model you need to pass classpath of the model
 # For example - MegatronT5Model - 
 
-python megatron_change_num_partitions_pp.py \
+python megatron_change_num_partitions.py \
     ...
     --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model"
 
