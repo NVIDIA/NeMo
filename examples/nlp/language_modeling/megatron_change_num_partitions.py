@@ -616,8 +616,9 @@ def main():
                 )
 
         # Build a unified model with PP 1 TP 1
-        model.cfg.tensor_model_parallel_size = 1
-        model.cfg.pipeline_model_parallel_size = 1
+        with open_dict(model.cfg):
+            model.cfg.tensor_model_parallel_size = 1
+            model.cfg.pipeline_model_parallel_size = 1
         app_state.tensor_model_parallel_rank = 0
         app_state.pipeline_model_parallel_size = 0
         app_state.model_parallel_size = 1
@@ -646,8 +647,9 @@ def main():
             # Write out the PP 1 TP 1 model to disk
             merge_partition(model, partitions, args.target_file)
 
-        model.cfg.use_cpu_initialization = original_cpu_init
-        model.cfg.megatron_amp_O2 = original_amp_o2
+        with open_dict(model.cfg):
+            model.cfg.use_cpu_initialization = original_cpu_init
+            model.cfg.megatron_amp_O2 = original_amp_o2
 
         # Empty cache memory of all parameters from all PP TP partitions
         partitions.clear()
@@ -683,24 +685,25 @@ def main():
 
         for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
 
-            model.cfg.pipeline_model_parallel_size = tgt_pp_size
-            model.cfg.tensor_model_parallel_size = tgt_tp_size
+            with open_dict(model.cfg):
+                model.cfg.pipeline_model_parallel_size = tgt_pp_size
+                model.cfg.tensor_model_parallel_size = tgt_tp_size
 
-            if 'pipeline_model_parallel_split_rank' in model.cfg:
-                if pipeline_model_parallel_split_rank > 0:
-                    model.cfg.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
-                elif pp_size > 1:
-                    logging.warning(
-                        f"Model config has `pipeline_model_parallel_split_rank` set to "
-                        f"{model.cfg.pipeline_model_parallel_split_rank} and target PP "
-                        f"size is {tgt_pp_size}. "
-                        f"Provided `pipeline_model_parallel_split_rank` is "
-                        f"{pipeline_model_parallel_split_rank}. "
-                        f"Be careful that the model config is correct "
-                        f"if encoder-decoder models are being converted."
-                    )
+                if 'pipeline_model_parallel_split_rank' in model.cfg:
+                    if pipeline_model_parallel_split_rank > 0:
+                        model.cfg.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
+                    elif pp_size > 1:
+                        logging.warning(
+                            f"Model config has `pipeline_model_parallel_split_rank` set to "
+                            f"{model.cfg.pipeline_model_parallel_split_rank} and target PP "
+                            f"size is {tgt_pp_size}. "
+                            f"Provided `pipeline_model_parallel_split_rank` is "
+                            f"{pipeline_model_parallel_split_rank}. "
+                            f"Be careful that the model config is correct "
+                            f"if encoder-decoder models are being converted."
+                        )
 
-            model.cfg.global_batch_size = old_global_batch_size  # Used for restoration
+                model.cfg.global_batch_size = old_global_batch_size  # Used for restoration
 
             # Override flag that forces Model to use AppState instead of Trainer
             # to determine the world size, global and local rank
@@ -724,7 +727,8 @@ def main():
 
             trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
             if args.tokenizer_model_path is not None:
-                model.cfg.tokenizer.model = args.tokenizer_model_path
+                with open_dict(model.cfg):
+                    model.cfg.tokenizer.model = args.tokenizer_model_path
 
             model = cls(model.cfg, trainer).to('cpu')
             model._save_restore_connector = NLPSaveRestoreConnector()
@@ -736,7 +740,8 @@ def main():
                     f"Global batch size {old_global_batch_size} is not divisible by new global batch size {new_global_batch_size}."
                     f" The model config will be updated with new global batch size {new_global_batch_size}."
                 )
-                model.cfg.global_batch_size = new_global_batch_size
+                with open_dict(model.cfg):
+                    model.cfg.global_batch_size = new_global_batch_size
 
             logging.info(f"Global rank: {global_rank} Local rank: {app_state.local_rank} World size: {world_size}")
             logging.info(f"PP rank: {pp_rank} TP rank: {0}")
