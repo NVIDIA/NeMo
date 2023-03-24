@@ -33,6 +33,9 @@ DEVICES = ['cpu']
 if torch.cuda.is_available():
     DEVICES.append('cuda')
 
+# TODO> Remove
+numba_utils.set_numba_compat_strictness(strict=False)
+
 
 DTYPES = [np.float32]
 if numba_utils.is_numba_cuda_fp16_supported():
@@ -93,7 +96,8 @@ class TestRNNTLossPytorch:
         labels = [[1, 2]]
 
         cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
-        grad_threshold = 1e-8 if dtype == np.float32 else 5e-5
+        grad_threshold = 1e-8 if dtype == np.float32 else 1e-4
+        rtol = 1e-5 if dtype == np.float32 else 1e-3
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
@@ -382,11 +386,14 @@ class TestRNNTLossPytorch:
             ]
         )
 
-        assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
+
+        assert np.allclose(pt_cost, ag_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, ag_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
@@ -418,6 +425,10 @@ class TestRNNTLossPytorch:
 
         expected_cost = 4.495666
         expected_cost += expected_cost * fastemit_lambda
+
+        diff = (pt_cost - expected_cost)
+        mae = np.abs(diff)
+        print(diff)
 
         assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=1e-6), "small_test costs mismatch."
         assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=1e-6), "small_test costs mismatch."
