@@ -287,9 +287,7 @@ def split_partition(
     # and the rank of decoder split is arbitrary.
     # Megatron T5 check for pipeline_model_parallel_split_rank in order to inject encoder embeddings
     shared_enc_dec_embeddings = (
-        pp_split_rank > 0
-        and pp_split_rank == pp_rank
-        and model.cfg.get('share_token_embeddings', True)
+        pp_split_rank > 0 and pp_split_rank == pp_rank and model.cfg.get('share_token_embeddings', True)
     )
     # If embedding sharing is active, both vocab and position embeddings are shared
     if shared_enc_dec_embeddings:
