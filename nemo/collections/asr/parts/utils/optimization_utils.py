@@ -152,7 +152,7 @@ class LinearSumAssignmentSolver(object):
         else:
             return 0 # Go to step 0 (Done state)
 
-    def _step4(self, bypass=False) -> int:
+    def _step4(self, bypass: bool = False) -> int:
         """
         Step 4
 
