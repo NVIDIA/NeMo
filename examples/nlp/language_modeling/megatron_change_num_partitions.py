@@ -159,10 +159,6 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
     og_pp_split_rank = 0
     if pp_total_len > total_params_merged:
         og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
-        # if 'share_token_embeddings' in model.cfg and model.cfg.share_token_embeddings:
-        #     og_pp_split_rank = model.cfg.get('pipeline_model_parallel_split_rank', 0)
-        # else:
-        #     og_pp_split_rank = 0
 
     idx = 0
     pp_rank = 0
@@ -293,7 +289,6 @@ def split_partition(
     shared_enc_dec_embeddings = (
         pp_split_rank > 0
         and pp_split_rank == pp_rank
-        # and 'share_token_embeddings' in model.cfg
         and model.cfg.get('share_token_embeddings', True)
     )
     # If embedding sharing is active, both vocab and position embeddings are shared
