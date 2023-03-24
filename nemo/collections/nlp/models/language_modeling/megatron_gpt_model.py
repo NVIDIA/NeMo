@@ -150,7 +150,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
-        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', False)
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -354,6 +354,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # handle asynchronous grad reduction
         custom_sync_context_handler = None
         custom_grad_sync_func = None
+        custom_param_sync_func = None
         if self.with_distributed_adam:
             if self.megatron_amp_o2:
                 # copy grads to main grad
@@ -362,6 +363,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # keep grad tensors around
                 custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
             custom_grad_sync_func = self.reduce_overlap_gradients
+            custom_param_sync_func = self.sync_overlap_parameters
         else:
             if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
                 custom_sync_context_handler = self._optimizer.no_sync
@@ -383,11 +385,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             custom_sync_context_handler=custom_sync_context_handler,
             custom_grad_sync_func=custom_grad_sync_func,
+            custom_param_sync_func=custom_param_sync_func,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
                 'num_micro_batches_with_partial_activation_checkpoints', None
             ),
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -530,8 +535,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                batch = next(dataloader_iter)
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
                         batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
@@ -539,6 +544,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         batch[k] = batch[k].cuda(non_blocking=True)
             else:
                 if parallel_state.is_pipeline_first_stage():
+                    batch = next(dataloader_iter)
                     # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -550,6 +556,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                 else None
                             )
                 elif parallel_state.is_pipeline_last_stage():
+                    batch = next(dataloader_iter)
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -561,12 +568,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                 else None
                             )
                 else:
-                    # Intermediate pipeline stage only needs attention_mask
-                    if self.get_attention_mask_from_fusion:
-                        batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
-                    else:
-                        for k in batch.keys():
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['attention_mask'] else None
+                    # Intermediate pipeline stage doesn't need any inputs
+                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
 
             output_tensor = model(
                 batch['tokens'],
@@ -658,6 +661,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             dtype=self.autocast_dtype,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             sync_batch_comm=self.cfg.get('sync_batch_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stage of the pipeline returns losses
