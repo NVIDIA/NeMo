@@ -674,7 +674,15 @@ def build_model_cpu(
     *args: Any,
     **kwargs: Any,
 ) -> List[torch.nn.Module]:
-    """Build the model satisfying pipeline model parallel requirements.
+    """Build the model satisfying pipeline model parallel requirements on CPU.
+
+    NOTE: This function is a duplicate of the Apex `build_model` function with the only difference
+    being that it removes an explicit forced cast of the model onto the GPU. This is necessary
+    because in certain cases the model is simply too large to fit on the GPU, and the user
+    should be responsible for casting the model to the GPU if they wish to do so.
+
+    Specifically, this function is used when constructing a dummy model containing the union of parameters
+    from all TP and PP ranks, which is then sharded across a new TP PP configuration.
 
     This function sets `pre_process` and `post_process` to `**kwargs` and pass `*args` and `**kwargs` to
     `model_provider_func`.
