@@ -57,7 +57,7 @@ class _RNNTNumba(Function):
         loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
         grads = torch.zeros_like(acts) if acts.requires_grad else None
         minibatch_size = acts.size(0)
-        costs = torch.zeros(minibatch_size, device=acts.device, dtype=acts.dtype)
+        costs = torch.zeros(minibatch_size, device=acts.device, dtype=torch.float32)
 
         loss_func(
             acts,
@@ -484,6 +484,10 @@ class RNNTLossNumba(Module):
         label_lens: Tensor of (batch) containing label length of each example
         """
         if not acts.is_cuda:
+            # Force FP32 until log_softmax() is implemented for fp16 on CPU
+            if acts.dtype == torch.float16:
+                acts = acts.float()
+
             # Since CPU requires log_softmax to be computed explicitly, we need to perform grad clipping
             # *after* we have obtained the gradients of loss(logsoftmax()).
             # This is highly wasteful since it requires a copy of the entire joint tensor which is expensive.
@@ -496,7 +500,7 @@ class RNNTLossNumba(Module):
             # log_softmax is computed within GPU version.
             acts = torch.nn.functional.log_softmax(acts, -1)
 
-        print("Dtype", acts.dtype)
+        print("RNNT Pytorch Dtype", acts.dtype)
         return self.loss(
             acts, labels, act_lens, label_lens, self.blank, self.reduction, self.fastemit_lambda, self.clamp
         )
