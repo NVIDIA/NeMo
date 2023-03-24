@@ -20,6 +20,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -73,7 +74,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model_type = ModelType.encoder_and_decoder
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -81,32 +81,16 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return False
 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, labels=None, inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        batch_size, seq_length = input_ids.shape
-
         if self.first_stage_of_pipeline():
-            # Get embeddings for text tokens and insert virtual token embeddings
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
-            # TODO: This check needs to be revisited with PP support.
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
         else:
             encoder_input = None
-
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
         dec_mask[:, 0] = 1
@@ -163,25 +147,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
-
-        virtual_prompt_params = {'params': []}
-
-        if self.first_stage_of_pipeline():
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
-
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-
-        self._optimizer_param_groups = (virtual_prompt_params,)
+        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, "position_embeddings"):
+            self.pos_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings
+        else:
+            self.pos_embeddings = None
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
@@ -234,10 +204,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
             output_tensor, encoder_input = model(
-                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
+                enc_input, dec_input, enc_mask, dec_mask, position_ids, labels, inference=False
             )
             output_tensor = output_tensor.contiguous()
 
@@ -349,7 +319,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         }
 
     def validation_step(self, batch, batch_idx, inference=False):
-        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
         mode = self.training
         self.eval()
@@ -358,19 +328,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
         if self.first_stage_of_pipeline():
-            # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference=True)
         else:
             encoder_input = None
-
         if self.cfg.get("report_validation_accuracy", False):
             metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
             metrics['loss'] = loss_mean
@@ -436,12 +396,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
             self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
-        # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_nemo_on_validation_end", False):
-            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-                self.save_checkpoint_as_nemo_file()
-                self.lowest_val_loss = averaged_loss
-
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
@@ -494,24 +448,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids = batch
 
         batch_size, seq_length = input_ids.shape
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-
-            # TODO: This check needs to be revisited with PP support.
-            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
-                    position_ids
-                )
-                encoder_input = input_embeds + position_embeddings
-            else:
-                encoder_input = input_embeds
-
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference=True)
         else:
             encoder_input = torch.zeros((batch_size, seq_length, self.hidden_size), dtype=self.autocast_dtype).cuda()
-
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
             enc_mask=enc_mask,

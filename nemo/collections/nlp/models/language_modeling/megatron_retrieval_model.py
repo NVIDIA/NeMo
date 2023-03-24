@@ -228,6 +228,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         labels=None,
         input_emb=None,
         position_ids=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
         output_tensor = self.model(
             input_ids=input_ids,
@@ -238,6 +240,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             labels=labels,
             input_emb=input_emb,
             position_ids=position_ids,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            inference_max_sequence_len=inference_max_sequence_len,
         )
         return output_tensor
 
@@ -611,3 +615,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def list_available_models(self):
         pass
+
+    def set_input_tensor(self, input_tensor):
+        self.model.set_input_tensor(input_tensor)

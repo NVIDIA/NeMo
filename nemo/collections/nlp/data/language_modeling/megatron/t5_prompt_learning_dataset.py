@@ -109,8 +109,8 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             )
 
             # Format the input example according to the template
+            input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc, answer_field)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
             input_ids = self.tokenizer.text_to_ids(input_example)
@@ -126,6 +126,10 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
+
+            # these will be lobbed during the collate_fn
+            temp_pads = [self.tokenizer.bos_id] * total_virtual_tokens
+            input_ids = temp_pads + input_ids
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
@@ -150,18 +154,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-                if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                    taskname_id = self.tokenizer.text_to_ids(taskname)
-
-                elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
-                    taskname_id = self.task_templates[taskname]["task_id_num"]
-                elif (
-                    self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
-                ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
-                    taskname_id = -1
-                else:
-                    raise ValueError("Invalid virtual prompt source specified")
-
                 dec_input = None
                 dec_labels = None
 
@@ -169,7 +161,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                     dec_input = answer_text_ids[:-1]
                     dec_labels = answer_text_ids[1:]
 
-                self.examples.append((taskname_id, input_ids, dec_input, dec_labels))
+                self.examples.append((input_ids, dec_input, dec_labels, total_virtual_tokens))
             else:
                 skipped += 1
 
@@ -193,17 +185,19 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
     def collate_fn(self, batch):
         """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """
 
-        taskname_ids, enc_input, dec_input, dec_labels = zip(*batch)
-
-        taskname_ids = self.pad_taskname_ids(taskname_ids)
+        enc_input, dec_input, dec_labels, num_virtual_tokens = zip(*batch)
+        num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask = self.pad_batch_and_build_loss_mask(
             enc_input, dec_input, dec_labels
         )
 
+        # lob off the space holder for virtual tokens
+        enc_input = enc_input[:, num_virtual_tokens:]
+
         position_ids = build_position_ids(enc_input).contiguous()
 
-        return enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids
+        return enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids
 
     def pad_batch_and_build_loss_mask(self, enc_input, dec_input, dec_labels):
         """ Pad enc_input, dec_input, labels in batch to max batch length while building loss_mask, enc_mask, and dec_mask """

@@ -114,14 +114,37 @@ class RetroQAFineTuneDataset(Dataset):
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
         question = example['question'].strip()
-        tokenized_input = self.tokenizer.text_to_ids(f"question: {question}\n")
+        tokenized_input = self.tokenizer.text_to_ids(f"\nquestion: {question}\n")
         # add a space between input and output
         if 'answers' in example:
             # sample one answer from answers
             answer = sample(example['answers'], 1)[0].strip()
-            tokenized_output = self.tokenizer.text_to_ids(f"answer: {answer}")
+            tokenized_output = self.tokenizer.text_to_ids(f"\nanswer: {answer}")
+        elif 'answer' in example:
+            answer = example['answer']
+            tokenized_output = self.tokenizer.text_to_ids(f"\nanswer: {answer}")
         else:
-            tokenized_output = self.tokenizer.text_to_ids('answer: ')
+            tokenized_output = self.tokenizer.text_to_ids('\nanswer: ')
+
+        
+
+        
+        
+        chunks = []
+        contexts = example['ctxs'] # are these neighbors ordered???????????????????????????????????????????????
+        assert self.neighbors <= len(
+            contexts
+        ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
+        for i, neighbor in enumerate(contexts[: self.neighbors]):
+            tokens = self.tokenizer.text_to_ids(neighbor)
+            tokens = tokens[:128]
+            if len(tokens) < 128:
+                tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
+            
+            if i == 0:
+                tokenized_input = tokens + tokenized_input
+            else:
+                chunks.append(tokens)
 
         bos_id = self.tokenizer.bos_id
         if self.add_bos:
@@ -130,6 +153,7 @@ class RetroQAFineTuneDataset(Dataset):
             target = tokenized_output + [self.tokenizer.eos_id]
         else:
             target = tokenized_output
+
 
         # pad the question so 'answer:' coincides with the end of the first chunk of 64
         if len(tokenized_input) < 64:
@@ -140,7 +164,7 @@ class RetroQAFineTuneDataset(Dataset):
             cut_tokens = len(tokenized_input) + len(target) - self.max_seq_length
             if len(tokenized_input) - cut_tokens > 0:
                 # cut the input by default
-                tokenized_input = tokenized_input[: len(tokenized_input) - cut_tokens]
+                tokenized_input = tokenized_input[cut_tokens:] # tokenized_input[: len(tokenized_input) - cut_tokens]
             elif len(target) - cut_tokens > 0:
                 # cut the output
                 target = target[: len(target) - cut_tokens]
@@ -151,29 +175,27 @@ class RetroQAFineTuneDataset(Dataset):
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_input_tokens]
                 target = target[: len(target) - cut_output_tokens]
 
-        chunks = []
-        contexts = example['ctxs']
-        assert self.neighbors <= len(
-            contexts
-        ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
-        for neighbor in contexts[: self.neighbors]:
-            tokens = self.tokenizer.text_to_ids(neighbor)
-            tokens = tokens[:128]
-            if len(tokens) < 128:
-                tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
-            chunks.append(tokens)
+
 
         answer_start_idx = len(tokenized_input)
         input_ids = tokenized_input + target
-        assert len(input_ids) <= 128, "cannot handle more than two chunks yet"
+        # assert len(input_ids) <= 128, "cannot handle more than two chunks yet"
         chunks = np.array(chunks).reshape(1, self.neighbors, -1).astype(np.int64)
-        results = (input_ids, answer_start_idx, chunks)
+        repeat = (len(input_ids)-1 - 64) // 64 +1 # -1 because encoder shift one
+        repeated_chunks = np.repeat(chunks, repeat, axis=0)
+        results = (input_ids, answer_start_idx, repeated_chunks)
         return results
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
         input_ids, answer_starts, chunks = zip(*batch)
         # convert chunks into torch tensors
+        chunks = list(chunks)
+        max_num_chunks = max(c.shape[0] for c in chunks)
+        padding_chunks = np.full((1, chunks[0].shape[1], chunks[0].shape[2]), self.pad_token_id) # (1, num_neighbor, num_token_in_neighbor)
+        for i in range(len(chunks)):
+            if chunks[i].shape[0] < max_num_chunks:
+                chunks[i] = np.concatenate((chunks[i], np.repeat(padding_chunks, max_num_chunks-chunks[i].shape[0], axis=0)), axis=0)
         chunks = torch.tensor(chunks)
 
         # Get max sequence length of batch
