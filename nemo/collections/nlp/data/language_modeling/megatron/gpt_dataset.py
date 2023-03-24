@@ -268,7 +268,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap):
     logging.info(' > building dataset index ...')
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap)
+    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
     logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
 

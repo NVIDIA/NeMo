@@ -110,7 +110,7 @@ def deallocate_indexed_dataset_memory(indexed_dataset):
         indexed_dataset.doc_idx = None
 
 
-def make_dataset(path, impl, skip_warmup=False, delay_data_mmap=False, impl_kwargs={}):
+def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}, delay_data_mmap=False):
     # first handle text memap
     if impl == 'text_mmap':
         return TextMemMapDataset(path, **impl_kwargs)
