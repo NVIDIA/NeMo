@@ -606,8 +606,10 @@ def main():
                 # Reset env flag
                 os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
 
-                logging.info(f"<<<<<<<< LOADED MODEL PP={pp_rank + 1} TP={tp_rank + 1} | "
-                             f"GLOBAL RANK = {global_rank} >>>>>>>>>")
+                logging.info(
+                    f"<<<<<<<< LOADED MODEL PP={pp_rank + 1} TP={tp_rank + 1} | "
+                    f"GLOBAL RANK = {global_rank} >>>>>>>>>"
+                )
                 params = [p for _, p in model.named_parameters()]
                 partitions[pp_rank].append(params)
 
