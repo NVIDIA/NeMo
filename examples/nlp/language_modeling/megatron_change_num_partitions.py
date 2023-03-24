@@ -678,7 +678,7 @@ def main():
             tgt_pp_size * tgt_tp_size
         )  # pseudo world size for simulating load of a specific rank on a single gpu
         new_global_batch_size = model.cfg.micro_batch_size * world_size
-        old_global_batch_size = model.cfg.global_batch_size
+        old_global_batch_size = model.cfg.get('global_batch_size', model.cfg.micro_batch_size)
 
         global_offset = len(global_params[0]) - 1  # -1 cause this indexes the array, range [0, L-1]
         logging.info(f"Final layer offset for parameters: {global_offset}")
