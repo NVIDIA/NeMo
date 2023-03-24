@@ -3512,7 +3512,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
           }
         }
-        stage('Increase TP Num Partitions (2 to 4) and PP Num Partitions (1 to 3)'){
+        stage('Increase TP Num Partitions (2 to 4) and PP Num Partitions (1 to 2)'){
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
@@ -3526,7 +3526,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --pipeline_model_parallel_size \
                 1 \
                 --target_pipeline_model_parallel_size \
-                3"
+                2"
             sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
           }
         }
