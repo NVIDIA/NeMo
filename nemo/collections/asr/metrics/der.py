@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from pyannote.core import Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
-from scipy.optimize import linear_sum_assignment
+from nemo.collections.asr.parts.utils.optimization_utils  import linear_sum_assignment
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
