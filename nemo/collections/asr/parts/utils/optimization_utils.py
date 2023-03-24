@@ -152,7 +152,7 @@ class LinearSumAssignmentSolver(object):
         else:
             return 0 # Go to step 0 (Done state)
 
-    def _step4(self) -> int:
+    def _step4(self, bypass=False) -> int:
         """
         Step 4
 
@@ -171,24 +171,25 @@ class LinearSumAssignmentSolver(object):
         covered_cost_mat = cost_mat * self.row_uncovered.unsqueeze(1)
         covered_cost_mat *= self.col_uncovered.long()
         row_len, col_len = self.cost_mat.shape
-        while True:
-            urv = unravel_index(torch.argmax(covered_cost_mat).item(), torch.tensor([col_len, row_len]))
-            row, col = int(urv[0].item()), int(urv[1].item())
-            if covered_cost_mat[row, col] == 0:
-                return 6
-            else:
-                self.marked[row, col] = 2 # Find the first marked element in the row
-                mark_col = torch.argmax((self.marked[row] == 1).int())
-                if self.marked[row, mark_col] != 1: # No marked element in the row
-                    self.zero_row = torch.tensor(row)
-                    self.zero_col = torch.tensor(col)
-                    return 5
+        if not bypass:
+            while True:
+                urv = unravel_index(torch.argmax(covered_cost_mat).item(), torch.tensor([col_len, row_len]))
+                row, col = int(urv[0].item()), int(urv[1].item())
+                if covered_cost_mat[row, col] == 0:
+                    return 6
                 else:
-                    col = mark_col
-                    self.row_uncovered[row] = False
-                    self.col_uncovered[col] = True
-                    covered_cost_mat[:, col] = cost_mat[:, col] * self.row_uncovered
-                    covered_cost_mat[row] = 0
+                    self.marked[row, col] = 2 # Find the first marked element in the row
+                    mark_col = torch.argmax((self.marked[row] == 1).int())
+                    if self.marked[row, mark_col] != 1: # No marked element in the row
+                        self.zero_row = torch.tensor(row)
+                        self.zero_col = torch.tensor(col)
+                        return 5
+                    else:
+                        col = mark_col
+                        self.row_uncovered[row] = False
+                        self.col_uncovered[col] = True
+                        covered_cost_mat[:, col] = cost_mat[:, col] * self.row_uncovered
+                        covered_cost_mat[row] = 0
         return 0
 
     def _step5(self) -> int:

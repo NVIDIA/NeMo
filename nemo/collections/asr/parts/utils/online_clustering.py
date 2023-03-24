@@ -600,7 +600,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         max_rp_threshold: float = 0.15,
         enhanced_count_thres: float = 40,
         fixed_thres: float = -1.0,
-        sparse_search_volume: int = 10,
+        sparse_search_volume: int = 155555,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
         min_spk_counting_buffer_size: int = 3,
