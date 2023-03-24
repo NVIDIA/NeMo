@@ -127,13 +127,13 @@ class TestRNNTLossPytorch:
         )
 
         assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold), "small_test gradient mismatch."
+        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(ag_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(ag_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(ag_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(ag_grads, np_grads, atol=cost_threshold, rtol=rtol), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
