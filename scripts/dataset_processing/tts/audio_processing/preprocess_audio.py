@@ -136,7 +136,7 @@ def _process_entry(
     if volume_level:
         audio = normalize_volume(audio, volume_level=volume_level)
 
-    output_path.mkdir(output_path.parent, exist_ok=True, parents=True)
+    output_path.parent.mkdir(exist_ok=True, parents=True)
     sf.write(file=output_path, data=audio, samplerate=sample_rate)
 
     original_duration = librosa.get_duration(filename=str(audio_path))
