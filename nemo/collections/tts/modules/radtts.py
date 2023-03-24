@@ -633,12 +633,7 @@ class RadTTSModule(NeuralModule, Exportable):
             pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
-            dur,
-            txt_enc.transpose(1, 2),
-            pace,
-            replicate_to_nearest_multiple=True,
-            group_size=self.n_group_size,
-            dur_lens=in_lens,
+            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size, dur_lens=in_lens,
         )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)

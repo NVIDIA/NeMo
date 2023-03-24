@@ -520,13 +520,7 @@ def remove(conv_list):
 
 
 def regulate_len(
-    durations,
-    enc_out,
-    pace=1.0,
-    mel_max_len=None,
-    replicate_to_nearest_multiple=False,
-    group_size=1,
-    dur_lens: torch.tensor = None,
+    durations, enc_out, pace=1.0, mel_max_len=None, group_size=1, dur_lens: torch.tensor = None,
 ):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -547,7 +541,7 @@ def regulate_len(
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
-    if replicate_to_nearest_multiple:
+    if group_size > 1:
         to_pad = group_size * (torch.div(dec_lens + 1, group_size, rounding_mode='floor')) - dec_lens
         reps.index_put_(
             indices=[torch.arange(dur_lens.shape[0], dtype=torch.long), dur_lens - 1], values=to_pad, accumulate=True
