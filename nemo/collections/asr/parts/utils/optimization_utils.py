@@ -37,7 +37,8 @@ def unravel_index(index: int, shape: torch.Tensor):
 @torch.jit.script
 class LinearSumAssignmentSolver(object):
     """
-    A Solver class for the linear sum assignment (LSA) problem. Designed for torch.jit.script compatibility in NeMo. 
+    A Solver class for the linear sum assignment (LSA) problem. 
+    Designed for torch.jit.script compatibility in NeMo. 
         
     The LSA problem is also referred to as bipartite matching problem. An LSA problem is described 
     by a matrix `cost_mat`, where each cost_mat[i,j] is the cost of matching vertex i of the first partite 

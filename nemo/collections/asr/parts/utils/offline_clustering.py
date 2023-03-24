@@ -518,8 +518,7 @@ def getLaplacian(X: torch.Tensor) -> torch.Tensor:
 
 
 def eigDecompose(
-    laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    laplacian: torch.Tensor, cuda: bool, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
     """
@@ -528,12 +527,13 @@ def eigDecompose(
             device = torch.cuda.current_device()
         laplacian = laplacian.float().to(device)
     else:
+        laplacian = laplacian.float().to(torch.device('cpu'))
         laplacian = laplacian.float()
     lambdas, diffusion_map = eigh(laplacian)
     return lambdas, diffusion_map
 
 
-def eigValueSh(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')) -> torch.Tensor:
+def eigValueSh(laplacian: torch.Tensor, cuda: bool, device: torch.device) -> torch.Tensor:
     """
     Calculate only eigenvalues from the Laplacian matrix.
     """
@@ -542,6 +542,7 @@ def eigValueSh(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch
             device = torch.cuda.current_device()
         laplacian = laplacian.float().to(device)
     else:
+        laplacian = laplacian.float().to(torch.device('cpu'))
         laplacian = laplacian.float()
     lambdas = eigvalsh(laplacian)
     return lambdas

@@ -107,7 +107,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
 
-    def _init_online_clustering_module(self, clustering_params):
+    def _ini_online_clustering_module(self, clustering_params):
         """
         Initialize online speaker clustering module
 

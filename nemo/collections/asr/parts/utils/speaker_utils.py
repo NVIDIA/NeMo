@@ -663,7 +663,6 @@ def is_overlap(rangeA: List[float], rangeB: List[float]) -> bool:
     start2, end2 = rangeB[0], rangeB[1]
     return end1 > start2 and end2 > start1
 
-
 def get_overlap_range(rangeA: List[float], rangeB: List[float]):
     """
     Calculate the overlapping range between rangeA and rangeB.
@@ -688,8 +687,6 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     Merge the range pairs if there is overlap exists between the given ranges.
     This algorithm needs a sorted range list in terms of the start time.
     Note that neighboring numbers lead to a merged range.
-
-    Note: This function is designed to be compiled/imported with `` decorator.
 
     Example:
         input: [(1, 10), (11, 20)]
@@ -742,8 +739,6 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
         merged_list.append([start, end])
         return merged_list
 
-
-
 def fl2int(x: float, decimals: int = 3) -> int:
     """
     Convert floating point number to integer.
@@ -757,8 +752,6 @@ def int2fl(x: int, decimals: int = 3) -> float:
     Convert integer to floating point number.
     """
     return torch.round(torch.tensor([x / (10 ** decimals)]), decimals=decimals).item()
-
-
 
 def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: int = 2) -> List[List[float]]:
     """
@@ -802,8 +795,6 @@ def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: 
     merged_ranges_float = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges_int]
     return merged_ranges_float
 
-
-
 def get_sub_range_list(target_range: List[float], source_range_list: List[List[float]]) -> List[List[float]]:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
@@ -837,7 +828,6 @@ def get_sub_range_list(target_range: List[float], source_range_list: List[List[f
                 ovl_range = get_overlap_range(s_range, target_range)
                 out_range.append(ovl_range)
         return out_range
-
 
 def write_rttm2manifest(
     AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5
@@ -878,7 +868,6 @@ def write_rttm2manifest(
                 )
                 write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals)
     return manifest_file
-
 
 def segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
@@ -933,7 +922,6 @@ def segments_manifest_to_subsegments_manifest(
 
     return subsegments_manifest_file
 
-
 def get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
     Return subsegments from a segment of audio file
@@ -957,7 +945,6 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
         subsegments.append([start, end - start])
         start = offset + (slice_id + 1) * shift
     return subsegments
-
 
 def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,) -> torch.Tensor:
     """
@@ -999,15 +986,11 @@ def check_ranges(range_tensor):
             raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
     return True
 
-
-
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
     For online segmentation. Force the list elements to be float type.
     """
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
-
-
 
 def get_speech_labels_for_update(
     frame_start: float,

@@ -37,8 +37,6 @@ import numpy as np
 import torch
 
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
-import torch.nn.functional as F
-
 from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
     SpectralClustering,
@@ -118,6 +116,7 @@ def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
     sequence[Y_new_enlisted] = torch.arange(len(Y_new_enlisted)).to(device)
     return sequence[Y_new]
 
+@torch.jit.script
 def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Tensor:
     """
     Run Hungarian (linear sum assignment) algorithm to find the best permutation mapping between
@@ -153,7 +152,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Ten
             mapping_array = torch.tensor([0, 0]).to(Y_new.device)
         else:
             # Run Hungarian algorithm if there are more than one speaker in universal set U.
-            mapping_array = get_lsa_speaker_mapping(U_set=U_Set, cmm_P=P, cmm_Q=Q, PandQ=PandQ)
+            mapping_array = get_lsa_speaker_mapping(U_set=U_set, cmm_P=P, cmm_Q=Q, PandQ=PandQ)
         matched_output = mapping_array[Y_new]
     matched_output = get_minimal_indices(matched_output)
     return matched_output
@@ -604,13 +603,14 @@ class OnlineSpeakerClustering(torch.nn.Module):
         sparse_search_volume: int = 10,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
-        min_spk_counting_buffer_size: int =3,
+        min_spk_counting_buffer_size: int = 3,
         min_frame_per_spk: int = 15,
-        p_update_freq: int = 10,
+        p_update_freq: int = 5,
         p_value_skip_frame_thres: int = 50,
         p_value_queue_size: int = 3,
         use_temporal_label_major_vote: bool = False,
         temporal_label_major_vote_buffer_size: int = 11,
+        cuda: bool = False,
     ):
         super().__init__() 
         self.max_num_speakers = max_num_speakers
@@ -627,6 +627,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.p_value_queue_size = p_value_queue_size
         self.use_temporal_label_major_vote = use_temporal_label_major_vote
         self.temporal_label_major_vote_buffer_size = temporal_label_major_vote_buffer_size
+        self.cuda = cuda
         self.num_spk_stat: List[torch.Tensor] = [torch.tensor(1)]
         self.p_value_hist: List[torch.Tensor] = [torch.tensor(2)]
 
@@ -661,6 +662,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             p_hat_value: (int)
                 The estimated p-value from NMESC method.
         """
+        print(f"Feeding cuda: {self.cuda} to NMESC ")
         nmesc = NMESC(
             mat_in,
             max_num_speakers=self.max_num_speakers,
@@ -672,6 +674,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             nme_mat_size=256,
             parallelism=False,
             device=mat_in.device,
+            cuda=self.cuda,
         )
         if len(self.p_value_hist) == 0 or (
             frame_index < self.p_value_skip_frame_thres and frame_index % self.p_update_freq == 0
@@ -686,7 +689,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         g_p, est_num_of_spk = output[0], output[1].int()
         return est_num_of_spk, p_hat_value
 
-    def speaker_counter_buffer(self, est_num_of_spk: int):
+    def speaker_counter_buffer(self, est_num_of_spk: int) -> torch.Tensor:
         """
         Use a queue to avoid unstable speaker counting results.
 
@@ -742,8 +745,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         est_num_of_spk, p_hat_value = self.onlineNMEanalysis(mat_in, frame_index)
         affinity_mat = getAffinityGraphMat(mat_in, p_hat_value)
         raw_est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
-        raw_est_num_of_spk = raw_est_num_of_spk.item()
-        est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk)
+        est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk.item())
         return est_num_of_spk, affinity_mat
 
     def prepare_embedding_update(
@@ -862,9 +864,9 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Args:
             emb_in (Tensor):
                 If self.is_online is False:
-                    `emb` contains only current speaker embedding inputs, which is FIFO queue
+                    `pre_embs` contains only current speaker embedding inputs, which is FIFO queue
                 If self.is_online is True:
-                    `emb` contains history buffer and FIFO queue
+                    `pre_embs` contains history buffer and FIFO queue
             base_segment_indexes (Tensor):
                 Tensor containing unique segment (embedding vector) index
 
@@ -909,45 +911,47 @@ class OnlineSpeakerClustering(torch.nn.Module):
 
             at the frame index where `is_online` turns to True:
 
-            |---hist-buffer---|-----FIFO-queue-----|
+            |------hist-buffer------|-----FIFO-queue-----|
 
-            self.history_n = 10
-            self.current_n = 20
+            self.history_n = 20
+            self.current_n = 10
 
             Step (1)
-            |-----------------|ABCDEF--------------|
+            |-----------------------|ABCDEF--------------|
 
             If we get two more segments, "NN" as in the description:
-            history buffer = 10
-            current buffer = 22
+            history buffer = 20
+            current buffer = 12
 
             Step (2)
-            |-----------------|ABCDEF--------------XY|
+            |-----------------------|ABCDEF--------------XY|
+                                    |---------emb_in-------| 
 
             The newly accepted embeddings go through a FIFO queue (first come, first merge)
-            history buffer = 12
-            current buffer = 20
+            history buffer = 22
+            current buffer = 10
 
             Step (3)
-            |-----------------AB|CDEF--------------XY|
+            |-----------------------AB|CDEF--------------XY|
+            |---------pre_embs--------|
 
-            After merging (reducing) the embedding set:
-            history buffer = 10
-            current buffer = 20
+            After merging (reducing) the embedding set gets back to the original size:
+            history buffer = 20
+            current buffer = 10
 
             Step (4)
-            |================|CDEF--------------XY|
+            |======================|CDEF--------------XY|
+            |-----hist_emb_buff----|
 
             After clustering, `self.Y_fullhist` is updated as:
 
-            |0000011111|11110000110010010011|
+            |0000000000011111111111|11110000110010010011|
 
             The dimension of `self.Y_fullhist` is (`history_n + current_n`) x 1
 
         self.history_buffer_seg_end (int):
             The total number of segments that have been merged from the beginning of the session.
             (=`hist_curr_boundary`)
-
         """
         update_speaker_register, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
 
@@ -973,7 +977,8 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 )
                 total_emb.append(merged_embs)
                 total_cluster_labels.append(merged_clus_labels)
-
+            
+            # Update the speaker history buffer
             self.history_embedding_buffer_emb = torch.vstack(total_emb)
             self.history_embedding_buffer_label = torch.hstack(total_cluster_labels)
             if self.history_embedding_buffer_emb.shape[0] != self.history_n:
@@ -1115,7 +1120,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         enhanced_count_thres=enhanced_count_thres,
         sparse_search_volume=sparse_search_volume,
         frame_index=frame_index,
-        cuda=cuda,)
+        cuda=cuda)
         return Y
 
     def forward_infer(
@@ -1125,10 +1130,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
         max_num_speakers: int = 4,
         max_rp_threshold: float = 0.15,
         enhanced_count_thres: int = 40,
-        sparse_search_volume: int = 5,
+        sparse_search_volume: int = 10,
         fixed_thres: float = -1.0,
         frame_index: int = 0, 
-        cuda: bool = False,
+        cuda: bool = False
     ) -> torch.Tensor:
         """
         Perform speaker clustering in online mode. Embedding vector set `emb` is expected to be containing
@@ -1166,6 +1171,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.sparse_search_volume = sparse_search_volume
         self.fixed_thres = fixed_thres
         # Merge the closest embeddings and reduce the size of the embedding count.
+
+        if cuda and (curr_emb.device == torch.device("cpu") or base_segment_indexes.device == torch.device("cpu")):
+            raise ValueError(f"CUDA is enabled but the input {curr_emb} or {base_segment_indexes} is not on the GPU.")
+            
         merged_embs, add_new = self.get_reduced_mat(
             emb_in=curr_emb, base_segment_indexes=base_segment_indexes,
         )
