@@ -3500,7 +3500,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --model_file \
                 /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
                 --target_file \
-                /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo \
+                /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
@@ -3509,7 +3509,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 1 \
                 --target_pipeline_model_parallel_size \
                 2"
-            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo"
           }
         }
         stage('Increase TP Num Partitions (2 to 4) and PP Num Partitions (1 to 2)'){
@@ -3518,7 +3518,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --model_file \
                 /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
                 --target_file \
-                /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo \
+                /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
@@ -3527,7 +3527,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 1 \
                 --target_pipeline_model_parallel_size \
                 2"
-            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo"
           }
         }
       }

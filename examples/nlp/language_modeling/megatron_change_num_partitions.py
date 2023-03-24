@@ -531,6 +531,11 @@ def main():
     else:
         dtype = torch.float32  # fallback
 
+    # Built target directory if it does not exist
+    target_dir = os.path.split(args.target_file)[0]
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir, exist_ok=True)
+
     tp_size = args.tensor_model_parallel_size
     tgt_tp_size = args.target_tensor_model_parallel_size
     pp_size = args.pipeline_model_parallel_size
@@ -601,7 +606,8 @@ def main():
                 # Reset env flag
                 os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
 
-                logging.info(f"<<<<<<<< LOADED MODEL {pp_rank} {tp_rank} | GLOBAL RANK = {global_rank} >>>>>>>>>")
+                logging.info(f"<<<<<<<< LOADED MODEL PP={pp_rank + 1} TP={tp_rank + 1} | "
+                             f"GLOBAL RANK = {global_rank} >>>>>>>>>")
                 params = [p for _, p in model.named_parameters()]
                 partitions[pp_rank].append(params)
 
