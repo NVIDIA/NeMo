@@ -670,7 +670,7 @@ def build_model_cpu(
     model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
     wrap_with_ddp: bool = True,
     virtual_pipeline_model_parallel_size: Optional[int] = None,
-    model_type: ModelType = ModelType.encoder_or_decoder,
+    model_type: 'ModelType' = None,  # Default of ModelType.encoder_or_decoder
     *args: Any,
     **kwargs: Any,
 ) -> List[torch.nn.Module]:
@@ -692,6 +692,12 @@ def build_model_cpu(
         a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
         the list has multiple models, otherwise one.
     """
+    if not HAVE_APEX:
+        raise ValueError("Apex is required for pipeline parallelism.")
+
+    if model_type is None:
+        model_type = ModelType.encoder_or_decoder
+
     if (
         parallel_state.get_pipeline_model_parallel_world_size() > 1
         and virtual_pipeline_model_parallel_size is not None
