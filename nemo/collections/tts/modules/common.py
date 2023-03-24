@@ -24,7 +24,7 @@ from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
 
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm, MaskedInstanceNorm1d
-from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, sort_tensor, unsort_tensor
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, sort_tensor
 from nemo.collections.tts.parts.utils.splines import (
     piecewise_linear_inverse_transform,
     piecewise_linear_transform,
@@ -89,23 +89,22 @@ class BiLSTM(nn.Module):
     def lstm(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
         # To be ONNX-exportable, we need to sort here rather that while packing
         context, lens, unsort_ids = sort_tensor(context, lens)
+        # Calculate sizes and prepare views to our zero buffer to pass as hx
+        max_batch_size = context.shape[0]
+        common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+        hx = (
+            context.new_zeros(*common_shape, self.real_hidden_size),
+            context.new_zeros(*common_shape, self.bilstm.hidden_size),
+        )
         ret = self.lstm_sorted(context, lens, hx=hx)
-        return unsort_tensor(ret, unsort_ids)
+        return ret[unsort_ids]
 
     def lstm_nocast(self, context: Tensor, lens: Tensor) -> Tensor:
         dtype = context.dtype
         # autocast guard is only needed for Torchscript to run in Triton
         # (https://github.com/pytorch/pytorch/issues/89241)
         with torch.cuda.amp.autocast(enabled=False):
-            # Calculate sizes and prepare views to our zero buffer to pass as hx
-            max_batch_size = context.shape[0]
-            context = context.to(dtype=torch.float32)
-            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
-            hx = (
-                context.new_zeros(*common_shape, self.real_hidden_size),
-                context.new_zeros(*common_shape, self.bilstm.hidden_size),
-            )
-            return self.lstm(context, lens, hx=hx).to(dtype=dtype)
+            return self.lstm(context.to(dtype=torch.float32), lens).to(dtype=dtype)
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
         self.bilstm.flatten_parameters()

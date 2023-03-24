@@ -155,17 +155,14 @@ def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[to
     return mask
 
 
-def sort_tensor(
-    context: torch.Tensor, lens: torch.Tensor, dim: Optional[int] = 0, descending: Optional[bool] = True
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    lens_sorted, ids_sorted = torch.sort(lens, descending=descending)
-    context = torch.index_select(context, dim, ids_sorted)
-    return context, lens_sorted, ids_sorted
-
-
-def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
-    unsort_ids = indices.gather(0, indices.argsort(0, descending=True))
-    return torch.index_select(ordered, dim, unsort_ids)
+@torch.jit.script
+def sort_tensor(context: torch.Tensor, lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+    unsort_ids = torch.zeros_like(ids_sorted)
+    for i in range(ids_sorted.shape[0]):
+        unsort_ids[ids_sorted[i]] = i
+    context = context[ids_sorted]
+    return context, lens_sorted, unsort_ids
 
 
 @jit(nopython=True)
@@ -523,7 +520,13 @@ def remove(conv_list):
 
 
 def regulate_len(
-    durations, enc_out, pace=1.0, mel_max_len=None, group_size=1, dur_lens: torch.tensor = None,
+    durations,
+    enc_out,
+    pace=1.0,
+    mel_max_len=None,
+    replicate_to_nearest_multiple=False,
+    group_size=1,
+    dur_lens: torch.tensor = None,
 ):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -534,16 +537,17 @@ def regulate_len(
         enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
         pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
             max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
-        group_size (int): replicate the last element specified by durations[i, in_lens[i] - 1] until the
+        replicate_to_nearest_multiple (bool): replicate the last element specified by durations[i, in_lens[i] - 1] until the
             full length of the sequence is the next nearest multiple of group_size
-        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor (only needed if group_size >1)
+        group_size (int): factor used by replicate_to_nearest_multiple
+        in_lens (torch.tensor): input sequence length specifying valid values in the durations input tensor
     """
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
-    if group_size > 1:
+    if replicate_to_nearest_multiple:
         to_pad = group_size * (torch.div(dec_lens + 1, group_size, rounding_mode='floor')) - dec_lens
         reps.index_put_(
             indices=[torch.arange(dur_lens.shape[0], dtype=torch.long), dur_lens - 1], values=to_pad, accumulate=True
