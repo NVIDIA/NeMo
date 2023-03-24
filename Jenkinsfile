@@ -3494,7 +3494,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       parallel{
-        stage('Reduce TP Num Partitions (2 to 1) and PP Num Partitions (1 to 2)
+        stage('Reduce TP Num Partitions (2 to 1) and PP Num Partitions (1 to 2)'){
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
