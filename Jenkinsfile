@@ -3494,7 +3494,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       parallel{
-        stage('Reduce Num Partitions (2 to 1)'){
+        stage('Reduce TP Num Partitions (2 to 1) and PP Num Partitions (1 to 2)
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
@@ -3504,11 +3504,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
-                1"
+                1 \
+                --pipeline_model_parallel_size \
+                1 \
+                --target_pipeline_model_parallel_size \
+                2"
             sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
           }
         }
-        stage('Increase Num Partitions (2 to 4)'){
+        stage('Increase TP Num Partitions (2 to 4) and PP Num Partitions (1 to 3)'){
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
@@ -3518,7 +3522,11 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
-                4"
+                4 \
+                --pipeline_model_parallel_size \
+                1 \
+                --target_pipeline_model_parallel_size \
+                3"
             sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
           }
         }
