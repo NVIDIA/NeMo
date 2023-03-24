@@ -166,6 +166,39 @@ class ConvSubsampling(torch.nn.Module):
                 layers.append(activation)
                 in_channels = conv_channels
 
+        elif subsampling == 'dw_striding_1d':
+            self._stride = 2
+            self._kernel_size = 3
+            self._ceil_mode = False
+
+            self._left_padding = (self._kernel_size - 1) // 2
+            self._right_padding = (self._kernel_size - 1) // 2
+            
+            in_channels = feat_in
+            for i in range(self._sampling_num):
+                layers.extend(
+                    [
+                        torch.nn.Conv1d(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._left_padding,
+                            groups=1,
+                        ),
+                        torch.nn.Conv1d(
+                            in_channels=in_channels,
+                            out_channels=conv_channels,
+                            kernel_size=1,
+                            stride=1,
+                            padding=0,
+                            groups=1,
+                        ),
+                    ]
+                )
+                layers.append(activation)
+                in_channels = conv_channels
+
         elif subsampling == 'striding':
             self._stride = 2
             self._kernel_size = 3
@@ -216,6 +249,8 @@ class ConvSubsampling(torch.nn.Module):
             repeat_num=self._sampling_num,
         )
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
+        if subsampling == 'dw_striding_1d':
+            self.out = torch.nn.Linear(conv_channels, feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
     def get_sampling_frames(self):
@@ -233,9 +268,10 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
-        x = x.unsqueeze(1)
-
-        if self._subsampling in ['striding', 'dw_striding']:
+        # x = x.unsqueeze(1)
+        x = x.transpose(1, 2)
+        
+        if self._subsampling in ['striding', 'dw_striding', 'dw_striding_1d']:
             # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
             # to be removed once the above is fixed in cudnn
             with avoid_bfloat16_autocast_context():
@@ -243,13 +279,15 @@ class ConvSubsampling(torch.nn.Module):
         else:
             x = self.conv(x)
 
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).reshape(b, t, -1))
+        
+        # x = self.out(x)
+        b, c, t = x.size()
+        x = self.out(x.transpose(1, 2))
         return x, lengths
 
     def reset_parameters(self):
         # initialize weights
-        if self._subsampling == 'dw_striding':
+        if self._subsampling == 'dw_striding' or self._subsampling == 'dw_striding_1d':
             with torch.no_grad():
                 # init conv
                 scale = 1.0 / self._kernel_size
