@@ -149,8 +149,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -447,7 +451,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
             )
         else:
-            raise ErrorValue(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
+            raise ValueError(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

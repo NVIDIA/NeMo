@@ -15,6 +15,7 @@ trainer:
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   benchmark: False
+  
 
 
 exp_manager:
@@ -36,6 +37,14 @@ exp_manager:
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+  create_early_stopping_callback: True
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
+  
 
 model:
   seed: 1234
@@ -124,6 +133,8 @@ model:
     validation_cache_data_path: null  # the path to the validation cache data 
     test_cache_data_path: null  # the path to the test cache data 
     load_cache: False  # whether to load from the cache data
+    max_seq_length: 1024  # filter out training and validation examples longer than 1024 tokens. Set to None will default to model's encoder length.
+    min_seq_length: 1  # filter out training and validation examples less than 1 token long.
 
 
   optim:
