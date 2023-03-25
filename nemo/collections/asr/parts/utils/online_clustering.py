@@ -662,7 +662,6 @@ class OnlineSpeakerClustering(torch.nn.Module):
             p_hat_value: (int)
                 The estimated p-value from NMESC method.
         """
-        print(f"Feeding cuda: {self.cuda} to NMESC ")
         nmesc = NMESC(
             mat_in,
             max_num_speakers=self.max_num_speakers,
@@ -832,6 +831,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 pre_clus_labels = torch.hstack(
                     (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
                 )
+            
             if new_emb_n > self.current_n:
                 raise ValueError("new_emb_n should be less than or equal to current buffer size (self.current_n)." \
                                  f" Getting too many segments: {new_emb_n} for the given current buffer size {self.current_n}." \
@@ -839,7 +839,8 @@ class OnlineSpeakerClustering(torch.nn.Module):
             elif new_emb_n <= 0:
                 raise ValueError("Segment counting error. `new_emb_n` should be a positve integer number.")
             if pre_embs.shape[0] != pre_clus_labels.shape[0]:
-                raise ValueError("`pre_embs` and `pre_clus_labels` should have the same length.")
+                raise ValueError("`pre_embs` and `pre_clus_labels` should have the same length, " \
+                                 f"but got {pre_embs.shape[0]} and {pre_clus_labels.shape[0]} respectively.")
 
         # Case-3: Number of embedding vectors is not increased.
         else:
@@ -1000,7 +1001,6 @@ class OnlineSpeakerClustering(torch.nn.Module):
         history_and_current_labels = torch.hstack(total_cluster_labels)
         if history_and_current_emb.shape[0] != len(history_and_current_labels):
             raise ValueError("`history_and_current_emb` has a mismatch in length with `history_and_current_labels`.")
-
         return history_and_current_emb, update_speaker_register
 
     def get_reduced_mat(self, emb_in: torch.Tensor, base_segment_indexes:torch.Tensor) -> Tuple[torch.Tensor, bool]:
@@ -1054,15 +1054,16 @@ class OnlineSpeakerClustering(torch.nn.Module):
             add_new = True
         return merged_emb, add_new
 
-    def match_labels(self, Y_new: torch.Tensor, add_new: bool) -> torch.Tensor:
+    def match_labels(self, Y_merged: torch.Tensor, add_new: bool) -> torch.Tensor:
         """
         This function matches the newly generated clustering label sequence with the existing speaker labels in the history buffer.
         `self.history_buffer_seg_end` is an integer index that tells to which point is history embedding contains from `self.Y_fullhist`.
+
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
-        (self.history_n, len(Y_new)) from the new clustering output `Y_new`.
+        (self.history_n, len(Y_merged)) from the new clustering output `Y_merged`.
 
         Args:
-            Y_new (Tensor):
+            Y_merged (Tensor):
                 The newly generated clustering label sequence that may have different permutations with the existing
                 speaker labels in the history buffer.
             add_new (bool):
@@ -1079,8 +1080,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Y_old = torch.hstack((self.history_embedding_buffer_label, self.Y_fullhist[self.history_buffer_seg_end :]))
 
             # Stitch the old history and new cluster labels
-            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new).to(Y_new.device)
-
+            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_merged).to(Y_merged.device)
             if add_new:
                 if Y_matched[self.history_n :].shape[0] != self.current_n:
                     raise ValueError("Update point sync is not correct.")
@@ -1089,11 +1089,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
-                Y_out = self.Y_fullhist[: Y_new.shape[0]]
+                # Y_out = self.Y_fullhist[: Y_merged.shape[0]]
+                Y_out = self.Y_fullhist
         else:
             # If no memory is used, offline clustering is applied.
-            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_new).to(Y_new.device)
-            # , with_history=False).to(Y_new.device)
+            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_merged).to(Y_merged.device)
+            # , with_history=False).to(Y_merged.device)
             self.Y_fullhist = Y_out
         return Y_out
 
@@ -1174,11 +1175,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
 
         if cuda and (curr_emb.device == torch.device("cpu") or base_segment_indexes.device == torch.device("cpu")):
             raise ValueError(f"CUDA is enabled but the input {curr_emb} or {base_segment_indexes} is not on the GPU.")
-            
+
         merged_embs, add_new = self.get_reduced_mat(
             emb_in=curr_emb, base_segment_indexes=base_segment_indexes,
         )
-
         # Perform clustering on the embedding matrix containing history and current FIFO buffer merged_embeddings
         if merged_embs.shape[0] == 1:
             Y = torch.zeros((1,), dtype=torch.int32)
@@ -1187,7 +1187,6 @@ class OnlineSpeakerClustering(torch.nn.Module):
             est_num_of_spk, affinity_mat = self.online_spk_num_estimation(mat, frame_index)
             spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=merged_embs.device)
             Y = spectral_model.forward(affinity_mat).to(merged_embs.device)
-
         # Match the permutation of the newly obtained speaker labels and the previous labels
-        merged_clus_labels = self.match_labels(Y, add_new)
+        merged_clus_labels = self.match_labels(Y_merged=Y, add_new=add_new)
         return merged_clus_labels

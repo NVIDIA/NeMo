@@ -292,6 +292,8 @@ def linear_sum_assignment(cost_matrix):
     f_int: int = 0  if 0 in cost_matrix.shape else 1
 
     # while step is not Done (step 0):
+    # NOTE: torch.jit.scipt does not support getattr with string argument.
+    # Do not use getattr(lap_solver, f"_step{f_int}")()
     while f_int != 0:
         if f_int == 1:
             f_int = lap_solver._step1()
