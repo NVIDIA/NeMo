@@ -480,7 +480,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
                     padded.append([tokenizer.pad_id] * pad_len + line)
             context_tokens = padded
 
-        # for ptuning, add "fake virtual token" placeholders before building masks
+        # for ptuning, add virtual token placeholders before building masks
         self.num_virtual_tokens = len(self.model.pseudo_token_ids)
         context_tokens = [self.model.pseudo_token_ids + c for c in context_tokens]
 

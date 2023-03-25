@@ -431,6 +431,7 @@ def generate(
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == get_model_parallel_src_rank():
         if isinstance(inputs, tuple) and not isinstance(inference_strategy, RetroQAModelNEIGHBORSREADYTextGenerationStrategy):
+            # for RetroQAModelNEIGHBORSREADYTextGenerationStrategy, inputs should be (input_ids, chunks)
             context_tokens_tensor, context_length_tensor = inputs
         else:
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
