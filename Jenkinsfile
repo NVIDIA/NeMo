@@ -3526,7 +3526,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 --pipeline_model_parallel_size \
                 1 \
                 --target_pipeline_model_parallel_size \
-                2"
+                1"
             sh "rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo"
           }
         }
