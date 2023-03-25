@@ -34,7 +34,7 @@ exp_manager:
     save_top_k: 2
     mode: min
     save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
-    filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
+    filename: 'megatron_retro_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
   create_early_stopping_callback: True
@@ -59,7 +59,7 @@ model:
   validation_drop_last: False
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: ??? # Path to the GPT language model .nemo file, always required
+  language_model_path: ??? # Path to the RETRO language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ['car'] # List of new tasknames to be prompt-tuned
