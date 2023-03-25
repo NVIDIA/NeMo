@@ -679,7 +679,7 @@ class UGPTDataset(UL2Dataset):
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
-            respect_document_boundaries=False,  # Hard set to false for decoder-only models.
+            respect_document_boundaries=respect_document_boundaries,  # Hard set to false for decoder-only models.
             documents=documents,
             extreme_masked_lm_prob=extreme_masked_lm_prob,
             min_ngram_size=min_ngram_size,

@@ -812,7 +812,7 @@ def get_dataset(
                 'x-masking-longspan-largeprob': cfg.data.get("x_masking_longspan_largeprob", 0.11),
                 'x-masking-shortspan-largeprob': cfg.data.get("x_masking_shortspan_largeprob", 0.11),
             },
-            respect_document_boundaries=False,
+            respect_document_boundaries=cfg.data.get("respect_document_boundaries", True),
             documents=documents,
             use_prefix_noncausal_mask=cfg.get("attn_mask_type", "causal") == "padding",
             sentinel_tokens=sentinel_tokens,
