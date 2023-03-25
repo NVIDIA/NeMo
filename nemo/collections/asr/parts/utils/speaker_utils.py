@@ -969,7 +969,6 @@ def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sam
     return sig[start_idx:end_idx]
 
 
-
 def check_ranges(range_tensor):
     """
     Check whether the range list has any faulty timestamp order.
@@ -985,6 +984,7 @@ def check_ranges(range_tensor):
         if range_tup[1] < range_tup[0]:
             raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
     return True
+
 
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
@@ -1165,7 +1165,6 @@ def get_online_segments_from_slices(
         raise ValueError("Signal information lists have a mismatch.")
 
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
-
 
 
 def get_online_subsegments_from_buffer(
