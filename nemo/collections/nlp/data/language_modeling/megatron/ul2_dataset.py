@@ -420,6 +420,7 @@ class UL2Dataset(T5Dataset):
                 skip_masking_id=self.skip_masking_id,
                 masking_type=masking_type,
             )
+            example['masking_type'] = masking_type
             return example
 
     @classmethod
@@ -669,7 +670,7 @@ class UGPTDataset(UL2Dataset):
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
             max_seq_length=max_seq_length
-            + 1,  # +2 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
+            + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -679,7 +680,7 @@ class UGPTDataset(UL2Dataset):
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
-            respect_document_boundaries=respect_document_boundaries,  # Hard set to false for decoder-only models.
+            respect_document_boundaries=respect_document_boundaries,
             documents=documents,
             extreme_masked_lm_prob=extreme_masked_lm_prob,
             min_ngram_size=min_ngram_size,
@@ -705,7 +706,7 @@ class UGPTDataset(UL2Dataset):
         tokens = np.concatenate([example['text_enc'], example['labels']])
         assert (
             len(tokens) <= self.max_seq_length
-        ), f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length}'
+        ), f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length} for masking type {example["masking_type"]}'
         inputs = tokens[:-1]
         labels = tokens[1:]
         if len(inputs) < self.max_seq_length:
