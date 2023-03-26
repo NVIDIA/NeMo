@@ -364,6 +364,7 @@ class UL2Dataset(T5Dataset):
                 sentinel_tokens=self.sentinel_tokens,
                 skip_masking_id=self.skip_masking_id,
             )
+            example['masking_type'] = masking_type
             return example
         elif masking_type == 's-masking':
             example = UL2Dataset.get_s_masking_training_sample(
@@ -375,6 +376,7 @@ class UL2Dataset(T5Dataset):
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
             )
+            example['masking_type'] = masking_type
             return example
         else:
             # Try to minimize the amount of padding based on the masking type for GPT models.

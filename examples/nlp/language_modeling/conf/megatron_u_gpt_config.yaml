@@ -201,9 +201,9 @@ model:
     mean_ngram_size: 3
     r_masking_prob: 0.25
     s_masking_prob: 0.5
-    x_masking_longspan_smallprob: 0.8
-    x_masking_longspan_largeprob: 0.9
-    x_masking_shortspan_largeprob: 0.8
+    x_masking_longspan_smallprob: 0.08
+    x_masking_longspan_largeprob: 0.09
+    x_masking_shortspan_largeprob: 0.08
     permutation: False
     whole_word_masking: False
     favor_longer_ngrams: False
