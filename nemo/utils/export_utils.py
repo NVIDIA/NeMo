@@ -209,10 +209,10 @@ apex_available = True
 
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from apex.transformer.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-    from apex.normalization import MixedFusedRMSNorm
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
@@ -224,7 +224,7 @@ try:
         """
 
         p = next(n.parameters())
-        
+
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
             n_state = n.state_dict()
@@ -234,15 +234,12 @@ try:
         elif isinstance(n, MixedFusedRMSNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
             tmp_n_state = n.state_dict()
-            n_state = {
-                'weight': tmp_n_state['weight'],
-                'bias': torch.zeros_like(tmp_n_state['weight'])
-            }
+            n_state = {'weight': tmp_n_state['weight'], 'bias': torch.zeros_like(tmp_n_state['weight'])}
         else:
             return None
 
         mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
-        
+
         mod.load_state_dict(n_state)
         return mod
 
