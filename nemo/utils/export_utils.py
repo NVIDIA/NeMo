@@ -46,6 +46,26 @@ _EXT_DICT = {
 }
 
 
+class TorchRMSNorm(nn.Module):
+    def __init__(self, weight, eps=1e-6):
+        """
+        Construct a layernorm module in the T5 style No bias and no subtraction of mean.
+        """
+        super().__init__()
+        self.weight = weight
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        # layer norm should always be calculated in float32
+        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+
+        # convert into half-precision if necessary
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
+
+        return self.weight * hidden_states
+
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
         super(LinearWithBiasSkip, self).__init__()
@@ -228,22 +248,22 @@ try:
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
             n_state = n.state_dict()
+            mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
+        
+            mod.load_state_dict(n_state)
         elif isinstance(n, FastLayerNorm):
             shape, eps, affine = n.weight.shape, n.epsilon, True
             n_state = n.state_dict()
+            mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
+        
+            mod.load_state_dict(n_state)
         elif isinstance(n, MixedFusedRMSNorm):
-            shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
             tmp_n_state = n.state_dict()
-            n_state = {
-                'weight': tmp_n_state['weight'],
-                'bias': torch.zeros_like(tmp_n_state['weight'])
-            }
+            mod = TorchRMSNorm(tmp_n_state['weight'], n.eps).to(p.device)
         else:
             return None
 
-        mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
         
-        mod.load_state_dict(n_state)
         return mod
 
     def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
