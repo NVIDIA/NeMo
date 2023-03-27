@@ -107,9 +107,11 @@ class DecEmb(torch.nn.Module, Exportable):
         position_ids = build_position_ids(input_ids)
         dec_input = self.decoder_embedding(input_ids, position_ids, token_type_ids=None)
 
-        rpe = self.rpe(
-            query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),
-        )
+        rpe = None
+        if self.rpe is not None:
+            rpe = self.rpe(
+                query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),
+            )
 
         dec_out = (
             self.decoder(dec_input, decoder_mask, encoder_embeddings.permute(1, 0, 2), encoder_mask, dec_self_attention_relative_position_bias=rpe)
@@ -179,6 +181,7 @@ class EncEmb(torch.nn.Module, Exportable):
         self.encoder = encoder
         self.device = device
         self.rpe = rpe
+
         # properties needed for export
         self.training = False
 
@@ -199,19 +202,19 @@ class EncEmb(torch.nn.Module, Exportable):
         # pass input through the encoder
         enc_seq_length = input_ids.size(1)
 
-        rpe = self.rpe(
-            query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
-        )
+        rpe = None
+        if self.rpe is not None:
+            rpe = self.rpe(
+                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            )
         
         return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,enc_self_attention_relative_position_bias=rpe).permute(1, 0, 2).float()
 
     def input_example(self, max_batch=1, max_dim=30000, seq_len=6):
         seq_len = random.randint(0, 128)
         return (
-            # torch.randint(0, max_dim, (max_batch, seq_len)).to(self.device),
-            # torch.ones((max_batch, seq_len), dtype=int).to(self.device),
-            torch.tensor([[2, 380, 2375, 7655, 3]], dtype=int).to(self.device),
-            torch.ones((max_batch, 5), dtype=int).to(self.device),
+            torch.randint(0, max_dim, (max_batch, seq_len)).to(self.device),
+            torch.ones((max_batch, seq_len), dtype=int).to(self.device),
         )
 
     def freeze(self):
