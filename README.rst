@@ -63,6 +63,10 @@ can all be run on `Google Colab <https://colab.research.google.com>`_.
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
 
+For scaling NeMo LLM training on Slurm clusters or public clouds, please see the `NVIDIA NeMo Megatron Launcher <https://github.com/NVIDIA/NeMo-Megatron-Launcher>`_.
+The NM launcher has extensive recipes, scripts, utilities, and documentation for training NeMo LLMs and also has an `Autoconfigurator <https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration>`_ 
+which can be used to find the optimal model parallel configuration for training on a specific cluster.
+
 Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
 Key Features
@@ -270,13 +274,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.01-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.02-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.01-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.02-py3
 
 Examples
 --------
