@@ -1211,6 +1211,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
+            print('ENC:', enc_output)
+
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
@@ -1238,6 +1240,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
                 output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
+                
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(

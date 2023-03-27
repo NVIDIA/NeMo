@@ -350,10 +350,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
+                print('SHARREEEEEDDDDDDDDDDDDDD!!!!!!!!!!!!')
                 self.tokens_head = MegatronTokenLevelHead(
                     self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
                 )
             else:
+                print('NOTTTTTTTTT     SHARREEEEEDDDDDDDDDDDDDD!!!!!!!!!!!!')
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
                     output_size=vocab_size,
@@ -529,6 +531,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     )
                 else:
                     decoder_cross_attention_relative_position_bias = None
+
 
             output = self.enc_dec_model(
                 enc_input=enc_input,

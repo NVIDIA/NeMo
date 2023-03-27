@@ -160,6 +160,8 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         get_key_value=False,
         enc_self_attention_relative_position_bias=None,
     ):
+        # print('ENC RPE:',enc_self_attention_relative_position_bias, enc_self_attention_relative_position_bias.shape )
+
         # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
             source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
@@ -174,7 +176,6 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=None,
         )
-
         return enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

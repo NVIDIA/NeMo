@@ -185,6 +185,8 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
 
+        print('DECOUT:', dec_output, dec_output.shape)
+
         return dec_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

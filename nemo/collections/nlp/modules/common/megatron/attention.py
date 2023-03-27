@@ -466,7 +466,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # =================
         # Output. [sq, b, h]
         # =================
-
         output, bias = self.dense(context_layer)
 
         if get_key_value:

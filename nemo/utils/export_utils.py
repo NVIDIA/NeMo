@@ -229,6 +229,7 @@ apex_available = True
 
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from apex.transformer.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
