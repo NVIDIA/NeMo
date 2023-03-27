@@ -81,6 +81,12 @@ DSET_TYPES = [
     DSET_TYPE_UGPT,
 ]
 
+string2length_distribution = {
+    'uniform': LengthDistribution.uniform,
+    'truncated_normal': LengthDistribution.truncated_normal,
+    'geometric': LengthDistribution.geometric,
+}
+
 
 def compile_helper():
     """Compile helper function ar runtime. Make sure this
@@ -717,19 +723,11 @@ def get_dataset(
             "extreme_ngram_span_length_distribution", "truncated_normal"
         )
         ngram_span_length_distribution = cfg.data.get("ngram_span_length_distribution", "geometric")
-        if extreme_ngram_span_length_distribution == "truncated_normal":
-            extreme_ngram_span_length_distribution = LengthDistribution.truncated_normal
-        elif extreme_ngram_span_length_distribution == "uniform":
-            extreme_ngram_span_length_distribution = LengthDistribution.uniform
-        elif extreme_ngram_span_length_distribution == "geometric":
-            extreme_ngram_span_length_distribution = LengthDistribution.geometric
+        prefix_lm_pivot_distribution = cfg.data.get("prefix_lm_pivot_distribution", "uniform")
 
-        if ngram_span_length_distribution == "truncated_normal":
-            ngram_span_length_distribution = LengthDistribution.truncated_normal
-        elif ngram_span_length_distribution == "uniform":
-            ngram_span_length_distribution = LengthDistribution.uniform
-        elif ngram_span_length_distribution == "geometric":
-            ngram_span_length_distribution = LengthDistribution.geometric
+        extreme_ngram_span_length_distribution = string2length_distribution[extreme_ngram_span_length_distribution]
+        ngram_span_length_distribution = string2length_distribution[ngram_span_length_distribution]
+        prefix_lm_pivot_distribution = string2length_distribution[prefix_lm_pivot_distribution]
 
         dataset = UL2Dataset(
             cfg=cfg,
@@ -751,6 +749,7 @@ def get_dataset(
             extreme_mean_ngram_size=cfg.data.get("extreme_mean_ngram_size", 64),
             extreme_min_ngram_size=cfg.data.get("extreme_min_ngram_size", 32),
             prefix_lm_pivot_mean=cfg.data.get("prefix_lm_pivot_mean", 0.25),
+            prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             sampling_probabilities={
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
@@ -771,19 +770,11 @@ def get_dataset(
             "extreme_ngram_span_length_distribution", "truncated_normal"
         )
         ngram_span_length_distribution = cfg.data.get("ngram_span_length_distribution", "geometric")
-        if extreme_ngram_span_length_distribution == "truncated_normal":
-            extreme_ngram_span_length_distribution = LengthDistribution.truncated_normal
-        elif extreme_ngram_span_length_distribution == "uniform":
-            extreme_ngram_span_length_distribution = LengthDistribution.uniform
-        elif extreme_ngram_span_length_distribution == "geometric":
-            extreme_ngram_span_length_distribution = LengthDistribution.geometric
+        prefix_lm_pivot_distribution = cfg.data.get("prefix_lm_pivot_distribution", "uniform")
 
-        if ngram_span_length_distribution == "truncated_normal":
-            ngram_span_length_distribution = LengthDistribution.truncated_normal
-        elif ngram_span_length_distribution == "uniform":
-            ngram_span_length_distribution = LengthDistribution.uniform
-        elif ngram_span_length_distribution == "geometric":
-            ngram_span_length_distribution = LengthDistribution.geometric
+        extreme_ngram_span_length_distribution = string2length_distribution[extreme_ngram_span_length_distribution]
+        ngram_span_length_distribution = string2length_distribution[ngram_span_length_distribution]
+        prefix_lm_pivot_distribution = string2length_distribution[prefix_lm_pivot_distribution]
 
         dataset = UGPTDataset(
             cfg=cfg,
@@ -804,6 +795,7 @@ def get_dataset(
             extreme_max_ngram_size=cfg.data.get("extreme_max_ngram_size", 128),
             extreme_mean_ngram_size=cfg.data.get("extreme_mean_ngram_size", 64),
             extreme_min_ngram_size=cfg.data.get("extreme_min_ngram_size", 32),
+            prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             prefix_lm_pivot_mean=cfg.data.get("prefix_lm_pivot_mean", 0.25),
             sampling_probabilities={
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),

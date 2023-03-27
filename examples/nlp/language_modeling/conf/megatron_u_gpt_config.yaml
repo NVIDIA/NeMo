@@ -195,8 +195,9 @@ model:
     extreme_max_ngram_size: 128
     extreme_min_ngram_size: 32
     extreme_mean_ngram_size: 64
-    ngram_span_length_distribution: 'geometric'
-    extreme_ngram_span_length_distribution: 'truncated_normal'
+    ngram_span_length_distribution: 'geometric' # Options: ['geometric', 'uniform']
+    extreme_ngram_span_length_distribution: 'truncated_normal' # Options: ['geometric', 'uniform', 'truncated_normal']
+    prefix_lm_pivot_distribution: 'truncated_normal' # Options: ['uniform', 'truncated_normal']
     prefix_lm_pivot_mean: 0.5
     mean_ngram_size: 3
     r_masking_prob: 0.25

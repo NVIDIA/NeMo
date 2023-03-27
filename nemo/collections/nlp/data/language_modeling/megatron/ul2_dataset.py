@@ -55,6 +55,7 @@ class UL2Dataset(T5Dataset):
         extreme_max_ngram_size=128,
         extreme_min_ngram_size=32,
         extreme_mean_ngram_size=64,
+        prefix_lm_pivot_distribution=LengthDistribution.uniform,
         prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
@@ -140,6 +141,8 @@ class UL2Dataset(T5Dataset):
         self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
         self.sampling_probabilities = sampling_probabilities
+        self.prefix_lm_pivot_distribution = prefix_lm_pivot_distribution
+
         self._normalize_sampling_probabilities()
         self.r_masking_prob = sampling_probabilities['r-masking']
         self.s_masking_prob = sampling_probabilities['s-masking']
@@ -224,6 +227,8 @@ class UL2Dataset(T5Dataset):
         add_eos: bool = False,
     ):
         sample = [token for sentence in sample for token in sentence]
+        if max_seq_length_decoder is None:
+            sample = sample[:max_seq_length_encoder - 1]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
             sample=sample,
             max_seq_length_encoder=max_seq_length_encoder,
@@ -374,7 +379,7 @@ class UL2Dataset(T5Dataset):
                 max_seq_length_decoder=self.max_seq_length_dec,
                 tokenizer=self.tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
-                pivot_distribution=self.extreme_ngram_span_length_distribution,
+                pivot_distribution=self.prefix_lm_pivot_distribution,
             )
             example['masking_type'] = masking_type
             return example
@@ -610,6 +615,7 @@ class UGPTDataset(UL2Dataset):
         extreme_max_ngram_size=128,
         extreme_min_ngram_size=32,
         extreme_mean_ngram_size=64,
+        prefix_lm_pivot_distribution=LengthDistribution.uniform,
         prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
@@ -690,6 +696,7 @@ class UGPTDataset(UL2Dataset):
             extreme_min_ngram_size=extreme_min_ngram_size,
             extreme_mean_ngram_size=extreme_mean_ngram_size,
             prefix_lm_pivot_mean=prefix_lm_pivot_mean,
+            prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             ngram_span_length_distribution=ngram_span_length_distribution,
             extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,
             skip_masking_id=tokenizer.eos_id if skip_masking_id is None else skip_masking_id,
