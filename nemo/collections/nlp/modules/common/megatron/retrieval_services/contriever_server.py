@@ -536,6 +536,7 @@ def tasb_retriever_msmarcominilm_reranker(all_contexts, queries, retriever_args)
 
 
 def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, models):
+    buffer_size = 20
     all_contexts_formatted_emb = all_context_emb
     queries_emb = models[0].encode(questions)
 
@@ -554,8 +555,8 @@ def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, mo
         all_query_scores = []
         for query_contexts_ranked, query in zip(all_query_docs_sorted, questions):
             features = rank_model_tokenizer(
-                [query] * 20,
-                [normalization_txt(format(*context)) for context in query_contexts_ranked[:20]],
+                [query] * buffer_size,
+                [normalization_txt(format(*context)) for context in query_contexts_ranked[:buffer_size]],
                 padding=True,
                 truncation=True,
                 return_tensors="pt",
@@ -565,21 +566,21 @@ def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, mo
         all_query_scores = [
             list(
                 models[1].predict(
-                    [(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:20]]
+                    [(query, normalization_txt(format(*context))) for context in query_contexts_ranked[:buffer_size]]
                 )
             )
             for query_contexts_ranked, query in zip(all_query_docs_sorted, questions)
         ]
 
     all_query_docsandscores_sorted = [
-        sorted(list(zip(query_contexts_ranked[:neighbors], query_scores)), key=lambda x: x[1], reverse=True)
+        sorted(list(zip(query_contexts_ranked[:buffer_size], query_scores[:buffer_size])), key=lambda x: x[1], reverse=True)
         for query_contexts_ranked, query_scores in zip(all_query_docs_sorted, all_query_scores)
     ]
     all_query_docs_sorted = [
-        [docandscore[0] for docandscore in query_docsandscores_sorted]
+        [docandscore[0] for docandscore in query_docsandscores_sorted][:neighbors]
         for query_docsandscores_sorted in all_query_docsandscores_sorted
     ]
-    similarity = [[item[1].item() for item in batch_doc_scores] for batch_doc_scores in all_query_docsandscores_sorted]
+    similarity = [[item[1].item() for item in batch_doc_scores][:neighbors] for batch_doc_scores in all_query_docsandscores_sorted]
     return all_query_docs_sorted, similarity
 
 
