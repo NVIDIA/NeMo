@@ -532,7 +532,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 else:
                     decoder_cross_attention_relative_position_bias = None
 
-
             output = self.enc_dec_model(
                 enc_input=enc_input,
                 enc_attn_mask=enc_attn_mask,

@@ -64,6 +64,7 @@ class TorchRMSNorm(nn.Module):
 
         return self.weight * hidden_states
 
+
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
         super(LinearWithBiasSkip, self).__init__()
@@ -243,7 +244,7 @@ try:
         """
 
         p = next(n.parameters())
-        
+
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
         elif isinstance(n, FastLayerNorm):
@@ -253,9 +254,9 @@ try:
 
         n_state = n.state_dict()
         mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
-    
+
         mod.load_state_dict(n_state)
-        
+
         return mod
 
     def replace_MixedFusedRMSNorm(n: nn.Module):
@@ -273,7 +274,7 @@ try:
             mod = TorchRMSNorm(n.state_dict()['weight'], n.eps).to(p.device)
         else:
             return None
-        
+
         return mod
 
     def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:

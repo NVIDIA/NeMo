@@ -109,12 +109,16 @@ class DecEmb(torch.nn.Module, Exportable):
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(
-                query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),
-            )
+            rpe = self.rpe(query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),)
 
         dec_out = (
-            self.decoder(dec_input, decoder_mask, encoder_embeddings.permute(1, 0, 2), encoder_mask, dec_self_attention_relative_position_bias=rpe)
+            self.decoder(
+                dec_input,
+                decoder_mask,
+                encoder_embeddings.permute(1, 0, 2),
+                encoder_mask,
+                dec_self_attention_relative_position_bias=rpe,
+            )
             .permute(1, 0, 2)
             .float()
         )
@@ -204,11 +208,15 @@ class EncEmb(torch.nn.Module, Exportable):
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(
-                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            rpe = self.rpe(query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,)
+
+        return (
+            self.encoder(
+                enc_input=enc_input, enc_attn_mask=encoder_mask, enc_self_attention_relative_position_bias=rpe
             )
-        
-        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,enc_self_attention_relative_position_bias=rpe).permute(1, 0, 2).float()
+            .permute(1, 0, 2)
+            .float()
+        )
 
     def input_example(self, max_batch=1, max_dim=30000, seq_len=6):
         seq_len = random.randint(0, 128)
