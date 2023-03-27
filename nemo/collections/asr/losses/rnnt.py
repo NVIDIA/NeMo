@@ -48,7 +48,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba, MultiblankRNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import MultiblankRNNTLossNumba, RNNTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -322,10 +322,10 @@ class RNNTLoss(Loss):
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
-        # Cast to int 32
-        targets = targets.int()
-        input_lengths = input_lengths.int()
-        target_lengths = target_lengths.int()
+        # Cast to int 64
+        targets = targets.long()
+        input_lengths = input_lengths.long()
+        target_lengths = target_lengths.long()
 
         max_logit_len = input_lengths.max()
         max_targets_len = target_lengths.max()
@@ -347,6 +347,9 @@ class RNNTLoss(Loss):
 
         # Reduce transcript length to correct alignment if additional padding was applied.
         # Transcript: [B, L] -> [B, L']; If L' < L
+        if not targets.is_contiguous():
+            targets = targets.contiguous()
+
         if targets.shape[1] != max_targets_len:
             targets = targets.narrow(dim=1, start=0, length=max_targets_len).contiguous()
 

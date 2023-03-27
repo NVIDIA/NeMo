@@ -59,7 +59,7 @@ To train ByT5 G2P model and evaluate it after at the end of the training, run:
         do_training=True \
         do_testing=True
 
-Example of the config file: ``NeMo/examples/text_processing/g2p/conf/t5_g2p.yaml``.
+Example of the config file: ``NeMo/examples/tts/g2p/conf/g2p_t5.yaml``.
 
 
 To train G2P-Conformer model and evaluate it after at the end of the training, run:
@@ -75,7 +75,6 @@ To train G2P-Conformer model and evaluate it after at the end of the training, r
         model.tokenizer_grapheme.do_lower=False \
         model.tokenizer_grapheme.add_punctuation=True \
         trainer.devices=1 \
-
         do_training=True \
         do_testing=True
 
@@ -165,24 +164,44 @@ To convert the WikipediaHomographData to `.json` format suitable for the Heteron
             --data_folder=<Path to WikipediaHomographData>/WikipediaHomographData-master/data/train/
             --output=train.json
 
-To train and evaluate the model, run:
+To train the model, run:
 
 .. code-block::
 
-    python heteronym_classification_train_and_evaluate.py \
-        train_manifest=<Path to manifest file>" \
-        validation_manifest=<Path to manifest file>" \
-        model.encoder.pretrained="<Path to .nemo file or pretrained model name from list_available_models()>" \
+    python g2p_heteronym_classification_train_and_evaluate.py \
+        train_manifest=<Path to train manifest file>" \
+        validation_manifest=<Path to validation manifest file>" \
         model.wordids=<Path to wordids.tsv file, similar to https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv> \
+        do_training=True \
+        do_testing=False
+
+To train the model and evaluate it when the training is complete, run:
+
+.. code-block::
+
+    python g2p_heteronym_classification_train_and_evaluate.py \
+        train_manifest=<Path to train manifest file>" \
+        validation_manifest=<Path to validation manifest file>" \
+        model.test_ds.dataset.manifest=<Path to test manifest file>" \
+        model.wordids="<Path to wordids.tsv file>" \
         do_training=True \
         do_testing=True
 
+To evaluate pretrained model, run:
+
+.. code-block::
+
+    python g2p_heteronym_classification_train_and_evaluate.py \
+        do_training=False \
+        do_testing=True \
+        model.test_ds.dataset.manifest=<Path to test manifest file>"  \
+        pretrained_model=<Path to pretrained .nemo model or from list_available_models()>
 
 To run inference with a pretrained HeteronymClassificationModel, run:
 
 .. code-block::
 
-    python heteronym_classification_inference.py \
+    python g2p_heteronym_classification_inference.py \
         manifest="<Path to .json manifest>" \
         pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
         output_file="<Path to .json manifest to save prediction>"
@@ -193,6 +212,23 @@ Note, if the input manifest contains target "word_id", evaluation will be also p
 
   {"text_graphemes": "Oxygen is less able to diffuse into the blood, leading to hypoxia.", "pred_text": "diffuse_vrb", "start_end": [23, 30], "homograph_span": "diffuse", "word_id": "diffuse_vrb"}
 
+To train a model with `Chinese Polyphones with Pinyin (CPP) <https://github.com/kakaobrain/g2pM/tree/master/data>`__ dataset, run:
+
+.. code-block::
+    # prepare CPP manifest
+    mkdir -p ./cpp_manifest
+    git clone https://github.com/kakaobrain/g2pM.git
+    python3 export_zh_cpp_data_to_manifest.py --data_folder g2pM/data/ --output_folder ./cpp_manifest
+    
+    # model training and evaluation
+    python3 heteronym_classification_train_and_evaluate.py \
+        --config-name "heteronym_classification_zh.yaml" \
+        train_manifest="./cpp_manifest/train.json" \
+        validation_manifest="./cpp_manifest/dev.json" \
+        model.test_ds.dataset.manifest="./cpp_manifest/test.json" \
+        model.wordids="./cpp_manifest/wordid.tsv" \
+        do_training=False \
+        do_testing=True
 
 Requirements
 ------------

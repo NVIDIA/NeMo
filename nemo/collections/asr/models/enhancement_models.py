@@ -30,12 +30,10 @@ from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncMaskDecAudioToAudioModel']
 
 
-@experimental
 class EncMaskDecAudioToAudioModel(AudioToAudioModel):
     """Class for encoder-mask-decoder audio processing models.
 
@@ -66,9 +64,6 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         # If subclasses need to modify the config before calling super()
         # Check ASRBPE* classes do with their mixin
 
-        # Setup loss
-        self.loss = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.loss)
-
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
@@ -92,7 +87,8 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             output_dir: 
             batch_size: (int) batch size to use during inference.
                 Bigger will result in better throughput performance but would use more memory.
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
+            num_workers: Number of workers for the dataloader
+            input_channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
 
         Returns:
         """
@@ -133,7 +129,6 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                     'input_channel_selector': input_channel_selector,
                     'batch_size': min(batch_size, len(paths2audio_files)),
                     'num_workers': num_workers,
-                    'channel_selector': input_channel_selector,
                 }
 
                 # Create output dir if necessary
@@ -208,8 +203,12 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -413,13 +412,20 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
 
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
+        # Prepare output
         loss_value = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
+        output_dict = {f'{tag}_loss': loss_value}
 
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+        # Update metrics
+        if hasattr(self, 'metrics') and tag in self.metrics:
+            # Update metrics for this (tag, dataloader_idx)
+            for name, metric in self.metrics[tag][dataloader_idx].items():
+                metric.update(preds=processed_signal, target=target_signal, input_length=input_length)
 
-        return {
-            f'{tag}_loss': loss_value,
-        }
+        # Log global step
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32), sync_dist=True)
+
+        return output_dict
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

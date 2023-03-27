@@ -71,6 +71,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -107,9 +108,12 @@ class EvalBeamSearchNGramConfig:
     beam_alpha: List[float] = field(default_factory=lambda: [1.0])  # The alpha parameter or list of the alphas for the beam search decoding
     beam_beta: List[float] = field(default_factory=lambda: [0.0])  # The beta parameter or list of the betas for the beam search decoding
 
-    decoding_strategy: str = "beam"  # Supports only beam for now
+    decoding_strategy: str = "beam"
     decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
-
+    
+    separate_punctuation: bool = True
+    do_lowercase: bool = False
+    rm_punctuation: bool = False
 
 # fmt: on
 
@@ -153,7 +157,7 @@ def beam_search_eval(
     chars_count = 0
     sample_idx = 0
     if preds_output_file:
-        out_file = open(preds_output_file, 'w')
+        out_file = open(preds_output_file, 'w', encoding='utf_8', newline='\n')
 
     if progress_bar:
         it = tqdm(
@@ -178,9 +182,15 @@ def beam_search_eval(
             _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
                 packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
             )
-
+        pc = PunctuationCapitalization(',.?')
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]
+            if cfg.separate_punctuation:
+                target = pc.separate_punctuation([target])[0]
+            if cfg.do_lowercase:
+                target = pc.do_lowercase([target])[0]
+            if cfg.rm_punctuation:
+                target = pc.rm_punctuation([target])[0]
             target_split_w = target.split()
             target_split_c = list(target)
             words_count += len(target_split_w)
@@ -188,6 +198,10 @@ def beam_search_eval(
             wer_dist_min = cer_dist_min = 10000
             for candidate_idx, candidate in enumerate(beams):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
                 pred_text = candidate.text
+                if cfg.do_lowercase:
+                    pred_text = pc.do_lowercase([pred_text])[0]
+                if cfg.rm_punctuation:
+                    pred_text = pc.rm_punctuation([pred_text])[0]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -257,7 +271,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     target_transcripts = []
     manifest_dir = Path(cfg.input_manifest).parent
-    with open(cfg.input_manifest, 'r') as manifest_file:
+    with open(cfg.input_manifest, 'r', encoding='utf_8') as manifest_file:
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {cfg.input_manifest} ...", ncols=120):
             data = json.loads(line)

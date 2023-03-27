@@ -16,6 +16,7 @@ import itertools
 import json
 import os
 import random
+from collections import OrderedDict
 from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -38,6 +39,7 @@ from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcess
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, JaMecabProcessor
 from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -141,14 +143,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             (
                 self.source_processor_list,
                 self.target_processor_list,
-                self.multilingual_ids,
+                self.multilingual_lang_to_id,
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
                 self.src_language,
                 self.tgt_language,
                 self.encoder_tokenizer,
+                self.decoder_tokenizer,
                 self.encoder_tokenizer_library,
                 self.decoder_tokenizer_library,
             )
+            self.multilingual_ids = list(self.multilingual_lang_to_id.values())
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
@@ -166,6 +170,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
+        if isinstance(self.encoder_tokenizer, TabularTokenizer):
+            # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
+            encoder_padding_idx = 0
+        else:
+            encoder_padding_idx = self.encoder_tokenizer.pad_id
         self.encoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -174,6 +183,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             encoder=True,
             pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
             checkpoint_file=checkpoint_file,
+            padding_idx=encoder_padding_idx,
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
@@ -182,6 +192,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         library = decoder_cfg_dict.pop('library', 'nemo')
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
+        if isinstance(self.decoder_tokenizer, TabularTokenizer):
+            # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
+            decoder_padding_idx = 0
+        else:
+            decoder_padding_idx = self.decoder_tokenizer.pad_id
         self.decoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -189,6 +204,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             config_dict=decoder_cfg_dict,
             encoder=False,
             pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            padding_idx=decoder_padding_idx,
         )
 
         # validate hidden_size of encoder and decoder
@@ -256,22 +272,46 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def setup_multilingual_ids_and_processors(
-        cls, src_language, tgt_language, encoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
+        cls,
+        src_language,
+        tgt_language,
+        encoder_tokenizer,
+        decoder_tokenizer,
+        encoder_tokenizer_library,
+        decoder_tokenizer_library,
     ):
-        multilingual_ids = []
-        if isinstance(src_language, ListConfig):
-            for lng in src_language:
-                multilingual_ids.append(None)
-        else:
-            for lng in tgt_language:
-                if f"<{lng}>" not in encoder_tokenizer.vocab:
-                    encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
-                multilingual_ids.append(encoder_tokenizer.token_to_id(f"<{lng}>"))
+        multilingual_ids = OrderedDict()
 
-        if isinstance(src_language, ListConfig):
-            tgt_language = [tgt_language] * len(src_language)
+        # Determine all of the language IDs that need to be added as special tokens.
+        if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
+            assert len(src_language) == len(tgt_language)
+            all_languages = list(set(tgt_language + src_language))
+        elif isinstance(tgt_language, ListConfig):
+            all_languages = tgt_language
+        elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
+            all_languages = [src_language, tgt_language]
         else:
+            all_languages = []
+
+        # If target is a list config, then add all language ID tokens to the tokenizer.
+        # When both src, tgt are lists, we concat and take a unique of all lang IDs.
+        # If only tgt lang is a list, then we only add those lang IDs to the tokenizer.
+        if all_languages != []:
+            for lng in all_languages:
+                if len(encoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
+                    encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                if len(decoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
+                    decoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                # Make sure that we are adding the same language ID to both tokenizers. If this assert fails it means the tokenizers were different to begin with.
+                assert encoder_tokenizer.text_to_ids(f"<{lng}>")[0] == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
+                multilingual_ids[lng] = encoder_tokenizer.text_to_ids(f"<{lng}>")[0]
+
+        if isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
+            tgt_language = [tgt_language] * len(src_language)
+        elif isinstance(tgt_language, ListConfig) and not isinstance(src_language, ListConfig):
             src_language = [src_language] * len(tgt_language)
+        else:
+            pass
 
         source_processor_list = []
         target_processor_list = []
@@ -861,7 +901,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def _setup_eval_dataset_from_config(
-        cls, cfg: DictConfig, multilingual: bool, multilingual_ids, encoder_tokenizer, decoder_tokenizer
+        cls,
+        cfg: DictConfig,
+        multilingual: bool,
+        multilingual_ids,
+        encoder_tokenizer,
+        decoder_tokenizer,
+        add_bos_eos_to_encoder=True,
     ):
         src_file_name = cfg.get('src_file_name')
         tgt_file_name = cfg.get('tgt_file_name')
@@ -906,6 +952,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                 prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
+                add_bos_eos_to_encoder=add_bos_eos_to_encoder,
             )
             dataset.batchify(encoder_tokenizer, decoder_tokenizer)
             datasets.append(dataset)
@@ -1051,6 +1098,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         processor = source_processor if not target else target_processor
         tokenizer = encoder_tokenizer if not target else decoder_tokenizer
         for txt in text:
+            txt = txt.rstrip("\n")
             if processor is not None:
                 txt = processor.normalize(txt)
                 txt = processor.tokenize(txt)

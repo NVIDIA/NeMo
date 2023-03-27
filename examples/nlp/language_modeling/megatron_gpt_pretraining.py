@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from lightning_lite.plugins.environments import TorchElasticEnvironment
+import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -28,6 +29,8 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+mp.set_start_method("spawn", force=True)
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
