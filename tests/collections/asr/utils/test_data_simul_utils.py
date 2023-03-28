@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+
 import numpy as np
 import pytest
 import torch
@@ -21,12 +22,12 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
-    get_cleaned_base_path,
+    add_silence_to_alignments,
     binary_search_alignments,
+    get_cleaned_base_path,
+    get_split_points_in_alignments,
     normalize_audio,
     read_noise_manifest,
-    get_split_points_in_alignments,
-    add_silence_to_alignments,
 )
 
 
@@ -147,19 +148,24 @@ class TestDataSimulatorUtils:
         assert os.path.exists(result_path) and not os.path.isfile(result_path)
         os.rmdir(result_path)
         assert not os.path.exists(result_path)
-    
-    @pytest.mark.parametrize("words, alignments, answers", [
-        (['', 'hello', 'world'], [0.5, 1.0, 1.5], [[0, 16000.0]]),
-        (['', 'hello', 'world', '', 'welcome', 'to', 'nemo', ''], [0.27, 1.0, 1.7, 2.7, 2.8, 3.2, 3.7, 3.9], [[0, (1.7+0.5)*16000], [(2.7-0.5)*16000, (3.9-0.27)*16000]]),
-    ])
+
+    @pytest.mark.parametrize(
+        "words, alignments, answers",
+        [
+            (['', 'hello', 'world'], [0.5, 1.0, 1.5], [[0, 16000.0]]),
+            (
+                ['', 'hello', 'world', '', 'welcome', 'to', 'nemo', ''],
+                [0.27, 1.0, 1.7, 2.7, 2.8, 3.2, 3.7, 3.9],
+                [[0, (1.7 + 0.5) * 16000], [(2.7 - 0.5) * 16000, (3.9 - 0.27) * 16000]],
+            ),
+        ],
+    )
     @pytest.mark.parametrize("sr", [16000])
     @pytest.mark.parametrize("split_buffer", [0.5])
     @pytest.mark.parametrize("new_start", [0.0])
     def test_get_split_points_in_alignments(self, words, alignments, sr, new_start, split_buffer, answers):
         sentence_audio_len = sr * (alignments[-1] - alignments[0])
-        splits = get_split_points_in_alignments(
-            words, alignments, split_buffer, sr, sentence_audio_len, new_start
-        )
+        splits = get_split_points_in_alignments(words, alignments, split_buffer, sr, sentence_audio_len, new_start)
         assert len(splits) == len(answers)
         for k, interval in enumerate(splits):
             assert abs(answers[k][0] - interval[0]) < 1e-4
@@ -176,7 +182,8 @@ class TestDataSimulatorUtils:
         }
         audio_manifest = add_silence_to_alignments(audio_manifest)
         assert audio_manifest['alignments'] == audio_manifest['alignments']
-        assert audio_manifest['words'] == ['', 'hello', 'world'] 
+        assert audio_manifest['words'] == ['', 'hello', 'world']
+
 
 class TestDataAnnotator:
     def test_init(self, annotator):

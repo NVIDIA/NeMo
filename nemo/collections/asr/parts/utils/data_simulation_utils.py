@@ -520,10 +520,7 @@ def add_silence_to_alignments(audio_manifest: dict):
 
 
 def load_speaker_sample(
-    speaker_wav_align_map: List[dict],
-    speaker_ids: List[str],
-    speaker_turn: int,
-    min_alignment_count: int,
+    speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int, min_alignment_count: int,
 ) -> str:
     """
     Load a sample for the selected speaker ID.
@@ -649,8 +646,18 @@ class DataAnnotator(object):
         self._files = {}
         self._init_file_write()
         self._init_filelist_lists()
-    
+
+    def _init_file_write(self):
+        """
+        Initialize file writing arguments
+        """
+        self._file_base_str = "synthetic"
+        self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
+
     def init_annotation_lists(self):
+        """
+        Initialize lists to store the annotations for each file type
+        """
         self.annote_lists = {}
         self.annote_lists['rttm'] = []
         self.annote_lists['json'] = []
@@ -771,13 +778,6 @@ class DataAnnotator(object):
                 arr.append((align1, text))
         return arr
 
-    def _init_file_write(self):
-        """
-        Initialize file writing.
-        """
-        self._file_base_str = "synthetic"
-        self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
-
     def add_to_filename_lists(self, basepath: str, filename: str):
         """
         Add the current filename to the list of filenames for each file type.
@@ -801,9 +801,7 @@ class DataAnnotator(object):
             with open(f"{basepath}/{self._file_base_str}_{file_type}.list", "w") as list_file:
                 list_file.write("\n".join(self.annote_lists[f"{file_type}_list"]))
 
-    def write_annotation_files(
-        self, basepath: str, filename: str, meta_data: dict
-    ):
+    def write_annotation_files(self, basepath: str, filename: str, meta_data: dict):
         """
         Write all annotation files: RTTM, JSON, CTM, TXT, and META.
 
@@ -912,7 +910,7 @@ class SpeechSampler(object):
         """
         self.running_speech_len_samples = 0
         self.running_silence_len_samples = 0
-        
+
         self.per_silence_min_len = int(
             max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
         )
