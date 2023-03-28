@@ -1658,9 +1658,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
 
         self.annotator.write_annotation_files(
-            basepath=basepath,
-            filename=filename,
-            meta_data=self._get_session_meta_data(array=array, snr=snr),
+            basepath=basepath, filename=filename, meta_data=self._get_session_meta_data(array=array, snr=snr),
         )
 
         del array
