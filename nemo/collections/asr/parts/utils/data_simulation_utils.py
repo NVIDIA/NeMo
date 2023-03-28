@@ -799,6 +799,7 @@ class DataAnnotator(object):
         for file_type in self._file_types:
             with open(f"{basepath}/{self._file_base_str}_{file_type}.list", "w") as list_file:
                 list_file.write("\n".join(self.annote_lists[f"{file_type}_list"]))
+            list_file.close()
 
     def write_annotation_files(self, basepath: str, filename: str, meta_data: dict):
         """
