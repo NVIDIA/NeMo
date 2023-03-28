@@ -662,14 +662,13 @@ class DataAnnotator(object):
         self.annote_lists['rttm'] = []
         self.annote_lists['json'] = []
         self.annote_lists['ctm'] = []
-    
+
     def _init_filelist_lists(self):
         """
         Initialize lists to store the filelists for each file type
         """
         for file_type in self._file_types:
             self.annote_lists[f"{file_type}_list"] = []
-            
 
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
