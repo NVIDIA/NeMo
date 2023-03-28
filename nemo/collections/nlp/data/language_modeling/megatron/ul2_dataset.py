@@ -228,7 +228,7 @@ class UL2Dataset(T5Dataset):
     ):
         sample = [token for sentence in sample for token in sentence]
         if max_seq_length_decoder is None:
-            sample = sample[:max_seq_length_encoder - 1]
+            sample = sample[: max_seq_length_encoder - 1]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
             sample=sample,
             max_seq_length_encoder=max_seq_length_encoder,
