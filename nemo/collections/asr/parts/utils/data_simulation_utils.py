@@ -648,12 +648,21 @@ class DataAnnotator(object):
         self._params = cfg
         self._files = {}
         self._init_file_write()
+        self._init_filelist_lists()
     
     def init_annotation_lists(self):
         self.annote_lists = {}
         self.annote_lists['rttm'] = []
         self.annote_lists['json'] = []
         self.annote_lists['ctm'] = []
+    
+    def _init_filelist_lists(self):
+        """
+        Initialize lists to store the filelists for each file type
+        """
+        for file_type in self._file_types:
+            self.annote_lists[f"{file_type}_list"] = []
+            
 
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
@@ -779,9 +788,18 @@ class DataAnnotator(object):
         """
         full_base_filepath = os.path.join(basepath, filename)
         for file_type in self._file_types:
-            with open(f"{basepath}/{self._file_base_str}_{file_type}.list", "a") as list_file:
-                list_file.write(f"{full_base_filepath}.{file_type}\n")
-            list_file.close()
+            self.annote_lists[f"{file_type}_list"].append(f"{full_base_filepath}.{file_type}")
+
+    def write_filelist_files(self, basepath):
+        """
+        Write all filelist files.
+
+        Args:
+            basepath (str): Basepath for output files.
+        """
+        for file_type in self._file_types:
+            with open(f"{basepath}/{self._file_base_str}_{file_type}.list", "w") as list_file:
+                list_file.write("\n".join(self.annote_lists[f"{file_type}_list"]))
 
     def write_annotation_files(
         self, basepath: str, filename: str, meta_data: dict

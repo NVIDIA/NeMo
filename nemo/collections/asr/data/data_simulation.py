@@ -1252,6 +1252,7 @@ class MultiSpeakerSimulator(object):
                 self._check_missing_speakers()
 
         tp.shutdown()
+        self.annotator.write_filelist_files(basepath=basepath)
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
 
 
