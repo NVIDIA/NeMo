@@ -141,13 +141,15 @@ def synthesize_examples(
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--tts_ckpt", help="path to tts model", type=str)
-    parser.add_argument("--dest", help="where to save generated files", type=str)
+    parser.add_argument(
+        "--dest", help="where to save generated files", type=str)
     parser.add_argument(
         "--data", nargs='+',
         help="list of manifests to generate from in format <name>:<path to manifest>"
     )
     parser.add_argument(
-        '--calculate_wer', action='store_true', help='if set calculate wer on recordings'
+        '--calculate_wer', action='store_true',
+        help='if set calculate wer on recordings'
     )
     args = parser.parse_args()
     synthesize_examples(
