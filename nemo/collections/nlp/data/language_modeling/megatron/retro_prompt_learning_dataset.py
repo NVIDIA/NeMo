@@ -212,7 +212,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 input_ids = [self.pad_token_id] * padding_length + input_ids
 
             # these will be lobbed during the collate_fn
-            temp_pads = list(self.pseudo_token_ids) * total_virtual_tokens
+            temp_pads = list(self.pseudo_token_ids) + total_virtual_tokens
             input_ids = temp_pads + input_ids
 
             # Try to truncate input text to fit into the max sequence length
@@ -299,7 +299,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             input_ids = [self.pad_token_id] * padding_length + input_ids
 
         # these will be lobbed during the collate_fn
-        temp_pads = list(self.pseudo_token_ids) * total_virtual_tokens
+        temp_pads = list(self.pseudo_token_ids) + total_virtual_tokens
         input_ids = temp_pads + input_ids
 
         # Try to truncate input text to fit into the max sequence length
