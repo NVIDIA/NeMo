@@ -61,14 +61,15 @@ def prepare_model_weights(model, unfreeze_modules):
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
-    model = RadTTSModel(cfg=cfg.model, trainer=trainer).cuda()
+    # model = RadTTSModel(cfg=cfg.model, trainer=trainer).cuda()
+    model = RadTTSModel(cfg=cfg.model, trainer=trainer)
     if cfg.model.load_from_checkpoint:
         model.maybe_init_from_pretrained_checkpoint(cfg=cfg.model)
         prepare_model_weights(model, cfg.model.trainerConfig.unfreeze_modules)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
-    trainer.fit(model.cuda())
+    trainer.fit(model)
 
 
 if __name__ == '__main__':

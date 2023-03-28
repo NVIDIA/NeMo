@@ -128,7 +128,7 @@ def synthesize_examples(
 
     if args.calculate_wer:
         asr_models = {
-            'tiny': whisper.load_model("small.en", device=device),
+            'tiny': whisper.load_model("tiny.en", device=device),
             'base': whisper.load_model("base.en", device=device),
             'medium': whisper.load_model("medium.en", device=device),
         }
