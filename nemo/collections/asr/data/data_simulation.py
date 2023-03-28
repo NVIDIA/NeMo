@@ -793,7 +793,6 @@ class MultiSpeakerSimulator(object):
                 speaker_wav_align_map=speaker_wav_align_map,
                 speaker_ids=speaker_ids,
                 speaker_turn=speaker_turn,
-                output_precision=self._params.data_simulator.outputs.output_precision,
                 min_alignment_count=self._min_alignment_count,
             )
 
@@ -908,7 +907,6 @@ class MultiSpeakerSimulator(object):
                 new_start = max(session_len_samples - length, start)
             else:
                 new_start = start + silence_amount
-
         return new_start
 
     def _get_session_meta_data(self, array: np.ndarray, snr: float) -> dict:
@@ -924,8 +922,8 @@ class MultiSpeakerSimulator(object):
         """
         meta_data = {
             "duration": array.shape[0] / self._params.data_simulator.sr,
-            "session_silence_mean": self.sess_silence_mean,
-            "session_overlap_mean": self.sess_overlap_mean,
+            "session_silence_mean": self.sampler.sess_silence_mean,
+            "session_overlap_mean": self.sampler.sess_overlap_mean,
             "session_snr": snr,
         }
         return meta_data
@@ -1017,7 +1015,7 @@ class MultiSpeakerSimulator(object):
 
         running_len_samples, prev_len_samples = 0, 0
         prev_speaker = None
-        rttm_list, json_list, ctm_list = [], [], []
+        self.annotator.init_annotation_lists()
         self._noise_samples = noise_samples
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
         self._missing_silence = 0
@@ -1035,8 +1033,8 @@ class MultiSpeakerSimulator(object):
         array = torch.zeros(session_len_samples).to(self._device)
         is_speech = torch.zeros(session_len_samples).to(self._device)
 
-        self.sess_silence_mean = self.sampler.get_session_silence_mean()
-        self.sess_overlap_mean = self.sampler.get_session_overlap_mean()
+        self.sampler.get_session_silence_mean()
+        self.sampler.get_session_overlap_mean()
 
         while running_len_samples < session_len_samples or enforce:
             # enforce num_speakers
@@ -1072,7 +1070,6 @@ class MultiSpeakerSimulator(object):
                 prev_len_samples=prev_len_samples,
                 enforce=enforce,
             )
-
             # Step 4: Add sentence to array
             array, is_speech, end = self._add_sentence_to_array(
                 start=start, length=length, array=array, is_speech=is_speech,
@@ -1087,8 +1084,10 @@ class MultiSpeakerSimulator(object):
                 speaker_id=speaker_ids[speaker_turn],
             )
 
-            for entry in new_rttm_entries:
-                rttm_list.append(entry)
+            # for entry in new_rttm_entries:
+                # rttm_list.append(entry)
+                # self.annotator.annote_lists['rttm'].append(entry)
+            self.annotator.annote_lists['rttm'].extend(new_rttm_entries)
 
             new_json_entry = self.annotator.create_new_json_entry(
                 text=self._text,
@@ -1099,7 +1098,8 @@ class MultiSpeakerSimulator(object):
                 rttm_filepath=os.path.join(basepath, filename + '.rttm'),
                 ctm_filepath=os.path.join(basepath, filename + '.ctm'),
             )
-            json_list.append(new_json_entry)
+            # json_list.append(new_json_entry)
+            self.annotator.annote_lists['json'].append(new_json_entry)
 
             new_ctm_entries = self.annotator.create_new_ctm_entry(
                 words=self._words,
@@ -1108,14 +1108,14 @@ class MultiSpeakerSimulator(object):
                 speaker_id=speaker_ids[speaker_turn],
                 start=int(start / self._params.data_simulator.sr),
             )
-            for entry in new_ctm_entries:
-                ctm_list.append(entry)
+
+            self.annotator.annote_lists['ctm'].extend(new_ctm_entries)
 
             running_len_samples = np.maximum(running_len_samples, end)
             (
                 self.sampler.running_speech_len_samples,
                 self.sampler.running_silence_len_samples,
-            ) = self._get_session_silence_from_rttm(rttm_list, running_len_samples)
+            ) = self._get_session_silence_from_rttm(rttm_list=self.annotator.annote_lists['rttm'], running_len_samples=running_len_samples)
 
             self._furthest_sample[speaker_turn] = running_len_samples
             prev_speaker = speaker_turn
@@ -1156,9 +1156,6 @@ class MultiSpeakerSimulator(object):
             basepath=basepath,
             filename=filename,
             meta_data=self._get_session_meta_data(array=array, snr=snr),
-            rttm_list=rttm_list,
-            json_list=json_list,
-            ctm_list=ctm_list,
         )
 
         # Step 8: Clean up memory
@@ -1184,8 +1181,6 @@ class MultiSpeakerSimulator(object):
             output_dir, overwrite_output=self._params.data_simulator.outputs.overwrite_output
         )
         OmegaConf.save(self._params, os.path.join(output_dir, "params.yaml"))
-
-        self.annotator.open_files(basepath=basepath)
 
         tp = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         futures = []
@@ -1251,13 +1246,12 @@ class MultiSpeakerSimulator(object):
                     self._noise_samples = self.sampler.sample_noise_manifest(noise_manifest=source_noise_manifest,)
                     basepath, filename = self._generate_session(*future)
 
-                self.annotator.write_files(basepath=basepath, filename=filename)
+                self.annotator.add_to_filename_lists(basepath=basepath, filename=filename)
 
                 # throw warning if number of speakers is less than requested
                 self._check_missing_speakers()
 
         tp.shutdown()
-        self.annotator.close_files()
         logging.info(f"Data simulation has been completed, results saved at: {basepath}")
 
 
@@ -1528,7 +1522,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
 
         running_len_samples, prev_len_samples = 0, 0  # starting point for each sentence
         prev_speaker = None
-        rttm_list, json_list, ctm_list = [], [], []
+        self.annotator.init_annotation_lists()
         self._noise_samples = noise_samples
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
 
@@ -1609,8 +1603,10 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 speaker_ids[speaker_turn],
             )
 
-            for entry in new_rttm_entries:
-                rttm_list.append(entry)
+            # for entry in new_rttm_entries:
+            #     rttm_list.append(entry)
+            self.annotator.annote_lists['rttm'].extend(new_rttm_entries)
+
             new_json_entry = self.annotator.create_new_json_entry(
                 self._text,
                 os.path.join(basepath, filename + '.wav'),
@@ -1620,12 +1616,15 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 os.path.join(basepath, filename + '.rttm'),
                 os.path.join(basepath, filename + '.ctm'),
             )
-            json_list.append(new_json_entry)
+            # json_list.append(new_json_entry)
+            self.annotator.annote_lists['json'].append(new_json_entry)
+
             new_ctm_entries = self.annotator.create_new_ctm_entry(
                 filename, speaker_ids[speaker_turn], start / self._params.data_simulator.sr
             )
-            for entry in new_ctm_entries:
-                ctm_list.append(entry)
+            # for entry in new_ctm_entries:
+            #     ctm_list.append(entry)
+            self.annotator.annote_lists['ctm'].extend(new_ctm_entries)
 
             running_len_samples = np.maximum(running_len_samples, end)
             self._furthest_sample[speaker_turn] = running_len_samples

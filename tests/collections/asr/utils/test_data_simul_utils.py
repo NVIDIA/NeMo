@@ -21,9 +21,12 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
     DataAnnotator,
     SpeechSampler,
+    get_cleaned_base_path,
     binary_search_alignments,
     normalize_audio,
     read_noise_manifest,
+    get_split_points_in_alignments,
+    add_silence_to_alignments,
 )
 
 
@@ -108,6 +111,9 @@ def generate_words_and_alignments(sample_index):
     elif sample_index == 1:
         words = ["", "stephanos", "dedalos", ""]
         alignments = [0.51, 1.31, 2.04, 2.215]
+    elif sample_index == 2:
+        words = ['', 'hello', 'world', '', 'welcome', 'to', 'nemo', '']
+        alignments = [0.5, 1.0, 1.5, 1.7, 1.8, 2.2, 2.7, 2.8]
     else:
         raise ValueError(f"sample_index {sample_index} not supported")
     speaker_id = 'speaker_0'
@@ -133,6 +139,44 @@ class TestDataSimulatorUtils:
         assert torch.max(torch.abs(norm_array)) == 1.0
         assert torch.min(torch.abs(norm_array)) < 1.0
 
+    @pytest.mark.parametrize("output_dir", [os.path.join(os.getcwd(), "test_dir")])
+    def test_get_cleaned_base_path(self, output_dir):
+        result_path = get_cleaned_base_path(output_dir, overwrite_output=True)
+        assert os.path.exists(result_path) and not os.path.isfile(result_path)
+        result_path = get_cleaned_base_path(output_dir, overwrite_output=False)
+        assert os.path.exists(result_path) and not os.path.isfile(result_path)
+        os.rmdir(result_path)
+        assert not os.path.exists(result_path)
+    
+    @pytest.mark.parametrize("words, alignments, answers", [
+        (['', 'hello', 'world'], [0.5, 1.0, 1.5], [[0, 16000.0]]),
+        (['', 'hello', 'world', '', 'welcome', 'to', 'nemo', ''], [0.27, 1.0, 1.7, 2.7, 2.8, 3.2, 3.7, 3.9], [[0, (1.7+0.5)*16000], [(2.7-0.5)*16000, (3.9-0.27)*16000]]),
+    ])
+    @pytest.mark.parametrize("sr", [16000])
+    @pytest.mark.parametrize("split_buffer", [0.5])
+    @pytest.mark.parametrize("new_start", [0.0])
+    def test_get_split_points_in_alignments(self, words, alignments, sr, new_start, split_buffer, answers):
+        sentence_audio_len = sr * (alignments[-1] - alignments[0])
+        splits = get_split_points_in_alignments(
+            words, alignments, split_buffer, sr, sentence_audio_len, new_start
+        )
+        assert len(splits) == len(answers)
+        for k, interval in enumerate(splits):
+            assert abs(answers[k][0] - interval[0]) < 1e-4
+            assert abs(answers[k][1] - interval[1]) < 1e-4
+
+    def test_add_silence_to_alignments(self):
+        """
+        Test add_silence_to_alignments function.
+        """
+        audio_manifest = {
+            'audio_filepath': 'test.wav',
+            'alignments': [1.0, 1.5],
+            'words': ['hello', 'world'],
+        }
+        audio_manifest = add_silence_to_alignments(audio_manifest)
+        assert audio_manifest['alignments'] == audio_manifest['alignments']
+        assert audio_manifest['words'] == ['', 'hello', 'world'] 
 
 class TestDataAnnotator:
     def test_init(self, annotator):
