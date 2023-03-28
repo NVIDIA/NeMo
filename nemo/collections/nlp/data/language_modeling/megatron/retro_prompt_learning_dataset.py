@@ -185,12 +185,12 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             for i, neighbor in enumerate(contexts[: self.neighbors]):
                 tokens = self.tokenizer.text_to_ids(neighbor)
                 tokens = tokens[:128]
-                if len(tokens) < 128:
-                    tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
                 
                 if i == 0:
                     input_ids = tokens + input_ids
                 else:
+                    if len(tokens) < 128:
+                        tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
                     chunks.append(tokens)
 
 
@@ -206,13 +206,13 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             if answer_only_loss and self.for_train:
                 answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
             
-            length_before_answer = len(input_ids) - answer_start_idx
+            length_before_answer = answer_start_idx
             if length_before_answer < 64:
                 padding_length = 64 - length_before_answer
                 input_ids = [self.pad_token_id] * padding_length + input_ids
 
             # these will be lobbed during the collate_fn
-            temp_pads = [list(self.pseudo_token_ids)[0]] * total_virtual_tokens
+            temp_pads = list(self.pseudo_token_ids) * total_virtual_tokens
             input_ids = temp_pads + input_ids
 
             # Try to truncate input text to fit into the max sequence length
@@ -267,12 +267,13 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         for i, neighbor in enumerate(contexts[: self.neighbors]):
             tokens = self.tokenizer.text_to_ids(neighbor)
             tokens = tokens[:128]
-            if len(tokens) < 128:
-                tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
+            
             
             if i == 0: # prepend top 1 
                 input_ids = tokens + input_ids
             else:
+                if len(tokens) < 128:
+                    tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
                 chunks.append(tokens)
 
 
@@ -291,14 +292,14 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         answer_start_idx = len(input_ids)
         if answer_only_loss and self.for_train:
             answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
-        length_before_answer = len(input_ids) - answer_start_idx
+        length_before_answer = answer_start_idx 
         # todo: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk size
         if length_before_answer < 64:
             padding_length = 64 - length_before_answer
             input_ids = [self.pad_token_id] * padding_length + input_ids
 
         # these will be lobbed during the collate_fn
-        temp_pads = [list(self.pseudo_token_ids)[0]] * total_virtual_tokens
+        temp_pads = list(self.pseudo_token_ids) * total_virtual_tokens
         input_ids = temp_pads + input_ids
 
         # Try to truncate input text to fit into the max sequence length
@@ -535,7 +536,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             answer_start_idx = len(input_ids)
             if answer_only_loss and self.for_train:
                 answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
-            length_before_answer = len(input_ids) - answer_start_idx
+            length_before_answer = answer_start_idx
             # todo: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk size
             if length_before_answer < 64:
                 padding_length = 64 - length_before_answer
@@ -672,5 +673,6 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         input_ids = [ids[num_virtual_tokens:] for ids in input_ids]
         
         return (input_ids, chunks)
+
 
 

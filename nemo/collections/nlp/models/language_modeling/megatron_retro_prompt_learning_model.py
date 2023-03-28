@@ -572,7 +572,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
             input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
 
-            if self.cfg.get('add_position_embedding', False):
+            if self.pos_embeddings: #self.cfg.get('add_position_embedding', False):
                 input_position_ids = build_position_ids(input_tokens_id)
             else:
                 input_position_ids = None
@@ -827,4 +827,5 @@ def get_pseudo_tokens(num_virtual_tokens):
     ]
 
     return pseudo_tokens
+
 
