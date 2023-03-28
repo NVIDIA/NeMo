@@ -118,16 +118,19 @@ def _process_entry(
 
     audio_path, audio_path_rel = get_audio_paths(audio_path=audio_filepath, base_path=input_audio_dir)
     output_path = output_audio_dir / audio_path_rel
-    if os.path.isabs(audio_filepath):
-        output_audio_filepath = output_path
-    else:
-        output_audio_filepath = audio_path_rel
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+
+    audio_path = str(audio_path)
+    output_path = str(output_path)
 
     audio, sample_rate = librosa.load(audio_path, sr=None)
 
     if audio_trimmer is not None:
-        audio_id = str(audio_filepath)
-        audio, start_i, end_i = audio_trimmer.trim_audio(audio=audio, sample_rate=sample_rate, audio_id=audio_id)
+        audio, start_i, end_i = audio_trimmer.trim_audio(
+            audio=audio,
+            sample_rate=sample_rate,
+            audio_id=audio_path
+        )
 
     if output_sample_rate is not None:
         audio = librosa.resample(y=audio, orig_sr=sample_rate, target_sr=output_sample_rate)
@@ -136,14 +139,15 @@ def _process_entry(
     if volume_level:
         audio = normalize_volume(audio, volume_level=volume_level)
 
-    output_path.parent.mkdir(exist_ok=True, parents=True)
     sf.write(file=output_path, data=audio, samplerate=sample_rate)
 
-    original_duration = librosa.get_duration(filename=str(audio_path))
-    output_duration = librosa.get_duration(filename=str(output_path))
+    original_duration = librosa.get_duration(filename=audio_path)
+    output_duration = librosa.get_duration(filename=output_path)
 
-    entry["audio_filepath"] = str(output_audio_filepath)
     entry["duration"] = output_duration
+
+    if os.path.isabs(audio_filepath):
+        entry["audio_filepath"] = output_path
 
     return entry, original_duration, output_duration
 

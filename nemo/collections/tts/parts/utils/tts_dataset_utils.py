@@ -14,6 +14,7 @@
 
 import functools
 import os
+from typing import Tuple
 from pathlib import Path
 
 import numpy as np
@@ -23,7 +24,7 @@ from scipy import ndimage
 from torch.special import gammaln
 
 
-def get_audio_paths(audio_path, base_path):
+def get_audio_paths(audio_path: Path, base_path: Path) -> Tuple[Path, Path]:
     if os.path.isabs(audio_path):
         abs_path = audio_path
         rel_path = audio_path.relative_to(base_path)
