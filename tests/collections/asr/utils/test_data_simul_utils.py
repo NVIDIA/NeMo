@@ -97,11 +97,9 @@ def get_data_simulation_configs():
                 'num_noise_files': 10,
                 'snr': 60,
                 'snr_min': None,
-            },
-            'add_seg_aug': False,
-            'segment_augmentor': {'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0}},
-            'add_sess_aug': False,
-            'session_augmentor': {'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46}},
+            }, 
+            'segment_augmentor': {'add_seg_aug': False, 'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0}}, 
+            'session_augmentor': {'add_sess_aug': False, 'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46}},
             'speaker_enforcement': {'enforce_num_speakers': True, 'enforce_time': [0.25, 0.75]},
             'segment_manifest': {'window': 0.5, 'shift': 0.25, 'step_count': 50, 'deci': 3},
         }
@@ -175,18 +173,23 @@ class TestDataSimulatorUtils:
             assert abs(answers[k][0] - interval[0]) < 1e-4
             assert abs(answers[k][1] - interval[1]) < 1e-4
 
-    def test_add_silence_to_alignments(self):
+    @pytest.mark.parametrize("alignments, words", [(['hello', 'world'], [1.0, 1.5]), (['', 'hello', 'world'], [0.0, 1.0, 1.5])] )
+    def test_add_silence_to_alignments(self, alignments, words):
         """
         Test add_silence_to_alignments function.
         """
         audio_manifest = {
             'audio_filepath': 'test.wav',
-            'alignments': [1.0, 1.5],
-            'words': ['hello', 'world'],
+            'alignments': alignments,
+            'words': words,
         }
         audio_manifest = add_silence_to_alignments(audio_manifest)
-        assert audio_manifest['alignments'] == audio_manifest['alignments']
-        assert audio_manifest['words'] == ['', 'hello', 'world']
+        if words[0] == '':
+            assert audio_manifest['alignments'] == [0.0] + alignments
+            assert audio_manifest['words'] == [''] + words
+        else:
+            assert audio_manifest['alignments'] == alignments
+            assert audio_manifest['words'] == words
 
 
 class TestDataAnnotator:

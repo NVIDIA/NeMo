@@ -162,19 +162,19 @@ class MultiSpeakerSimulator(object):
       snr_min (int):  Min random SNR for background noise (using average speaker power), set `null` to use fixed SNR
       snr_max (int):  Max random SNR for background noise (using average speaker power), set `null` to use fixed SNR
     
-    add_seg_aug (bool): Set True to enable augmentation on each speech segment (Default: False)
     segment_augmentor:
+      add_seg_aug (bool): Set True to enable augmentation on each speech segment (Default: False)
       gain:
-        prob (float): Probability of applying gain augmentation
-        min_gain_dbfs (float)
-        max_gain_dbfs (float)
+        prob (float): Probability range (uniform distribution) gain augmentation for individual segment
+        min_gain_dbfs (float): minimum gain in terms of dB
+        max_gain_dbfs (float): maximum gain in terms of dB
 
-    add_sess_aug: (bool) set True to enable audio augmentation on the whole session (Default: False)
     session_augmentor:
+      add_sess_aug: (bool) set True to enable audio augmentation on the whole session (Default: False)
       white_noise:
         prob (float): Probability of adding white noise (Default: 1.0)
-        min_level (float)
-        max_level (float)
+        min_level (float): minimum gain in terms of dB
+        max_level (float): minimum gain in terms of dB
 
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
@@ -217,15 +217,14 @@ class MultiSpeakerSimulator(object):
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self._audio_read_buffer_dict = {}
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
-
         self.segment_augmentor = (
             process_augmentations(augmenter=self._params.data_simulator.segment_augmentor)
-            if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.add_seg_aug
+            if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.segment_augmentor.add_seg_aug
             else None
         )
         self.session_augmentor = (
             process_augmentations(augmenter=self._params.data_simulator.session_augmentor)
-            if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.add_sess_aug
+            if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.session_augmentor.add_sess_aug
             else None
         )
 
@@ -1119,7 +1118,7 @@ class MultiSpeakerSimulator(object):
             prev_speaker = speaker_turn
             prev_len_samples = length
 
-        # Step 6: Background noise augmentation
+        # Step 6-1: Additive background noise from noise manifest files 
         if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
@@ -1140,7 +1139,7 @@ class MultiSpeakerSimulator(object):
         else:
             snr = "N/A"
 
-        # Add optional perturbations to the whole session, such as white noise, reverb, etc.
+        # Step 6-2: Add optional perturbations to the whole session, such as white noise, reverb, etc.
         array = perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor, device=self._device)
 
         # Step 7: Normalize and write to disk

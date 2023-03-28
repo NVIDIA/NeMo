@@ -514,8 +514,9 @@ def add_silence_to_alignments(audio_manifest: dict):
     Returns:
         audio_manifest (dict): Audio manifest dictionary with silence added to the beginning.
     """
-    audio_manifest['words'].insert(0, "")
-    audio_manifest['alignments'].insert(0, 0.0)
+    if type(audio_manifest['words'][0]) == str and len(audio_manifest['words'][0]) > 0:
+        audio_manifest['words'].insert(0, "")
+        audio_manifest['alignments'].insert(0, 0.0)
     return audio_manifest
 
 
@@ -653,6 +654,7 @@ class DataAnnotator(object):
         """
         self._file_base_str = "synthetic"
         self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
+        self._annotation_types = ["rttm", "json", "ctm"]
 
     def _init_filelist_lists(self):
         """
@@ -666,10 +668,9 @@ class DataAnnotator(object):
         """
         Initialize lists to store the annotations for each file type
         """
-        self.annote_lists['rttm'] = []
-        self.annote_lists['json'] = []
-        self.annote_lists['ctm'] = []
-
+        for file_type in self._file_types:
+            self.annote_lists[file_type] = []
+            
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
     ) -> List[str]:
