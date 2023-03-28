@@ -126,11 +126,7 @@ def _process_entry(
     audio, sample_rate = librosa.load(audio_path, sr=None)
 
     if audio_trimmer is not None:
-        audio, start_i, end_i = audio_trimmer.trim_audio(
-            audio=audio,
-            sample_rate=sample_rate,
-            audio_id=audio_path
-        )
+        audio, start_i, end_i = audio_trimmer.trim_audio(audio=audio, sample_rate=sample_rate, audio_id=audio_path)
 
     if output_sample_rate is not None:
         audio = librosa.resample(y=audio, orig_sr=sample_rate, target_sr=output_sample_rate)

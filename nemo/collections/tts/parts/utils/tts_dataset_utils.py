@@ -14,8 +14,8 @@
 
 import functools
 import os
-from typing import Tuple
 from pathlib import Path
+from typing import Tuple
 
 import numpy as np
 import torch
