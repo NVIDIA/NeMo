@@ -661,7 +661,7 @@ class DataAnnotator(object):
         self.annote_lists = {}
         for file_type in self._file_types:
             self.annote_lists[f"{file_type}_list"] = []
-            
+
     def init_annotation_lists(self):
         """
         Initialize lists to store the annotations for each file type
