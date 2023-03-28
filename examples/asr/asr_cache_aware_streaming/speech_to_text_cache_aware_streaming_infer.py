@@ -252,7 +252,9 @@ def main():
         "--output_path", type=str, help="path to output file when manifest is used as input", default=None
     )
     parser.add_argument(
-        "--pad-and-drop-preencoded", action="store_true", help="pad first audio chunk and always drop preencoded"
+        "--pad-and-drop-preencoded",
+        action="store_true",
+        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for the first step. It makes the outputs of the downsampling exactly as the offline mode for some techniques like striding.",
     )
 
     args = parser.parse_args()
