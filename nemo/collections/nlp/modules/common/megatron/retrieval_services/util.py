@@ -47,14 +47,14 @@ def convert_retrieved_to_md(retrieved):
     return output_str
 
 
-def convert_qa_evidence_to_md(retrieved, q_squared_scores):
-    output_str = '<table><tr><th style="width:10%">Q2 Score</th><th style="width:90%">Evidence</th></tr>'
-    for item, q_square_score in zip(retrieved, q_squared_scores):
-        if q_square_score is None:
+def convert_qa_evidence_to_md(retrieved, entails):
+    output_str = '<table><tr><th style="width:10%">Entail</th><th style="width:90%">Evidence</th></tr>'
+    for item, entail in zip(retrieved, entails):
+        if entail is None:
             output_str += f"<tr><td></td><td>{item}</td></tr>"
-        elif q_square_score > 0.5:
-            output_str += f"<tr><td style='color:green;'>{q_square_score:.2f}</td><td>{item}</td></tr>"
+        elif entail == 'yes':
+            output_str += f"<tr><td style='color:green;'>{entail}</td><td>{item}</td></tr>"
         else:
-            output_str += f"<tr><td style='color:red;'>{q_square_score:.2f}</td><td>{item}</td></tr>"
+            output_str += f"<tr><td style='color:red;'>{entail}</td><td>{item}</td></tr>"
     output_str += '</table>'
     return output_str
