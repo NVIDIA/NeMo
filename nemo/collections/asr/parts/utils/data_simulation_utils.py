@@ -670,7 +670,7 @@ class DataAnnotator(object):
         """
         for file_type in self._file_types:
             self.annote_lists[file_type] = []
-            
+
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
     ) -> List[str]:

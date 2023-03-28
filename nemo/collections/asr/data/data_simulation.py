@@ -219,12 +219,14 @@ class MultiSpeakerSimulator(object):
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
         self.segment_augmentor = (
             process_augmentations(augmenter=self._params.data_simulator.segment_augmentor)
-            if self._params.data_simulator.get("segment_augmentor", None) and self._params.data_simulator.segment_augmentor.add_seg_aug
+            if self._params.data_simulator.get("segment_augmentor", None)
+            and self._params.data_simulator.segment_augmentor.add_seg_aug
             else None
         )
         self.session_augmentor = (
             process_augmentations(augmenter=self._params.data_simulator.session_augmentor)
-            if self._params.data_simulator.get("session_augmentor", None) and self._params.data_simulator.session_augmentor.add_sess_aug
+            if self._params.data_simulator.get("session_augmentor", None)
+            and self._params.data_simulator.session_augmentor.add_sess_aug
             else None
         )
 
@@ -1118,7 +1120,7 @@ class MultiSpeakerSimulator(object):
             prev_speaker = speaker_turn
             prev_len_samples = length
 
-        # Step 6-1: Additive background noise from noise manifest files 
+        # Step 6-1: Additive background noise from noise manifest files
         if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
                 avg_power_array = torch.mean(array[is_speech == 1] ** 2)
