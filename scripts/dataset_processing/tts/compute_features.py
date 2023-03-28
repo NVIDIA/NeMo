@@ -47,7 +47,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import get_audio_paths, 
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute TTS features.",
     )
     parser.add_argument(
         "--feature_config_path", required=True, type=Path, help="Path to feature config file.",
