@@ -1085,8 +1085,8 @@ class MultiSpeakerSimulator(object):
             )
 
             # for entry in new_rttm_entries:
-                # rttm_list.append(entry)
-                # self.annotator.annote_lists['rttm'].append(entry)
+            # rttm_list.append(entry)
+            # self.annotator.annote_lists['rttm'].append(entry)
             self.annotator.annote_lists['rttm'].extend(new_rttm_entries)
 
             new_json_entry = self.annotator.create_new_json_entry(
@@ -1115,7 +1115,9 @@ class MultiSpeakerSimulator(object):
             (
                 self.sampler.running_speech_len_samples,
                 self.sampler.running_silence_len_samples,
-            ) = self._get_session_silence_from_rttm(rttm_list=self.annotator.annote_lists['rttm'], running_len_samples=running_len_samples)
+            ) = self._get_session_silence_from_rttm(
+                rttm_list=self.annotator.annote_lists['rttm'], running_len_samples=running_len_samples
+            )
 
             self._furthest_sample[speaker_turn] = running_len_samples
             prev_speaker = speaker_turn
@@ -1153,9 +1155,7 @@ class MultiSpeakerSimulator(object):
         sf.write(os.path.join(basepath, filename + '.wav'), array, self._params.data_simulator.sr)
 
         self.annotator.write_annotation_files(
-            basepath=basepath,
-            filename=filename,
-            meta_data=self._get_session_meta_data(array=array, snr=snr),
+            basepath=basepath, filename=filename, meta_data=self._get_session_meta_data(array=array, snr=snr),
         )
 
         # Step 8: Clean up memory
