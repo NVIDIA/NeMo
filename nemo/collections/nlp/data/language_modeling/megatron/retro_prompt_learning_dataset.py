@@ -70,7 +70,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         seed: int = 1234,
         neighbors: int = 2,
         max_num_samples: int = None,
-    
+        megatron_lm_compatible: bool = False
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -86,6 +86,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         self.max_num_samples = max_num_samples
         self.neighbors = neighbors
         self.seed = seed
+        self.megatron_lm_compatible = megatron_lm_compatible
         # self.examples = []
 
         if not self.for_train:
@@ -610,8 +611,12 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         # Loss mask should align with labels
         loss_mask = loss_mask[:, 1:].contiguous()
 
-        hidden_mask = input_ids != self.pad_token_id
-        context_mask = chunks != self.pad_token_id
+        if self.megatron_lm_compatible: # megatron lm retro model does not use masks
+            hidden_mask = torch.ones_like(input_ids, dtype=torch.bool)
+            context_mask = torch.ones_like(chunks, dtype=torch.bool)
+        else:
+            hidden_mask = input_ids != self.pad_token_id
+            context_mask = chunks != self.pad_token_id
         
       
 

@@ -508,7 +508,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
             pseudo_tokens=self.pseudo_tokens,
-            pad_token_id=self.pad_token_id,
+            pad_token_id=self.tokenizer.eos_id if self.frozen_model.cfg.get('megatron_lm_compatible', False) else self.pad_token_id,
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,
             add_bos=add_bos,
@@ -519,6 +519,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             load_cache=load_cache, # whether to load from the cache if it is available
             seed=1234,
             neighbors=num_neighbors,
+            megatron_lm_compatible=self.frozen_model.cfg.get('megatron_lm_compatible', False)
         )
 
         if get_dataset_only:
