@@ -654,22 +654,21 @@ class DataAnnotator(object):
         self._file_base_str = "synthetic"
         self._file_types = ["wav", "rttm", "json", "ctm", "txt", "meta"]
 
-    def init_annotation_lists(self):
-        """
-        Initialize lists to store the annotations for each file type
-        """
-        self.annote_lists = {}
-        self.annote_lists['rttm'] = []
-        self.annote_lists['json'] = []
-        self.annote_lists['ctm'] = []
-    
     def _init_filelist_lists(self):
         """
         Initialize lists to store the filelists for each file type
         """
+        self.annote_lists = {}
         for file_type in self._file_types:
             self.annote_lists[f"{file_type}_list"] = []
             
+    def init_annotation_lists(self):
+        """
+        Initialize lists to store the annotations for each file type
+        """
+        self.annote_lists['rttm'] = []
+        self.annote_lists['json'] = []
+        self.annote_lists['ctm'] = []
 
     def create_new_rttm_entry(
         self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
