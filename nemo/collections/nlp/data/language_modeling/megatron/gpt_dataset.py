@@ -263,7 +263,7 @@ def _build_train_valid_test_datasets(
     return (train_dataset, valid_dataset, test_dataset)
 
 
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap):
+def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=False):
     """Build indexed dataset."""
     logging.info(' > building dataset index ...')
 
