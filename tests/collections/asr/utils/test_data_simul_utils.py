@@ -40,7 +40,11 @@ def annotator():
 @pytest.fixture()
 def sampler():
     cfg = get_data_simulation_configs()
-    return SpeechSampler(cfg)
+    sampler = SpeechSampler(cfg)
+    # Must get session-wise randomized silence/overlap mean
+    sampler.get_session_overlap_mean()
+    sampler.get_session_silence_mean()
+    return sampler
 
 
 def get_data_simulation_configs():
@@ -310,6 +314,7 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("non_silence_len_samples", [16000, 32000])
     @pytest.mark.parametrize("running_overlap_len_samples", [8000, 12000])
     def test_sample_from_overlap_model(self, sampler, non_silence_len_samples, running_overlap_len_samples):
+        sampler.get_session_overlap_mean()
         sampler.running_overlap_len_samples = running_overlap_len_samples
         overlap_amount = sampler.sample_from_overlap_model(non_silence_len_samples=non_silence_len_samples)
         assert type(overlap_amount) == int
@@ -321,6 +326,7 @@ class TestSpeechSampler:
     def test_sample_from_silence_model(
         self, sampler, running_len_samples, session_len_samples, running_overlap_len_samples
     ):
+        sampler.get_session_silence_mean()
         self.running_overlap_len_samples = running_overlap_len_samples
         silence_amount = sampler.sample_from_silence_model(
             running_len_samples=running_len_samples, session_len_samples=session_len_samples

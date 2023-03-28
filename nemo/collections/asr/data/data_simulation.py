@@ -162,19 +162,19 @@ class MultiSpeakerSimulator(object):
       snr_min (int):  Min random SNR for background noise (using average speaker power), set `null` to use fixed SNR
       snr_max (int):  Max random SNR for background noise (using average speaker power), set `null` to use fixed SNR
     
-    add_seg_aug (bool): False  # set True to enable augmentation on each speech segment
+    add_seg_aug (bool): Set True to enable augmentation on each speech segment (Default: False)
     segment_augmentor:
       gain:
-        prob: 0.5 # probability of applying gain augmentation
-        min_gain_dbfs: -10.0
-        max_gain_dbfs: 10.0
+        prob (float): Probability of applying gain augmentation
+        min_gain_dbfs (float)
+        max_gain_dbfs (float)
 
-    add_sess_aug: False # set True to enable audio augmentation on the whole session
+    add_sess_aug: (bool) set True to enable audio augmentation on the whole session (Default: False)
     session_augmentor:
       white_noise:
-        prob (float): 1.0  # probability of adding white noise
-        min_level: -90
-        max_level: -46
+        prob (float): Probability of adding white noise (Default: 1.0)
+        min_level (float)
+        max_level (float)
 
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
@@ -1084,9 +1084,6 @@ class MultiSpeakerSimulator(object):
                 speaker_id=speaker_ids[speaker_turn],
             )
 
-            # for entry in new_rttm_entries:
-            # rttm_list.append(entry)
-            # self.annotator.annote_lists['rttm'].append(entry)
             self.annotator.annote_lists['rttm'].extend(new_rttm_entries)
 
             new_json_entry = self.annotator.create_new_json_entry(
@@ -1098,7 +1095,6 @@ class MultiSpeakerSimulator(object):
                 rttm_filepath=os.path.join(basepath, filename + '.rttm'),
                 ctm_filepath=os.path.join(basepath, filename + '.ctm'),
             )
-            # json_list.append(new_json_entry)
             self.annotator.annote_lists['json'].append(new_json_entry)
 
             new_ctm_entries = self.annotator.create_new_ctm_entry(
@@ -1604,8 +1600,6 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 speaker_ids[speaker_turn],
             )
 
-            # for entry in new_rttm_entries:
-            #     rttm_list.append(entry)
             self.annotator.annote_lists['rttm'].extend(new_rttm_entries)
 
             new_json_entry = self.annotator.create_new_json_entry(
@@ -1617,14 +1611,11 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 os.path.join(basepath, filename + '.rttm'),
                 os.path.join(basepath, filename + '.ctm'),
             )
-            # json_list.append(new_json_entry)
             self.annotator.annote_lists['json'].append(new_json_entry)
 
             new_ctm_entries = self.annotator.create_new_ctm_entry(
                 filename, speaker_ids[speaker_turn], start / self._params.data_simulator.sr
             )
-            # for entry in new_ctm_entries:
-            #     ctm_list.append(entry)
             self.annotator.annote_lists['ctm'].extend(new_ctm_entries)
 
             running_len_samples = np.maximum(running_len_samples, end)
@@ -1670,9 +1661,6 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             basepath=basepath,
             filename=filename,
             meta_data=self._get_session_meta_data(array=array, snr=snr),
-            rttm_list=rttm_list,
-            json_list=json_list,
-            ctm_list=ctm_list,
         )
 
         del array

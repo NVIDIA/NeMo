@@ -960,7 +960,7 @@ class SpeechSampler(object):
 
         self.silence_discrepancy = self.current_silence_ratio - self.sess_silence_mean
         self.overlap_discrepancy = self.current_overlap_ratio - self.sess_overlap_mean
-        add_overlap = self.overlap_discrepancy <= self.silence_discrepancy
+        add_overlap = bool(self.overlap_discrepancy <= self.silence_discrepancy)
         return add_overlap
 
     def get_session_silence_mean(self):
@@ -989,6 +989,7 @@ class SpeechSampler(object):
             self.sess_silence_mean = beta(a, b).rvs()
         else:
             self.sess_silence_mean = mean
+        return self.sess_silence_mean
 
     def get_session_overlap_mean(self):
         """
@@ -1016,6 +1017,7 @@ class SpeechSampler(object):
             self.sess_overlap_mean = beta(a, b).rvs()
         else:
             self.sess_overlap_mean = mean
+        return self.sess_overlap_mean
 
     def sample_from_silence_model(self, running_len_samples: int, session_len_samples: int) -> int:
         """
