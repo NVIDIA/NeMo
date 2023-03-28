@@ -139,42 +139,55 @@ class ConvSubsampling(torch.nn.Module):
                 self._right_padding = (self._kernel_size - 1) // 2
                 self._max_cache_len = 0
 
-            print("helloinit", self._left_padding , self._right_padding, self._max_cache_len)
-
             # Layer 1
-            layers.append(
-                torch.nn.Conv2d(
-                    in_channels=in_channels,
-                    out_channels=conv_channels,
-                    kernel_size=self._kernel_size,
-                    stride=self._stride,
-                    padding=self._left_padding,
+            if self.is_causal:
+                layers.append(
+                    CausalConv2D(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=None,
+                    )
                 )
-            )
+            else:
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=self._left_padding,
+                    )
+                )
             in_channels = conv_channels
             layers.append(activation)
 
             for i in range(self._sampling_num - 1):
-                layers.extend(
-                    [
-                        torch.nn.Conv2d(
-                            in_channels=in_channels,
-                            out_channels=in_channels,
-                            kernel_size=self._kernel_size,
-                            stride=self._stride,
-                            padding=self._left_padding,
-                            groups=in_channels,
-                        ),
-                        torch.nn.Conv2d(
-                            in_channels=in_channels,
-                            out_channels=conv_channels,
-                            kernel_size=1,
-                            stride=1,
-                            padding=0,
-                            groups=1,
-                        ),
-                    ]
-                )
+                if self.is_causal:
+                    layers.append(CausalConv2D(
+                                    in_channels=in_channels,
+                                    out_channels=in_channels,
+                                    kernel_size=self._kernel_size,
+                                    stride=self._stride,
+                                    padding=None,
+                                    groups=in_channels))
+                else:
+                    layers.append(torch.nn.Conv2d(
+                                    in_channels=in_channels,
+                                    out_channels=in_channels,
+                                    kernel_size=self._kernel_size,
+                                    stride=self._stride,
+                                    padding=self._left_padding,
+                                    groups=in_channels))
+
+                layers.append(torch.nn.Conv2d(
+                                in_channels=in_channels,
+                                out_channels=conv_channels,
+                                kernel_size=1,
+                                stride=1,
+                                padding=0,
+                                groups=1))
                 layers.append(activation)
                 in_channels = conv_channels
 
@@ -233,7 +246,6 @@ class ConvSubsampling(torch.nn.Module):
         if "_postnorm" in subsampling:
             self.post_norm = nn.LayerNorm(conv_channels * int(out_length))
 
-        print("hello", conv_channels, out_length, feat_out)
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
 
         if "_postpostnorm" in subsampling:
@@ -269,9 +281,6 @@ class ConvSubsampling(torch.nn.Module):
         x = x.transpose(1, 2).reshape(b, t, -1)
         if self.post_norm is not None:
             x = self.post_norm(x)
-
-        print("hello-forward", x.shape)
-
         x = self.out(x)
         if self.post_postnorm is not None:
             x = self.post_postnorm(x)
