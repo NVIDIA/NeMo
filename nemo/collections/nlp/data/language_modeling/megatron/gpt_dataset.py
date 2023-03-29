@@ -43,7 +43,8 @@ except (ImportError, ModuleNotFoundError):
 
 def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length, seed, skip_warmup, tokenizer, name):
     def _build_dataset(current_data_prefix, current_num_samples):
-        indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup)
+        delay_data_mmap = cfg.data.get('delay_data_mmap', False)
+        indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, delay_data_mmap)
         total_num_of_documents = indexed_dataset.sizes.shape[0]
         # Print stats about the splits.
         logging.info(' > dataset split:')
@@ -91,6 +92,19 @@ def build_train_valid_test_datasets(
     skip_warmup,
     tokenizer,
 ):
+    if data_impl in ['mock']:
+        logging.info('Initializing mock GPT dataset for train, validate, and test')
+        if len(data_prefix) != 0:
+            # Mock data will be generated instead of loading files.
+            logging.warning(f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}")
+        if tokenizer is None:
+            # Vocabulary size is inferred from tokenizer.
+            raise ValueError("Tokenizer is required for a mock GPT dataset")
+        train_ds = MockGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
+        valid_ds = MockGPTDataset(cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,)
+        test_ds = MockGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
+        return train_ds, valid_ds, test_ds
+
     if isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None
@@ -213,7 +227,8 @@ def _build_train_valid_test_datasets(
     """Build train, valid, and test datasets."""
 
     # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
+    delay_data_mmap = cfg.data.get('delay_data_mmap', False)
+    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
@@ -261,12 +276,12 @@ def _build_train_valid_test_datasets(
     return (train_dataset, valid_dataset, test_dataset)
 
 
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
+def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=False):
     """Build indexed dataset."""
     logging.info(' > building dataset index ...')
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
     logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
 
@@ -339,6 +354,9 @@ class GPTDataset(Dataset):
         )
         deallocate_indexed_dataset_memory(self.indexed_dataset)
 
+    def create_data_mmap(self):
+        self.indexed_dataset.create_data_mmap()
+
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
         #    sample i --> [sample_idx[i], sample_idx[i+1])
@@ -400,6 +418,50 @@ class GPTDataset(Dataset):
         if idx == -1:
             logging.debug('Got -1 as item index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
+
+        return {
+            'tokens': tokens,
+            'labels': labels,
+            'attention_mask': attention_mask,
+            'loss_mask': loss_mask,
+            'position_ids': position_ids,
+        }
+
+
+class MockGPTDataset(Dataset):
+    def __init__(
+        self, cfg, tokenizer, name, num_samples, seq_length, seed,
+    ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        super().__init__()
+        self.name = name
+        self.seq_length = seq_length
+        self.vocab_size = tokenizer.vocab_size
+        self.length = num_samples
+        self.seed = seed
+
+    def __len__(self):
+        return self.length
+
+    def _get_text(self, idx: int) -> np.ndarray:
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        return np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+
+    def __getitem__(self, idx):
+        # Generate data of the expected size and datatype (based on GPTDataset).
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+
+        with torch.no_grad():
+            attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+            attention_mask = attention_mask < 0.5
+            loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+            position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
         return {
             'tokens': tokens,
