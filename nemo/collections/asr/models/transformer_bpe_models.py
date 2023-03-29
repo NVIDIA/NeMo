@@ -128,7 +128,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         if not os.path.exists(cfg.tokenizer["dir"]) and cfg.tokenizer["dir"] == '/dev_data/tokenizers':
             cfg.tokenizer["dir"] = '/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers'
-            cfg.tokenizer["model_path"] = "/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers/de_16k.yttm"
+            if "16k" in cfg.tokenizer["model_path"]:
+                cfg.tokenizer["model_path"] = "/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers/de_16k.yttm"
+            else:
+                cfg.tokenizer["model_path"] = "/media/ebakhturina/DATA/nmt/DEPENDENCY/datasets/tokenizers/ende_32k_5M.yttm"
 
         # Setup the tokenizer
         self._setup_tokenizer(cfg.tokenizer)
