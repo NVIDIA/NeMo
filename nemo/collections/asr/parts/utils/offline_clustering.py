@@ -305,6 +305,7 @@ def isGraphFullyConnected(affinity_mat: torch.Tensor, device: torch.device) -> t
     """
     return getTheLargestComponent(affinity_mat, 0, device).sum() == affinity_mat.shape[0]
 
+
 def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_method: str = 'binary') -> torch.Tensor:
     """
     Binarize top-p values for each row from the given affinity matrix.
@@ -314,7 +315,7 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_meth
             A square matrix (tensor) containing normalized cosine similarity values
         p_value (int):
             The number of top values that are selected from each row.
-        mask_method (str):gT
+        mask_method (str):
             The method that is used to manipulate the affinity matrix. The default method is 'binary'.
 
     Returns:
@@ -330,13 +331,15 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_meth
     indices_row = sorted_matrix[:, :p_value].flatten()
     indices_col = torch.arange(dim[1]).repeat(p_value, 1).T.flatten()
     if mask_method == 'binary' or mask_method is None:
-        binarized_affinity_mat[indices_row, indices_col] = torch.ones(indices_row.shape[0]).to(affinity_mat.device).half()
+        binarized_affinity_mat[indices_row, indices_col] = (
+            torch.ones(indices_row.shape[0]).to(affinity_mat.device).half()
+        )
     elif mask_method == 'drop':
         binarized_affinity_mat[indices_row, indices_col] = affinity_mat[indices_row, indices_col].half()
     elif mask_method == 'sigmoid':
         binarized_affinity_mat[indices_row, indices_col] = torch.sigmoid(affinity_mat[indices_row, indices_col]).half()
     else:
-        raise ValueError('Unknown mask method: {}'.format(mask_method))
+        raise ValueError(f'Unknown mask method: {mask_method}')
     return binarized_affinity_mat
 
 

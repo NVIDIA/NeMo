@@ -449,6 +449,7 @@ class TestDiarizationSegmentationUtils:
         assert cursor_for_old_segments == gt_cursor_for_old_segments
         assert cursor_index == gt_cursor_index
 
+
 class TestClusteringUtilFunctions:
     @pytest.mark.parametrize("p_value", [1, 5, 9])
     @pytest.mark.parametrize("N", [9, 20])
@@ -465,6 +466,7 @@ class TestClusteringUtilFunctions:
             assert all(binarized_affinity_mat.sum(dim=0) <= float(p_value))
         elif mask_method == 'drop':
             assert all(binarized_affinity_mat.sum(dim=0) <= float(p_value))
+
 
 class TestSpeakerClustering:
     """
