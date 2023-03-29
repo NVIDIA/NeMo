@@ -173,7 +173,7 @@ def main(cfg) -> None:
             save_restore_connector=save_restore_connector,
         )
         model = load_from_nemo(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
-    elif cfg.model.pretrained_checkpoint is not None:
+    elif cfg.model.get("pretrained_checkpoint", None) is not None:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
