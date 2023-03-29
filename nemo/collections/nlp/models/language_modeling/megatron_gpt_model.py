@@ -158,7 +158,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_end_step *= grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
-        
+
         # Save activations checkpointing and sequence parallelism parameters to be able to restore them later.
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -167,10 +167,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
-        self.original_num_micro_batches_with_partial_activation_checkpoints = base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints
-        self.original_activations_checkpoint_layers_per_pipeline = base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline
+        self.original_num_micro_batches_with_partial_activation_checkpoints = (
+            base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints
+        )
+        self.original_activations_checkpoint_layers_per_pipeline = (
+            base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline
+        )
         self.original_sequence_parallel = base_module.language_model.encoder.sequence_parallel
-        
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -1081,7 +1085,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
-    
+
     def _reset_activation_checkpointing_args(self):
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -1093,7 +1097,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         base_module.language_model.encoder.activations_checkpoint_num_layers = None
         base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints = None
         base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
-    
+
     def _restore_activation_checkpointing_args(self):
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -1102,9 +1106,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
         base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
         base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints = self.original_num_micro_batches_with_partial_activation_checkpoints
-        base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
-    
+        base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints = (
+            self.original_num_micro_batches_with_partial_activation_checkpoints
+        )
+        base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+            self.original_activations_checkpoint_layers_per_pipeline
+        )
+
     def _reset_sequence_parallelism_args(self):
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -1112,7 +1120,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             base_module = self.model
 
         base_module.language_model.encoder.sequence_parallel = None
-    
+
     def _restore_sequence_parallelism_args(self):
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
