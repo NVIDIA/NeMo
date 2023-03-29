@@ -61,18 +61,20 @@ data_simulator:
   # Note that ImpulsePerturbation, NoisePerturbation, RirAndNoisePerturbation and other perturbations that uses `collections.ASRAudioText`
   # cannot use multi-proccessing in simulation, due to non-pickable errors.
   segment_augmentor:
-    add_seg_aug: False  # Set True to enable augmentation on each speech segment
-    gain:  # Randomly perturb the gain of each speech segment
-      prob: 0.5  # Probability of applying gain augmentation
-      min_gain_dbfs: -100.0  # Min dB level to add
-      max_gain_dbfs: 10.0  # Max dB level to add
+    add_seg_aug: False # Set True to enable augmentation on each speech segment
+    augmentor:
+      gain:  # Randomly perturb the gain of each speech segment
+        prob: 0.5  # Probability of applying gain augmentation
+        min_gain_dbfs: -10.0  # Min dB level to add
+        max_gain_dbfs: 10.0  # Max dB level to add
 
   session_augmentor:
     add_sess_aug: False # Set True to enable audio augmentation on the whole session
-    white_noise:  # Add random white noise to the whole session
-      prob: 1.0  # Probability of adding white noise
-      min_level: -90  # Min level of noise loudness (dB)
-      max_level: -46  # Max level of noise loudness (dB)
+    augmentor:
+      white_noise:  # Add random white noise to the whole session
+        prob: 1.0  # Probability of adding white noise
+        min_level: -90  # Min level of noise loudness (dB)
+        max_level: -46  # Max level of noise loudness (dB)
 
   speaker_enforcement:
     enforce_num_speakers: true # Enforce that all requested speakers are present in the output wav file

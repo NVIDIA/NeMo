@@ -959,10 +959,14 @@ class SpeechSampler(object):
             self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
         else:
             self.current_silence_ratio, self.current_overlap_ratio = 0, 0
-
+        
+        # self.silence_discrepancy = max(0, self.sess_silence_mean - self.current_silence_ratio)
+        # self.overlap_discrepancy = max(0, self.sess_overlap_mean - self.current_overlap_ratio)
+        # threshold = self.silence_discrepancy / (self.overlap_discrepancy + self.silence_discrepancy + 1e-10)
+        # add_overlap = np.random.rand() > threshold
         self.silence_discrepancy = self.current_silence_ratio - self.sess_silence_mean
         self.overlap_discrepancy = self.current_overlap_ratio - self.sess_overlap_mean
-        add_overlap = bool(self.overlap_discrepancy <= self.silence_discrepancy)
+        add_overlap = bool(self.overlap_discrepancy < self.silence_discrepancy)
         return add_overlap
 
     def get_session_silence_mean(self):
@@ -1021,17 +1025,18 @@ class SpeechSampler(object):
             self.sess_overlap_mean = mean
         return self.sess_overlap_mean
 
-    def sample_from_silence_model(self, running_len_samples: int, session_len_samples: int) -> int:
+    def sample_from_silence_model(self, running_len_samples: int) -> int:
         """
         Sample from the silence model to determine the amount of silence to add between sentences.
         Gamma distribution is employed for modeling the highly skewed distribution of silence length distribution.
         When we add silence between sentences, we want to ensure that the proportion of silence meets the `sess_silence_mean`.
-        Thus, we employ the following formula to determine the amount of silence to add:
+        Thus, [Session Silence Mean] = [Total Running Silence Time] / [Total Running Session Time] equation holds. We employ the following 
+        formula to determine the amount of silence to add, which is `silence_mean`:
 
-            running_ratio = running_len_samples / session_len_samples
-            silence_mean = (session_len_samples*(sess_silence_mean) - running_silence_len_samples) * running_ratio.
+            self.sess_silence_mean = (silence_mean + self.running_silence_len_samples) / (silence_mean + running_len_samples)
 
-        `running_ratio` is the proportion of the created session compared to the targeted total session length.
+        The above equation is setting `silence_mean` to yield the desired silence ratio `self.sess_silence_mean`. 
+        We use the above `silence_mean` value to sample silence-length for each silence occurrence.
 
         Args:
             running_len_samples (int): 
@@ -1042,10 +1047,9 @@ class SpeechSampler(object):
         Returns:
             silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
         """
-        running_ratio = running_len_samples / session_len_samples
-        silence_mean = (
-            session_len_samples * (self.sess_silence_mean) - self.running_silence_len_samples
-        ) * running_ratio
+        silence_mean = ((self.sess_silence_mean * running_len_samples) - self.running_silence_len_samples) / (
+            1 - self.sess_silence_mean
+        )
         silence_mean = max(self.per_silence_min_len, min(silence_mean, self.per_silence_max_len))
         if silence_mean > 0:
             self.per_silence_var = self._params.data_simulator.session_params.per_silence_var
@@ -1068,9 +1072,10 @@ class SpeechSampler(object):
         Sample from the overlap model to determine the amount of overlap between segments.
         Gamma distribution is employed for modeling  the highly skewed distribution of overlap length distribution.
         When we add an overlap occurrence, we want to meet the desired overlap ratio defined by `self.sess_overlap_mean`.
+        Thus, [Session Overlap Mean] = [Total Running Overlap Speech Time] / [Total Running Non-Silence Speech Time].
         Let `overlap_mean` be the desired overlap amount, then the mean and variance of the gamma distribution is given by:
 
-            self.sess_overlap_mean = (overlap_mean + self.running_overlap_len_samples) / (overlap_mean + non_silence_len_samples)
+            self.sess_overlap_mean = (overlap_mean + self.running_overlap_len_samples) / (non_silence_len_samples - overlap_mean)
 
         The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`. 
         We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
@@ -1084,7 +1089,7 @@ class SpeechSampler(object):
                 Amount of overlap between segments (in terms of number of samples).
         """
         overlap_mean = ((self.sess_overlap_mean * non_silence_len_samples) - self.running_overlap_len_samples) / (
-            1 - self.sess_overlap_mean
+            1 + self.sess_overlap_mean
         )
         overlap_mean = max(self.per_overlap_min_len, min(max(0, overlap_mean), self.per_overlap_max_len))
 
@@ -1099,7 +1104,6 @@ class SpeechSampler(object):
             )
         else:
             desired_overlap_amount = 0
-
         return desired_overlap_amount
 
     def sample_noise_manifest(self, noise_manifest: dict) -> list:
