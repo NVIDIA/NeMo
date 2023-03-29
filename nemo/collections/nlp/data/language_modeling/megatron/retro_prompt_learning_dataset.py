@@ -201,20 +201,23 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
+            
+            # these will be lobbed during the collate_fn
+            temp_pads = list(self.pseudo_token_ids) 
+            assert len(temp_pads) == total_virtual_tokens
+            input_ids = temp_pads + input_ids
 
             # pad the question so 'answer:' coincides with the end of the first chunk of 64
             answer_start_idx = len(input_ids)
             if answer_only_loss and self.for_train:
-                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
-            
-            length_before_answer = answer_start_idx
+                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
+            length_before_answer = answer_start_idx 
+            # todo: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk size
             if length_before_answer < 64:
                 padding_length = 64 - length_before_answer
-                input_ids = [self.pad_token_id] * padding_length + input_ids
+                input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
 
-            # these will be lobbed during the collate_fn
-            temp_pads = list(self.pseudo_token_ids) 
-            input_ids = temp_pads + input_ids
+            
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
@@ -289,6 +292,12 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
+
+        # these will be lobbed during the collate_fn
+        temp_pads = list(self.pseudo_token_ids) 
+        assert len(temp_pads) == total_virtual_tokens
+        input_ids = temp_pads + input_ids
+
         # pad the question so 'answer:' coincides with the end of the first chunk of 64
         answer_start_idx = len(input_ids)
         if answer_only_loss and self.for_train:
@@ -297,11 +306,9 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         # todo: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk size
         if length_before_answer < 64:
             padding_length = 64 - length_before_answer
-            input_ids = [self.pad_token_id] * padding_length + input_ids
+            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
 
-        # these will be lobbed during the collate_fn
-        temp_pads = list(self.pseudo_token_ids) 
-        input_ids = temp_pads + input_ids
+        
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
