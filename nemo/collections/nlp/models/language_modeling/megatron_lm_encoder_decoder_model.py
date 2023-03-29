@@ -23,9 +23,9 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -803,7 +803,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Megatron sampler
         if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
             if self._cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingBatchSampler(
+                batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,
@@ -813,11 +813,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     drop_last=self._cfg.get('drop_last', True),
                 )
             elif self._cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,
-                    global_batch_size=self._cffg.global_batch_size,
+                    global_batch_size=self._cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self._cfg.get('drop_last', True),
