@@ -959,7 +959,7 @@ class SpeechSampler(object):
             self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
         else:
             self.current_silence_ratio, self.current_overlap_ratio = 0, 0
-        
+
         # self.silence_discrepancy = max(0, self.sess_silence_mean - self.current_silence_ratio)
         # self.overlap_discrepancy = max(0, self.sess_overlap_mean - self.current_overlap_ratio)
         # threshold = self.silence_discrepancy / (self.overlap_discrepancy + self.silence_discrepancy + 1e-10)

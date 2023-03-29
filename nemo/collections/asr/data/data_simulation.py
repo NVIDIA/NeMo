@@ -222,15 +222,25 @@ class MultiSpeakerSimulator(object):
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self._audio_read_buffer_dict = {}
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
-        
-        if self._params.data_simulator.segment_augmentor.get("augmentor", None) and self._params.data_simulator.segment_augmentor.add_seg_aug:
-            self.segment_augmentor = process_augmentations(augmenter=self._params.data_simulator.segment_augmentor.augmentor)
-        else: 
+
+        if (
+            self._params.data_simulator.segment_augmentor.get("augmentor", None)
+            and self._params.data_simulator.segment_augmentor.add_seg_aug
+        ):
+            self.segment_augmentor = process_augmentations(
+                augmenter=self._params.data_simulator.segment_augmentor.augmentor
+            )
+        else:
             self.segment_augmentor = None
-        
-        if self._params.data_simulator.session_augmentor.get("augmentor", None) and self._params.data_simulator.session_augmentor.add_sess_aug:
-            self.session_augmentor = process_augmentations(augmenter=self._params.data_simulator.session_augmentor.augmentor)
-        else: 
+
+        if (
+            self._params.data_simulator.session_augmentor.get("augmentor", None)
+            and self._params.data_simulator.session_augmentor.add_sess_aug
+        ):
+            self.session_augmentor = process_augmentations(
+                augmenter=self._params.data_simulator.session_augmentor.augmentor
+            )
+        else:
             self.session_augmentor = None
 
         # Error check the input arguments for simulation
@@ -819,7 +829,7 @@ class MultiSpeakerSimulator(object):
             )
 
             # Step 6-2: Add optional perturbations to the specific audio segment (i.e. to `self._sentnece`)
-            if self._params.data_simulator.segment_augmentor.add_seg_aug: 
+            if self._params.data_simulator.segment_augmentor.add_seg_aug:
                 audio_file = perturb_audio(audio_file, sr, self.segment_augmentor, device=self._device)
 
             sentence_word_count, sentence_samples = self._add_file(
@@ -1129,7 +1139,7 @@ class MultiSpeakerSimulator(object):
         if self._params.data_simulator.session_augmentor.add_sess_aug:
             # NOTE: This perturbation is not reflected in the session SNR in meta dictionary.
             array = perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor, device=array.device)
-            
+
         # Step 7-2: Additive background noise from noise manifest files
         if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:
@@ -1636,7 +1646,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         if self._params.data_simulator.session_augmentor.add_sess_aug:
             # NOTE: This perturbation is not reflected in the session SNR in meta dictionary.
             array = perturb_audio(array, self._params.data_simulator.sr, self.session_augmentor)
-            
+
         # Step 7-2: Additive background noise from noise manifest files
         if self._params.data_simulator.background_noise.add_bg:
             if len(self._noise_samples) > 0:

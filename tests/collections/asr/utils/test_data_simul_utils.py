@@ -100,15 +100,11 @@ def get_data_simulation_configs():
             },
             'segment_augmentor': {
                 'add_seg_aug': False,
-                'augmentor': {
-                'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0},
-            }
+                'augmentor': {'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0},},
             },
             'session_augmentor': {
                 'add_sess_aug': False,
-                'augmentor': {
-                'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46},
-            }
+                'augmentor': {'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46},},
             },
             'speaker_enforcement': {'enforce_num_speakers': True, 'enforce_time': [0.25, 0.75]},
             'segment_manifest': {'window': 0.5, 'shift': 0.25, 'step_count': 50, 'deci': 3},
@@ -337,9 +333,7 @@ class TestSpeechSampler:
 
     @pytest.mark.parametrize("running_len_samples", [8000, 16000])
     @pytest.mark.parametrize("running_overlap_len_samples", [8000, 12000])
-    def test_sample_from_silence_model(
-        self, sampler, running_len_samples, running_overlap_len_samples
-    ):
+    def test_sample_from_silence_model(self, sampler, running_len_samples, running_overlap_len_samples):
         sampler.get_session_silence_mean()
         self.running_overlap_len_samples = running_overlap_len_samples
         silence_amount = sampler.sample_from_silence_model(running_len_samples=running_len_samples)
