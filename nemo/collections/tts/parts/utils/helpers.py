@@ -164,8 +164,7 @@ def sort_tensor(
 
 
 def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
-    unsort_ids = indices.gather(0, indices.argsort(0, descending=True))
-    return torch.index_select(ordered, dim, unsort_ids)
+    return torch.index_select(ordered, dim, indices.argsort(0))
 
 
 @jit(nopython=True)
