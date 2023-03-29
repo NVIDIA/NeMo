@@ -210,7 +210,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             # pad the question so 'answer:' coincides with the end of the first chunk of 64
             answer_start_idx = len(input_ids)
             if answer_only_loss and self.for_train:
-                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
+                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
             length_before_answer = answer_start_idx 
             # todo: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk size
             if length_before_answer < 64:
