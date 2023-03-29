@@ -331,7 +331,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         # assert len(input_ids) <= 128, "cannot handle more than two chunks yet"
 
         chunks = np.array(chunks).reshape(1, self.neighbors-1, -1).astype(np.int64)  # self.neighbors-1 because we prepend top1 before context
-        repeat = (len(input_ids)-1 - 64) // 64 +1 # -1 because encoder shift one
+        repeat = max(1, (len(input_ids)-1 - 64) // 64 +1) # -1 because encoder shift one
         repeated_chunks = np.repeat(chunks, repeat, axis=0)
 
         results = (input_ids, answer_start_idx, repeated_chunks, total_virtual_tokens)
