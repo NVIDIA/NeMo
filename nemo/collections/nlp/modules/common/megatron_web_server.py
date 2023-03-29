@@ -235,5 +235,5 @@ class RetroQADemoWebApp(RetroDemoWebApp):
             if not any(qa_bool):
                 sentences[0] = sentences[0] + ' (*WARNING* the answer is not based on the retrieved documents)'
         else:
-            qa_result = {'scores': [None] * len(qa_result)}
+            qa_result = {'scores': [None] * len(knowledges)}
         return sentences[0], convert_qa_evidence_to_md(knowledges, qa_result)
