@@ -16,6 +16,7 @@ import itertools
 from typing import Any, List, Optional, Union
 
 import numpy as np
+from omegaconf import OmegaConf
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -168,7 +169,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model(self):
         if isinstance(self._model, list):
             return [model.module if isinstance(model, Float16Module) else model for model in self._model]
-        if isinstance(self._model, Float16Module):
+        elif isinstance(self._model, Float16Module):
             return self._model.module
         else:
             return self._model
@@ -820,12 +821,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if stage == 'predict':
             return
         else:
-            # TODO: consider adding a ModelPT guard to check if model is being restored.
-            # allowing restored models to optionally setup datasets
-            self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            if OmegaConf.is_missing(self.cfg.data, 'data_prefix'):
+                logging.warning(
+                    'Attempting to train or validate without data. Please configure model.data.data_prefix.'
+                )
+                return
+            else:
+                # TODO: consider adding a ModelPT guard to check if model is being restored.
+                # allowing restored models to optionally setup datasets
+                self.build_train_valid_test_datasets()
+                self.setup_training_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
+                self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -1001,8 +1008,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+                checkpoint[f'model{i}'] = self.model[i].sharded_state_dict()
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        else:
+            checkpoint[f'model'] = self.model.sharded_state_dict()
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:

@@ -24,6 +24,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
+from megatron.core import parallel_state
+
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
@@ -88,13 +90,7 @@ def model_cfg(test_data_dir):
             'reset_attention_mask': False,
             'eod_mask_loss': False,
         },
-        'optim': {
-            'name': 'fused_adam',
-            'lr': 2e-4,
-            'weight_decay': 0.01,
-            'betas': [0.9, 0.98],
-            'sched': {'name': 'CosineAnnealing', 'warmup_steps': 500, 'constant_steps': 50000, 'min_lr': '2e-5'},
-        },
+        'optim': {'name': 'fused_adam', 'lr': 2e-4, 'weight_decay': 0.01, 'betas': [0.9, 0.98],},
     }
     return model_cfg
 
@@ -118,6 +114,8 @@ def trainer_cfg():
         'limit_test_batches': 500,
         'accumulate_grad_batches': 1,
         'gradient_clip_val': 1.0,
+        'max_steps': 0,
+        'max_epochs': 0,
     }
 
     return trainer_cfg
@@ -130,6 +128,7 @@ def precision():
 
 @pytest.fixture()
 def gpt_model(model_cfg, trainer_cfg, precision):
+
     model_cfg['precision'] = precision
     trainer_cfg['precision'] = precision
 
@@ -141,7 +140,7 @@ def gpt_model(model_cfg, trainer_cfg, precision):
 
     model = MegatronGPTModel(cfg=cfg, trainer=trainer)
 
-    return model
+    return model, trainer
 
 
 @pytest.fixture()
@@ -159,6 +158,7 @@ def test_text():
 class TestGPTModel:
     @pytest.mark.unit
     def test_constructor(self, gpt_model):
+        gpt_model, _ = gpt_model
         assert isinstance(gpt_model, MegatronGPTModel)
 
         num_weights = gpt_model.num_weights
@@ -167,6 +167,7 @@ class TestGPTModel:
     @pytest.mark.unit
     def test_tokenizer(self, gpt_model, test_text):
 
+        gpt_model, _ = gpt_model
         assert isinstance(gpt_model.tokenizer, AutoTokenizer)
         assert gpt_model.tokenizer.name == 'GPT2Tokenizer'
         assert gpt_model.tokenizer.vocab_size == 50257
@@ -197,7 +198,10 @@ class TestGPTModel:
     )
     @pytest.mark.unit
     def test_forward(self, gpt_model, test_text):
+        parallel_state.destroy_global_memory_buffer()
+        parallel_state._set_global_memory_buffer()
 
+        gpt_model, _ = gpt_model
         dtype = None
         if gpt_model.cfg['precision'] == 32:
             dtype = torch.float
@@ -238,3 +242,16 @@ class TestGPTModel:
                 assert output_tensor.shape[2] == gpt_model.padded_vocab_size
                 assert output_tensor.dtype == dtype
                 output_tensors.append(output_tensor)
+
+    @pytest.mark.unit
+    def test_checkpointing(self, gpt_model, tmp_path):
+        gpt_model, trainer = gpt_model
+        trainer.fit(gpt_model)
+        ckpt_path = tmp_path / "test_gpt.ckpt"
+        trainer.save_checkpoint(ckpt_path)
+        gpt_model_from_checkpoint = MegatronGPTModel.load_from_checkpoint(checkpoint_path=ckpt_path, trainer=trainer)
+
+        gpt_model_sum = sum([p.sum() for p in gpt_model.parameters()])
+        gpt_model_from_checkpoint_sum = sum([p.sum() for p in gpt_model_from_checkpoint.parameters()])
+
+        assert gpt_model_sum == gpt_model_from_checkpoint_sum

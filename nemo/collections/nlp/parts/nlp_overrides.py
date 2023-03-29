@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import timedelta
 import itertools
 import os
 import shutil
@@ -24,9 +25,15 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Opti
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
+from lightning_fabric.plugins.io.torch_io import TorchCheckpointIO
+from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
+from lightning_fabric.utilities.cloud_io import get_filesystem
+from lightning_fabric.utilities.types import _PATH
+from lightning_fabric.utilities.cloud_io import _load as pl_load
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
+from pytorch_lightning.plugins.precision import PrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
@@ -52,12 +59,75 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core import dist_checkpointing
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+class MegatronTorchCheckpointIO(TorchCheckpointIO):
+    """ Overrides PTL TorchCheckpointIO:
+        https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.plugins.io.TorchCheckpointIO.html#torchcheckpointio
+        
+        We use the distributed checkpointing library from megatron core:
+        megatron/core/dist_checkpointing
+        This checkpointing library enables saving and loading of sharded tensors and 
+        in particular, we can resume training with different model parallel configurations
+        without having to use a conversion script first.
+    """
+
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        """Save model/training states as a checkpoint file through state-dump and file-write.
+        Args:
+            checkpoint: dict containing model and trainer state
+            path: write-target path
+            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
+        Raises:
+            TypeError:
+                If ``storage_options`` arg is passed in
+        """
+        if storage_options is not None:
+            raise TypeError(
+                "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
+                f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
+                " to define how you'd like to use `storage_options`."
+            )
+
+        # dist_checkpointing expects a directory so we will name the directory
+        # using the path with the file extension removed
+        dirname = os.path.dirname(path)
+        basename = os.path.basename(path)
+        root, _ = os.path.splitext(basename)
+        checkpoint_dir = os.path.join(dirname, root)
+
+        fs = get_filesystem(checkpoint_dir)
+        fs.makedirs(checkpoint_dir, exist_ok=True)
+
+        dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+
+    def load_checkpoint(
+        self, path: _PATH, map_location: Optional[Callable] = lambda storage, loc: storage
+    ) -> Dict[str, Any]:
+        """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of
+        files.
+        Args:
+            path: Path to checkpoint
+            map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
+                locations.
+        Returns: The loaded checkpoint.
+        Raises:
+            FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
+        """
+
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        fs = get_filesystem(path)
+        if not fs.exists(path):
+            raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
+
+        return pl_load(path, map_location=map_location)
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -70,10 +140,20 @@ class NLPDDPStrategy(DDPStrategy):
 
     def __init__(
         self,
+        accelerator: Optional["pl.accelerators.Accelerator"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
-        cluster_environment: ClusterEnvironment = None,
-        checkpoint_io: Optional[CheckpointIO] = None,
-        no_ddp_communication_hook: bool = False,
+        cluster_environment: Optional[ClusterEnvironment] = None,
+        checkpoint_io: Optional[CheckpointIO] = MegatronTorchCheckpointIO(),
+        precision_plugin: Optional[PrecisionPlugin] = None,
+        ddp_comm_state: Optional[object] = None,
+        ddp_comm_hook: Optional[Callable] = None,
+        ddp_comm_wrapper: Optional[Callable] = None,
+        model_averaging_period: Optional[int] = None,
+        process_group_backend: Optional[str] = None,
+        timeout: Optional[timedelta] = default_pg_timeout,
+        no_ddp_communication_hook: Optional[bool] = False,
+        gradient_as_bucket_view: Optional[bool] = False,
+        find_unused_parameters: Optional[bool] = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -85,7 +165,21 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+        super().__init__(
+            accelerator=accelerator,
+            parallel_devices=parallel_devices,
+            cluster_environment=cluster_environment,
+            checkpoint_io=checkpoint_io,
+            precision_plugin=precision_plugin,
+            ddp_comm_state=ddp_comm_state,
+            ddp_comm_hook=ddp_comm_hook,
+            ddp_comm_wrapper=ddp_comm_wrapper,
+            model_averaging_period=model_averaging_period,
+            process_group_backend=process_group_backend,
+            timeout=timeout,
+            gradient_as_bucket_view=gradient_as_bucket_view,
+            find_unused_parameters=find_unused_parameters,
+        )
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
@@ -177,11 +271,12 @@ class NLPDDPStrategy(DDPStrategy):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        app_state = AppState()
-        # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(filepath)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        """ PTL method which we override to accomodate distributed checkpoints.
+            The distributed checkpointing library from megatron core expects save functions to be
+            called on every rank and internally does the rank checking.
+        """
+
+        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
