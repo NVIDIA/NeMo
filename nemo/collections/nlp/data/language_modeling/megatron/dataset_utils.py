@@ -1276,7 +1276,7 @@ def get_samples_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
             num_epochs,
-            max_num_samples,
+            int(max_num_samples),
             max_seq_length,
             short_seq_prob,
             seed,

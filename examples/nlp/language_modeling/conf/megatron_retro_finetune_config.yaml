@@ -25,7 +25,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: null
     name: null
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -62,11 +62,11 @@ model:
   # miscellaneous
   seed: 1234
 
-  restore_path: null  # the retro model restore path
+  restore_path: /dataset/retro/retro_1100m_final  # the retro model restore path
 
   data:
     train_ds:
-      file_name: ??? # train data file path
+      file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
@@ -74,7 +74,7 @@ model:
       seed: 1234
       neighbors: 20  # number of retrieved neighbors
     val_ds:
-      file_name: ??? # train data file path
+      file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
@@ -82,7 +82,7 @@ model:
       seed: 1234
       neighbors: 20  # number of retrieved neighbors
     test_ds:
-      file_name: ??? # train data file path
+      file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
