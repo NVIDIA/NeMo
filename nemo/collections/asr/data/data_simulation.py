@@ -219,6 +219,7 @@ class MultiSpeakerSimulator(object):
         self._turn_prob_min = self._params.data_simulator.session_params.get("turn_prob_min", 0.5)
         # variable speaker volume
         self._volume = None
+        self._speaker_ids = None
         self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self._audio_read_buffer_dict = {}
         self.add_missing_overlap = self._params.data_simulator.session_params.get("add_missing_overlap", False)
@@ -937,9 +938,11 @@ class MultiSpeakerSimulator(object):
         """
         meta_data = {
             "duration": array.shape[0] / self._params.data_simulator.sr,
-            "session_silence_mean": self.sampler.sess_silence_mean,
-            "session_overlap_mean": self.sampler.sess_overlap_mean,
-            "session_snr": snr,
+            "silence_mean": self.sampler.sess_silence_mean,
+            "overlap_mean": self.sampler.sess_overlap_mean,
+            "bg_snr": snr,
+            "speaker_ids": self._speaker_ids,
+            "speaker_volumes": list(self._volume),
         }
         return meta_data
 
