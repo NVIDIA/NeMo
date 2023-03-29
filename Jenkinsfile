@@ -3494,32 +3494,40 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       parallel{
-        stage('Reduce Num Partitions (2 to 1)'){
+        stage('Reduce TP Num Partitions (2 to 1) and PP Num Partitions (1 to 2)'){
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
                 /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
                 --target_file \
-                /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo \
+                /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
-                1"
-            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
+                1 \
+                --pipeline_model_parallel_size \
+                1 \
+                --target_pipeline_model_parallel_size \
+                2"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo"
           }
         }
-        stage('Increase Num Partitions (2 to 4)'){
+        stage('Increase TP Num Partitions (2 to 4) and PP Num Partitions (1 to 2)'){
           steps{
             sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file \
                 /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
                 --target_file \
-                /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo \
+                /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
                 --tensor_model_parallel_size \
                 2 \
                 --target_tensor_model_parallel_size \
-                4"
-            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
+                4 \
+                --pipeline_model_parallel_size \
+                1 \
+                --target_pipeline_model_parallel_size \
+                1"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo"
           }
         }
       }
@@ -4269,6 +4277,43 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.data.test_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv \
             "
             sh "rm -rf examples/nlp/language_modeling/t5_xnli_results"
+          }
+        }
+      }
+    }
+    stage('L2: Megatron Mock Data Generation') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('MockGPTDataset') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+            trainer.max_steps=10 \
+            trainer.limit_val_batches=1 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+            model.data.data_impl=mock \
+            model.data.data_prefix=[] \
+            "
+            sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+          }
+        }
+        stage('MockT5Dataset') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+            trainer.max_steps=10 \
+            trainer.limit_val_batches=1 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+            model.data.data_impl=mock \
+            model.data.data_prefix=[] \
+            "
+            sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
           }
         }
       }
