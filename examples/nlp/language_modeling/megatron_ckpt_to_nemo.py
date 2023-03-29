@@ -24,10 +24,10 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --model_type <model type>
 """
 
-import os
-import tempfile
 import itertools
+import os
 import shutil
+import tempfile
 from argparse import ArgumentParser
 
 import torch
@@ -39,15 +39,16 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
-from nemo.utils import AppState
-from nemo.utils.model_utils import inject_model_parallel_rank
 
-#Extra Imports
+# Extra Imports
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
     NLPDDPStrategy,
-    NLPSaveRestoreConnector
+    NLPSaveRestoreConnector,
 )
+from nemo.utils import AppState
+from nemo.utils.model_utils import inject_model_parallel_rank
+
 
 def get_args():
     parser = ArgumentParser()
@@ -105,30 +106,34 @@ def convert(args):
     app_state.tensor_model_parallel_rank = 0
     app_state.pipeline_model_parallel_rank = 0
 
-
     save_connector = NLPSaveRestoreConnector()
     trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
     checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
     if args.model_type == 'gpt':
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer).to("cpu")
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        ).to("cpu")
     elif args.model_type == 'bert':
         model = MegatronBertModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         ).to("cpu")
     elif args.model_type == 't5':
-        model = MegatronT5Model.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer).to("cpu")
+        model = MegatronT5Model.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        ).to("cpu")
     elif args.model_type == 'bart':
         model = MegatronBARTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         ).to("cpu")
     elif args.model_type == 'nmt':
-        model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer).to("cpu")
+        model = MegatronNMTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        ).to("cpu")
     elif args.model_type == 'retro':
         model = MegatronRetrievalModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         ).to("cpu")
-    
 
     checkpoint_dir = args.checkpoint_folder
     checkpoint_name = args.checkpoint_name
@@ -140,10 +145,8 @@ def convert(args):
             # move weights to the tmpdir
             for tp_rank in range(app_state.tensor_model_parallel_size):
                 os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
-                mp_model_weights = os.path.join(
-                    checkpoint_dir, f'mp_rank_{tp_rank:02d}', checkpoint_name
-                )
-                #TODO: Change to a move
+                mp_model_weights = os.path.join(checkpoint_dir, f'mp_rank_{tp_rank:02d}', checkpoint_name)
+                # TODO: Change to a move
                 shutil.copy(
                     mp_model_weights,
                     os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', save_connector.model_weights_ckpt),
@@ -151,14 +154,13 @@ def convert(args):
         else:
             # move weights to the tmpdir
             for tp_rank, pp_rank in itertools.product(
-                range(app_state.tensor_model_parallel_size),
-                range(app_state.pipeline_model_parallel_size),
+                range(app_state.tensor_model_parallel_size), range(app_state.pipeline_model_parallel_size),
             ):
                 os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
                 mp_model_weights = os.path.join(
-                    checkpoint_dir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}',checkpoint_name
+                    checkpoint_dir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', checkpoint_name
                 )
-                #TODO: Change to a move
+                # TODO: Change to a move
                 shutil.copy(
                     mp_model_weights,
                     os.path.join(
@@ -174,11 +176,9 @@ def convert(args):
             save_connector._update_artifact_paths(model, path2yaml_file=config_yaml)
 
         # create tar file
-        save_connector._make_nemo_file_from_folder(filename=save_path,source_dir=tmpdir)
-        
+        save_connector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+
         os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
-
-
 
 
 if __name__ == '__main__':
