@@ -159,7 +159,12 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     return item
 
 
-def get_full_path(audio_file: str, manifest_file: str, audio_file_len_limit: int = 255) -> str:
+def get_full_path(
+    audio_file: Union[str, List[str]],
+    manifest_file: Optional[str] = None,
+    data_dir: Optional[str] = None,
+    audio_file_len_limit: int = 255,
+) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
     If the audio_file is a relative path and does not exist,
@@ -169,35 +174,63 @@ def get_full_path(audio_file: str, manifest_file: str, audio_file_len_limit: int
 
     Args:
         audio_file: path to an audio file, either absolute or assumed relative
-                    to the manifest directory
+                    to the manifest directory or data directory.
+                    Alternatively, a list of paths may be provided.
         manifest_file: path to a manifest file
+        data_dir: path to a directory containing data, use only if a manifest file is not provided
         audio_file_len_limit: limit for length of audio_file when using relative paths
 
     Returns:
-        Full path to audio_file.
+        Full path to audio_file or a list of paths.
     """
-    audio_file = Path(audio_file)
+    if isinstance(audio_file, list):
+        # If input is a list, return a list of full paths
+        return [
+            get_full_path(
+                audio_file=a_file,
+                manifest_file=manifest_file,
+                data_dir=data_dir,
+                audio_file_len_limit=audio_file_len_limit,
+            )
+            for a_file in audio_file
+        ]
+    elif isinstance(audio_file, str):
+        # If input is a string, get the corresponding full path
+        audio_file = Path(audio_file)
 
-    if is_datastore_path(manifest_file):
-        # WORKAROUND: pathlib does not support URIs, so use os.path
-        manifest_dir = os.path.dirname(manifest_file)
-    else:
-        manifest_dir = Path(manifest_file).parent.as_posix()
+        if (len(str(audio_file)) < audio_file_len_limit) and not audio_file.is_file() and not audio_file.is_absolute():
+            # If audio_file is not available and the path is not absolute, the full path is assumed
+            # to be relative to the manifest file parent directory or data directory.
+            if manifest_file is None and data_dir is None:
+                raise ValueError(f'Use either manifest_file or data_dir to specify the data directory.')
+            elif manifest_file is not None and data_dir is not None:
+                raise ValueError(
+                    f'Parameters manifest_file and data_dir cannot be used simultaneously. Currently manifest_file is {manifest_file} and data_dir is {data_dir}.'
+                )
 
-    if (len(str(audio_file)) < audio_file_len_limit) and not audio_file.is_file() and not audio_file.is_absolute():
-        # assume audio_file path is relative to manifest_dir
-        audio_file_path = os.path.join(manifest_dir, audio_file.as_posix())
+            # resolve the data directory
+            if data_dir is None:
+                if is_datastore_path(manifest_file):
+                    # WORKAROUND: pathlib does not support URIs, so use os.path
+                    data_dir = os.path.dirname(manifest_file)
+                else:
+                    data_dir = Path(manifest_file).parent.as_posix()
 
-        if is_datastore_path(audio_file_path):
-            # If audio was originally on an object store, use locally-cached path
-            audio_file_path = datastore_path_to_local_path(audio_file_path)
+            # assume audio_file path is relative to data_dir
+            audio_file_path = os.path.join(data_dir, audio_file.as_posix())
 
-        audio_file_path = Path(audio_file_path)
+            if is_datastore_path(audio_file_path):
+                # If audio was originally on an object store, use locally-cached path
+                audio_file_path = datastore_path_to_local_path(audio_file_path)
 
-        if audio_file_path.is_file():
-            audio_file = str(audio_file_path.absolute())
+            audio_file_path = Path(audio_file_path)
+
+            if audio_file_path.is_file():
+                audio_file = str(audio_file_path.absolute())
+            else:
+                audio_file = expanduser(audio_file)
         else:
             audio_file = expanduser(audio_file)
+        return audio_file
     else:
-        audio_file = expanduser(audio_file)
-    return audio_file
+        raise ValueError(f'Unexpected audio_file type {type(audio_file)}, audio_file {audio_file}.')

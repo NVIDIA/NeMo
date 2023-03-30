@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-import random
 
 import torch
 from hydra.utils import instantiate
@@ -21,14 +20,14 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.helpers.helpers import (
+from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
     plot_alignment_to_numpy,
     regulate_len,
     sample_tts_input,
 )
-from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
-from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
@@ -131,7 +130,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         attn_prior = batch['align_prior_matrix']
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
-        p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
 
         if (
@@ -155,7 +153,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             f0=f0,
             energy_avg=energy_avg,
             voiced_mask=voiced_mask,
-            p_voiced=p_voiced,
         )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
 
@@ -186,7 +183,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         attn_prior = batch['align_prior_matrix']
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
-        p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
         mel = batch['log_mel']
         if (
@@ -209,7 +205,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             f0=f0,
             energy_avg=energy_avg,
             voiced_mask=voiced_mask,
-            p_voiced=p_voiced,
         )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
 
@@ -510,9 +505,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
             sigma=0.7,
-            sigma_txt=0.7,
-            sigma_f0=1.0,
-            sigma_energy=1.0,
             f0_mean=0.0,
             f0_std=0.0,
             in_lens=lens,

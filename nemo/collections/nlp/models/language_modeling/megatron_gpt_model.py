@@ -18,6 +18,7 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -48,7 +49,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, build_model_cpu
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -108,11 +109,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self.model = build_model(
-            model_provider_func=self.model_provider_func,
-            wrap_with_ddp=False,
-            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-        )
+        if isinstance(self.trainer.accelerator, CPUAccelerator):
+            self.model = build_model_cpu(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            )
+        else:
+            self.model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -158,6 +166,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
+
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -340,24 +350,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
-        # handle asynchronous grad reduction
-        custom_sync_context_handler = None
-        custom_grad_sync_func = None
-        if self.with_distributed_adam:
-            if self.megatron_amp_o2:
-                # copy grads to main grad
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-            else:
-                # keep grad tensors around
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
-            custom_grad_sync_func = self.reduce_overlap_gradients
-        else:
-            if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
-                custom_sync_context_handler = self._optimizer.no_sync
-            else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
-
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
@@ -515,22 +507,38 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            # GPT3 uses only causal mask, which doesn't need attention mask
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = next(dataloader_iter)
                 for k in batch.keys():
-                    batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
+                    if self.get_attention_mask_from_fusion:
+                        batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
+                    else:
+                        batch[k] = batch[k].cuda(non_blocking=True)
             else:
                 if parallel_state.is_pipeline_first_stage():
                     batch = next(dataloader_iter)
-                    # First pipeline stage needs only the tokens and position_ids
+                    # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
-                        batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['tokens', 'position_ids', 'attention_mask']
+                                else None
+                            )
                 elif parallel_state.is_pipeline_last_stage():
                     batch = next(dataloader_iter)
-                    # Last pipeline stage needs only the labels and loss_mask
+                    # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
-                        batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                        if self.get_attention_mask_from_fusion:
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                        else:
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['labels', 'loss_mask', 'attention_mask']
+                                else None
+                            )
                 else:
                     # Intermediate pipeline stage doesn't need any inputs
                     batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
@@ -759,7 +767,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True,
         )
 
     def setup(self, stage=None):

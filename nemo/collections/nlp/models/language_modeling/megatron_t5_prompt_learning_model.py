@@ -82,7 +82,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model_type = ModelType.encoder_and_decoder
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -100,11 +99,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
+            input_embeds = self.embed_input(input_ids, taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -172,25 +167,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
-
-        virtual_prompt_params = {'params': []}
-
-        if self.first_stage_of_pipeline():
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
-
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-
-        self._optimizer_param_groups = (virtual_prompt_params,)
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
@@ -337,7 +313,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-    def compute_accuracy(self, input_ids, enc_mask, encoder_input, labels):
+    def get_predictions(self, input_ids, enc_mask, encoder_input, labels):
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
             enc_mask=enc_mask,
@@ -368,7 +344,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, False)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -380,8 +356,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             encoder_input = None
 
-        if self.cfg.get("report_validation_accuracy", False):
-            metrics = self.compute_accuracy(input_ids, enc_mask, encoder_input, labels)
+        if self.cfg.get("report_validation_metric", False):
+            metrics = self.get_predictions(input_ids, enc_mask, encoder_input, labels)
             metrics['loss'] = loss_mean
         else:
             metrics = {'loss': loss_mean}
@@ -409,7 +385,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
-        if self.cfg.get("report_validation_accuracy", False):
+        if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
             all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
@@ -431,25 +407,19 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
-                correct = 0
-                for (input, pred, label) in gather_results_dedup:
-                    if pred == label:
-                        correct += 1
+                val_metric_dict = self.validation_metric.get_score(
+                    [i[2] for i in gather_results_dedup], [i[1] for i in gather_results_dedup],
+                )
 
-                val_acc = correct / len(gather_results_dedup)
-                val_acc = torch.tensor(val_acc).cuda()
-
-                logging.info(f'Validation accuracy: {val_acc}')
+                for metric, val in val_metric_dict.items():
+                    logging.info(f'Validation {metric}: {val}')
+                val_metric = list(val_metric_dict.items())[0][1]
+                metric_name = list(val_metric_dict.items())[0][0]
             else:
-                val_acc = torch.tensor(0.0).cuda()
+                val_metric = torch.tensor(0.0).cuda()
+                metric_name = ''
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
-
-        # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_nemo_on_validation_end", False):
-            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-                self.save_checkpoint_as_nemo_file()
-                self.lowest_val_loss = averaged_loss
+            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
@@ -507,7 +477,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         batch_size, seq_length = input_ids.shape
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=True)
 
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):

@@ -1195,7 +1195,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
-                if isinstance(args[0], Iterable) and self.is_aggregate:
+                if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
                         t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
@@ -1245,7 +1245,7 @@ class BucketingDataset(IterableDataset):
 
     def __iter__(self):
         return BucketingIterator(
-            wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batch_size=self.bucketing_batch_size
+            wrapped_ds=self.wrapped_dataset._dataset, bucketing_batch_size=self.bucketing_batch_size
         ).__iter__()
 
     def __len__(self):
@@ -1253,11 +1253,13 @@ class BucketingDataset(IterableDataset):
 
 
 class BucketingIterator:
-    def __init__(self, wrapped_iter, bucketing_batch_size):
-        self.wrapped_iter = wrapped_iter
+    def __init__(self, wrapped_ds, bucketing_batch_size):
+        self.wrapped_ds = wrapped_ds
+        self.wrapped_iter = None
         self.bucketing_batch_size = bucketing_batch_size
 
     def __iter__(self):
+        self.wrapped_iter = iter(self.wrapped_ds)
         return self
 
     def __next__(self):
@@ -1266,7 +1268,8 @@ class BucketingIterator:
             try:
                 sample = next(self.wrapped_iter)
             except StopIteration:
-                break
+                self.wrapped_iter = iter(self.wrapped_ds)
+                sample = next(self.wrapped_iter)
             batches.append(sample)
         if len(batches) == 0:
             raise StopIteration

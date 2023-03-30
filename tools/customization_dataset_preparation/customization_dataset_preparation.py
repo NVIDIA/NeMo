@@ -38,10 +38,9 @@ For instances, if you are working on a Question Answering Task, you would typica
 
 Other flags that can be set
 
-1.   `--long_seq_model` :Use this flag to allow the preparation tool to allow a higher max sequence length (from 10000 chars to 40000 chars)
-2.   `--drop_duplicates` : Use this flag to drop rows that are exactly the same for both prompt and completion
-3.   `--split_train_validation` : Use this flag to split one file into separate train and validation files.
-4.   `--val_proportion 0.1`: Use a float (default 0.1) between 0 and 1 to control how much of the dataset to allocate to the validation set and the remaining for the train dataset.
+1.   `--drop_duplicates` : Use this flag to drop rows that are exactly the same for both prompt and completion
+2.   `--split_train_validation` : Use this flag to split one file into separate train and validation files.
+3.   `--val_proportion 0.1`: Use a float (default 0.1) between 0 and 1 to control how much of the dataset to allocate to the validation set and the remaining for the train dataset.
 
 What to expect
 
@@ -51,9 +50,12 @@ We suggest you prioritize changes suggested under ACTIONABLE MESSAGES but also h
 
 """
 import argparse
+import math
 import os
+import pathlib
 from collections import Counter
 
+import numpy as np
 import pandas as pd
 
 
@@ -79,16 +81,69 @@ def load_file_into_df(filename):
     return df, message
 
 
-def recommend_hyperparameters(df):
+def recommend_hyperparameters_human_readable(recommended_hyperparameters):
+    message = 'TODO: Recommended hyperparameters\n'
+    for param, param_value in recommended_hyperparameters.items():
+        message += f'{param}: {param_value}\n'
+    return message
+
+
+def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
+    
+    All hyperparameters except batch_size, max_batch_size and max_seq_length are hardcoded based on API defaults for now
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
     bs = 2
     for potential_bs in potential_batch_sizes:
         if 0.002 * len(df) > potential_bs:
             bs = potential_bs
-    return f"TODO: A batch_size={bs} is recommended for training"
+
+    max_bs = 128
+    if len(df) < 128:
+        max_bs = 2
+        for potential_bs in potential_batch_sizes:
+            if potential_bs < len(df) * 0.9:
+                max_bs = potential_bs
+
+    df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
+    length_by_chars = sorted(list(df_char_length))
+    n_samples_under_99p5_limit = math.ceil(len(df_char_length) * 0.995)
+    char_length_99p5 = length_by_chars[n_samples_under_99p5_limit - 1]
+    mean_char_length = np.mean(length_by_chars)
+    std_char_length = np.std(length_by_chars)
+
+    # filter out only outliers that are >2 std above mean
+    max_char_length = max(min(mean_char_length + 2 * std_char_length, length_by_chars[-1]), char_length_99p5)
+
+    # every token is around 4 chars + 100 for extra capacity
+    max_seq_length = max_char_length // 4 + 100
+    return {
+        'batch_size': bs,
+        'max_batch_size': max_bs,
+        'num_virtual_tokens': 10,
+        'lr': 0.0001,
+        'epochs': 25,
+        'max_seq_length': max_seq_length,
+    }
+
+
+def estimating_customization_job_time(df, recommended_hyperparameters):
+    recommended_batch_size = recommended_hyperparameters['batch_size']
+
+    size = df.memory_usage(index=True, deep=True).sum()
+    time_in_seconds_per_epoch = size / recommended_batch_size * 0.0025
+
+    if time_in_seconds_per_epoch < 60:
+        time_per_epoch = f"{round(time_in_seconds_per_epoch, 2)} seconds"
+    elif time_in_seconds_per_epoch < 3600:
+        time_per_epoch = f"{round(time_in_seconds_per_epoch/60, 2)} minutes"
+    else:
+        time_per_epoch = f"{round(time_in_seconds_per_epoch/3600, 2)} hours"
+
+    message = f"TODO: Training will take around {time_per_epoch} for each epoch for gpt20b model and around half of that for gpt5b. Please set no. of epochs accordingly to ensure that the limit of 8h total is not exceeded."
+    return message
 
 
 def warn_completion_is_not_empty(df):
@@ -244,9 +299,7 @@ def warn_and_drop_long_samples(df, max_total_char_length):
     if len(indices_of_long_examples) > 0:
         message = f"""TODO: There are {len(indices_of_long_examples)} / {len(df)} 
         samples that have its prompt and completion too long 
-        (over {max_total_char_length} chars), which have been dropped.
-        If this proportion is too high, please prepare data again using the flag 
-        --long_seq_model for use with a model with longer context length of 8,000 tokens"""
+        (over {max_total_char_length} chars), which have been dropped."""
         df = df.drop(indices_of_long_examples).reset_index()
         df = df.drop('index', axis=1)
     return df, message
@@ -269,23 +322,25 @@ def show_first_example_in_df(df):
 
 def get_prepared_filename(filename, split_train_validation=False):
     message = ""
+
+    file_extension = pathlib.Path(filename).suffix
     if not split_train_validation:
-        new_filename = filename.replace(".jsonl", "_prepared.jsonl")
+        new_filename = filename.replace(file_extension, "_prepared.jsonl")
         retry = 0
         while os.path.isfile(new_filename):
             message += f"File {new_filename} exists. Trying next available filename increment\n"
             retry += 1
-            new_filename = filename.replace(".jsonl", f"_prepared{retry}.jsonl")
-        return new_filename, message
+            new_filename = filename.replace(file_extension, f"_prepared{retry}.jsonl")
+        return new_filename, message if message else None
     else:
-        train_filename = filename.replace(".jsonl", "_prepared_train.jsonl")
-        val_filename = filename.replace(".jsonl", "_prepared_val.jsonl")
+        train_filename = filename.replace(file_extension, "_prepared_train.jsonl")
+        val_filename = filename.replace(file_extension, "_prepared_val.jsonl")
         retry = 0
         while os.path.isfile(train_filename) or os.path.isfile(val_filename):
             message += f"File {train_filename} or {val_filename} exists. Trying next available filename increment\n"
             retry += 1
-            train_filename = filename.replace(".jsonl", f"_prepared_train{retry}.jsonl")
-            val_filename = filename.replace(".jsonl", f"_prepared_val{retry}.jsonl")
+            train_filename = filename.replace(file_extension, f"_prepared_train{retry}.jsonl")
+            val_filename = filename.replace(file_extension, f"_prepared_val{retry}.jsonl")
         return [train_filename, val_filename], message if message else None
 
 
@@ -320,11 +375,10 @@ def print_all_messages(messages):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepares data for NeMoLLM Csutomization Service")
-    parser.add_argument("--filename", "-f")
+    parser = argparse.ArgumentParser(description="Prepares data for NeMoLLM Customization Service")
+    parser.add_argument("--filename", "-f", required=True)
     parser.add_argument("--prompt_template", "-pt", default="{prompt}")
     parser.add_argument("--completion_template", "-ct", default="{completion}")
-    parser.add_argument("--long_seq_model", "-8k", action="store_true")
     parser.add_argument("--drop_duplicates", "-dd", action="store_true")
     parser.add_argument("--split_train_validation", "-stv", action="store_true")
     parser.add_argument(
@@ -340,7 +394,8 @@ if __name__ == "__main__":
     messages = []
     messages.append(str(args))
 
-    MAX_TOTAL_CHAR_LENGTH = 40000 if args.long_seq_model else 10000
+    # every token is around 4 chars
+    MAX_TOTAL_CHAR_LENGTH = 4 * 2048
 
     df, message = load_file_into_df(args.filename)
     messages.append(message)
@@ -370,7 +425,11 @@ if __name__ == "__main__":
     df, message = warn_and_drop_long_samples(df, MAX_TOTAL_CHAR_LENGTH)
     messages.append(message)
 
-    messages.append(recommend_hyperparameters(df))
+    recommended_hyperparameters = recommend_hyperparameters(df)
+    recommend_hyperparameters_message = recommend_hyperparameters_human_readable(recommended_hyperparameters)
+    messages.append(recommend_hyperparameters_message)
+
+    messages.append(estimating_customization_job_time(df, recommended_hyperparameters))
 
     prepared_filename, message = get_prepared_filename(
         args.filename, split_train_validation=args.split_train_validation
