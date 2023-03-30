@@ -888,7 +888,7 @@ def configure_checkpointing(
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
-    preemption_callback = PreemptionCallback(torch.device('cuda'), checkpoint_callback)
+    preemption_callback = PreemptionCallback(checkpoint_callback)
     trainer.callbacks.append(preemption_callback)
 
 def check_slurm(trainer):

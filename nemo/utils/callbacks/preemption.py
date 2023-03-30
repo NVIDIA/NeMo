@@ -27,14 +27,13 @@ class PreemptionCallback(Callback):
     PreemptionCallback is always enabled.
     """
 
-    def __init__(self, device, checkpoint_callback, sig=signal.SIGTERM):
+    def __init__(self, checkpoint_callback, sig=signal.SIGTERM):
         self.sig = sig
-        self.device = device
         self.checkpoint_callback = checkpoint_callback
 
     @property
     def interrupted(self):
-        interrupted = torch.tensor(self._interrupted).int().to(self.device)
+        interrupted = torch.tensor(self._interrupted).int().to(torch.device('cuda'))
         torch.distributed.broadcast(interrupted, 0)
         interrupted = bool(interrupted.item())
         return interrupted
