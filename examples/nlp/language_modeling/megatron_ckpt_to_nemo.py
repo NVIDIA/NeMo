@@ -145,9 +145,7 @@ def convert(args):
             # move weights to the tmpdir
             for tp_rank in range(app_state.tensor_model_parallel_size):
                 os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
-                mp_model_weights = os.path.join(
-                    checkpoint_dir, f'mp_rank_{tp_rank:02d}', checkpoint_name
-                )
+                mp_model_weights = os.path.join(checkpoint_dir, f'mp_rank_{tp_rank:02d}', checkpoint_name)
 
                 shutil.copy(
                     mp_model_weights,
@@ -180,6 +178,7 @@ def convert(args):
         save_connector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
         os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
+
 
 if __name__ == '__main__':
     args = get_args()
