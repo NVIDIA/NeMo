@@ -43,6 +43,8 @@ python speech_to_text_streaming_infer.py \
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation.
 If compare_vs_offline is not used, then significantly larger batch_size can be used.
 
+To best compare output with offline output (i.e. `--compare_vs_offline` is set) `--pad-and-drop-preencoded` should also be set.
+
 ## Evaluate a model trained with full context for offline mode
 
 You may try the cache-aware streaming with a model trained with full context in offline mode.
