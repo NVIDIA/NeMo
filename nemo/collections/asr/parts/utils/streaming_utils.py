@@ -362,8 +362,9 @@ class StreamingFeatureBufferer:
         '''
 
         self.NORM_CONSTANT = 1e-5
-        if getattr(asr_model.preprocessor, 'log', False) \
-                or getattr(getattr(asr_model.preprocessor, 'featurizer', None), 'log', False):
+        if getattr(asr_model.preprocessor, 'log', False) or getattr(
+            getattr(asr_model.preprocessor, 'featurizer', None), 'log', False
+        ):
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
@@ -577,8 +578,9 @@ class FeatureFrameBufferer:
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        if getattr(asr_model.preprocessor, 'log', False) \
-                or getattr(getattr(asr_model.preprocessor, 'featurizer', None), 'log', False):
+        if getattr(asr_model.preprocessor, 'log', False) or getattr(
+            getattr(asr_model.preprocessor, 'featurizer', None), 'log', False
+        ):
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
