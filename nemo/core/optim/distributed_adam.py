@@ -282,7 +282,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if self._fp32_optim is not None and 'fp32_optim' in state_dict:
             self._fp32_optim.load_state_dict(state_dict['fp32_optim'])
             del state_dict['fp32_optim']
-            for old_main_param, new_main_param in zip(self._fp32_optim_main_params.values(), state_dict['fp32_optim_fp32_params']):
+            for old_main_param, new_main_param in zip(
+                self._fp32_optim_main_params.values(), state_dict['fp32_optim_fp32_params']
+            ):
                 old_main_param.copy_(new_main_param.detach())
             del state_dict['fp32_optim_fp32_params']
         return super().load_state_dict(state_dict)
