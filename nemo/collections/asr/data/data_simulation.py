@@ -179,7 +179,7 @@ class MultiSpeakerSimulator(object):
         white_noise:
             prob (float): Probability of adding white noise (Default: 1.0)
             min_level (float): minimum gain in terms of dB
-            max_level (float): minimum gain in terms of dB
+            max_level (float): maximum gain in terms of dB
 
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
