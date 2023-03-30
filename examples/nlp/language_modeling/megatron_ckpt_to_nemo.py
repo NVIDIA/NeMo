@@ -42,7 +42,6 @@ from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import M
 from nemo.utils import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-#Extra Imports
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
     NLPDDPStrategy,
@@ -143,7 +142,6 @@ def convert(args):
                 mp_model_weights = os.path.join(
                     checkpoint_dir, f'mp_rank_{tp_rank:02d}', checkpoint_name
                 )
-                #TODO: Change to a move
                 shutil.copy(
                     mp_model_weights,
                     os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', save_connector.model_weights_ckpt),
@@ -158,7 +156,6 @@ def convert(args):
                 mp_model_weights = os.path.join(
                     checkpoint_dir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}',checkpoint_name
                 )
-                #TODO: Change to a move
                 shutil.copy(
                     mp_model_weights,
                     os.path.join(
@@ -176,7 +173,7 @@ def convert(args):
         # create tar file
         save_connector._make_nemo_file_from_folder(filename=save_path,source_dir=tmpdir)
         
-        os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
+    os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
 
 
 
