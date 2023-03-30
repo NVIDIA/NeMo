@@ -536,7 +536,7 @@ def tasb_retriever_msmarcominilm_reranker(all_contexts, queries, retriever_args)
 
 
 def get_relevant_context(questions, all_contexts, all_context_emb, neighbors, models):
-    buffer_size = 20
+    buffer_size = min(20, len(all_context_emb))
     all_contexts_formatted_emb = all_context_emb
     queries_emb = models[0].encode(questions)
 
