@@ -519,7 +519,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             load_cache=load_cache, # whether to load from the cache if it is available
             seed=1234,
             neighbors=num_neighbors,
-            megatron_lm_compatible=self.frozen_model.cfg.get('megatron_lm_compatible', False)
+            megatron_lm_compatible=self.frozen_model.cfg.get('megatron_lm_compatible', False),
+            retrieved_doc_len = self.cfg.data.get('retrieved_doc_len', 128)
         )
 
         if get_dataset_only:

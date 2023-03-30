@@ -144,6 +144,7 @@ model:
     train_ds: [data/rte_train.jsonl,]
     validation_ds: [data/rte_val.jsonl,]
     neighbors: 2 # number of retrieved neighbors
+    retrieved_doc_len: 128 # will trim/pad retrieved doc to this length whendoing cross attention
     add_eos: True
     shuffle: True
     num_workers: 8

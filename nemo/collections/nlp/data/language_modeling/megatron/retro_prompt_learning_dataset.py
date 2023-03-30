@@ -70,7 +70,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         seed: int = 1234,
         neighbors: int = 2,
         max_num_samples: int = None,
-        megatron_lm_compatible: bool = False
+        megatron_lm_compatible: bool = False,
+        retrieved_doc_len: int = 128
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -87,6 +88,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         self.neighbors = neighbors
         self.seed = seed
         self.megatron_lm_compatible = megatron_lm_compatible
+        self.retrieved_doc_len = retrieved_doc_len
         # self.examples = []
 
         if not self.for_train:
@@ -185,13 +187,13 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
             for i, neighbor in enumerate(contexts[: self.neighbors]):
                 tokens = self.tokenizer.text_to_ids(neighbor)
-                tokens = tokens[:128]
-                
+                tokens = tokens[:self.retrieved_doc_len]
+
                 if i == 0:
                     input_ids = tokens + input_ids
                 else:
-                    if len(tokens) < 128:
-                        tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
+                    if len(tokens) < self.retrieved_doc_len:
+                        tokens = tokens + [self.pad_token_id] * (self.retrieved_doc_len - len(tokens))
                     chunks.append(tokens)
 
 
@@ -270,14 +272,14 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
         for i, neighbor in enumerate(contexts[: self.neighbors]):
             tokens = self.tokenizer.text_to_ids(neighbor)
-            tokens = tokens[:128]
+            tokens = tokens[:self.retrieved_doc_len]
             
             
             if i == 0: # prepend top 1 
                 input_ids = tokens + input_ids
             else:
-                if len(tokens) < 128:
-                    tokens = tokens + [self.pad_token_id] * (128 - len(tokens))
+                if len(tokens) < self.retrieved_doc_len:
+                    tokens = tokens + [self.pad_token_id] * (self.retrieved_doc_len - len(tokens))
                 chunks.append(tokens)
 
 
