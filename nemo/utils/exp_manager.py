@@ -14,17 +14,15 @@
 
 import glob
 import os
-import re
 import subprocess
 import sys
 import time
 import warnings
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
@@ -37,7 +35,6 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -48,7 +45,7 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
-from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import uninject_model_parallel_rank
 from nemo.utils.callbacks import PreemptionCallback, NeMoModelCheckpoint
 
 
