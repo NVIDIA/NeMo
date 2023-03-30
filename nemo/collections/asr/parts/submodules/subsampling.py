@@ -80,6 +80,7 @@ class ConvSubsampling(torch.nn.Module):
         self._conv_channels = conv_channels
         self._feat_in = feat_in
         self._feat_out = feat_out
+        in_length = torch.tensor(feat_in, dtype=torch.float)
 
         if subsampling_factor % 2 != 0:
             raise ValueError("Sampling factor should be a multiply of 2!")
@@ -162,6 +163,17 @@ class ConvSubsampling(torch.nn.Module):
                 )
             in_channels = conv_channels
             layers.append(activation)
+            if '_midnorm' in subsampling:
+                out_length = calc_length(
+                    lengths=in_length,
+                    all_paddings=self._left_padding + self._right_padding,
+                    kernel_size=self._kernel_size,
+                    stride=self._stride,
+                    ceil_mode=self._ceil_mode,
+                    repeat_num=1,
+                )
+                norm_layer = nn.LayerNorm(int(out_length))
+                layers.append(norm_layer)
 
             for i in range(self._sampling_num - 1):
                 if self.is_causal:
@@ -189,6 +201,18 @@ class ConvSubsampling(torch.nn.Module):
                                 padding=0,
                                 groups=1))
                 layers.append(activation)
+                if '_midnorm' in subsampling:
+                    out_length = calc_length(
+                        lengths=in_length,
+                        all_paddings=self._left_padding + self._right_padding,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        ceil_mode=self._ceil_mode,
+                        repeat_num=i+2,
+                    )
+                    norm_layer = nn.LayerNorm(int(out_length))
+                    layers.append(norm_layer)
+
                 in_channels = conv_channels
 
         elif 'striding' in subsampling:
@@ -227,11 +251,21 @@ class ConvSubsampling(torch.nn.Module):
                         )
                     )
                 layers.append(activation)
+                if '_midnorm' in subsampling:
+                    out_length = calc_length(
+                        lengths=in_length,
+                        all_paddings=self._left_padding + self._right_padding,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        ceil_mode=self._ceil_mode,
+                        repeat_num=i+1,
+                    )
+                    norm_layer = nn.LayerNorm(int(out_length))
+                    layers.append(norm_layer)
                 in_channels = conv_channels
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
-        in_length = torch.tensor(feat_in, dtype=torch.float)
         out_length = calc_length(
             lengths=in_length,
             all_paddings=self._left_padding + self._right_padding,
