@@ -14,28 +14,22 @@
 
 import itertools
 import os
-import re
 from functools import partial
 from typing import Any, List, Optional, Union
 
 import torch
-from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
-    PromptEncoder,
-    PromptEncoderType,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
@@ -46,7 +40,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -72,20 +66,20 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
-    Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
-    certain token embeddings from the the pretrained GPT model's vocabulary
+    Prompt Tuning initializes virtual prompt embeddings directly from a copy of
+    certain token embeddings from the pretrained GPT model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
+    initialization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
     prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
-    embeddings for every task. Each task shares the same encoder. After ptuning
-    is compelete, the learned virtual prompts can be saved to the prompt table
+    embeddings for every task. Each task shares the same encoder. After p-tuning
+    is complete, the learned virtual prompts can be saved to the prompt table
     using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
     new virtual prompt via p-tuning, they do not need to retrain on all previous 
-    tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
+    tasks. This gives p-tuning the same task flexibility as prompt-tuning.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
