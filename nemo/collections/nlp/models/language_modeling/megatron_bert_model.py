@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import logging
-    from lddl.torch2 import get_bert_pretrain_data_loader2
+    from lddl.torch_mp import get_bert_pretrain_data_loader
 
     HAVE_LDDL = True
 except (ImportError, ModuleNotFoundError):
@@ -529,7 +529,7 @@ class MegatronBertModel(MegatronBaseModel):
         global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
         # We run under the assumption that the datapath is the prefix if LDDL dataloader
         train_lddl_data_path = self.cfg.data.data_prefix[0]
-        self._train_dl = get_bert_pretrain_data_loader2(
+        self._train_dl = get_bert_pretrain_data_loader(
             train_lddl_data_path,
             dp_rank=parallel_state.get_data_parallel_rank(),
             local_rank=self.local_rank,
@@ -552,7 +552,7 @@ class MegatronBertModel(MegatronBaseModel):
         )
         if len(self.cfg.data.data_prefix[1]) > 1:
             val_lddl_data_path = self.cfg.data.data_prefix[1]
-            self._val_dl = get_bert_pretrain_data_loader2(
+            self._val_dl = get_bert_pretrain_data_loader(
             val_lddl_data_path,
             dp_rank=parallel_state.get_data_parallel_rank(),
             local_rank=self.local_rank,
@@ -575,7 +575,7 @@ class MegatronBertModel(MegatronBaseModel):
         )
         if len(self.cfg.data.data_prefix[2]) > 2:
             test_lddl_data_path = self.cfg.data.data_prefix[2]
-            self._test_dl = get_bert_pretrain_data_loader2(
+            self._test_dl = get_bert_pretrain_data_loader(
             test_lddl_data_path,
             dp_rank=parallel_state.get_data_parallel_rank(),
             local_rank=self.local_rank,
@@ -704,6 +704,14 @@ class MegatronBertModel(MegatronBaseModel):
             # allowing restored models to optionally setup datasets
             if self.cfg.data.dataloader_type == "LDDL":
                 self.build_LDDL_data(self.cfg.data)
+                # The train dataloader needs to wound forward if there is consumed samples already
+                data_parallel_size = parallel_state.get_data_parallel_world_size()
+                num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
+                dp_gbs = num_micro_batches * self.cfg.micro_batch_size
+                wind_iters = self.compute_consumed_samples(0) // dp_gbs
+                loader_iter = iter(self._train_dl)
+                for i in range(wind_iters):
+                    next(loader_iter)
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
