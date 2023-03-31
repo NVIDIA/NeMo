@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.text_generation_strategy import TextGen
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
         super().__init__(model)
-        self.forward_model = self.model.model
+        self.forward_model = self.model.model.model
         self.frequent_query = args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
         self.store_retrieved = args['store_retrieved']

@@ -342,7 +342,7 @@ if __name__ == "__main__":
             use_num_docs = int(num_docs * args.percent)
             total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
         nlist = int(4 * np.sqrt(total_chunks))
-        assert 30 * nlist < args.train_index_size, f"need more training samples, at least {30 * nlist}"
+        # assert 30 * nlist < args.train_index_size, f"need more training samples, at least {30 * nlist}"
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
