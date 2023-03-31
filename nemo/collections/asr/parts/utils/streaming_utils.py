@@ -362,8 +362,9 @@ class StreamingFeatureBufferer:
         '''
 
         self.NORM_CONSTANT = 1e-5
-        if getattr(asr_model.preprocessor, 'log', False) \
-                or getattr(getattr(asr_model.preprocessor, 'featurizer', None), 'log', False):
+        if getattr(asr_model.preprocessor, 'log', False) or getattr(
+            getattr(asr_model.preprocessor, 'featurizer', None), 'log', False
+        ):
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
@@ -479,8 +480,7 @@ class AudioFeatureIterator(IterableDataset):
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
         self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
         self._features = self._features.squeeze()
-        if getattr(preprocessor, 'log', False) \
-                or getattr(getattr(preprocessor, 'featurizer', None), 'log', False):
+        if getattr(preprocessor, 'log', False) or getattr(getattr(preprocessor, 'featurizer', None), 'log', False):
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
@@ -497,7 +497,7 @@ class AudioFeatureIterator(IterableDataset):
             self._start = last
         else:
             frame = np.ones([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
-            frame *=  self.ZERO_LEVEL_SPEC_DB_VAL
+            frame *= self.ZERO_LEVEL_SPEC_DB_VAL
             samp_len = self._features_len[0] - self._start
             frame[:, 0:samp_len] = self._features[:, self._start : self._features_len[0]].cpu()
             self.output = False
@@ -583,8 +583,9 @@ class FeatureFrameBufferer:
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        if getattr(asr_model.preprocessor, 'log', False) \
-                or getattr(getattr(asr_model.preprocessor, 'featurizer', None), 'log', False):
+        if getattr(asr_model.preprocessor, 'log', False) or getattr(
+            getattr(asr_model.preprocessor, 'featurizer', None), 'log', False
+        ):
             self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
