@@ -26,6 +26,8 @@ FROM ${BASE_IMAGE} as nemo-deps
 ARG REQUIRE_TORCHAUDIO=false
 # k2: not required by default
 ARG REQUIRE_K2=false
+# ais cli: not required by default, install only if required
+ARG REQUIRE_AIS_CLI=false
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
@@ -42,11 +44,11 @@ RUN apt-get update && \
 
 WORKDIR /tmp/
 
-# TODO: Remove once this Apex commit (1/19/23) is included in PyTorch
+# TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout a32d7a6dddcf4e39d241b0d139c222a97c91887d && \
+  git checkout 03c9d80ed54c0eaa5b581bf42ceca3162f085327 && \
   pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
@@ -121,7 +123,12 @@ COPY tutorials /workspace/nemo/tutorials
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
   chmod +x start-jupyter.sh
 
-# Prepare AIS CLI
-ARG AIS_VERSION=v1.3.15
-ARG AIS_BIN=https://github.com/NVIDIA/aistore/releases/download/${AIS_VERSION}/ais-linux-amd64.tar.gz
-RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/. && rm ais-linux-amd64.tar.gz
+# If required, install AIS CLI
+RUN if [ "${REQUIRE_AIS_CLI}" = true ]; then \
+  INSTALL_MSG=$(/bin/bash scripts/installers/install_ais_cli_latest.sh); INSTALL_CODE=$?; \
+  echo ${INSTALL_MSG}; \
+  if [ ${INSTALL_CODE} -ne 0 ]; then \
+  echo "AIS CLI installation failed"; \
+  exit ${INSTALL_CODE}; \
+  else echo "AIS CLI installed successfully"; fi \
+  else echo "Skipping AIS CLI installation"; fi
