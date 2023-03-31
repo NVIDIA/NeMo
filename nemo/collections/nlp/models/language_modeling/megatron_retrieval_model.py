@@ -30,7 +30,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from functools import partial
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
     build_mock_train_valid_test_datasets,
-    # build_train_valid_test_datasets,
+    build_train_valid_test_datasets,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -527,13 +527,11 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     #         )
     #     else:
     #         raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
-    # else:
-    #     raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
-    # # Torch dataloader.
-    # return torch.utils.data.DataLoader(
-    #     dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
-    # )
+    #     # Torch dataloader.
+    #     return torch.utils.data.DataLoader(
+    #         dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+    #     )
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')

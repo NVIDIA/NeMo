@@ -99,8 +99,7 @@ def main(cfg) -> None:
     frozen_model_cfg.restore_from_path = cfg.model.restore_from_path
     frozen_model_cfg.eval = cfg.model.eval
     frozen_model_cfg.pop("shape_file")
-    frozen_model_cfg.micro_batch_size = 1
-    frozen_model_cfg.tensor_model_parallel_size = 4
+    # frozen_model_cfg.tensor_model_parallel_size = 4
 
     model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
     # model = MegatronRetrievalModel(cfg.model, trainer)
