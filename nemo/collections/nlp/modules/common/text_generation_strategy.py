@@ -281,6 +281,29 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         self.vlen = self.model.virtual_token_length
         self.assist_end_idx = assist_end_idx
 
+    def tokenize_batch(self, sentences, max_len, add_BOS):
+        """
+        convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
+        Args:
+            sentences (List[str]): list of input sentences in str format.
+            max_len (int): max number of tokens to generate.
+            add_BOS (bool): whether to add the BOS token at the beginning
+        Returns:
+            Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
+        """
+
+        tokenizer = self.model.tokenizer
+        pad_token_id = tokenizer.pad_id if tokenizer.pad_id is not None else tokenizer.unk_id
+        if add_BOS:
+            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+        else:
+            context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
+        context_tokens, context_lengths = pad_batch(context_tokens, pad_token_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor
+
+
     def forward_step(self, batch, tensor_shape):
 
         if self.model.cfg.get('pipeline_model_parallel_size', 1) > 1:
