@@ -68,66 +68,70 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-class MegatronTorchCheckpointIO(TorchCheckpointIO):
-    """ Overrides PTL TorchCheckpointIO:
-        https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.plugins.io.TorchCheckpointIO.html#torchcheckpointio
-        
-        We use the distributed checkpointing library from megatron core:
-        megatron/core/dist_checkpointing
-        This checkpointing library enables saving and loading of sharded tensors and 
-        in particular, we can resume training with different model parallel configurations
-        without having to use a conversion script first.
-    """
+# class MegatronTorchCheckpointIO(TorchCheckpointIO):
+#     """ Overrides PTL TorchCheckpointIO:
+#         https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.plugins.io.TorchCheckpointIO.html#torchcheckpointio
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
-        Args:
-            checkpoint: dict containing model and trainer state
-            path: write-target path
-            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-        Raises:
-            TypeError:
-                If ``storage_options`` arg is passed in
-        """
-        if storage_options is not None:
-            raise TypeError(
-                "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
-                f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
-                " to define how you'd like to use `storage_options`."
-            )
+#         We use the distributed checkpointing library from megatron core:
+#         megatron/core/dist_checkpointing
+#         This checkpointing library enables saving and loading of sharded tensors and
+#         in particular, we can resume training with different model parallel configurations
+#         without having to use a conversion script first.
+#     """
 
-        # dist_checkpointing expects a directory so we will name the directory
-        # using the path with the file extension removed
-        dirname = os.path.dirname(path)
-        basename = os.path.basename(path)
-        root, _ = os.path.splitext(basename)
-        checkpoint_dir = os.path.join(dirname, root)
+#     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+#         """Save model/training states as a checkpoint file through state-dump and file-write.
+#         Args:
+#             checkpoint: dict containing model and trainer state
+#             path: write-target path
+#             storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
+#         Raises:
+#             TypeError:
+#                 If ``storage_options`` arg is passed in
+#         """
+#         if storage_options is not None:
+#             raise TypeError(
+#                 "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
+#                 f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
+#                 " to define how you'd like to use `storage_options`."
+#             )
 
-        fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
+#         # dist_checkpointing expects a directory so we will name the directory
+#         # using the path with the file extension removed
+#         dirname = os.path.dirname(path)
+#         basename = os.path.basename(path)
+#         root, _ = os.path.splitext(basename)
+#         checkpoint_dir = os.path.join(dirname, root)
 
-        dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+#         fs = get_filesystem(checkpoint_dir)
+#         fs.makedirs(checkpoint_dir, exist_ok=True)
 
-    def load_checkpoint(
-        self, path: _PATH, map_location: Optional[Callable] = lambda storage, loc: storage
-    ) -> Dict[str, Any]:
-        """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of
-        files.
-        Args:
-            path: Path to checkpoint
-            map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
-                locations.
-        Returns: The loaded checkpoint.
-        Raises:
-            FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
-        """
+#         dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
 
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(path)
-        if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
+#     def load_checkpoint(
+#         self, path: _PATH, map_location: Optional[Callable] = lambda storage, loc: storage
+#     ) -> Dict[str, Any]:
+#         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of
+#         files.
+#         Args:
+#             path: Path to checkpoint
+#             map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
+#                 locations.
+#         Returns: The loaded checkpoint.
+#         Raises:
+#             FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
+#         """
 
-        return pl_load(path, map_location=map_location)
+#         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+#         fs = get_filesystem(path)
+#         if not fs.exists(path):
+#             raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
+#         if not fs.isdir(path):
+#             raise ValueError(f'Distributed checkpoints should be a directory. Found: {path}.')
+
+#         dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=path)
+
+#         return pl_load(path, map_location=map_location)
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -143,7 +147,7 @@ class NLPDDPStrategy(DDPStrategy):
         accelerator: Optional["pl.accelerators.Accelerator"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment: Optional[ClusterEnvironment] = None,
-        checkpoint_io: Optional[CheckpointIO] = MegatronTorchCheckpointIO(),
+        checkpoint_io: Optional[CheckpointIO] = None,
         precision_plugin: Optional[PrecisionPlugin] = None,
         ddp_comm_state: Optional[object] = None,
         ddp_comm_hook: Optional[Callable] = None,
@@ -276,36 +280,69 @@ class NLPDDPStrategy(DDPStrategy):
             called on every rank and internally does the rank checking.
         """
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        # dist_checkpointing expects a directory so we will name the directory
+        # using the path with the file extension removed
+        dirname = os.path.dirname(filepath)
+        basename = os.path.basename(filepath)
+        root, _ = os.path.splitext(basename)
+        checkpoint_dir = os.path.join(dirname, root)
+
+        fs = get_filesystem(checkpoint_dir)
+        fs.makedirs(checkpoint_dir, exist_ok=True)
+
+        dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
-        # Release strict state dict matching when using Megatron AMP-O2 to skip matching
-        # half-precision module wrapper module.
-        # TODO: Refactor this to be more generic.
-        model_key = None
-        model_attr = None
-        if hasattr(self.lightning_module, 'model'):
-            model_key = 'model'
-            model_attr = self.lightning_module.model
-        elif hasattr(self.lightning_module, 'enc_dec_model'):
-            model_key = 'enc_dec_model'
-            model_attr = self.lightning_module.enc_dec_model
-        if model_key is not None:
-            if isinstance(model_attr, Float16Module):
-                new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+        """ We do nothing here and instead load the state dict during
+            LightningModule.on_load_checkpoint hook
+        """
+        # # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+        # # half-precision module wrapper module.
+        # # TODO: Refactor this to be more generic.
+        # model_key = None
+        # model_attr = None
+        # if hasattr(self.lightning_module, 'model'):
+        #     model_key = 'model'
+        #     model_attr = self.lightning_module.model
+        # elif hasattr(self.lightning_module, 'enc_dec_model'):
+        #     model_key = 'enc_dec_model'
+        #     model_attr = self.lightning_module.enc_dec_model
+        # if model_key is not None:
+        #     if isinstance(model_attr, Float16Module):
+        #         new_state_dict = {}
+        #         for key in checkpoint['state_dict'].keys():
+        #             new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+        #             new_state_dict[new_key] = checkpoint['state_dict'][key]
+        #         checkpoint['state_dict'] = new_state_dict
 
-        self.lightning_module.load_state_dict(checkpoint["state_dict"])
+        # self.lightning_module.load_state_dict(checkpoint)
+        pass
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
-        """ PTL override to accomodate model parallel checkpoints """
-        # TODO: move to CheckpointIO
+        """ PTL method which we override to integrate distributed checkpoints for model parallel models.
+            In order to load distributed checkpoints we need to provide the sharded_state_dict to 
+            the distributed load function. We get the sharded_state_dict from self.lightning_module
+            which makes it convenient to have the loading logic happen at the strategy level.
+        """
+
         torch.cuda.empty_cache()
-        checkpoint_path = inject_model_parallel_rank(checkpoint_path)
-        return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        fs = get_filesystem(checkpoint_path)
+        if not fs.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+
+        # Distributed checkpoints must be directories.
+        if not fs.isdir(checkpoint_path):
+            raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
+
+        sharded_state_dict = self.lightning_module.sharded_state_dict
+
+        sharded_state_dict = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=checkpoint_path
+        )
+
+        return sharded_state_dict
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         app_state = AppState()

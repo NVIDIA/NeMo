@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -1004,6 +1004,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
+
+        We use this hook to save the sharded for GPTModel
         """
         if isinstance(self.model, list):
             for i in range(len(self.model)):
@@ -1013,15 +1015,45 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             checkpoint[f'model'] = self.model.sharded_state_dict()
 
+    # def load_state_dict(self, state_dict, strict=True):
+    #     """ Loads GPTModel state_dict.
+    #         state_dict must contain the sharded_state_dict defined in on_save_checkpoint
+    #     """
+
+    #     if isinstance(self.model, list):
+    #         for i in range(len(self.model)):
+    #             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+    #             self.model[i].load_state_dict(state_dict[f'model{i}'], strict=strict)
+    #         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+    #     else:
+    #         self.model.load_state_dict(state_dict['model'], strict=strict)
+
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+
+        We use this hook to call load_state_dict for GPTModel
         """
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        else:
+            self.model.load_state_dict(checkpoint['model'], strict=False)
+
+    @property
+    def sharded_state_dict(self) -> Dict[str, Any]:
+        sharded_state_dict = {}
+        if isinstance(self.model, list):
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                sharded_state_dict[f'model{i}'] = self.model[i].sharded_state_dict()
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        else:
+            sharded_state_dict[f'model'] = self.model.sharded_state_dict()
+
+        return sharded_state_dict
 
     def parameters(self):
         if isinstance(self.model, list):
