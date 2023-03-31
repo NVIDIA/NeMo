@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import re
-from collections import OrderedDict
 
 import torch
 from omegaconf.dictconfig import DictConfig
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
@@ -32,7 +30,6 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptStyle,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.utils import logging
 
 __all__ = ['MegatronBasePromptLearningModel']
 
@@ -41,20 +38,20 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron model. 
 
-    Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
-    certain token embeddings from the the pretrained model's vocabulary
+    Prompt Tuning initializes virtual prompt embeddings directly from a copy of
+    certain token embeddings from the pretrained model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
+    initialization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
     prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
-    embeddings for every task. Each task shares the same encoder. After ptuning
-    is compelete, the learned virtual prompts can be saved to the prompt table
+    embeddings for every task. Each task shares the same encoder. After p-tuning
+    is complete, the learned virtual prompts can be saved to the prompt table
     using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
     new virtual prompt via p-tuning, they do not need to retrain on all previous 
-    tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
+    tasks. This gives p-tuning the same task flexibility as prompt-tuning.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):

@@ -228,7 +228,7 @@ class PromptEncoder(NeuralModule, Exportable):
         self.init_std = init_std
         self.taskname = taskname
 
-        # Set fixed indicies for forward pass
+        # Set fixed indices for forward pass
         self.register_buffer("indices", torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
