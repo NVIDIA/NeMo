@@ -167,9 +167,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
-        self.original_num_micro_batches_with_partial_activation_checkpoints = (
-            base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints
-        )
         self.original_activations_checkpoint_layers_per_pipeline = (
             base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline
         )
@@ -1095,7 +1092,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         base_module.language_model.encoder.activations_checkpoint_granularity = None
         base_module.language_model.encoder.activations_checkpoint_method = None
         base_module.language_model.encoder.activations_checkpoint_num_layers = None
-        base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints = None
         base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
@@ -1106,9 +1102,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
         base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
         base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        base_module.language_model.encoder.num_micro_batches_with_partial_activation_checkpoints = (
-            self.original_num_micro_batches_with_partial_activation_checkpoints
-        )
         base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
             self.original_activations_checkpoint_layers_per_pipeline
         )
