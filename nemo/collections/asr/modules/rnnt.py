@@ -1312,7 +1312,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     # Reduce decoder length to preserve computation
                     # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                     if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)
+                        sub_dec = sub_dec.narrow(dim=1, start=0, length=int(max_sub_transcript_length + 1))
 
                     # Perform joint => [sub-batch, T', U', V + 1]
                     sub_joint = self.joint(sub_enc, sub_dec)
@@ -1322,7 +1322,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     # Reduce transcript length to correct alignment
                     # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
                     if sub_transcripts.shape[1] != max_sub_transcript_length:
-                        sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=max_sub_transcript_length)
+                        sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=int(max_sub_transcript_length))
 
                     # Compute sub batch loss
                     # preserve loss reduction type
@@ -1781,12 +1781,12 @@ class SampledRNNTJoint(RNNTJoint):
                 # Reduce decoder length to preserve computation
                 # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                 if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                    sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)
+                    sub_dec = sub_dec.narrow(dim=1, start=0, length=int(max_sub_transcript_length + 1))
 
                 # Reduce transcript length to correct alignment
                 # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
                 if sub_transcripts.shape[1] != max_sub_transcript_length:
-                    sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=max_sub_transcript_length)
+                    sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=int(max_sub_transcript_length))
 
                 # Perform sampled joint => [sub-batch, T', U', {V' < V} + 1}]
                 sub_joint, sub_transcripts_remapped = self.sampled_joint(
