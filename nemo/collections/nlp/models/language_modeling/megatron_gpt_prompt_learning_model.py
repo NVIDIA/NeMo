@@ -29,11 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import (
-    VirtualPromptPlaceholderToken,
-    VirtualPromptSource,
-    VirtualPromptStyle,
-)
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
