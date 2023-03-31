@@ -24,29 +24,92 @@ from scipy import ndimage
 from torch.special import gammaln
 
 
-def get_audio_paths(audio_path: Path, base_path: Path) -> Tuple[Path, Path]:
-    if os.path.isabs(audio_path):
-        abs_path = audio_path
-        rel_path = audio_path.relative_to(base_path)
+def get_abs_rel_paths(input_path: Path, base_path: Path) -> Tuple[Path, Path]:
+    """
+    Get the absolute and relative paths of input file path.
+
+    Args:
+        input_path: An absolute or relative path.
+        base_path: base directory the input is relative to.
+
+    Returns:
+        The absolute and relative paths of the file.
+    """
+    if os.path.isabs(input_path):
+        abs_path = input_path
+        rel_path = input_path.relative_to(base_path)
     else:
-        rel_path = audio_path
+        rel_path = input_path
         abs_path = base_path / rel_path
 
     return abs_path, rel_path
 
 
-def get_sup_data_file_name(audio_path: Path):
+def get_audio_paths_from_manifest(manifest_entry: dict, audio_dir: Path) -> Tuple[Path, Path]:
+    """
+    Get the absolute and relative paths of audio from a manifest entry.
+
+    Args:
+        manifest_entry: Manifest entry dictionary.
+        audio_dir: base directory where audio is stored.
+
+    Returns:
+        The absolute and relative paths of the audio.
+    """
+    audio_filepath = Path(manifest_entry["audio_filepath"])
+    audio_path, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=audio_dir)
+    return audio_path, audio_path_rel
+
+
+def get_feature_filename(audio_path: Path):
+    """
+    Get the name of a feature file by encoding the input audio path.
+
+    Args:
+        audio_path: (relative) path of audio the feature belongs to.
+
+    Returns:
+        Name of file to store feature in.
+    """
     audio_prefix = str(audio_path.with_suffix(""))
     audio_id = audio_prefix.replace(os.sep, "_")
-    file_name = f"{audio_id}.pt"
-    return file_name
+    filename = f"{audio_id}.pt"
+    return filename
+
+
+def get_feature_filename_from_manifest(manifest_entry: dict, audio_dir: Path):
+    """
+    Get the name of a feature file for the input manifest entry.
+
+    Args:
+        manifest_entry: Manifest entry dictionary.
+        audio_dir: base directory where audio is stored.
+
+    Returns:
+        Name of file to store feature in.
+    """
+    audio_filepath = Path(manifest_entry["audio_filepath"])
+    _, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=audio_dir)
+    filename = get_feature_filename(audio_path_rel)
+    return filename
 
 
 def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Path) -> Path:
+    """
+    Get the absolute path of a supplementary data data type for the input manifest entry.
+
+    Args:
+        entry: Manifest entry dictionary.
+        base_audio_path: base directory where audio is stored.
+        sup_data_path: base directory where supplementary data is stored.
+
+    Returns:
+        Path to the supplementary data file.
+    """
     audio_path = Path(entry["audio_filepath"])
     rel_audio_path = audio_path.relative_to(base_audio_path).with_suffix("")
-    file_name = get_sup_data_file_name(rel_audio_path)
-    file_path = sup_data_path / file_name
+    filename = get_feature_filename(rel_audio_path)
+    file_path = sup_data_path / filename
     return file_path
 
 
