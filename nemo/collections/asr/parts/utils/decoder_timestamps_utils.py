@@ -227,7 +227,7 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     Normalization will be done per buffer in frame_bufferer.
     """
     asr.reset()
-    asr.read_audio_file_and_return(audio_file_path, delay, model_stride_in_secs)
+    asr.read_audio_file_and_return(audio_file_path, delay - frame_len / model_stride_in_secs, model_stride_in_secs)
     hyp, tokens, log_prob = asr.transcribe_with_ts(tokens_per_chunk, delay)
     return hyp, tokens, log_prob
 
