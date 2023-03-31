@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-This script computes features for TTS model prior to training, such as pitch and energy.
+This script computes features for TTS models prior to training, such as pitch and energy.
 The resulting features will be stored in the provided 'sup_data_path'.
 
 $ python <nemo_root_path>/scripts/dataset_processing/tts/compute_features.py \
@@ -108,19 +108,19 @@ def _process_entry(
 
         if pitch_base_path:
             pitch_path = pitch_base_path / sup_data_file_name
-            pitch_tensor = torch.from_numpy(pitch)
+            pitch_tensor = torch.tensor(pitch, dtype=torch.float32)
             torch.save(pitch_tensor, pitch_path)
 
         if voiced_base_path:
             voiced_path = voiced_base_path / sup_data_file_name
-            voiced_tensor = torch.from_numpy(voiced)
+            voiced_tensor = torch.tensor(voiced, dtype=torch.bool)
             torch.save(voiced_tensor, voiced_path)
 
     if energy_base_path:
         energy_path = energy_base_path / sup_data_file_name
         spec = mel_featurizer.compute_mel_spectrogram(audio)
         energy = compute_energy(spec)
-        energy_tensor = torch.from_numpy(energy)
+        energy_tensor = torch.tensor(energy, dtype=torch.float32)
         torch.save(energy_tensor, energy_path)
 
     return
