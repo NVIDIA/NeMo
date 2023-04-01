@@ -137,7 +137,7 @@ def main(cfg) -> None:
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
-        batch_size=64,
+        batch_size=cfg.inference.batch_size,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
@@ -147,6 +147,8 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
+        num_neighbors=cfg.retrieval_service.neighbors,
+        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
     )
 
     config = OmegaConf.to_container(cfg.inference)

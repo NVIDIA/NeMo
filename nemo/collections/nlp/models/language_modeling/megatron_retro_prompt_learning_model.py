@@ -438,7 +438,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
-                num_neighbors=self.cfg.data.neighbors
+                num_neighbors=self.cfg.data.neighbors,
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
             )
 
     def setup_validation_data(self, validation_data_config=None):
@@ -460,7 +461,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('validation_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
-                num_neighbors=self.cfg.data.neighbors
+                num_neighbors=self.cfg.data.neighbors,
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
             )
 
     def setup_test_data(self, test_data_config=None):
@@ -479,7 +481,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('test_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
-                num_neighbors=self.cfg.data.neighbors
+                num_neighbors=self.cfg.data.neighbors,
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
             )
 
     def build_virtual_prompt_dataset(
@@ -500,6 +503,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         cache_data_path=None,
         load_cache=False,
         num_neighbors=2,
+        retrieved_doc_len = 128 
     ):
        
         dataset = RetroPromptLearningDataset(
@@ -520,7 +524,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             seed=1234,
             neighbors=num_neighbors,
             megatron_lm_compatible=self.frozen_model.cfg.get('megatron_lm_compatible', False),
-            retrieved_doc_len = self.cfg.data.get('retrieved_doc_len', 128)
+            retrieved_doc_len = retrieved_doc_len
         )
 
         if get_dataset_only:

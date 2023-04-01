@@ -9,7 +9,7 @@ inference:
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
-
+  batch_size: 8
 
 trainer:
   devices: 1
@@ -30,6 +30,7 @@ num_workers: 8
 retrieval_service:
   strategy: RetroQAModelNEIGHBORSREADYTextGenerationStrategy # RetroModelTextGenerationStrategy  # choose customized inference strategy 
   neighbors: 2
+  retrieved_doc_len: 128
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
   pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
