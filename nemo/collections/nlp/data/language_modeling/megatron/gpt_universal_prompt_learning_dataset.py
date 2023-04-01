@@ -86,7 +86,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         self.answer_only_loss = answer_only_loss
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.assistant_prompt = 'long_nv'
+        self.assistant_prompt = 'no-assistant'
         self.index_mapping_dir = index_mapping_dir
 
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
