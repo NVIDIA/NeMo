@@ -45,6 +45,8 @@ I am designed to generate human-like text based on the input that I receive. Thi
 Feel free to ask me any questions that you have, and I will do my best to provide a helpful and accurate response. You can also provide me with text or a topic, and I can generate text based on that input. Whether you have a specific question that you need answered, or you need help with a language-related task, please let me know how I can assist you today.
 User: """
 
+PRODUCTION_PROMPT = """User: """
+
 
 class GPTUniversalPromptLearningT0Dataset(Dataset):
     """
@@ -86,7 +88,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         self.answer_only_loss = answer_only_loss
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.assistant_prompt = 'no-assistant'
+        self.assistant_prompt = 'production'
         self.index_mapping_dir = index_mapping_dir
 
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -154,6 +156,9 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         elif self.assistant_prompt == 'long_nv':
             context = LONG_ASSIST_PROMPT_NV + context + "\n\nAssistant:"
             assit_end_idx = len(self.tokenizer.text_to_ids(LONG_ASSIST_PROMPT_NV)) - 1
+        elif self.assistant_prompt == 'production':
+            assit_end_idx = 0
+            context = PRODUCTION_PROMPT + context + "\n\nAssistant:"
 
         text = context + ' ' + label
 
