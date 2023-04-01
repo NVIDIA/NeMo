@@ -343,6 +343,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         self.position_ids = build_position_ids(tokens)
         pad_id = tokenizer.pad_id if tokenizer.pad_id is not None else tokenizer.unk_id
         self.prompt_input_mask = tokens != pad_id
+        self.max_context = self.prompt_input_mask.sum(axis=1).max() + 1
         if (tokens[:, 0] == tokenizer.bos_id).all().item():
             # If the first token is BOS, don't mask it
             # to be consistent with the training data
@@ -385,11 +386,11 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         assist_end_index = torch.tensor([self.assist_end_idx] * micro_batch_size, device=torch.cuda.current_device())
 
         batch = [
-            tokens,
+            tokens[:, :self.max_context],
             tokens2use,
             positions2use,
             attention_mask_repeat,
-            self.prompt_input_mask,
+            self.prompt_input_mask[:, :self.max_context],
             setkey_value_array,
             len_array,
             assist_end_index,

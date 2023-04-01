@@ -89,6 +89,8 @@ def main(cfg) -> None:
             prompt_learning_cfg.activations_checkpoint_method = None
             prompt_learning_cfg.micro_batch_size = cfg.batch_size
             prompt_learning_cfg.global_batch_size = cfg.global_batch_size
+            for perceiver_cfg in prompt_learning_cfg.perceiver:
+                perceiver_cfg.masked_softmax_fusion = False
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base
