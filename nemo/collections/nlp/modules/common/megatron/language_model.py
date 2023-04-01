@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.utils.app_state import AppState
 
 try:
-    from apex.transformer import tensor_parallel
+    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
@@ -673,16 +673,27 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
             elif self.encoder.input_tensor is not None:
                 if self.sequence_parallel:
+<<<<<<< HEAD
                     app_state = AppState()
                     rotary_pos_emb = self.rotary_pos_emb(
                         self.encoder.input_tensor.size(0) * app_state.tensor_model_parallel_size
+=======
+                    rotary_pos_emb = self.rotary_pos_emb(
+                        self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+>>>>>>> main
                     )
                 else:
                     rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
                 if self.sequence_parallel:
+<<<<<<< HEAD
                     app_state = AppState()
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0) * app_state.tensor_model_parallel_size)
+=======
+                    rotary_pos_emb = self.rotary_pos_emb(
+                        encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                    )
+>>>>>>> main
                 else:
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         else:

@@ -47,7 +47,7 @@ from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams
+from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 
@@ -96,7 +96,10 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
+    auto_insert_metric_name: bool = True
     every_n_epochs: Optional[int] = 1
+    every_n_train_steps: Optional[int] = None
+    train_time_interval: Optional[str] = None
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -104,21 +107,6 @@ class CallbackParams:
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
     save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
-
-
-@dataclass
-class MLFlowParams:
-    # name of experiment, if none, defaults to the globally set experiment name
-    experiment_name: Optional[str] = None
-    # no run_name because it's set by version
-    # local or remote tracking seerver. If tracking_uri is not set, it defaults to save_dir
-    tracking_uri: Optional[str] = None
-    tags: Optional[Dict[str, Any]] = None
-    save_dir: Optional[str] = "./mlruns"
-    prefix: str = ""
-    artifact_location: Optional[str] = None
-    # provide run_id if resuming a previously started run
-    run_id: Optional[str] = None
 
 
 @dataclass
@@ -141,6 +129,9 @@ class EMAParams:
 
 @dataclass
 class ExpManagerConfig:
+    """Experiment Manager config for validation of passed arguments.
+    """
+
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
     exp_dir: Optional[str] = None
