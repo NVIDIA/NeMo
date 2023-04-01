@@ -322,7 +322,7 @@ class ConvSubsampling(torch.nn.Module):
 
     def reset_parameters(self):
         # initialize weights
-        if self._subsampling == 'dw_striding':
+        if 'dw_striding' in self._subsampling:
             with torch.no_grad():
                 # init conv
                 scale = 1.0 / self._kernel_size
