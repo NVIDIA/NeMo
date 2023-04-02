@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import random
-
 import torch
 import torch.nn as nn
 
@@ -44,15 +44,15 @@ class SpecAugment(nn.Module, Typing):
         """Returns definitions of module input types
         """
         return {
-            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "input_spec": NeuralType(("B", "D", "T"), SpectrogramType()),
+            "length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types
         """
-        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {"augmented_spec": NeuralType(("B", "D", "T"), SpectrogramType())}
 
     def __init__(
         self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
@@ -80,29 +80,34 @@ class SpecAugment(nn.Module, Typing):
     @typecheck()
     @torch.no_grad()
     def forward(self, input_spec, length):
-        sh = input_spec.shape
+        batch_size, num_freq_bins, _ = input_spec.shape
+        # Move lengths to CPU before repeated indexing
+        length = length.cpu().numpy()
+        # Generate a numpy boolean mask. `True` elements represent where the input spec will be augmented.
+        fill_mask: np.array = np.full(shape=input_spec.shape, fill_value=False)
+        freq_start_upper_bound = num_freq_bins - self.freq_width
+        # Choose different mask ranges for each element of the batch
+        for idx in range(batch_size):
+            # Set freq masking
+            for _ in range(self.freq_masks):
+                start = self._rng.randint(0, freq_start_upper_bound)
+                width = self._rng.randint(0, self.freq_width)
+                fill_mask[idx, start : start + width, :] = True
 
-        for idx in range(sh[0]):
-            for i in range(self.freq_masks):
-                x_left = self._rng.randint(0, sh[1] - self.freq_width)
+            # Derive time width, sometimes based percentage of input length.
+            if self.adaptive_temporal_width:
+                time_max_width = max(1, int(length[idx] * self.time_width))
+            else:
+                time_max_width = self.time_width
+            time_start_upper_bound = max(1, length[idx] - time_max_width)
 
-                w = self._rng.randint(0, self.freq_width)
-
-                input_spec[idx, x_left : x_left + w, :] = self.mask_value
-
-            for i in range(self.time_masks):
-                if self.adaptive_temporal_width:
-                    time_width = max(1, int(length[idx] * self.time_width))
-                else:
-                    time_width = self.time_width
-
-                y_left = self._rng.randint(0, max(1, length[idx] - time_width))
-
-                w = self._rng.randint(0, time_width)
-
-                input_spec[idx, :, y_left : y_left + w] = self.mask_value
-
-        return input_spec
+            # Set time masking
+            for _ in range(self.time_masks):
+                start = self._rng.randint(0, time_start_upper_bound)
+                width = self._rng.randint(0, time_max_width)
+                fill_mask[idx, :, start : start + width] = True
+        # Bring the mask to device and fill spec
+        return input_spec.masked_fill(mask=torch.tensor(fill_mask, device=input_spec.device), value=self.mask_value)
 
 
 class SpecCutout(nn.Module, Typing):
@@ -120,13 +125,13 @@ class SpecCutout(nn.Module, Typing):
     def input_types(self):
         """Returns definitions of module input types
         """
-        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {"input_spec": NeuralType(("B", "D", "T"), SpectrogramType())}
 
     @property
     def output_types(self):
         """Returns definitions of module output types
         """
-        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {"augmented_spec": NeuralType(("B", "D", "T"), SpectrogramType())}
 
     def __init__(self, rect_masks=0, rect_time=5, rect_freq=20, rng=None):
         super(SpecCutout, self).__init__()
