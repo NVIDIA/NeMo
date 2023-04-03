@@ -498,6 +498,74 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
 
 @experimental
+class RussianPhonemesTokenizer(BaseCharsTokenizer):
+
+    def __init__(
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=any_locale_text_preprocessing,
+    ):
+        """Russian phoneme-based tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Currently, it only applies lower() function.
+        """
+
+        ru_ipa = "əɪɐɨaʊioueʉæɵɛ" + "vrmtpsnʂkflzɫbdjɕxɡʐ" + "аеёиоуыэюя" + "бвгджзйклмнпрстфхцчшщъь"
+        ru_ipa += "ʲ"  # soft
+        ru_ipa += "`"  # stress
+        ru_ipa += "ː̃"  # long
+
+        super().__init__(
+            chars=ru_ipa,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=text_preprocessing_func,
+        )
+
+    def encode(self, text):
+        """See base class."""
+        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        for c in text:
+            # Add space if last one isn't one
+            if c == space and len(cs) > 0 and cs[-1] != space:
+                cs.append(c)
+            # Add next char
+            elif (c.isalnum() or c == "'") and c in tokens:
+                cs.append(c)
+            # Add punct
+            elif (c in self.PUNCT_LIST) and self.punct:
+                cs.append(c)
+            # Warn about unknown char
+            elif c != space:
+                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+
+        # Remove trailing spaces
+        while cs[-1] == space:
+            cs.pop()
+
+        if self.pad_with_space:
+            cs = [space] + cs + [space]
+
+        return [self._token2id[p] for p in cs]
+
+
+@experimental
 class IPATokenizer(BaseTokenizer):
     def __init__(
         self,
