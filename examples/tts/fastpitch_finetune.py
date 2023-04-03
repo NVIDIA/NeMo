@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from synthesize_examples import synthesize_examples
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
@@ -28,13 +28,31 @@ def main(cfg):
     if cfg.model.optim.lr > 1e-3 or cfg.model.optim.lr < 1e-5:
         logging.warning("The recommended learning rate for finetuning is 2e-4")
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    logdir = exp_manager(trainer, cfg.get("exp_manager", None))
     model = FastPitchModel(cfg=cfg.model, trainer=trainer)
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
+
+    checkpoints_dir = logdir / 'checkpoints'
+
     trainer.fit(model)
+
+    checkpoints_dir = logdir / 'checkpoints'
+    matches = checkpoints_dir.glob('*-last.ckpt')
+    if len(matches) == 0:
+        print('cannot find checkpoint to evaluate model on')
+        return
+
+    checkpoint_path, = matches
+    synthesize_examples(
+        tts_ckpt=checkpoint_path,
+        dest=logdir / 'eval',
+        data=f'validation:{cfg.validation_datasets}',
+        run_wer_calculations=True,
+    )
+
 
 
 if __name__ == '__main__':

@@ -84,7 +84,7 @@ def synthesize_examples(
     tts_ckpt,
     dest,
     data,
-    calculate_wer=False,
+    run_wer_calculations=False,
 ):
     device = torch.device('cpu')
     if torch.cuda.is_available():
@@ -92,14 +92,11 @@ def synthesize_examples(
     vocoder = HifiGanModel.from_pretrained("tts_hifigan")
     vocoder = vocoder.eval()
 
-    last_ckpt = args.tts_ckpt
-    dest = args.dest
-
-    spec_model = FastPitchModel.load_from_checkpoint(last_ckpt)
+    spec_model = FastPitchModel.load_from_checkpoint(tts_ckpt)
     spec_model.eval()
 
     folder_names, manifest_names = [], []
-    for dataset_str in args.data:
+    for dataset_str in data:
         folder_name, manifest_name = dataset_str.split(':')
         folder_names += [folder_name]
         manifest_names += [manifest_name]
@@ -126,11 +123,11 @@ def synthesize_examples(
 
         eval_groups[f'{folder_name}/generated'] = generated_eval_group
 
-    if args.calculate_wer:
+    if run_wer_calculations:
         asr_models = {
             'tiny': whisper.load_model("tiny.en", device=device),
-            'base': whisper.load_model("base.en", device=device),
-            'medium': whisper.load_model("medium.en", device=device),
+            # 'base': whisper.load_model("base.en", device=device),
+            # 'medium': whisper.load_model("medium.en", device=device),
         }
         wer_results = calculate_wer(eval_groups, asr_models)
 
