@@ -31,15 +31,14 @@ __all__ = [
     'concat_perm_word_error_rate',
 ]
 
-
 def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> List[str]:
     """
     For evaluation of online diarization performance, generate partial reference labels 
     from the last prediction time.
 
     Args:
-        pred_labels (list[str]): list of prediction labels
-        ref_labels (list[str]): list of reference labels
+        pred_labels (list[str]): list of partial prediction labels
+        ref_labels (list[str]): list of full reference labels 
 
     Returns:
         ref_labels_out (list[str]): list of partial reference labels
@@ -50,6 +49,9 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
     for label in ref_labels:
         start, end, speaker = label.split()
         start, end = float(start), float(end)
+        # If ref start time passes the last prediction time, break
+        if start >= last_pred_time:
+            break
         # If the current [start, end] interval is latching the last prediction time
         if start < last_pred_time <= end:
             label = f"{start} {last_pred_time} {speaker}"
@@ -59,16 +61,15 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
             ref_labels_out.append(label)
     return ref_labels_out
 
-
 def get_online_DER_stats(
-    DER: float,
-    CER: float,
-    FA: float,
-    MISS: float,
-    diar_eval_count: int,
-    der_stat_dict: Dict[str, float],
-    deci: int = 3,
-) -> Tuple[Dict[str, float], Dict[str, float]]:
+    DER: float, 
+    CER: float, 
+    FA: float, 
+    MISS: float, 
+    diar_eval_count: int, 
+    der_stat_dict: Dict[str, float], 
+    deci: int=3
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     For evaluation of online diarization performance, add cumulative, average, and maximum DER/CER.
 
