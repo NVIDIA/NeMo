@@ -40,7 +40,7 @@ def main(cfg):
     trainer.fit(model)
 
     checkpoints_dir = logdir / 'checkpoints'
-    matches = checkpoints_dir.glob('*-last.ckpt')
+    matches = list(checkpoints_dir.glob('*-last.ckpt'))
     if len(matches) == 0:
         print('cannot find checkpoint to evaluate model on')
         return
