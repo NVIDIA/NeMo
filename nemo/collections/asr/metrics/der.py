@@ -19,9 +19,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from pyannote.core import Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
-from nemo.collections.asr.parts.utils.optimization_utils  import linear_sum_assignment
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 from nemo.utils import logging
 
 __all__ = [
@@ -95,6 +95,7 @@ def get_online_DER_stats(
     der_stat_dict['max_DER'] = round(max(der_dict['DER'], der_stat_dict['max_DER']), deci)
     der_stat_dict['max_CER'] = round(max(der_dict['CER'], der_stat_dict['max_CER']), deci)
     return der_dict, der_stat_dict
+
 
 def uem_timeline_from_file(uem_file, uniq_name=''):
     """

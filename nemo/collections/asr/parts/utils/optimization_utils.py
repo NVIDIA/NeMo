@@ -13,6 +13,7 @@
 # limitations under the License.
 import torch
 
+
 @torch.jit.script
 def unravel_index(index: int, shape: torch.Tensor):
     """
@@ -31,8 +32,9 @@ def unravel_index(index: int, shape: torch.Tensor):
     for dim in shape:
         out.append(index % dim)
         index = index // dim
-    out = torch.tensor([ int(x.item()) for x in out ])
+    out = torch.tensor([int(x.item()) for x in out])
     return torch.flip(out, dims=(0,))
+
 
 @torch.jit.script
 class LinearSumAssignmentSolver(object):
@@ -70,8 +72,9 @@ class LinearSumAssignmentSolver(object):
         path (Tensor): 2D matrix containing the path taken through the matrix.
         marked (Tensor): 2D matrix containing the marked zeros.
     """
+
     def __init__(self, cost_matrix):
-        # The main cost matrix 
+        # The main cost matrix
         self.cost_mat = cost_matrix
         row_len, col_len = self.cost_mat.shape
 
@@ -84,7 +87,7 @@ class LinearSumAssignmentSolver(object):
         self.col_uncovered = torch.ones(col_len, dtype=torch.bool).to(cost_matrix.device)
 
         # Initialize the path matrix and the mark matrix
-        self.path = torch.zeros((row_len+col_len, 2), dtype=torch.long).to(cost_matrix.device)
+        self.path = torch.zeros((row_len + col_len, 2), dtype=torch.long).to(cost_matrix.device)
         self.marked = torch.zeros((row_len, col_len), dtype=torch.long).to(cost_matrix.device)
 
     def _reset_uncovered_mat(self):
@@ -145,12 +148,12 @@ class LinearSumAssignmentSolver(object):
                 In this case, Go to Step 0 (Done state)
                 - Otherwise, Go to Step 4.
         """
-        marked = (self.marked == 1)
+        marked = self.marked == 1
         self.col_uncovered[torch.any(marked, dim=0)] = False
         if marked.sum() < self.cost_mat.shape[0]:
-            return 4 # Go to step 4
+            return 4  # Go to step 4
         else:
-            return 0 # Go to step 0 (Done state)
+            return 0  # Go to step 0 (Done state)
 
     def _step4(self, bypass: bool = False) -> int:
         """
@@ -178,9 +181,9 @@ class LinearSumAssignmentSolver(object):
                 if covered_cost_mat[row, col] == 0:
                     return 6
                 else:
-                    self.marked[row, col] = 2 # Find the first marked element in the row
+                    self.marked[row, col] = 2  # Find the first marked element in the row
                     mark_col = torch.argmax((self.marked[row] == 1).int())
-                    if self.marked[row, mark_col] != 1: # No marked element in the row
+                    if self.marked[row, mark_col] != 1:  # No marked element in the row
                         self.zero_row = torch.tensor(row)
                         self.zero_col = torch.tensor(col)
                         return 5
@@ -213,7 +216,7 @@ class LinearSumAssignmentSolver(object):
         path[count, 0] = self.zero_row.long()
         path[count, 1] = self.zero_col.long()
 
-        while True: # Unmark each marked zero of the series
+        while True:  # Unmark each marked zero of the series
             # Find the first marked element in the col defined by the path (= `val`)
             row = torch.argmax((self.marked[:, path[count, 1]] == 1).int())
 
@@ -234,14 +237,14 @@ class LinearSumAssignmentSolver(object):
             path[count, 1] = col
 
         # Convert paths
-        for i in range(int(count.item())+ 1):
+        for i in range(int(count.item()) + 1):
             if self.marked[path[i, 0], path[i, 1]] == 1:
                 self.marked[path[i, 0], path[i, 1]] = 0
             else:
                 self.marked[path[i, 0], path[i, 1]] = 1
 
         self._reset_uncovered_mat()
-        
+
         # Remove all prime markings in marked matrix
         self.marked[self.marked == 2] = 0
         return 3
@@ -264,6 +267,7 @@ class LinearSumAssignmentSolver(object):
             self.cost_mat[:, self.col_uncovered] -= minval
         return 4
 
+
 @torch.jit.script
 def linear_sum_assignment(cost_matrix):
     """
@@ -279,7 +283,7 @@ def linear_sum_assignment(cost_matrix):
     cost_matrix = cost_matrix.clone().detach()
 
     if len(cost_matrix.shape) != 2:
-        raise ValueError("2-d tensor is expected but got a {cost_matrix.shape} tensor" )
+        raise ValueError("2-d tensor is expected but got a {cost_matrix.shape} tensor")
 
     # The algorithm expects more columns than rows in the cost matrix.
     if cost_matrix.shape[1] < cost_matrix.shape[0]:
@@ -289,7 +293,7 @@ def linear_sum_assignment(cost_matrix):
         transposed = False
 
     lap_solver = LinearSumAssignmentSolver(cost_matrix)
-    f_int: int = 0  if 0 in cost_matrix.shape else 1
+    f_int: int = 0 if 0 in cost_matrix.shape else 1
 
     # while step is not Done (step 0):
     # NOTE: torch.jit.scipt does not support getattr with string argument.
@@ -307,7 +311,7 @@ def linear_sum_assignment(cost_matrix):
             f_int = lap_solver._step5()
         elif f_int == 6:
             f_int = lap_solver._step6()
-    
+
     if transposed:
         marked = lap_solver.marked.T
     else:
