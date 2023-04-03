@@ -33,6 +33,7 @@ __all__ = [
     'concat_perm_word_error_rate',
 ]
 
+
 def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> List[str]:
     """
     For evaluation of online diarization performance, generate partial reference labels 
@@ -63,15 +64,16 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
             ref_labels_out.append(label)
     return ref_labels_out
 
+
 def get_online_DER_stats(
-    DER: float, 
-    CER: float, 
-    FA: float, 
-    MISS: float, 
-    diar_eval_count: int, 
-    der_stat_dict: Dict[str, float], 
-    deci: int=3
-    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+    DER: float,
+    CER: float,
+    FA: float,
+    MISS: float,
+    diar_eval_count: int,
+    der_stat_dict: Dict[str, float],
+    deci: int = 3,
+) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     For evaluation of online diarization performance, add cumulative, average, and maximum DER/CER.
 
