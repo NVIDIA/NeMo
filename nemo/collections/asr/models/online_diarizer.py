@@ -437,7 +437,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 try:
                     embeddings = torch.vstack((embeddings[:stt_idx, :], torch_embs))
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+
+                    ipdb.set_trace()
 
         elif end_idx < stt_idx:
             embeddings = embeddings[: len(segment_ranges)]
@@ -477,12 +479,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             device=device,
         )
 
-        base_segment_indexes=torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
+        base_segment_indexes = torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
         merged_clus_labels = self.online_clus.forward_infer(
-            curr_emb=curr_emb,
-            base_segment_indexes=base_segment_indexes,
-            frame_index=self.frame_index, 
-            cuda=cuda,
+            curr_emb=curr_emb, base_segment_indexes=base_segment_indexes, frame_index=self.frame_index, cuda=cuda,
         )
         # Update history data
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():

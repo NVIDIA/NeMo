@@ -17,6 +17,7 @@ import os
 import numpy as np
 import pytest
 import torch
+from scipy.optimize import linear_sum_assignment as scipy_linear_sum_assignment
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.offline_clustering import (
@@ -35,34 +36,25 @@ from nemo.collections.asr.parts.utils.online_clustering import (
     run_reducer,
     stitch_cluster_labels,
 )
+from nemo.collections.asr.parts.utils.optimization_utils import LinearSumAssignmentSolver
+from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment as nemo_linear_sum_assignment
 from nemo.collections.asr.parts.utils.speaker_utils import (
     OnlineSegmentor,
     check_ranges,
-    get_new_cursor_for_update,
-    get_online_subsegments_from_buffer,
-    get_speech_labels_for_update,
-    get_subsegments,
-    get_target_sig,
-    merge_float_intervals,
-    merge_int_intervals,
-    is_overlap,
     fl2int,
-    int2fl,
-    get_sub_range_list,
-    merge_float_intervals,
-    merge_int_intervals,
-    check_ranges,
-    tensor_to_list,
-    get_speech_labels_for_update,
     get_new_cursor_for_update,
     get_online_segments_from_slices,
+    get_online_subsegments_from_buffer,
+    get_speech_labels_for_update,
+    get_sub_range_list,
+    get_subsegments,
+    get_target_sig,
+    int2fl,
+    is_overlap,
+    merge_float_intervals,
+    merge_int_intervals,
+    tensor_to_list,
 )
-
-from nemo.collections.asr.parts.utils.optimization_utils import (
-    linear_sum_assignment as nemo_linear_sum_assignment, 
-    LinearSumAssignmentSolver,
-)
-from scipy.optimize import linear_sum_assignment as scipy_linear_sum_assignment
 
 
 def check_range_values(target, source):
@@ -329,6 +321,7 @@ class TestDiarizationSequneceUtilFunctions:
         class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
         assert all(class_target_vol == torch.tensor([2, 0, 0, 0]))
 
+
 class TestClassExport:
     @pytest.mark.unit
     def test_online_segmentor_class_export(self):
@@ -350,23 +343,23 @@ class TestClassExport:
             sparse_search_volume=30,
             history_buffer_size=150,
             current_buffer_size=150,
-            cuda=True
+            cuda=True,
         )
         online_clus = torch.jit.script(online_clus)
         isinstance(online_clus, torch.jit._script.RecursiveScriptClass)
-    
+
     @pytest.mark.unit
     def test_online_speaker_clustering_instance_export(self):
-        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, 
-                                                       min_samples_for_nmesc=0, 
-                                                       cuda=True)
+        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=True)
         offline_speaker_clustering = torch.jit.script(offline_speaker_clustering)
         isinstance(offline_speaker_clustering, torch.jit._script.RecursiveScriptClass)
+
 
 class TestDiarizationSegmentationUtils:
     """
     Test segmentation util functions
     """
+
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "intervals",
@@ -408,13 +401,13 @@ class TestDiarizationSegmentationUtils:
     @pytest.mark.parametrize("rangeA", [[1.0, 2.0]])
     @pytest.mark.parametrize("rangeB", [[0.5, 1.5], [0.9999, 1.0001]])
     def test_is_overlap_true(self, rangeA, rangeB):
-        assert is_overlap(rangeA, rangeB) 
+        assert is_overlap(rangeA, rangeB)
 
     @pytest.mark.unit
     @pytest.mark.parametrize("rangeA", [[1.0, 2.0]])
     @pytest.mark.parametrize("rangeB", [[2.0, 2.5], [-1.0, 1.00]])
     def test_is_overlap_false(self, rangeA, rangeB):
-        assert not is_overlap(rangeA, rangeB) 
+        assert not is_overlap(rangeA, rangeB)
 
     @pytest.mark.unit
     @pytest.mark.parametrize("x", [1.0, 2.3456])
@@ -426,7 +419,7 @@ class TestDiarizationSegmentationUtils:
     @pytest.mark.parametrize("x", [1234])
     @pytest.mark.parametrize("decimals", [1, 2, 3, 4,])
     def test_int2fl(self, x, decimals):
-        assert abs(int2fl(x, decimals) - round(x / (10 ** decimals), decimals)) < (10 ** -(decimals+1))
+        assert abs(int2fl(x, decimals) - round(x / (10 ** decimals), decimals)) < (10 ** -(decimals + 1))
 
     @pytest.mark.unit
     def test_merge_float_intervals_edge_margin_test(self):
@@ -521,8 +514,9 @@ class TestDiarizationSegmentationUtils:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("target_range", [[1.0, 4.0]])
-    @pytest.mark.parametrize("source_range_list", [[[2.0, 3.0], [3.0, 4.0]], 
-                                                   [[0.0, 2.0], [3.0, 5.0]], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]])
+    @pytest.mark.parametrize(
+        "source_range_list", [[[2.0, 3.0], [3.0, 4.0]], [[0.0, 2.0], [3.0, 5.0]], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]
+    )
     def get_sub_range_list(self, target_range, source_range_list):
         sub_range_list = get_sub_range_list(target_range, source_range_list)
         assert sub_range_list == [[2.0, 3.0], [3.0, 4.0]]
@@ -536,21 +530,20 @@ class TestDiarizationSegmentationUtils:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-    "buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate",
-    [
-        (0.0, 2.0, [[0.5, 1.0], [1.5, 2.0]], 0, 0.1, 16000),
-        (0.0, 5.0, [[0.5, 2.5], [2.7, 5.0]], 0, 1.0, 16000),
-    ]
-)
-    def test_get_online_segments_from_slices(self, buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate):
-        sig = torch.randn(int(sample_rate*buffer_end))
-        ind_offset, sigs_list, sig_rangel_list, sig_indexes = get_online_segments_from_slices(sig, buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate)
+        "buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate",
+        [(0.0, 2.0, [[0.5, 1.0], [1.5, 2.0]], 0, 0.1, 16000), (0.0, 5.0, [[0.5, 2.5], [2.7, 5.0]], 0, 1.0, 16000),],
+    )
+    def test_get_online_segments_from_slices(
+        self, buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate
+    ):
+        sig = torch.randn(int(sample_rate * buffer_end))
+        ind_offset, sigs_list, sig_rangel_list, sig_indexes = get_online_segments_from_slices(
+            sig, buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate
+        )
         assert ind_offset == 2
         assert len(sigs_list) == 2
         assert len(sig_rangel_list) == 2
         assert len(sig_indexes) == 2
-
-
 
 
 class TestClusteringUtilFunctions:
@@ -575,6 +568,7 @@ class TestSpeakerClustering:
     """
     Test speaker clustering module
     """
+
     @pytest.mark.unit
     @pytest.mark.parametrize("cuda", [True, False])
     def test_offline_clus_script_save_load(self, cuda):
@@ -588,7 +582,7 @@ class TestSpeakerClustering:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("cuda", [True, False])
-    def test_online_clus_script_save_load(self, cuda): 
+    def test_online_clus_script_save_load(self, cuda):
         exported_filename = 'speaker_clustering_script.pt'
         speaker_clustering_python = OnlineSpeakerClustering(
             max_num_speakers=8,
@@ -645,7 +639,6 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("jit_script", [False, True])
     def test_offline_speaker_clustering_cpu(self, n_spks, total_sec, SSV, perturb_sigma, seed, jit_script, cuda=False):
         self.test_offline_speaker_clustering(n_spks, total_sec, SSV, perturb_sigma, seed, jit_script, cuda=cuda)
-     
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -760,15 +753,14 @@ class TestSpeakerClustering:
             )
 
             # Call clustering function
-            merged_clus_labels = online_clus.forward_infer(curr_emb=curr_emb, 
-                                                           base_segment_indexes=base_segment_indexes,
-                                                           frame_index=frame_index, 
-                                                           cuda=cuda)
+            merged_clus_labels = online_clus.forward_infer(
+                curr_emb=curr_emb, base_segment_indexes=base_segment_indexes, frame_index=frame_index, cuda=cuda
+            )
 
             # Resolve permutations
             assert len(merged_clus_labels) == (frame_index + 1) * step_per_frame
             # Resolve permutation issue by using stitch_cluster_labels function
-            merged_clus_labels = merged_clus_labels.cpu() 
+            merged_clus_labels = merged_clus_labels.cpu()
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))
 
@@ -783,20 +775,20 @@ class TestSpeakerClustering:
     def test_online_speaker_clustering_cpu(self, n_spks, total_sec, buffer_size, sigma, seed, jit_script, cuda=False):
         self.test_online_speaker_clustering(n_spks, total_sec, buffer_size, sigma, seed, jit_script, cuda)
 
+
 class TestLinearSumAssignmentAlgorithm:
     @pytest.mark.unit
     def test_lsa_solver_export_test(self):
-        cost_matrix = torch.randint(0, 10, (3, 3)) 
+        cost_matrix = torch.randint(0, 10, (3, 3))
         solver = LinearSumAssignmentSolver(cost_matrix)
         solver = torch.jit.script(solver)
         assert isinstance(solver, torch.jit._script.RecursiveScriptClass)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("cost_matrix", [torch.tensor([[7, 6, 2, 9, 2],
-                                                           [6, 2, 1, 3, 9],
-                                                           [5, 6, 8, 9, 5],
-                                                           [6, 8, 5, 8, 6],
-                                                           [9, 5, 6, 4, 7]])])
+    @pytest.mark.parametrize(
+        "cost_matrix",
+        [torch.tensor([[7, 6, 2, 9, 2], [6, 2, 1, 3, 9], [5, 6, 8, 9, 5], [6, 8, 5, 8, 6], [9, 5, 6, 4, 7]])],
+    )
     def test_linear_sum_assignment_algorithm_cost_matrix(self, cost_matrix):
         """
         Test the linear sum assignment algorithm with a cost matrix
@@ -806,9 +798,9 @@ class TestLinearSumAssignmentAlgorithm:
               This test only checks if the cost is the same.
         """
         row_ind_nm, col_ind_nm = nemo_linear_sum_assignment(cost_matrix)
-        row_ind_sc, col_ind_sc = scipy_linear_sum_assignment(cost_matrix.cpu().numpy())   
+        row_ind_sc, col_ind_sc = scipy_linear_sum_assignment(cost_matrix.cpu().numpy())
         cost_nm = sum(cost_matrix[row_ind_nm, col_ind_nm])
-        cost_sc = sum(cost_matrix[row_ind_sc, col_ind_sc]) 
+        cost_sc = sum(cost_matrix[row_ind_sc, col_ind_sc])
         assert cost_nm == cost_sc
 
     @pytest.mark.unit

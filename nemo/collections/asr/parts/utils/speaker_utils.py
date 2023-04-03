@@ -645,7 +645,6 @@ def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
         raise ValueError("All files present in manifest contains silence, aborting next steps")
 
 
-
 def is_overlap(rangeA: List[float], rangeB: List[float]) -> bool:
     """
     Check whether two ranges have overlap.
@@ -662,6 +661,7 @@ def is_overlap(rangeA: List[float], rangeB: List[float]) -> bool:
     start1, end1 = rangeA[0], rangeA[1]
     start2, end2 = rangeB[0], rangeB[1]
     return end1 > start2 and end2 > start1
+
 
 def get_overlap_range(rangeA: List[float], rangeB: List[float]):
     """
@@ -739,6 +739,7 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
         merged_list.append([start, end])
         return merged_list
 
+
 def fl2int(x: float, decimals: int = 3) -> int:
     """
     Convert floating point number to integer.
@@ -746,12 +747,12 @@ def fl2int(x: float, decimals: int = 3) -> int:
     return torch.round(torch.tensor([x * (10 ** decimals)]), decimals=0).int().item()
 
 
-
 def int2fl(x: int, decimals: int = 3) -> float:
     """
     Convert integer to floating point number.
     """
     return torch.round(torch.tensor([x / (10 ** decimals)]), decimals=decimals).item()
+
 
 def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: int = 2) -> List[List[float]]:
     """
@@ -795,6 +796,7 @@ def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: 
     merged_ranges_float = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges_int]
     return merged_ranges_float
 
+
 def get_sub_range_list(target_range: List[float], source_range_list: List[List[float]]) -> List[List[float]]:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
@@ -828,6 +830,7 @@ def get_sub_range_list(target_range: List[float], source_range_list: List[List[f
                 ovl_range = get_overlap_range(s_range, target_range)
                 out_range.append(ovl_range)
         return out_range
+
 
 def write_rttm2manifest(
     AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5
@@ -868,6 +871,7 @@ def write_rttm2manifest(
                 )
                 write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, decimals)
     return manifest_file
+
 
 def segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
@@ -922,6 +926,7 @@ def segments_manifest_to_subsegments_manifest(
 
     return subsegments_manifest_file
 
+
 def get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
     Return subsegments from a segment of audio file
@@ -945,6 +950,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
         subsegments.append([start, end - start])
         start = offset + (slice_id + 1) * shift
     return subsegments
+
 
 def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,) -> torch.Tensor:
     """
@@ -991,6 +997,7 @@ def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     For online segmentation. Force the list elements to be float type.
     """
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
+
 
 def get_speech_labels_for_update(
     frame_start: float,
@@ -1059,7 +1066,6 @@ def get_speech_labels_for_update(
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
-
 def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
     """
     Function for updating a cursor online speaker diarization. 
@@ -1092,7 +1098,6 @@ def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[fl
             break
     cursor_index = len(segment_range_ts) - count
     return cursor_for_old_segments, cursor_index
-
 
 
 def get_online_segments_from_slices(
@@ -1590,7 +1595,6 @@ def embedding_normalize(embs, use_std=False, eps=1e-10):
     embs = embs / embs_l2_norm
 
     return embs
-
 
 
 class OnlineSegmentor:

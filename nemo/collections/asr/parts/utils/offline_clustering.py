@@ -541,8 +541,7 @@ def getLaplacian(X: torch.Tensor) -> torch.Tensor:
     return L
 
 
-def eigDecompose(
-    laplacian: torch.Tensor, cuda: bool, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
     """
