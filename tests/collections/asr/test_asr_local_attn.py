@@ -134,7 +134,7 @@ class TestASRLocalAttention:
             'self_attention_model': 'rel_pos_local_attn',
             'att_context_size': [128, 128],
             'global_tokens': global_tokens,
-            'global_tokens_spacing': global_tokens_spacing
+            'global_tokens_spacing': global_tokens_spacing,
         }
         decoder_config = {
             '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',

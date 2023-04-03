@@ -638,7 +638,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         global_attn_output = global_attn_output.reshape(global_attn_output.shape[0], -1)
 
-
         return global_attn_output
 
     # Longformer implementation for overlap case
