@@ -1,4 +1,5 @@
 # It contains the default values for training a Fast Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
+# This version uses Longformer-style attention in order to handle longer audio
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -6,7 +7,6 @@
 
 # You may find more info about Fast Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
 
-# This version uses Longformer-style attention in order to handle longer audio
 # Differences from baseline config are in
 # model.encoder.global_tokens
 # model.encoder.global_tokens_spacing
