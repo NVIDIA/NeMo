@@ -22,7 +22,7 @@ python scripts/nlp_language_modeling/extract_inference_only_weights.py p_tuning.
 """
 import argparse
 import os
-import torch 
+import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument("nemo", help="path to nemo file", type=str)
