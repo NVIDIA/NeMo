@@ -752,7 +752,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
     ) -> Tuple[bool, int, torch.Tensor, torch.Tensor]:
         """
         This function performs the following tasks:
-            1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
+            1. Decide whether to extract more embeddings or not (by setting `is_update`)
         (Only if we need update):
             2. Calculate how many embeddings should be updated (set `new_emb_n` variable)
             3. Update history embedding vectors and save it to `pre_embs`.
@@ -791,7 +791,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 Tensor containing unique segment (embedding vector) index
 
         Returns:
-            update_speaker_register (bool):
+            is_update (bool):
                 Boolean indicates whether to update speaker embedding vectors.
             new_emb_n (int):
                 The amount of embedding vectors that are exceeding FIFO queue size.
@@ -808,7 +808,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         new_emb_n: int = 0
         pre_embs: torch.Tensor = torch.empty(0)
         pre_clus_labels: torch.Tensor = torch.empty(0)
-        update_speaker_register = True
+        is_update = True
 
         if total_segments_processed_count > self.max_embed_count:
             # Case-1: The very first step
@@ -845,12 +845,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
         # Case-3: Number of embedding vectors is not increased.
         else:
             # There will be no embedding update, so new_emb_n is 0, pre_embs and pre_clus_labels are empty.
-            update_speaker_register = False
+            is_update = False
 
         # Update the history buffer index for the next step
         self.history_buffer_seg_end = hist_curr_boundary
         self.max_embed_count = max(total_segments_processed_count, self.max_embed_count)
-        return update_speaker_register, new_emb_n, pre_embs, pre_clus_labels
+        return is_update, new_emb_n, pre_embs, pre_clus_labels
 
     def make_constant_length_emb(self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor) -> torch.Tensor:
         """
@@ -886,11 +886,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
             emb_curr = emb_in[curr_clustered_segments]
         return emb_curr
 
-    def reduce_embedding_sets(
+    def update_speaker_history_buffer(
         self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor
     ) -> Tuple[torch.Tensor, bool]:
         """
         Merge the given embedding vectors based on the calculate affinity matrix.
+        if `is_update` is True, update the history buffer .
 
         Args:
             emb_in (Tensor):
@@ -905,7 +906,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             history_embedding_buffer_emb (Tensor):
                 Matrix containing merged embedding vectors of the previous frames.
                 This matrix is referred to as "history buffer" in this class.
-            update_speaker_register (bool):
+            is_update (bool):
                 Boolean indicates whether to update speaker
 
         Example:
@@ -954,12 +955,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
             The total number of segments that have been merged from the beginning of the session.
             (=`hist_curr_boundary`)
         """
-        update_speaker_register, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
+        is_update, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
 
         # Update the history/current_buffer boundary cursor
         total_emb, total_cluster_labels = [], []
 
-        if update_speaker_register:
+        if is_update:
 
             # Calculate how many embedding vectors should be reduced per speaker
             class_target_vol = get_merge_quantity(
@@ -984,6 +985,8 @@ class OnlineSpeakerClustering(torch.nn.Module):
             self.history_embedding_buffer_label = torch.hstack(total_cluster_labels)
             if self.history_embedding_buffer_emb.shape[0] != self.history_n:
                 raise ValueError("History embedding size is not maintained correctly.")
+            if len(self.history_embedding_buffer_label) != self.history_n:
+                raise ValueError("History label size is not maintained correctly.")
 
         else:
             total_emb.append(self.history_embedding_buffer_emb)
@@ -1001,7 +1004,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         history_and_current_labels = torch.hstack(total_cluster_labels)
         if history_and_current_emb.shape[0] != len(history_and_current_labels):
             raise ValueError("`history_and_current_emb` has a mismatch in length with `history_and_current_labels`.")
-        return history_and_current_emb, update_speaker_register
+        return history_and_current_emb, is_update
 
     def get_reduced_mat(self, emb_in: torch.Tensor, base_segment_indexes:torch.Tensor) -> Tuple[torch.Tensor, bool]:
         """
@@ -1011,7 +1014,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Case-1: If margin_seg_n > 0, this means we have more embedding vectors than we can hold in the processing buffer.
             - `is_online` should be `True`
             - reduce the number of embedding vectors by merging the closest ones.
-                call `self.reduce_embedding_sets` function
+                call `update_speaker_history_buffer` function
 
         Case-2: If margin_seg_n <= 0, this means that we can accept more embedding vectors and yet to fill the processing buffer.
             - `is_online` should be `False`
@@ -1047,7 +1050,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             )
         if margin_seg_n > 0:
             self.is_online = True
-            merged_emb, add_new = self.reduce_embedding_sets(emb_in, base_segment_indexes)
+            merged_emb, add_new = self.update_speaker_history_buffer(emb_in=emb_in, base_segment_indexes=base_segment_indexes)
         else:
             self.is_online = False
             merged_emb = emb_in
