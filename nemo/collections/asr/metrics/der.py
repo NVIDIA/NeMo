@@ -70,10 +70,10 @@ def get_online_DER_stats(
     For evaluation of online diarization performance, add cumulative, average, and maximum DER/CER.
 
     Args:
-        DER (float): Diarization Error Rate
-        CER (float): Clustering Error Rate
-        FA (float): False Alarm
-        MISS (float): Miss
+        DER (float): Diarization Error Rate from the start to the current point 
+        CER (float): Confusion Error Rate from the start to the current point 
+        FA (float): False Alarm from the start to the current point
+        MISS (float): Miss rate from the start to the current point
         diar_eval_count (int): Number of evaluation sessions
         der_stat_dict (dict): Dictionary containing cumulative, average, and maximum DER/CER
         deci (int): Number of decimal places to round
