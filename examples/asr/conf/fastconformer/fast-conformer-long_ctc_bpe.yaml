@@ -12,7 +12,7 @@
 # model.encoder.global_tokens_spacing
 # model.encoder.global_attn_separate
 
-name: "FastConformer-long-CTC-BPE"
+name: "FastConformer-Long-CTC-BPE"
 
 model:
   sample_rate: 16000

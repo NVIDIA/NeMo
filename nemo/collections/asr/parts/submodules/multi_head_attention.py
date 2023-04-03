@@ -382,6 +382,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
             if self.global_tokens > 0:
 
+                # create q, k, v for global attn
                 if self.global_attn_separate:
                     global_q = self.global_q(query).view(n_batch, -1, self.h, self.d_k)
                     global_k = self.global_k(key).view(n_batch, -1, self.h, self.d_k)
@@ -397,6 +398,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
                 global_q /= self.s_d_k
 
+                # assign which tokens are global
                 is_index_global_attn = torch.zeros_like(pad_mask)
                 is_index_global_attn[
                     :, : self.global_tokens * self.global_tokens_spacing : self.global_tokens_spacing
@@ -411,6 +413,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                 ) = self._get_global_attn_indices(is_index_global_attn=is_index_global_attn)
 
                 # calculate global attn probs with global keys
+                # (batch, time, head, max_num_global_attn_indices)
                 global_key_attn = self._compute_global_key_attn(
                     query=global_q.transpose(1, 2),
                     key=global_k.transpose(1, 2),
@@ -423,6 +426,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                 global_key_attn = torch.softmax(global_key_attn, dim=-1).masked_fill(mask, 0.0)
                 global_key_attn = self.dropout(global_key_attn)
 
+                # compute outputs for global attention from all tokens to global
+                # (batch, time, head x head_dim)
                 out_all_to_global = self._compute_out_all_to_global(
                     value=global_v,
                     attn_probs=global_key_attn,
@@ -431,6 +436,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
                 )
 
+                # compute outputs for global attention from global tokens to all
+                # (batch, max_num_global_attn_indices, head x head_dim)
                 out_global_to_all = self._compute_out_global_to_all(
                     query=global_q,
                     key=global_k,
