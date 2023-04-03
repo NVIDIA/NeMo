@@ -46,8 +46,16 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
     Returns:
         ref_labels_out (list[str]): list of partial reference labels
     """
-    # The lastest prediction time in the prediction labels
-    last_pred_time = float(pred_labels[-1].split()[1])
+    # If there is no reference, return empty list
+    if len(ref_labels) == 0:
+        return []
+
+    # If there is no prediction, set the last prediction time to 0
+    if len(pred_labels) == 0:
+        last_pred_time = 0
+    else:
+        # The lastest prediction time in the prediction labels
+        last_pred_time = max([float(labels.split()[1]) for labels in pred_labels])
     ref_labels_out = []
     for label in ref_labels:
         start, end, speaker = label.split()
@@ -56,8 +64,10 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
         if start >= last_pred_time:
             break
         # If the current [start, end] interval is latching the last prediction time
-        if start < last_pred_time <= end:
-            label = f"{start} {last_pred_time} {speaker}"
+        if start < last_pred_time:
+            end_time = min(end, last_pred_time)
+            print(f"start {start} end {end} last_pred_time {last_pred_time} end_time {end_time}")
+            label = f"{start} {end_time} {speaker}"
             ref_labels_out.append(label)
         # Other cases where the current [start, end] interval is before the last prediction time
         elif end < last_pred_time:

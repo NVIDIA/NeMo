@@ -434,12 +434,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             if embeddings is None or embeddings.shape[0] == 0:
                 embeddings = torch_embs
             else:
-                try:
-                    embeddings = torch.vstack((embeddings[:stt_idx, :], torch_embs))
-                except:
-                    import ipdb
-
-                    ipdb.set_trace()
+                embeddings = torch.vstack((embeddings[:stt_idx, :], torch_embs))
 
         elif end_idx < stt_idx:
             embeddings = embeddings[: len(segment_ranges)]
