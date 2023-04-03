@@ -91,7 +91,10 @@ class TestASRLocalAttention:
     @pytest.mark.parametrize(
         "global_tokens", [0, 1, 4],
     )
-    def test_train(self, global_tokens):
+    @pytest.mark.parametrize(
+        "global_tokens_spacing", [1, 4],
+    )
+    def test_train(self, global_tokens, global_tokens_spacing):
         preprocessor_config = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
         vocabulary = [
             ' ',
@@ -131,6 +134,7 @@ class TestASRLocalAttention:
             'self_attention_model': 'rel_pos_local_attn',
             'att_context_size': [128, 128],
             'global_tokens': global_tokens,
+            'global_tokens_spacing': global_tokens_spacing
         }
         decoder_config = {
             '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
@@ -166,7 +170,7 @@ class TestASRLocalAttention:
 
         asr_model = EncDecCTCModel(cfg=model_config)
         asr_model.train()
-        logprobs, *_ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
+        _ = asr_model.forward(input_signal=input_signal, input_signal_length=input_length)
 
         trainer = pl.Trainer(max_epochs=1)
         trainer.fit(

@@ -34,7 +34,7 @@ Part of this code is adopted from https://github.com/espnet/espnet
 
 import math
 from functools import lru_cache
-from typing import List, Optional, Tuple
+from typing import List, Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -248,7 +248,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
 
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
-    """Multi-Head Attention layer of Transformer-XL with sliding window local attention from Longformer.
+    """Multi-Head Attention layer of Transformer-XL with sliding window local+global attention from Longformer.
+    Partially adapted from allenai (https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py)
+    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py) 
     Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
            https://arxiv.org/abs/2004.05150 (Longformer)
     Args:
@@ -260,7 +262,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes.
         max_cache_len (int): the maximum size of cache
         global_tokens (int): number of tokens to be used for global attention
-        global_tokens_placing (str): where the tokens should be placed. Defaults to 'start'.
+        global_tokens_spacing (int): how far apart the global tokens are
         global_attn_separate (bool): whether the q, k, v layers used for global tokens should be separate
     """
 
@@ -274,7 +276,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         att_context_size,
         max_cache_len=0,
         global_tokens=0,
-        global_tokens_placing="start",
+        global_tokens_spacing=1,
         global_attn_separate=False,
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
@@ -288,35 +290,13 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         )
         self.att_context_size = att_context_size
         self.global_tokens = global_tokens
-        self.global_tokens_placing = global_tokens_placing
+        self.global_tokens_spacing = global_tokens_spacing
         self.global_attn_separate = global_attn_separate
 
         if self.global_attn_separate:
             self.global_q = nn.Linear(n_feat, n_feat)
             self.global_k = nn.Linear(n_feat, n_feat)
             self.global_v = nn.Linear(n_feat, n_feat)
-
-    def forward_global_qkv(self, query, key, value):
-        """Transforms query, key and value.
-        Args:
-            query (torch.Tensor): (batch, time1, size)
-            key (torch.Tensor): (batch, time2, size)
-            value (torch.Tensor): (batch, time2, size)
-        returns:
-            q (torch.Tensor): (batch, head, time1, size)
-            k (torch.Tensor): (batch, head, time2, size)
-            v (torch.Tensor): (batch, head, time2, size)
-        """
-        if self.global_attn_separate:
-            q = self.global_q(query)
-            k = self.global_k(key)
-            v = self.global_v(value)
-        else:
-            q = self.linear_q(query)
-            k = self.linear_k(key)
-            v = self.linear_v(value)
-
-        return q, k, v
 
     def forward(self, query, key, value, pad_mask, pos_emb, cache=None, cache_next=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
@@ -394,84 +374,83 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
             scores += d_mask
 
+            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
+            attn = self.dropout(attn)
+            # (batch, head, time, 2w + 1)
+
+            out = self.sliding_chunks_matmul_pv(attn, v, w).reshape(n_batch, -1, self.h * self.d_k)
+
             if self.global_tokens > 0:
 
-                is_index_global_attn = torch.zeros_like(pad_mask)
-
-                if self.global_tokens_placing == "start":
-                    is_index_global_attn[:, : self.global_tokens] = 1
+                if self.global_attn_separate:
+                    global_q = self.global_q(query).view(n_batch, -1, self.h, self.d_k)
+                    global_k = self.global_k(key).view(n_batch, -1, self.h, self.d_k)
+                    global_v = self.global_v(value).view(n_batch, -1, self.h, self.d_k)
+                    global_q = global_q.transpose(1, 2)
+                    global_k = global_k.transpose(1, 2)
+                    global_v = global_v.transpose(1, 2)
+                    global_q = F.pad(global_q, (0, 0, 0, pad_len))  # (batch, head, time, size)
+                    global_k = F.pad(global_k, (0, 0, 0, pad_len))  # (batch, head, time, size)
+                    global_v = F.pad(global_v, (0, 0, 0, pad_len))  # (batch, head, time, size)
                 else:
-                    raise ValueError("Invalid value for global_tokens_placing. Currently only \"start\" is supported")
+                    global_q, global_k, global_v = q, k, v
 
-                # compute global attn indices required throughout forward fn
+                global_q /= self.s_d_k
+
+                is_index_global_attn = torch.zeros_like(pad_mask)
+                is_index_global_attn[
+                    :, : self.global_tokens * self.global_tokens_spacing : self.global_tokens_spacing
+                ] = 1.0
+
+                # compute global attn indices
                 (
                     max_num_global_attn_indices,
                     is_index_global_attn_nonzero,
                     is_local_index_global_attn_nonzero,
                     is_local_index_no_global_attn_nonzero,
                 ) = self._get_global_attn_indices(is_index_global_attn=is_index_global_attn)
-                # calculate global attn probs from global key
 
-                global_key_attn_scores = self._compute_attn_probs_global_key(
-                    query_vectors=q.transpose(1, 2),
-                    key_vectors=k.transpose(1, 2),
+                # calculate global attn probs with global keys
+                global_key_attn = self._compute_global_key_attn(
+                    query=global_q.transpose(1, 2),
+                    key=global_k.transpose(1, 2),
                     max_num_global_attn_indices=max_num_global_attn_indices,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
                     is_local_index_no_global_attn_nonzero=is_local_index_no_global_attn_nonzero,
                 ).transpose(1, 2)
-                # concat to local_attn_probs
-                # (batch_size, seq_len, num_heads, extra attention count + 2*window+1)
-                scores = torch.cat((global_key_attn_scores, scores), dim=-1)
 
-                # free memory
-                del global_key_attn_scores
+                global_key_attn = torch.softmax(global_key_attn, dim=-1).masked_fill(mask, 0.0)
+                global_key_attn = self.dropout(global_key_attn)
 
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
-            p_attn = self.dropout(attn)
-            # (batch, head, time, 2w + 1)
-
-            # compute local attention output with global attention value and add
-            if self.global_tokens > 0:
-                # compute sum of global and local attn
-                x = self._compute_attn_output_with_global_indices(
-                    value_vectors=v.transpose(1, 2),
-                    attn_probs=p_attn,
+                out_all_to_global = self._compute_out_all_to_global(
+                    value=global_v,
+                    attn_probs=global_key_attn,
                     max_num_global_attn_indices=max_num_global_attn_indices,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
-                    w=w,
                 )
-            else:
-                # compute local attn only
-                x = self.sliding_chunks_matmul_pv(p_attn, v, w).reshape(n_batch, -1, self.h * self.d_k)[:, :T]
 
-            # compute value for global attention and overwrite to attention output
-            if self.global_tokens > 0:
-                global_attn_output, global_attn_probs = self._compute_global_attn_output_from_hidden(
-                    hidden_states=key,
+                out_global_to_all = self._compute_out_global_to_all(
+                    query=global_q,
+                    key=global_k,
+                    value=global_v,
                     max_num_global_attn_indices=max_num_global_attn_indices,
-                    layer_head_mask=None,
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
                     is_local_index_no_global_attn_nonzero=is_local_index_no_global_attn_nonzero,
-                    is_index_masked=pad_mask,
+                    is_index_masked=mask,
                 )
 
-                # get only non zero global attn output
-                nonzero_global_attn_output = global_attn_output[
-                    is_local_index_global_attn_nonzero[0], :, is_local_index_global_attn_nonzero[1]
-                ]
+                out += out_all_to_global
 
-                # overwrite values with global attention
-                x[is_index_global_attn_nonzero] = nonzero_global_attn_output
+                out[is_index_global_attn_nonzero] += out_global_to_all
 
-        return self.linear_out(x.reshape(n_batch, -1, self.h * self.d_k)[:, :T])
+        return self.linear_out(out.reshape(n_batch, -1, self.h * self.d_k)[:, :T])
 
-    @staticmethod
-    def _get_global_attn_indices(is_index_global_attn: torch.Tensor) -> Tuple:
+    def _get_global_attn_indices(self, is_index_global_attn: torch.Tensor) -> Tuple:
         """
-        Compute global attention indices required throughout the forward pass.
+        Compute global attention indices.
 
         Args:
             is_index_global_attn (torch.Tensor): (batch, time) A boolean tensor indicating if an index is a global attention index.
@@ -509,10 +488,10 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             is_local_index_no_global_attn_nonzero,
         )
 
-    def _compute_attn_probs_global_key(
+    def _compute_global_key_attn(
         self,
-        key_vectors: torch.Tensor,
-        query_vectors: torch.Tensor,
+        key: torch.Tensor,
+        query: torch.Tensor,
         max_num_global_attn_indices: int,
         is_index_global_attn_nonzero: tuple,
         is_local_index_global_attn_nonzero: tuple,
@@ -522,8 +501,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         Compute the attention probabilities using only global key vectors.
 
         Args:
-            key_vectors (torch.Tensor): (batch, time, head, head_dim) The key vectors.
-            query_vectors (torch.Tensor): (batch, time, head, head_dim) The query vectors.
+            key (torch.Tensor): (batch, time, head, head_dim) The key vectors.
+            query (torch.Tensor): (batch, time, head, head_dim) The query vectors.
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
@@ -532,15 +511,15 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         Returns:
             attn_probs_from_global_key (torch.Tensor): (batch, time, head, max_num_global_attn_indices) The computed attention probabilities using only global key vectors.
         """
-        batch_size = key_vectors.shape[0]
+        batch_size = key.shape[0]
 
         # create only global key vectors
-        key_vectors_only_global = key_vectors.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
+        key_only_global = key.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
 
-        key_vectors_only_global[is_local_index_global_attn_nonzero] = key_vectors[is_index_global_attn_nonzero]
+        key_only_global[is_local_index_global_attn_nonzero] = key[is_index_global_attn_nonzero]
 
         # (batch_size, seq_len, head, max_num_global_attn_indices)
-        attn_probs_from_global_key = torch.einsum("blhd,bshd->blhs", (query_vectors, key_vectors_only_global))
+        attn_probs_from_global_key = torch.einsum("blhd,bshd->blhs", (query, key_only_global))
 
         # need to transpose since ONNX export only supports consecutive indexing: https://pytorch.org/docs/stable/onnx.html#writes-sets
         attn_probs_from_global_key = attn_probs_from_global_key.transpose(1, 3)
@@ -551,119 +530,84 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         return attn_probs_from_global_key
 
-    def _compute_attn_output_with_global_indices(
+    def _compute_out_all_to_global(
         self,
-        value_vectors: torch.Tensor,
+        value: torch.Tensor,
         attn_probs: torch.Tensor,
         max_num_global_attn_indices: int,
         is_index_global_attn_nonzero: tuple,
         is_local_index_global_attn_nonzero: tuple,
-        w: int,
     ) -> torch.Tensor:
         """
-        Compute the attention output with global indices.
+        Compute the attention output of all tokens attending to global.
 
         Args:
-            value_vectors (torch.Tensor): (batch, time, head, head_dim) The value vectors.
+            value (torch.Tensor): (batch, head, time, head_dim) The value vectors for global attention.
             attn_probs (torch.Tensor): (batch, time, head, 2w) The attention probabilities.
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
-            w (int): Chunk overlap size
 
         Returns:
-            torch.Tensor: (batch, time, head, head_dim) The computed attention output with global indices.
+            torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens attending to global.
         """
-        batch_size = attn_probs.shape[0]
+        batch_size, time = attn_probs.shape[0], attn_probs.shape[2]
 
-        # cut local attn probs to global only
-        attn_probs_only_global = attn_probs.narrow(-1, 0, max_num_global_attn_indices)
+        value = value.transpose(1, 2)
+
         # get value vectors for global only
-        value_vectors_only_global = value_vectors.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
-        value_vectors_only_global[is_local_index_global_attn_nonzero] = value_vectors[is_index_global_attn_nonzero]
+        value_vectors_only_global = value.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
+        value_vectors_only_global[is_local_index_global_attn_nonzero] = value[is_index_global_attn_nonzero]
 
-        # use `matmul` because `einsum` crashes sometimes with fp16
-        # attn = torch.einsum('blhs,bshd->blhd', (selected_attn_probs, selected_v))
         # compute attn output only global
-        attn_output_only_global = torch.matmul(
-            attn_probs_only_global.clone(), value_vectors_only_global.transpose(1, 2).clone()
-        ).transpose(1, 2)
+        out_all_to_global = torch.matmul(attn_probs, value_vectors_only_global.transpose(1, 2)).transpose(1, 2)
 
-        # reshape attn probs
-        attn_probs_without_global = attn_probs.narrow(
-            -1, max_num_global_attn_indices, attn_probs.size(-1) - max_num_global_attn_indices
-        ).contiguous()
+        out_all_to_global = out_all_to_global.reshape(batch_size, time, -1)
 
-        # compute attn output with global
-        # attn_output_without_global = self._sliding_chunks_matmul_attn_probs_value(
-        #    attn_probs_without_global, value_vectors, self.one_sided_attn_window_size
-        # )
-        attn_output_without_global = self.sliding_chunks_matmul_pv(
-            attn_probs_without_global, value_vectors.transpose(1, 2), w
-        )
+        return out_all_to_global
 
-        return attn_output_only_global + attn_output_without_global
-
-    def _compute_global_attn_output_from_hidden(
+    def _compute_out_global_to_all(
         self,
-        hidden_states: torch.Tensor,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
         max_num_global_attn_indices: int,
-        layer_head_mask: Optional[torch.Tensor],
         is_local_index_global_attn_nonzero: tuple,
         is_index_global_attn_nonzero: tuple,
         is_local_index_no_global_attn_nonzero: tuple,
         is_index_masked: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Compute the global attention output and probabilities from the hidden states.
+        Compute the attention output of global tokens attending to all.
 
         Args:
-            hidden_states (torch.Tensor): (time, batch, size) The hidden states.
+            query (torch.Tensor): (batch, head, time, head_dim) The queries for global attention.
+            key (torch.Tensor): (batch, head, time, head_dim) The keys for global attention.
+            value (torch.Tensor): (batch, head, time, head_dim) The values for global attention.
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
-            layer_head_mask (Optional[torch.Tensor]): (head,) The layer head mask.
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_no_global_attn_nonzero (tuple): Padding values within global attention indices.
             is_index_masked (torch.Tensor): (batch, time) A boolean tensor indicating if an index is masked.
 
         Returns:
-            global_attn_output (torch.Tensor): (batch, head, max_num_global_attn_indices, head_dim) The global attention output.
-            global_attn_probs (torch.Tensor): (batch, head, max_num_global_attn_indices, time) The global attention probabilities.
+            global_attn_output (torch.Tensor): (batch, max_num_global_attn_indices, head x head_dim)
+            The attention output of global tokens attending to all.
         """
 
-        hidden_states = hidden_states.transpose(0, 1)
-        seq_len, batch_size, embed_dim = hidden_states.shape
+        batch_size = key.shape[0]
+        seq_len = key.shape[2]
 
-        # prepare global hidden states
-        global_attn_hidden_states = hidden_states.new_zeros(max_num_global_attn_indices, batch_size, embed_dim)
-        global_attn_hidden_states[is_local_index_global_attn_nonzero[::-1]] = hidden_states[
-            is_index_global_attn_nonzero[::-1]
-        ]
+        global_k = key.reshape(batch_size * self.h, -1, self.d_k)
+        global_v = value.reshape(batch_size * self.h, -1, self.d_k)
 
-        # global key, query, value
-
-        global_query_vectors_only_global, global_key_vectors, global_value_vectors = self.forward_global_qkv(
-            global_attn_hidden_states, hidden_states, hidden_states
-        )
-
-        # normalize
-        global_query_vectors_only_global /= math.sqrt(self.d_k)
-
-        # reshape
-        global_query_vectors_only_global = (
-            global_query_vectors_only_global.contiguous()
-            .view(max_num_global_attn_indices, batch_size * self.h, self.d_k)
-            .transpose(0, 1)
-        )  # (batch_size * self.h, max_num_global_attn_indices, head_dim)
-        global_key_vectors = (
-            global_key_vectors.contiguous().view(-1, batch_size * self.h, self.d_k).transpose(0, 1)
-        )  # (batch_size * self.h, seq_len, head_dim)
-        global_value_vectors = (
-            global_value_vectors.contiguous().view(-1, batch_size * self.h, self.d_k).transpose(0, 1)
-        )  # (batch_size * self.h, seq_len, head_dim)
+        global_q = query.transpose(1, 2)
+        global_q_from_global = global_q.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
+        global_q_from_global[is_local_index_global_attn_nonzero] = global_q[is_index_global_attn_nonzero]
+        global_q_from_global = global_q_from_global.transpose(0, 1).reshape(batch_size * self.h, -1, self.d_k)
 
         # compute attn scores
-        global_attn_scores = torch.bmm(global_query_vectors_only_global, global_key_vectors.transpose(1, 2))
+        global_attn_scores = torch.bmm(global_q_from_global, global_k.transpose(1, 2))
         global_attn_scores = global_attn_scores.view(batch_size, self.h, max_num_global_attn_indices, seq_len)
 
         # need to transpose since ONNX export only supports consecutive indexing: https://pytorch.org/docs/stable/onnx.html#writes-sets
@@ -674,39 +618,31 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_scores = global_attn_scores.transpose(1, 2)
 
         global_attn_scores = global_attn_scores.masked_fill(
-            is_index_masked[:, None, None, :], torch.finfo(global_attn_scores.dtype).min,
+            is_index_masked.transpose(2, 3), torch.finfo(global_attn_scores.dtype).min,
         )
 
         global_attn_scores = global_attn_scores.view(batch_size * self.h, max_num_global_attn_indices, seq_len)
 
         # compute global attn probs
-        global_attn_probs_float = nn.functional.softmax(
-            global_attn_scores, dim=-1, dtype=torch.float32
-        )  # use fp32 for numerical stability
-
-        # apply layer head masking
-        if layer_head_mask is not None:
-            assert layer_head_mask.size() == (
-                self.h,
-            ), f"Head mask for a single layer should be of size {(self.h,)}, but is {layer_head_mask.size()}"
-            global_attn_probs_float = layer_head_mask.view(1, -1, 1, 1) * global_attn_probs_float.view(
-                batch_size, self.h, max_num_global_attn_indices, seq_len
-            )
-            global_attn_probs_float = global_attn_probs_float.view(
-                batch_size * self.h, max_num_global_attn_indices, seq_len
-            )
+        global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1, dtype=torch.float32)
 
         global_attn_probs = self.dropout(global_attn_probs_float)
 
         # global attn output
-        global_attn_output = torch.bmm(global_attn_probs, global_value_vectors)
-
-        global_attn_probs = global_attn_probs.view(batch_size, self.h, max_num_global_attn_indices, seq_len)
+        global_attn_output = torch.bmm(global_attn_probs, global_v)
         global_attn_output = global_attn_output.view(batch_size, self.h, max_num_global_attn_indices, self.d_k)
-        return global_attn_output, global_attn_probs
+
+        global_attn_output = global_attn_output[
+            is_local_index_global_attn_nonzero[0], :, is_local_index_global_attn_nonzero[1]
+        ]
+
+        global_attn_output = global_attn_output.reshape(global_attn_output.shape[0], -1)
+
+
+        return global_attn_output
 
     # Longformer implementation for overlap case
-    # https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py
+    #
     def _skew(self, x: torch.Tensor, direction: List[int], padding_value: float) -> torch.Tensor:
         """Convert diagonals into columns (or columns into diagonals depending on `direction`
 
