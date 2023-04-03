@@ -95,6 +95,11 @@ def synthesize_examples(
     spec_model = FastPitchModel.load_from_checkpoint(tts_ckpt)
     spec_model.eval()
 
+    # to be doubly sure
+    if torch.cuda.is_available():
+        vocoder = vocoder.cuda()
+        spec_model = spec_model.cuda()
+
     folder_names, manifest_names = [], []
     for dataset_str in data:
         folder_name, manifest_name = dataset_str.split(':')
