@@ -600,7 +600,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         max_rp_threshold: float = 0.15,
         enhanced_count_thres: float = 40,
         fixed_thres: float = -1.0,
-        sparse_search_volume: int = 155555,
+        sparse_search_volume: int = 10,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
         min_spk_counting_buffer_size: int = 3,
@@ -961,7 +961,6 @@ class OnlineSpeakerClustering(torch.nn.Module):
         total_emb, total_cluster_labels = [], []
 
         if is_update:
-
             # Calculate how many embedding vectors should be reduced per speaker
             class_target_vol = get_merge_quantity(
                 num_to_be_removed=new_emb_n,

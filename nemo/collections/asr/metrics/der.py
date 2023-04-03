@@ -31,22 +31,57 @@ __all__ = [
     'concat_perm_word_error_rate',
 ]
 
-def get_partial_ref_labels(pred_labels, ref_labels):
+def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> List[str]:
+    """
+    For evaluation of online diarization performance, generate partial reference labels 
+    from the last prediction time.
+
+    Args:
+        pred_labels (list[str]): list of prediction labels
+        ref_labels (list[str]): list of reference labels
+
+    Returns:
+        ref_labels_out (list[str]): list of partial reference labels
+    """
+    # The lastest prediction time in the prediction labels
     last_pred_time = float(pred_labels[-1].split()[1])
     ref_labels_out = []
     for label in ref_labels:
         start, end, speaker = label.split()
         start, end = float(start), float(end)
-        if last_pred_time <= start:
-            pass
-        elif start < last_pred_time <= end:
+        # If the current [start, end] interval is latching the last prediction time
+        if start < last_pred_time <= end:
             label = f"{start} {last_pred_time} {speaker}"
             ref_labels_out.append(label)
+        # Other cases where the current [start, end] interval is before the last prediction time
         elif end < last_pred_time:
             ref_labels_out.append(label)
     return ref_labels_out
 
-def get_online_DER_stats(DER, CER, FA, MISS, diar_eval_count, der_stat_dict, deci=3):
+def get_online_DER_stats(
+    DER: float, 
+    CER: float, 
+    FA: float, 
+    MISS: float, 
+    diar_eval_count: int, 
+    der_stat_dict: Dict[str, float], 
+    deci: int=3) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """
+    For evaluation of online diarization performance, add cumulative, average, and maximum DER/CER.
+
+    Args:
+        DER (float): Diarization Error Rate
+        CER (float): Clustering Error Rate
+        FA (float): False Alarm
+        MISS (float): Miss
+        diar_eval_count (int): Number of evaluation sessions
+        der_stat_dict (dict): Dictionary containing cumulative, average, and maximum DER/CER
+        deci (int): Number of decimal places to round
+
+    Returns:
+        der_dict (dict): Dictionary containing DER, CER, FA, and MISS
+        der_stat_dict (dict): Dictionary containing cumulative, average, and maximum DER/CER
+    """
     der_dict = {
         "DER": round(100 * DER, deci),
         "CER": round(100 * CER, deci),
