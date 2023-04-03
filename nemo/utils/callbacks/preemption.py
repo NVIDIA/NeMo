@@ -21,37 +21,48 @@ from nemo.utils import logging
 class PreemptionCallback(Callback):
     """
     PreemptionCallback class creates a callback that checks for preemption during training at the end of every step.
-    Upon preemption the callback provides function to gracefully exit the training immediately and also saves the state of training (to be able to start from the 
-    same step without wasting any compute while resuming the next time).
+    Upon preemption the callback provides a function to gracefully exit the training immediately and also saves the state of training 
+    (to be able to start from the same step without wasting any compute while resuming the next time).
 
-    PreemptionCallback is always enabled.
+    PreemptionCallback is always enabled by default via the arg create_preemption_callback under ExpManagerConfig. To disable please pass
+    create_preemption_callback: False in your config file.
     """
 
-    def __init__(self, checkpoint_callback, sig=signal.SIGTERM):
+    def __init__(self, checkpoint_callback, sig=None):
         self.sig = sig
+        if self.sig is None:
+            self.sig = signal.SIGTERM
         self.checkpoint_callback = checkpoint_callback
 
     @property
     def interrupted(self):
-        interrupted = torch.tensor(self._interrupted).int().to(torch.device('cuda'))
+        interrupted = torch.tensor(self._interrupted, device=torch.cuda.current_device(), dtype=torch.int32)
         torch.distributed.broadcast(interrupted, 0)
         interrupted = bool(interrupted.item())
         return interrupted
 
     def on_train_start(self, trainer, pl_module):
+        """
+        Defines custom handlers at the beginning of training to be executed when the 
+        preemption signal is received.
+        """
+        # Bool var that's initialized to false and made True upon receving the preemption signal
         self._interrupted = False
         self.released = False
         self.original_handler = signal.getsignal(self.sig)
 
+        # Check if torch distributed is initialised, as its needed for broadcasting the preemption signal to all the ranks
         if pl_module.device.type == 'cuda':
             assert torch.distributed.is_available() and torch.distributed.is_initialized(), "Preemption requires torch distributed to be initialized"
         else:
             logging.info("Preemption is supported only on GPUs")
 
+        # Master handler executed only by rank 0 when the preemption siganal is received, to avoid deadlock conditions
         def master_handler(signum, frame):
             self.release()
             self._interrupted = True
-
+        
+        # Handler executed by the non zero ranks
         def ignoring_handler(signum, frame):
             self.release()
 
@@ -67,8 +78,8 @@ class PreemptionCallback(Callback):
         self.release()
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int):
-        # check if the job was preempted
-        # NOTE: "timeout_handler.interrupted" is a property which triggers a
+        # check if the job was preempted at the end of every training step/iteration
+        # NOTE: "self.interrupted" is a property which triggers a
         # distributed broadcast of "_interrupted" flag from rank 0 to all other
         # ranks, to avoid performance overheads it's best to store the result in
         # a regular local variable

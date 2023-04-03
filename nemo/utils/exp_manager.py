@@ -155,6 +155,7 @@ class ExpManagerConfig:
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
     create_early_stopping_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
+    create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
@@ -280,6 +281,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Defaults to True.
             - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False.
              See EarlyStoppingParams dataclass above.
+            - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
+             immediately upon preemption. Default is True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
@@ -439,7 +442,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
-            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
+            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params, cfg.create_preemption_callback
         )
 
     if cfg.disable_validation_on_resume:
@@ -830,7 +833,7 @@ def configure_loggers(
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig',
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig', create_preemption_callback: bool
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback
@@ -888,8 +891,11 @@ def configure_checkpointing(
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
-    preemption_callback = PreemptionCallback(checkpoint_callback)
-    trainer.callbacks.append(preemption_callback)
+    if create_preemption_callback:
+        ## By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
+        ## PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
+        preemption_callback = PreemptionCallback(checkpoint_callback)
+        trainer.callbacks.append(preemption_callback)
 
 def check_slurm(trainer):
     try:
