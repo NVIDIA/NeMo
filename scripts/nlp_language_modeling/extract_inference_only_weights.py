@@ -4,7 +4,7 @@
 """
 import argparse
 import os
-import torch 
+import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument("nemo", help="path to nemo file", type=str)
