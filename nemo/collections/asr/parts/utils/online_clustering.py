@@ -943,7 +943,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Step (4)
             |======================|CDEF--------------XY|
             |-----hist_emb_buff----|
-
+            
             After clustering, `self.Y_fullhist` is updated as:
 
             |0000000000011111111111|11110000110010010011|
@@ -1089,12 +1089,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
-                # Y_out = self.Y_fullhist[: Y_merged.shape[0]]
                 Y_out = self.Y_fullhist
         else:
             # If no memory is used, offline clustering is applied.
             Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_merged).to(Y_merged.device)
-            # , with_history=False).to(Y_merged.device)
             self.Y_fullhist = Y_out
         return Y_out
 
