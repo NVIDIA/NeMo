@@ -43,7 +43,7 @@ class GPTSFTDataset(Dataset):
         truncation_field: str = "answer",
         pad_to_max_length: bool = True,
         index_mapping_dir: str = None,
-        assistant_prompt: str = None,
+        prompt_template: str = None,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -64,7 +64,7 @@ class GPTSFTDataset(Dataset):
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
-        assistant_prompt: Prompt to use for the assistant. If None, will use the default prompt.
+        prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -83,7 +83,7 @@ class GPTSFTDataset(Dataset):
         self.truncation_field = truncation_field
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
-        self.assistant_prompt = assistant_prompt
+        self.prompt_template = prompt_template
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -135,17 +135,24 @@ class GPTSFTDataset(Dataset):
         BOS, EOS, and SEP, are added if specified.
         """
         context = example[self.context_key]
-        label = example[self.label_key]
+        output = example[self.label_key]
 
-        if self.assistant_prompt is not None:
-            context = self.assistant_prompt + context + "\n\nAssistant:"
+        if self.prompt_template is not None:
+            import ipdb; ipdb.set_trace()
+            assert '{input}' in self.prompt_template
+            assert '{output}' in self.prompt_template
+            # Make sure that '{output}' always occurs at the end of the prompt template string
+            assert self.prompt_template.index('{output}') == len(self.prompt_template) - len('{output}')
+            # Get the context by replacing only the input
+            original_context = context
+            context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
+            # Replace the input and output placeholders with the actual input and output
+            text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
 
-        if self.separate_prompt_and_response_with_newline and self.assistant_prompt is None:
-            text = context + '\n' + label
-        elif not self.separate_prompt_and_response_with_newline and self.assistant_prompt is None:
-            text = context + ' ' + label
-        elif self.assistant_prompt is not None:
-            text = context + ' ' + label.lstrip()
+        if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            text = context + '\n' + output
+        elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            text = context + ' ' + output
 
         tokenized_text = self.tokenizer.text_to_ids(text)
         context_ids = self.tokenizer.text_to_ids(context)
