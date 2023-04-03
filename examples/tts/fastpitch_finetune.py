@@ -49,7 +49,7 @@ def main(cfg):
     synthesize_examples(
         tts_ckpt=checkpoint_path,
         dest=logdir / 'eval',
-        data=f'validation:{cfg.validation_datasets}',
+        data=[f'validation:{cfg.validation_datasets}'],
         run_wer_calculations=True,
     )
 
