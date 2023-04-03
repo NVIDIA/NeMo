@@ -66,7 +66,6 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
         # If the current [start, end] interval is latching the last prediction time
         if start < last_pred_time:
             end_time = min(end, last_pred_time)
-            print(f"start {start} end {end} last_pred_time {last_pred_time} end_time {end_time}")
             label = f"{start} {end_time} {speaker}"
             ref_labels_out.append(label)
         # Other cases where the current [start, end] interval is before the last prediction time
