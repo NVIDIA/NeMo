@@ -214,18 +214,21 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             answer_start_idx = len(input_ids)
             if answer_only_loss and self.for_train:
                 answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
-            length_before_answer = answer_start_idx 
             
-            # padding strategy 1: pad the question so 'answer:' coincides with the end of the first chunk of 64
-            if length_before_answer < self.chunk_size:
-                padding_length = self.chunk_size - length_before_answer
-                input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-                answer_start_idx += padding_length
+            length_before_answer = answer_start_idx
             
-            # padding strategy 2: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk_size
-            # padding_length = (self.chunk_size - len(input_ids) % self.chunk_size) % self.chunk_size
-            # input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-            # answer_start_idx += padding_length
+            # padding strategy 1: consider virtual prompt length and make the length_before_answer be >= chunk size
+            # padding_length = 0
+            # if length_before_answer < self.chunk_size:
+            #     padding_length = self.chunk_size - length_before_answer
+            #     input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+            #     answer_start_idx += padding_length
+            
+            # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
+            # but still padding in the middle between virtual tokens and top1
+            padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+            answer_start_idx += padding_length
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
@@ -309,18 +312,21 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         answer_start_idx = len(input_ids)
         if answer_only_loss and self.for_train:
             answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
-        length_before_answer = answer_start_idx 
+         
+        length_before_answer = answer_start_idx
         
-        # padding strategy 1: pad the question so 'answer:' coincides with the end of the first chunk of 64
-        if length_before_answer < self.chunk_size:
-            padding_length = self.chunk_size - length_before_answer
-            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-            answer_start_idx += padding_length
+        # padding strategy 1: consider virtual prompt length and make the length_before_answer be >= chunk size
+        # padding_length = 0
+        # if length_before_answer < self.chunk_size:
+        #     padding_length = self.chunk_size - length_before_answer
+        #     input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        #     answer_start_idx += padding_length
         
-        # padding strategy 2: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk_size
-        # padding_length = (self.chunk_size - len(input_ids) % self.chunk_size) % self.chunk_size
-        # input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-        # answer_start_idx += padding_length
+        # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
+        # but still padding in the middle between virtual tokens and top1
+        padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+        input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        answer_start_idx += padding_length
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
