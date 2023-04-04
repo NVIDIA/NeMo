@@ -36,7 +36,7 @@
     {% elif page and page.meta and page.meta.image %}
         <meta property="og:image:url" content="{{ page.meta.image }}" />
     {% else %}
-        <meta property="og:image:url" content="{{ config.site_url ~ config.theme.favicon }}" />
+        <meta property="og:image:url" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
     {% endif %}
 
     <!-- Add OpenGraph Image Type metadata -->
