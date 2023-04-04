@@ -275,7 +275,7 @@ class LinearSumAssignmentSolver(object):
 
 
 @torch.jit.script
-def linear_sum_assignment(cost_matrix, max_size:int=100):
+def linear_sum_assignment(cost_matrix, max_size: int = 100):
     """
     Launch the linear sum assignment algorithm on a cost matrix.
 
