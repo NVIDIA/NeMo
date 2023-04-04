@@ -15,18 +15,16 @@
 import json
 import os
 import pickle
-import numpy as np
 
+import numpy as np
 import torch
 from tqdm.auto import tqdm
 
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
-    JSONLMemMapDataset,
-)
 
 __all__ = ["GPTPromptLearningDataset"]
 
@@ -83,16 +81,12 @@ class GPTPromptLearningDataset(Dataset):
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
 
-        assert (
-            self.min_seq_length <= max_seq_length
-        ), "Min sequence length should be less than or equal to max"
+        assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
         assert len(data) == 1, "Memmaped dataset currently expects a list of len == 1"
         self.file_path = data[0]
-        self.indexed_dataset = JSONLMemMapDataset(
-            dataset_paths=[self.file_path], tokenizer=None, header_lines=0
-        )
+        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[self.file_path], tokenizer=None, header_lines=0)
 
     def __len__(self):
         return len(self.indexed_dataset)
@@ -131,12 +125,8 @@ class GPTPromptLearningDataset(Dataset):
             doc,
         )
         # Format the input example according to the template
-        input_example = self._insert_text_in_template(
-            input_example, prompt_template_fields, doc
-        )
-        input_example = self._insert_virtual_token_placeholders(
-            input_example, virtual_token_splits
-        )
+        input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+        input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
         input_ids = self.tokenizer.text_to_ids(input_example)
         # Add BOS/EOS if desired, adds EOS by default
         if self.add_bos:
@@ -169,9 +159,7 @@ class GPTPromptLearningDataset(Dataset):
         # Find answer field indices if training and answer_only_loss is True
         answer_start_idx = None
         if answer_only_loss and self.for_train:
-            answer_start_idx = self._find_answer_start(
-                taskname, input_ids, answer_field, doc
-            )
+            answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
         return (taskname_id, input_ids, answer_start_idx)
 
     def _input_sanity_checks(
@@ -201,31 +189,23 @@ class GPTPromptLearningDataset(Dataset):
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
-        keys_not_in_template = list(
-            set(doc.keys()) - set(prompt_template_fields) - set(["taskname"])
-        )
+        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(["taskname"]))
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
         # Answer field checks
         if answer_only_loss and self.for_train:
-            assert (
-                answer_field is not None
-            ), "If answer_only_loss=True, an answer_field must be given"
+            assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
             assert (
                 answer_field in doc.keys()
             ), f"answer_only_loss=True but the given answer_field '{answer_field}' is not in data json"
-            assert (
-                truncation_field != answer_field
-            ), "Answer field and truncation field should not match"
+            assert truncation_field != answer_field, "Answer field and truncation field should not match"
 
             answer_placeholder = "{" + answer_field + "}"
             answer_placeholder_len = len(answer_placeholder)
             placeholder_start = len(prompt_template) - answer_placeholder_len
-            assert (
-                prompt_template[placeholder_start:] == answer_placeholder
-            ), "Answer field must be at prompt end"
+            assert prompt_template[placeholder_start:] == answer_placeholder, "Answer field must be at prompt end"
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
@@ -249,9 +229,7 @@ class GPTPromptLearningDataset(Dataset):
             split_start = total_inserted_tokens
             split_end = total_inserted_tokens + vts
             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
-            input_example = input_example.replace(
-                f"<|VIRTUAL_PROMPT_{idx}|>", pseudo_tokens_for_split
-            )
+            input_example = input_example.replace(f"<|VIRTUAL_PROMPT_{idx}|>", pseudo_tokens_for_split)
             total_inserted_tokens = split_end
 
         return input_example
@@ -278,20 +256,14 @@ class GPTPromptLearningDataset(Dataset):
 
             # Truncate field text
             field_text_ids = self.tokenizer.text_to_ids(field_text)
-            truncated_text_ids = field_text_ids[
-                : -min(truncation_length, len(field_text_ids))
-            ]
+            truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
             truncated_field_text = self.tokenizer.ids_to_text(truncated_text_ids)
             doc[truncation_field] = truncated_field_text
 
             # Re-insert the truncated text string into the text prompt
             input_example = prompt_template
-            input_example = self._insert_text_in_template(
-                input_example, prompt_template_fields, doc
-            )
-            input_example = self._insert_virtual_token_placeholders(
-                input_example, virtual_token_splits
-            )
+            input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # Re-tokenize the whole prompt
             input_ids = self.tokenizer.text_to_ids(input_example)
@@ -330,10 +302,7 @@ class GPTPromptLearningDataset(Dataset):
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
-            taskname_ids = [
-                ids + [self.pad_token_id] * (max_taskname_length - len(ids))
-                for ids in taskname_ids
-            ]
+            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
@@ -349,9 +318,7 @@ class GPTPromptLearningDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(
-            input_ids, batch_max, answer_starts
-        )
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -362,9 +329,9 @@ class GPTPromptLearningDataset(Dataset):
 
         # Using causal attention mask for whole input
         batch_size = len(input_ids)
-        attention_mask = torch.tril(
-            torch.ones((batch_size, batch_max, batch_max))
-        ).view(batch_size, 1, batch_max, batch_max)
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max, batch_max))).view(
+            batch_size, 1, batch_max, batch_max
+        )
 
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
@@ -382,9 +349,7 @@ class GPTPromptLearningDataset(Dataset):
                 loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
             else:
                 # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
-                loss_mask = [
-                    float(token_id not in self.pseudo_token_ids) for token_id in ids
-                ]
+                loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
 
             # Pad to max length
             input_length = len(ids)
@@ -413,9 +378,7 @@ class GPTPromptLearningDataset(Dataset):
         batch_max = input_lengths.max().item()
         batch_max += self.tokens_to_generate
 
-        input_ids, _ = self.pad_batch_and_build_loss_mask(
-            input_ids, batch_max, answer_starts
-        )
+        input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         input_ids = input_ids.cuda()
         input_ids = torch.cuda.LongTensor(input_ids)
 
