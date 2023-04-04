@@ -88,7 +88,7 @@ class GPTPromptLearningDataset(Dataset):
         ), "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
-        assert len(data) == 1
+        assert len(data) == 1, "Memmaped dataset currently expects a list of len == 1"
         self.file_path = data[0]
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[self.file_path], tokenizer=None, header_lines=0
