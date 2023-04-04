@@ -779,7 +779,7 @@ class AutocastTransformerLayer(TransformerLayer):
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
         use_emha: bool = False,
-        ub_tp_comm_overlap: bool =False,
+        ub_tp_comm_overlap: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
     ) -> None:

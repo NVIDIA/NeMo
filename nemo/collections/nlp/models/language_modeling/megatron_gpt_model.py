@@ -335,7 +335,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.initialize_ub:
             input_shape = [
                 self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
-                self.cfg.get('hidden_size')
+                self.cfg.get('hidden_size'),
             ]
             te_module.pre_init_ub(shape=input_shape, is_fp8=self.cfg.get('fp8'))
             self.initialize_ub = False
