@@ -5,6 +5,13 @@ author_gh_user: [Github User 1, Github User 2]
 read_time: Time to read
 publish_date: Date of publishing
 
+# Optional: OpenGraph metadata
+# og_title: Title of the blog post for Rich URL previews
+# og_image (or image): Image for Rich URL previews (absolute URL)
+# og_image_type: Image type (e.g. image/png). Defaults to image/png.
+# page_path: Relative path to the image from the website root (e.g. /assets/images/)
+# description: Description of the post for Rich URL previews
+
 # DO NOT CHANGE BELOW
 template: blog.html
 ---
