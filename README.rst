@@ -188,9 +188,7 @@ Use this installation mode if you want the latest released version.
     pip install Cython
     pip install nemo_toolkit['all']
 
-.. note::
-
-    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -214,10 +212,8 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
-.. note::
-
-    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
-    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
+If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 RNNT
 ~~~~
@@ -241,16 +237,14 @@ Install it manually if not using the NVIDIA PyTorch container.
     git checkout 03c9d80ed54c0eaa5b581bf42ceca3162f085327
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
-.. note::
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies. 
 
-  It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies. 
+While installing Apex, it may raise an error if the CUDA version on your system does not match the CUDA version torch was compiled with.
+This raise can be avoided by commenting it here: https://github.com/NVIDIA/apex/blob/master/setup.py#L32
 
-  While installing Apex, it may raise an error if the CUDA version on your system does not match the CUDA version torch was compiled with.
-  This raise can be avoided by commenting it here: https://github.com/NVIDIA/apex/blob/master/setup.py#L32
+cuda-nvprof is needed to install Apex: `conda install -c nvidia cuda-nvprof=11.6`
 
-  cuda-nvprof is needed to install Apex: `conda install -c nvidia cuda-nvprof=11.6`
-
-  packaging is also needed: `pip install -y packaging`
+packaging is also needed: `pip install -y packaging`
 
 
 Transformer Engine
@@ -263,11 +257,9 @@ Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 
   pip install --upgrade git+https://github.com/NVIDIA/TransformerEngine.git@stable
 
-.. note::
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies. 
 
-  It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies. 
-
-  Transformer Engine requires PyTorch to be built with CUDA 11.8.
+Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
