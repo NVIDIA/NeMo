@@ -25,7 +25,7 @@ from utils.data_prep import (
     is_entry_in_all_lines,
     is_entry_in_any_lines,
 )
-from utils.make_output_files import make_ctm, make_new_manifest
+from utils.make_output_files import make_ctms, make_new_manifest
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -206,9 +206,7 @@ def main(cfg: AlignmentConfig):
             y_batch,
             T_batch,
             U_batch,
-            token_info_batch,
-            word_info_batch,
-            segment_info_batch,
+            utt_obj_batch,
             pred_text_batch,
             model_downsample_factor,
         ) = get_batch_tensors_and_boundary_info(
@@ -224,42 +222,17 @@ def main(cfg: AlignmentConfig):
 
         alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
-        make_ctm(
-            token_info_batch,
+        make_ctms(
+            utt_obj_batch,
             alignments_batch,
             manifest_lines_batch,
             model,
             model_downsample_factor,
-            os.path.join(cfg.output_dir, "tokens"),
+            cfg.output_dir,
             cfg.remove_blank_tokens_from_ctm,
             cfg.audio_filepath_parts_in_utt_id,
             cfg.minimum_timestamp_duration,
         )
-
-        make_ctm(
-            word_info_batch,
-            alignments_batch,
-            manifest_lines_batch,
-            model,
-            model_downsample_factor,
-            os.path.join(cfg.output_dir, "words"),
-            False,  # dont try to remove blank tokens because we dont expect them to be there anyway
-            cfg.audio_filepath_parts_in_utt_id,
-            cfg.minimum_timestamp_duration,
-        )
-
-        if cfg.additional_ctm_grouping_separator:
-            make_ctm(
-                segment_info_batch,
-                alignments_batch,
-                manifest_lines_batch,
-                model,
-                model_downsample_factor,
-                os.path.join(cfg.output_dir, "additional_segments"),
-                False,  # dont try to remove blank tokens because we dont expect them to be there anyway
-                cfg.audio_filepath_parts_in_utt_id,
-                cfg.minimum_timestamp_duration,
-            )
 
     make_new_manifest(
         cfg.output_dir,

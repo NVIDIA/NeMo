@@ -18,6 +18,7 @@ from pathlib import Path
 
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
+from utils.data_prep import Token, Word, Segment, Utterance
 
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
@@ -27,84 +28,69 @@ def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     return utt_id
 
 
-def add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt):
+def add_t_start_end_to_utt_obj(utt_obj, alignment_utt):
     """
-    We use the list of alignments to add the timesteps where each token/word/segment is predicted to
-    start and end.
-    boundary_info_utt can be any one of the variables referred to as `token_info`, `word_info`, `segment_info` 
-    in other parts of the code.
-
-    e.g. the input boundary info could be
-    boundary_info_utt = [
-        {'text': 'hi', 's_start': 1, 's_end': 3},
-        {'text': 'world', 's_start': 7, 's_end': 15},
-        {'text': 'hey', 's_start': 19, 's_end': 23},
-    ]
-
-    and the alignment could be
-    alignment_utt = [ 1, 1, 3, 3, 4, 5, 7, 7, 9, 10, 11, 12, 13, 15, 17, 17, 19, 21, 23, 23]
-    
-    in which case the output would be:
-    boundary_info_utt = [
-        {'text': 'hi', 's_start': 1, 's_end': 3, 't_start': 0, 't_end': 3},
-        {'text': 'world', 's_start': 7, 's_end': 15, 't_start': 6, 't_end': 13},
-        {'text': 'hey', 's_start': 19, 's_end': 23, 't_start': 16, 't_end': 19},
-    ]
+    TODO
     """
-    # first remove boundary_info of any items that are not in the alignment
-    # the only items we expect not to be in the alignment are blanks that the alignment chooses to skip
-    # we will iterate boundary_info in reverse order for this to make popping the items simple
-    s_in_alignment = set(alignment_utt)
-    for boundary_info_pointer in range(len(boundary_info_utt) - 1, -1, -1):
-        s_in_boundary_info = set(
-            range(
-                boundary_info_utt[boundary_info_pointer]["s_start"],
-                boundary_info_utt[boundary_info_pointer]["s_end"] + 1,
-            )
-        )
-        item_not_in_alignment = True
-        for s_ in s_in_boundary_info:
-            if s_ in s_in_alignment:
-                item_not_in_alignment = False
 
-        if item_not_in_alignment:
-            boundary_info_utt.pop(boundary_info_pointer)
+    # General idea:
+    # t_start is the location of the first appearance of s_start in alignment_utt
+    # t_end is the location of the final appearance of s_end in alignment_utt
+    # We will make dictionaries num_to_first_alignment_appearance and
+    # num_to_last_appearance and use that to update all of
+    # the t_start and t_end values in utt_obj.
+    # We will put t_start = t_end = -1 for tokens that are skipped (should only be blanks)
 
-    # now update boundary_info with t_start and t_end
-    boundary_info_pointer = 0
-    for t, s_at_t in enumerate(alignment_utt):
-        if s_at_t == boundary_info_utt[boundary_info_pointer]["s_start"]:
-            if "t_start" not in boundary_info_utt[boundary_info_pointer]:
-                # we have just reached the start of the word/token/segment in the alignment => update t_start
-                boundary_info_utt[boundary_info_pointer]["t_start"] = t
+    num_to_first_alignment_appearance = dict()
+    num_to_last_alignment_appearance = dict()
 
-        if t < len(alignment_utt) - 1:  # this if is to avoid accessing an index that is not in the list
-            if alignment_utt[t + 1] > boundary_info_utt[boundary_info_pointer]["s_end"]:
-                if "t_end" not in boundary_info_utt[boundary_info_pointer]:
-                    boundary_info_utt[boundary_info_pointer]["t_end"] = t
+    prev_s = -1  # use prev_s to keep track of when the s changes
+    for t, s in enumerate(alignment_utt):
+        if s > prev_s:
+            num_to_first_alignment_appearance[s] = t
 
-                boundary_info_pointer += 1
-        else:  # i.e. t == len(alignment) - 1, i.e. we are a the final element in alignment
-            # add final t_end if we haven't already
-            if "t_end" not in boundary_info_utt[boundary_info_pointer]:
-                boundary_info_utt[boundary_info_pointer]["t_end"] = t
+            if prev_s >= 0:  # dont record prev_s = -1
+                num_to_last_alignment_appearance[prev_s] = t - 1
+        prev_s = s
+    # add last appearance of the final s
+    num_to_last_alignment_appearance[prev_s] = len(alignment_utt) - 1
 
-        if boundary_info_pointer == len(boundary_info_utt):
-            # we have finished populating boundary_info with t_start and t_end,
-            # but we might have some final remaining elements (blanks) in the alignment which we dont care about
-            # => break, so as not to cause issues trying to access boundary_info[boundary_info_pointer]
-            break
+    # update all the t_start and t_end in utt_obj
+    for segment_or_token in utt_obj.segments_and_tokens:
+        if type(segment_or_token) is Segment:
+            segment = segment_or_token
+            segment.t_start = num_to_first_alignment_appearance[segment.s_start]
+            segment.t_end = num_to_last_alignment_appearance[segment.s_end]
 
-    return boundary_info_utt
+            for word_or_token in segment.words_and_tokens:
+                if type(word_or_token) is Word:
+                    word = word_or_token
+                    word.t_start = num_to_first_alignment_appearance[word.s_start]
+                    word.t_end = num_to_last_alignment_appearance[word.s_end]
+
+                    for token in word.tokens:
+                        token.t_start = num_to_first_alignment_appearance.get(token.s_start, -1)
+                        token.t_end = num_to_last_alignment_appearance.get(token.s_end, -1)
+                else:
+                    token = word_or_token
+                    token.t_start = num_to_first_alignment_appearance.get(token.s_start, -1)
+                    token.t_end = num_to_last_alignment_appearance.get(token.s_end, -1)
+
+        else:
+            token = segment_or_token
+            token.t_start = num_to_first_alignment_appearance.get(token.s_start, -1)
+            token.t_end = num_to_last_alignment_appearance.get(token.s_end, -1)
+
+    return utt_obj
 
 
-def make_ctm(
-    boundary_info_batch,
+def make_ctms(
+    utt_obj_batch,
     alignments_batch,
     manifest_lines_batch,
     model,
     model_downsample_factor,
-    output_dir,
+    output_dir_root,
     remove_blank_tokens_from_ctm,
     audio_filepath_parts_in_utt_id,
     minimum_timestamp_duration,
@@ -113,25 +99,18 @@ def make_ctm(
     Function to save CTM files for all the utterances in the incoming batch.
     """
 
-    assert len(boundary_info_batch) == len(alignments_batch) == len(manifest_lines_batch)
-    # we also assume that utterances are in the same order in boundary_info_batch, alignments_batch
+    assert len(utt_obj_batch) == len(alignments_batch) == len(manifest_lines_batch)
+    # we also assume that utterances are in the same order in utt_obj_batch, alignments_batch
     # and manifest_lines_batch - this should be the case unless there is a strange bug upstream in the
     # code
-
-    os.makedirs(output_dir, exist_ok=True)
 
     # the ratio to convert from timesteps (the units of 't_start' and 't_end' in boundary_info_utt)
     # to the number of samples ('samples' in the sense of 16000 'samples' per second)
     timestep_to_sample_ratio = model.preprocessor.featurizer.hop_length * model_downsample_factor
 
-    for boundary_info_utt, alignment_utt, manifest_line in zip(
-        boundary_info_batch, alignments_batch, manifest_lines_batch
-    ):
+    for utt_obj, alignment_utt, manifest_line in zip(utt_obj_batch, alignments_batch, manifest_lines_batch):
 
-        if boundary_info_utt is None:
-            continue
-
-        boundary_info_utt = add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt)
+        utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt)
 
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm
         utt_id = _get_utt_id(manifest_line['audio_filepath'], audio_filepath_parts_in_utt_id)
@@ -140,12 +119,107 @@ def make_ctm(
         if minimum_timestamp_duration > 0:
             with sf.SoundFile(manifest_line["audio_filepath"]) as f:
                 audio_file_duration = f.frames / f.samplerate
+        else:
+            audio_file_duration = None
 
-        with open(os.path.join(output_dir, f"{utt_id}.ctm"), "w") as f_ctm:
-            for boundary_info_ in boundary_info_utt:  # loop over every token/word/segment
-                text = boundary_info_["text"]
-                start_sample = boundary_info_["t_start"] * timestep_to_sample_ratio
-                end_sample = (boundary_info_["t_end"] + 1) * timestep_to_sample_ratio - 1
+        make_ctm(
+            "tokens",
+            utt_id,
+            utt_obj,
+            manifest_lines_batch,
+            model,
+            timestep_to_sample_ratio,
+            output_dir_root,
+            remove_blank_tokens_from_ctm,
+            audio_filepath_parts_in_utt_id,
+            minimum_timestamp_duration,
+            audio_file_duration,
+        )
+
+        make_ctm(
+            "words",
+            utt_id,
+            utt_obj,
+            manifest_lines_batch,
+            model,
+            timestep_to_sample_ratio,
+            output_dir_root,
+            remove_blank_tokens_from_ctm,
+            audio_filepath_parts_in_utt_id,
+            minimum_timestamp_duration,
+            audio_file_duration,
+        )
+
+        make_ctm(
+            "segments",
+            utt_id,
+            utt_obj,
+            manifest_lines_batch,
+            model,
+            timestep_to_sample_ratio,
+            output_dir_root,
+            remove_blank_tokens_from_ctm,
+            audio_filepath_parts_in_utt_id,
+            minimum_timestamp_duration,
+            audio_file_duration,
+        )
+
+    return None
+
+
+def make_ctm(
+    alignment_level,
+    utt_id,
+    utt_obj,
+    manifest_lines_batch,
+    model,
+    timestep_to_sample_ratio,
+    output_dir_root,
+    remove_blank_tokens_from_ctm,
+    audio_filepath_parts_in_utt_id,
+    minimum_timestamp_duration,
+    audio_file_duration,
+):
+    output_dir = os.path.join(output_dir_root, alignment_level)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    boundary_info_utt = []
+
+    for segment_or_token in utt_obj.segments_and_tokens:
+        if type(segment_or_token) is Segment:
+            segment = segment_or_token
+            if alignment_level == "segments":
+                boundary_info_utt.append(segment)
+
+            for word_or_token in segment.words_and_tokens:
+                if type(word_or_token) is Word:
+                    word = word_or_token
+                    if alignment_level == "words":
+                        boundary_info_utt.append(word)
+
+                    for token in word.tokens:
+                        if alignment_level == "tokens":
+                            boundary_info_utt.append(token)
+
+                else:
+                    token = word_or_token
+                    if alignment_level == "tokens":
+                        boundary_info_utt.append(token)
+
+        else:
+            token = segment_or_token
+            if alignment_level == "tokens":
+                boundary_info_utt.append(token)
+
+    with open(os.path.join(output_dir, f"{utt_id}.ctm"), "w") as f_ctm:
+        for boundary_info_ in boundary_info_utt:  # loop over every token/word/segment
+
+            # skip if t_start = t_end = -1 because we used it as a marker to skip some blank tokens
+            if not (boundary_info_.t_start == -1 or boundary_info_.t_end == -1):
+                text = boundary_info_.text
+                start_sample = boundary_info_.t_start * timestep_to_sample_ratio
+                end_sample = (boundary_info_.t_end + 1) * timestep_to_sample_ratio - 1
 
                 if not 'sample_rate' in model.cfg.preprocessor:
                     raise ValueError(
@@ -204,17 +278,13 @@ def make_new_manifest(
 
             data["token_level_ctm_filepath"] = str(Path(output_dir) / "tokens" / f"{utt_id}.ctm")
             data["word_level_ctm_filepath"] = str(Path(output_dir) / "words" / f"{utt_id}.ctm")
-
-            if additional_ctm_grouping_separator:
-                data["additional_segment_level_ctm_filepath"] = str(
-                    Path(output_dir) / "additional_segments" / f"{utt_id}.ctm"
-                )
+            data["segment_level_ctm_filepath"] = str(Path(output_dir) / "segments" / f"{utt_id}.ctm")
 
             if pred_text_all_lines:
                 data['pred_text'] = pred_text_all_lines[i_line]
 
             # change ctm filepaths to None if they do not actually exits (which will happen if text was empty)
-            for key in ["token_level_ctm_filepath", "word_level_ctm_filepath", "additional_segment_level_ctm_filepat"]:
+            for key in ["token_level_ctm_filepath", "word_level_ctm_filepath", "segment_level_ctm_filepath"]:
                 if not os.path.exists(key):
                     data[key] = None
 
