@@ -64,11 +64,13 @@ def main(cfg) -> None:
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
+    # if cfg.get('cluster_type', None) == 'BCP':
+    #     plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-    exp_manager(trainer, cfg.exp_manager)
+    output_dir = exp_manager(trainer, cfg.exp_manager)
+
+    os.environ["OUTPUT_DIR"] = output_dir
 
     # # update resume from checkpoint found by exp_manager
     # resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
