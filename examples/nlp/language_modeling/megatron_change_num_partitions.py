@@ -470,9 +470,9 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--model_file", type=str, required=True, help="Path to source .nemo file")
     parser.add_argument("--target_file", type=str, required=True, help="Path to write target .nemo file")
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, help="TP size of source model")
+    parser.add_argument("--tensor_model_parallel_size", type=int, default=-1, required=False, help="TP size of source model")
     parser.add_argument("--target_tensor_model_parallel_size", type=int, required=True, help="TP size of target model")
-    parser.add_argument('--pipeline_model_parallel_size', type=int, required=True, help='PP size of source model')
+    parser.add_argument('--pipeline_model_parallel_size', type=int, default=-1, required=False, help='PP size of source model')
     parser.add_argument(
         '--target_pipeline_model_parallel_size', type=int, required=True, help='PP size of target model'
     )
@@ -544,6 +544,19 @@ def main():
     cls = model_utils.import_class_by_path(args.model_class)
 
     trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+
+    if tp_size < 0 or pp_size < 0:
+        logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
+        model_config_internal = cls.restore_from(
+            restore_path=args.model_file,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            return_config=True,
+        )
+
+        tp_size = model_config_internal.tensor_model_parallel_size
+        pp_size = model_config_internal.pipeline_model_parallel_size
+
     app_state = AppState()
     app_state.data_parallel_rank = 0
     app_state.pipeline_model_parallel_size = pp_size
