@@ -177,8 +177,7 @@ Install PyTorch using their `configurator <https://pytorch.org/get-started/local
     conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 .. note::
-
-  The command used to install PyTorch may depend on your system. Please use the configurator linked above to find the right command for your system.
+   The command used to install PyTorch may depend on your system. Please use the configurator linked above to find the right command for your system.
 
 Pip
 ~~~
