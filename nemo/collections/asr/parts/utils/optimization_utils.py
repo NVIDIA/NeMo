@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The original code of Linear Sum Assignment solver is 
+# The original code of Linear Sum Assignment solver is
 # from: https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
 # The following is the full text of the license:
 
@@ -25,6 +25,7 @@
 # License: 3-clause BSD
 
 import torch
+
 
 @torch.jit.script
 def unravel_index(index: int, shape: torch.Tensor):
