@@ -167,10 +167,6 @@ def main(cfg) -> None:
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-    # Override timer callback to a stateless one
-    for idx, callback in enumerate(trainer.callbacks):
-        if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     if cfg.model.restore_from_path:
         save_restore_connector = NLPSaveRestoreConnector()
