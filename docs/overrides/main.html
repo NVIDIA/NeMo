@@ -35,19 +35,19 @@
 
     <!-- Add OpenGraph Image metadata -->
     {% if page and page.meta and page.meta.page_path and page.meta.og_image %}
-        <meta property="og:image:url" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.og_image }}" />
+        <meta property="og:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.og_image }}" />
         <meta property="twitter:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.og_image }}" />
     {% elif page and page.meta and page.meta.og_image %}
-        <meta property="og:image:url" content="{{ page.meta.og_image }}" />
+        <meta property="og:image" content="{{ page.meta.og_image }}" />
         <meta property="twitter:image" content="{{ page.meta.og_image }}" />
     {% elif page and page.meta and page.meta.page_path and page.meta.image %}
-        <meta property="og:image:url" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.image }}" />
+        <meta property="og:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.image }}" />
         <meta property="twitter:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.image }}" />
     {% elif page and page.meta and page.meta.image %}
-        <meta property="og:image:url" content="{{ page.meta.image }}" />
+        <meta property="og:image" content="{{ page.meta.image }}" />
         <meta property="twitter:image" content="{{ page.meta.image }}" />
     {% else %}
-        <meta property="og:image:url" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
+        <meta property="og:image" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
         <meta property="twitter:image" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
     {% endif %}
 
