@@ -36,9 +36,9 @@ Usage:
 python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
     --target_file=PATH_TO_TGT_FILE \
-    --tensor_model_parallel_size=1 \
+    --tensor_model_parallel_size=-1 \
     --target_tensor_model_parallel_size=1 \
-    --pipeline_model_parallel_size=1 \
+    --pipeline_model_parallel_size=-1 \
     --target_pipeline_model_parallel_size=1 \
     --precision=bf16
 
@@ -47,9 +47,9 @@ python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
     --target_file=PATH_TO_TGT_FILE \
     --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model" \
-    --tensor_model_parallel_size=1 \
+    --tensor_model_parallel_size=-1 \
     --target_tensor_model_parallel_size=1 \
-    --pipeline_model_parallel_size=1 \
+    --pipeline_model_parallel_size=-1 \
     --target_pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_split_rank=0 \
     --precision=bf16
@@ -80,6 +80,11 @@ python megatron_change_num_partitions.py \
     in the model config.
 --tokenizer_vocab_file: Path to tokenizer vocab file. Default is None. When not None, overrides the tokenizer vocab
     file in the model config.
+
+# Comments
+
+Passing --tensor_model_parallel_size=-1 or --pipeline_model_parallel_size=-1 will automatically infer the size from the
+model config.
 
 """
 
