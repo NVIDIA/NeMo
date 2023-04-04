@@ -68,7 +68,7 @@ class _TokensWrapper:
             return self.tokenizer.token_to_id(token)
         else:
             return self.reverse_map[token]
-    
+
     def text_to_tokens(self, text: str):
         if self.tokenizer is not None:
             return self.tokenizer.text_to_tokens(text)
@@ -138,15 +138,15 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             self.lexicon = load_words(lexicon_path)
             self.word_dict = create_word_dict(self.lexicon)
             self.unk_word = self.word_dict.get_index("<unk>")
-            
+
             # loads in the boosted words if given via a file
             if boost_path is not None:
                 with open(boost_path, 'r', encoding='utf_8') as fr:
                     boost_words = [line.strip().split('\t') for line in fr]
-                    boost_words = {w[0]:w[1] for w in boost_words}
+                    boost_words = {w[0]: w[1] for w in boost_words}
             else:
                 boost_words = {}
-            
+
             # add OOV boosted words to word_dict so it gets picked up in LM obj creation
             for word in boost_words.keys():
                 if word not in self.lexicon:
@@ -168,7 +168,9 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                     if self.tokenizer_wrapper.unk_id in spelling_idxs:
                         print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
                         continue
-                    self.trie.insert(spelling_idxs, word_idx, score if word not in boost_words else float(boost_words[word]))
+                    self.trie.insert(
+                        spelling_idxs, word_idx, score if word not in boost_words else float(boost_words[word])
+                    )
             # handle OOV boosted words
             for word, boost in boost_words.items():
                 if word not in self.lexicon:
