@@ -11,8 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 
+# The original code of Linear Sum Assignment solver is 
+# from: https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
+# The following is the full text of the license:
+
+# Hungarian algorithm (Kuhn-Munkres) for solving the linear sum assignment
+# problem. Taken from scikit-learn. Based on original code by Brian Clapper,
+# adapted to NumPy by Gael Varoquaux.
+# Further improvements by Ben Root, Vlad Niculae and Lars Buitinck.
+# Copyright (c) 2008 Brian M. Clapper <bmc@clapper.org>, Gael Varoquaux
+# Author: Brian M. Clapper, Gael Varoquaux
+# License: 3-clause BSD
+
+import torch
 
 @torch.jit.script
 def unravel_index(index: int, shape: torch.Tensor):
