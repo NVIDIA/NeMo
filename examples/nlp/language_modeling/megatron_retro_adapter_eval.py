@@ -16,14 +16,15 @@ import torch
 import torch.multiprocessing as mp
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
+import os
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_retro_prompt_learning_model import (
-    MegatronRetroPromptLearningModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalAdapterModel
+
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+
 from nemo.core.config import hydra_runner
 
 mp.set_start_method("spawn", force=True)
@@ -73,7 +74,7 @@ This is the script to run GPT text generation.
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_retro_prompt_learning_inference")
+@hydra_runner(config_path="conf", config_name="megatron_retro_adapter_inference")
 def main(cfg) -> None:
     if not torch.cuda.is_available():
         raise EnvironmentError("GPU is needed for the inference")
@@ -85,27 +86,39 @@ def main(cfg) -> None:
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    # Update frozen GPT model path if it is given in case it has changed
-    prompt_learning_cfg = MegatronRetroPromptLearningModel.restore_from(
-        cfg.virtual_prompt_model_file, trainer=trainer, return_config=True,
+    save_restore_connector = NLPSaveRestoreConnector()
+    if os.path.isdir(cfg.model.restore_path):
+        save_restore_connector.model_extracted_dir = cfg.model.restore_path
+
+    model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
+        cfg.model.restore_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
     )
-    if cfg.get("retro_model_file"):
-        with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.language_model_path = cfg.retro_model_file
 
-    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
-    # Now load prompt learning model with frozen gpt model base
-    model = MegatronRetroPromptLearningModel.restore_from(
-        restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
+    with open_dict(model_cfg):
+        # model_cfg.restore_from_path = "/workspaces/research/downloaded/megatron_retro_converted.nemo"
+        # work around for the fused softmax bug
+        model_cfg.masked_softmax_fusion = False
+        model_cfg.precision = trainer.precision
+        model_cfg.eval = True
+        if "shape_file" in model_cfg:
+            model_cfg.pop("shape_file")
+        model_cfg.restore_from_path = cfg.model.original_model
+        # model_cfg.restore_from_path = model
+
+    model = MegatronFusedRetrievalAdapterModel.restore_from(
+        cfg.model.restore_path,
+        trainer=trainer,
+        save_restore_connector=save_restore_connector,
+        override_config_path=model_cfg,
+        strict=False,
     )
-    model.freeze()
 
 
-    # Have to turn off activations_checkpoint_method for inference
-    try:
-        model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
-    except AttributeError:
-        pass
+    # # Have to turn off activations_checkpoint_method for inference
+    # try:
+    #     model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
+    # except AttributeError:
+    #     pass
 
     # Check whether the DDP is initialized
     if parallel_state.is_unitialized():
@@ -133,11 +146,11 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_input_length = model.cfg.encoder_seq_length - length_params["max_length"]
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
-        batch_size=64,
+        batch_size=cfg.inference.batch_size,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
@@ -147,6 +160,8 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
+        num_neighbors=cfg.retrieval_service.neighbors+1,
+        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
     )
 
     config = OmegaConf.to_container(cfg.inference)
