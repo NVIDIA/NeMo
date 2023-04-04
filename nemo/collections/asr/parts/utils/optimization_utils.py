@@ -57,11 +57,17 @@ class LinearSumAssignmentSolver(object):
 
     This implementation is based on the LAP solver from scipy: 
         https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
+        The scipy implementation comes with the following license:
+    
+        Copyright (c) 2008 Brian M. Clapper <bmc@clapper.org>, Gael Varoquaux
+        Author: Brian M. Clapper, Gael Varoquaux
+        License: 3-clause BSD
 
     References
         1. http://csclab.murraystate.edu/bob.pilgrim/445/munkres.html
         2. https://en.wikipedia.org/wiki/Hungarian_algorithm
         3. https://github.com/scipy/scipy/blob/v0.18.1/scipy/optimize/_hungarian.py
+
 
     Attributes:
         cost_mat (Tensor): 2D matrix containing cost matrix. Number of columns must be larger than number of rows.
@@ -269,7 +275,7 @@ class LinearSumAssignmentSolver(object):
 
 
 @torch.jit.script
-def linear_sum_assignment(cost_matrix):
+def linear_sum_assignment(cost_matrix, max_size:int=100):
     """
     Launch the linear sum assignment algorithm on a cost matrix.
 
@@ -283,7 +289,11 @@ def linear_sum_assignment(cost_matrix):
     cost_matrix = cost_matrix.clone().detach()
 
     if len(cost_matrix.shape) != 2:
-        raise ValueError("2-d tensor is expected but got a {cost_matrix.shape} tensor")
+        raise ValueError(f"2-d tensor is expected but got a {cost_matrix.shape} tensor")
+    if max(cost_matrix.shape) > max_size:
+        raise ValueError(
+            f"Cost matrix size {cost_matrix.shape} is too large. The maximum supported size is {max_size}x{max_size}."
+        )
 
     # The algorithm expects more columns than rows in the cost matrix.
     if cost_matrix.shape[1] < cost_matrix.shape[0]:
