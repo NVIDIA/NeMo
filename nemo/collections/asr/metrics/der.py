@@ -60,11 +60,8 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
     for label in ref_labels:
         start, end, speaker = label.split()
         start, end = float(start), float(end)
-        # If ref start time passes the last prediction time, break
-        if start >= last_pred_time:
-            break
         # If the current [start, end] interval is latching the last prediction time
-        elif start < last_pred_time:
+        if start < last_pred_time:
             end_time = min(end, last_pred_time)
             label = f"{start} {end_time} {speaker}"
             ref_labels_out.append(label)
