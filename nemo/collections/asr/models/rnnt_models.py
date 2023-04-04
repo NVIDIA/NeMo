@@ -212,6 +212,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         self,
         paths2audio_files: List[str],
         batch_size: int = 4,
+        return_encoder_embiddings: bool = False,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
@@ -227,6 +228,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Recommended length per file is between 5 and 25 seconds. \
         But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
+            return_encoder_embiddings: (bool) pass True to get encoder embiddings instead of transcripts.
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
@@ -240,6 +242,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+        if return_hypotheses and return_encoder_embiddings:
+            raise ValueError(
+                "Either `return_hypotheses` or `return_encoder_embiddings` can be True at any given time."
+            )
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
@@ -287,21 +293,27 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                        encoded,
-                        encoded_len,
-                        return_hypotheses=return_hypotheses,
-                        partial_hypotheses=partial_hypothesis,
-                    )
-
-                    hypotheses += best_hyp
-                    if all_hyp is not None:
-                        all_hypotheses += all_hyp
+                    if return_encoder_embiddings:
+                        # dump encoder embeddings per file
+                        for idx in range(encoded.shape[0]):
+                            encoded_no_pad = encoded[idx, :, :encoded_len[idx]]
+                            hypotheses.append(encoded_no_pad)
                     else:
-                        all_hypotheses += best_hyp
+                        best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+                            encoded,
+                            encoded_len,
+                            return_hypotheses=return_hypotheses,
+                            partial_hypotheses=partial_hypothesis,
+                        )
 
-                    del encoded
-                    del test_batch
+                        hypotheses += best_hyp
+                        if all_hyp is not None:
+                            all_hypotheses += all_hyp
+                        else:
+                            all_hypotheses += best_hyp
+
+                        del encoded
+                        del test_batch
         finally:
             # set mode back to its original value
             self.train(mode=mode)
