@@ -524,6 +524,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
 
     def setup_training_data(self):
+        if not self.cfg.data.train_ds.drop_last:
+            raise AttributeError(
+                "`drop_last` is required for the training dataset to ensure each batch is the same micro-batch size."
+                "To set this, set the variable `data.train_ds.drop_last=True` in the config."
+            )
         self._train_dl = self.build_data_loader(
             self._train_ds,
             batch_size=self.cfg.data.train_ds.micro_batch_size,

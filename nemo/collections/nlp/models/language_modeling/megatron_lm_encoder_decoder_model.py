@@ -374,17 +374,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
 
-        self.log(
-            'reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=self.cfg.global_batch_size
-        )
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=self.cfg.global_batch_size)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
-            'global_step',
-            self.trainer.global_step,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=self.cfg.global_batch_size,
+            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
         )
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
@@ -392,7 +386,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
-            batch_size=self.cfg.global_batch_size,
+            batch_size=1,
         )
         return loss_mean
 
