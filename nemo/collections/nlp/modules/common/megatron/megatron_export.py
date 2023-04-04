@@ -86,12 +86,13 @@ class DecEmb(torch.nn.Module, Exportable):
     Combines decoder_embedding with the decoder component
     """
 
-    def __init__(self, decoder_embedding, decoder, device):
+    def __init__(self, decoder_embedding, decoder, rpe, device):
         super(DecEmb, self).__init__()
 
         self.decoder_embedding = decoder_embedding
         self.decoder = decoder
         self.device = device
+        self.rpe = rpe
 
         # properties needed for export
         self.training = False
@@ -105,13 +106,26 @@ class DecEmb(torch.nn.Module, Exportable):
     def forward(self, input_ids, decoder_mask, encoder_mask, encoder_embeddings, decoder_mems):
         position_ids = build_position_ids(input_ids)
         dec_input = self.decoder_embedding(input_ids, position_ids, token_type_ids=None)
+
+        rpe = None
+        if self.rpe is not None:
+            rpe = self.rpe(query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),)
+
         dec_out = (
-            self.decoder(dec_input, decoder_mask, encoder_embeddings.permute(1, 0, 2), encoder_mask)
+            self.decoder(
+                dec_input,
+                decoder_mask,
+                encoder_embeddings.permute(1, 0, 2),
+                encoder_mask,
+                dec_self_attention_relative_position_bias=rpe,
+            )
             .permute(1, 0, 2)
             .float()
         )
 
-        zeros = torch.zeros((decoder_mems.shape[0], 6, dec_out.shape[1], decoder_mems.shape[-1])).to(self.device)
+        zeros = torch.zeros(
+            (decoder_mems.shape[0], self.decoder.num_layers, dec_out.shape[1], decoder_mems.shape[-1])
+        ).to(self.device)
 
         return torch.cat((zeros, dec_out.unsqueeze(1)), dim=1)
 
@@ -130,7 +144,9 @@ class DecEmb(torch.nn.Module, Exportable):
         dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(self.device)
 
         # constant decoder_mems as placeholder for now
-        decoder_mems = torch.zeros([max_batch, 7, seq_len, max_dim], dtype=torch.float32).to(self.device)
+        decoder_mems = torch.zeros([max_batch, self.decoder.num_layers + 1, seq_len, max_dim], dtype=torch.float32).to(
+            self.device
+        )
 
         # input_ids, decoder_mask, encoder_mask, encoder_embeddings
 
@@ -166,12 +182,13 @@ class EncEmb(torch.nn.Module, Exportable):
     Combines encoder_embedding with the encoder component
     """
 
-    def __init__(self, encoder_embedding, encoder, device):
+    def __init__(self, encoder_embedding, encoder, rpe, device):
         super(EncEmb, self).__init__()
 
         self.encoder_embedding = encoder_embedding
         self.encoder = encoder
         self.device = device
+        self.rpe = rpe
 
         # properties needed for export
         self.training = False
@@ -183,11 +200,27 @@ class EncEmb(torch.nn.Module, Exportable):
         return (self.encoder_embedding, self.encoder)
 
     def forward(self, input_ids, encoder_mask):
-        position_ids = build_position_ids(input_ids)
+        if self.rpe is None:
+            position_ids = build_position_ids(input_ids)
+        else:
+            position_ids = None
+
         enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)
 
         # pass input through the encoder
-        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,).permute(1, 0, 2).float()
+        enc_seq_length = input_ids.size(1)
+
+        rpe = None
+        if self.rpe is not None:
+            rpe = self.rpe(query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,)
+
+        return (
+            self.encoder(
+                enc_input=enc_input, enc_attn_mask=encoder_mask, enc_self_attention_relative_position_bias=rpe
+            )
+            .permute(1, 0, 2)
+            .float()
+        )
 
     def input_example(self, max_batch=1, max_dim=30000, seq_len=6):
         seq_len = random.randint(0, 128)
