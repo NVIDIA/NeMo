@@ -7,13 +7,20 @@
     {{ super() }}
     <!-- Add scripts that need to run afterward here -->
 
+
+    <!-- Add Twitter Card metadata -->
+    <meta name="twitter:card" content="summary_large_image" />
+
     <!-- Add OpenGraph Title metadata -->
     {% if page and page.meta and page.meta.og_title %}
         <meta property="og:title" content="{{ page.meta.og_title }}" />
+        <meta name="twitter:title" content="{{ page.meta.og_title }}" />
     {% elif page and page.meta and page.meta.title %}
         <meta property="og:title" content="{{ page.meta.title }}" />
+        <meta name="twitter:title" content="{{ page.meta.title }}" />
     {% else %}
         <meta property="og:title" content="NVIDIA NeMo" />
+        <meta name="twitter:title" content="NVIDIA NeMo" />
     {% endif %}
 
     <!-- Add OpenGraph Type metadata -->
@@ -29,14 +36,19 @@
     <!-- Add OpenGraph Image metadata -->
     {% if page and page.meta and page.meta.page_path and page.meta.og_image %}
         <meta property="og:image:url" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.og_image }}" />
+        <meta property="twitter:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.og_image }}" />
     {% elif page and page.meta and page.meta.og_image %}
         <meta property="og:image:url" content="{{ page.meta.og_image }}" />
+        <meta property="twitter:image" content="{{ page.meta.og_image }}" />
     {% elif page and page.meta and page.meta.page_path and page.meta.image %}
         <meta property="og:image:url" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.image }}" />
+        <meta property="twitter:image" content="{{ config.site_url ~ page.meta.page_path ~ page.meta.image }}" />
     {% elif page and page.meta and page.meta.image %}
         <meta property="og:image:url" content="{{ page.meta.image }}" />
+        <meta property="twitter:image" content="{{ page.meta.image }}" />
     {% else %}
         <meta property="og:image:url" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
+        <meta property="twitter:image" content="{{ config.site_url ~ 'assets/' ~ 'images/' ~ 'nvidia-logo.png' }}" />
     {% endif %}
 
     <!-- Add OpenGraph Image Type metadata -->
@@ -49,8 +61,10 @@
     <!-- Add OpenGraph Description metadata -->
     {% if page and page.meta and page.meta.description %}
         <meta property="og:description" content="{{ page.meta.description }}">
+        <meta property="twitter:description" content="{{ page.meta.description }}">
     {% elif config.site_description %}
         <meta property="og:description" content="{{ config.site_description }}">
+        <meta property="twitter:description" content="{{ config.site_description }}">
     {% endif %}
 
 {% endblock %}
