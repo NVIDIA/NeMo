@@ -242,9 +242,17 @@ It is highly recommended to use the NVIDIA PyTorch or NeMo container if having i
 While installing Apex, it may raise an error if the CUDA version on your system does not match the CUDA version torch was compiled with.
 This raise can be avoided by commenting it here: https://github.com/NVIDIA/apex/blob/master/setup.py#L32
 
-cuda-nvprof is needed to install Apex: `conda install -c nvidia cuda-nvprof=11.6`
+cuda-nvprof is needed to install Apex. The version should match the CUDA version that you are using:
 
-packaging is also needed: `pip install -y packaging`
+.. code-block:: bash
+
+  conda install -c nvidia cuda-nvprof=11.8
+
+packaging is also needed:
+
+.. code-block:: bash
+  
+  pip install -y packaging
 
 
 Transformer Engine
