@@ -522,8 +522,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 shuffle=True,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
-                cache_data_path=self.cfg.data.get('train_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
             )
 
     def setup_validation_data(self, validation_data_config=None):
@@ -543,8 +541,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
-                cache_data_path=self.cfg.data.get('validation_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
             )
 
     def setup_test_data(self, test_data_config=None):
@@ -561,8 +557,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
-                cache_data_path=self.cfg.data.get('test_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
             )
 
     def build_virtual_prompt_dataset(
@@ -580,11 +574,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         pin_memory=False,
         tokens_to_generate=None,
         get_dataset_only=False,
-        cache_data_path=None,
-        load_cache=False,
     ):
         dataset = GPTPromptLearningDataset(
-            data=data,
+            data=list(data),
             tokenizer=self.tokenizer,
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
@@ -596,8 +588,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             add_eos=add_eos,
             for_train=for_train,
             tokens_to_generate=tokens_to_generate,
-            cache_data_path=cache_data_path,
-            load_cache=load_cache,
         )
 
         if get_dataset_only:

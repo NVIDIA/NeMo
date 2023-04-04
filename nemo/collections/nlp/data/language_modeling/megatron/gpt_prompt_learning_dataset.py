@@ -15,6 +15,7 @@
 import json
 import os
 import pickle
+import numpy as np
 
 import torch
 from tqdm.auto import tqdm
@@ -23,8 +24,11 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
+    JSONLMemMapDataset,
+)
 
-__all__ = ['GPTPromptLearningDataset']
+__all__ = ["GPTPromptLearningDataset"]
 
 
 class GPTPromptLearningDataset(Dataset):
@@ -32,7 +36,7 @@ class GPTPromptLearningDataset(Dataset):
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
     
     Args:
-        data (list[strings], list[dicts]): (1) paths to .jsonl or .json files, (2) dict objects corresponding to each input example
+        data list[strings]: paths to .jsonl or .json files
         tokenizer (tokenizer): Tokenizer from frozen language model
         virtual_prompt_source (Enum): Either VirtualPromptSource.NO_PROMPTS or VirtualPromptSource.PROMPT_ENCODER
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
@@ -60,8 +64,7 @@ class GPTPromptLearningDataset(Dataset):
         add_eos: bool = True,
         for_train: bool = True,
         tokens_to_generate=None,
-        cache_data_path: str = None,  # the cache file
-        load_cache: bool = True,  # whether to load from the cache if it is available
+        max_num_samples=None,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -74,126 +77,102 @@ class GPTPromptLearningDataset(Dataset):
         self.add_bos = add_bos
         self.add_eos = add_eos
         self.for_train = for_train
-        self.examples = []
+        self.max_num_samples = max_num_samples
+        self._cache_processed_examples = {}
 
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
 
-        assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
+        assert (
+            self.min_seq_length <= max_seq_length
+        ), "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
-        logging.info("Loading and tokenizing dataset ... ")
+        assert len(data) == 1
+        self.file_path = data[0]
+        self.indexed_dataset = JSONLMemMapDataset(
+            dataset_paths=[self.file_path], tokenizer=None, header_lines=0
+        )
 
-        if load_cache and cache_data_path is not None and os.path.exists(cache_data_path):
-            # load it from the cache
-            logging.info(f'load the data from the cache file {cache_data_path}')
-            with open(cache_data_path, 'rb') as f:
-                self.examples = pickle.load(f)
+    def __len__(self):
+        return len(self.indexed_dataset)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, np.int64):
+            idx = idx.item()
+
+        assert idx < len(self.indexed_dataset)
+        if idx in self._cache_processed_examples:
+            processed_example = self._cache_processed_examples[idx]
         else:
-            # Data is just a list of dicts already loaded from a json file or passed in directly as a dict
-            if isinstance(data[0], dict):
-                self.load_data(data)
+            unprocessed_example = self.indexed_dataset[idx]
+            processed_example = self._process_example(unprocessed_example)
+            self._cache_processed_examples[idx] = processed_example
+        return processed_example
 
-            # Datasets are a list of file path strings to .json or .jsonl files
-            elif isinstance(data[0], str):
-                for path in data:
-                    dataset = open(path, 'r', encoding='utf-8')
-                    self.load_data(dataset)
-            else:
-                raise ValueError("Datasets must be a list of filepath strings or a list of data example dicts")
-            if cache_data_path is not None:
-                # the first worker save the results into the cache file
-                app_state = AppState()
-                if app_state._global_rank == 0:
-                    with open(cache_data_path, 'wb') as f:
-                        pickle.dump(self.examples, f)
-                    logging.info(f'save the data to the cache file {cache_data_path}')
+    def _process_example(self, doc):
+        taskname = doc["taskname"]
+        prompt_template = self.task_templates[taskname]["prompt_template"]
+        prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
+        total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+        virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
+        truncation_field = self.task_templates[taskname]["truncate_field"]
+        answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
+        answer_field = self.task_templates[taskname]["answer_field"]
+        input_example = prompt_template
+        self._input_sanity_checks(
+            total_virtual_tokens,
+            virtual_token_splits,
+            prompt_template,
+            prompt_template_fields,
+            truncation_field,
+            answer_only_loss,
+            answer_field,
+            doc,
+        )
+        # Format the input example according to the template
+        input_example = self._insert_text_in_template(
+            input_example, prompt_template_fields, doc
+        )
+        input_example = self._insert_virtual_token_placeholders(
+            input_example, virtual_token_splits
+        )
+        input_ids = self.tokenizer.text_to_ids(input_example)
+        # Add BOS/EOS if desired, adds EOS by default
+        if self.add_bos:
+            input_ids = [self.tokenizer.bos_id] + input_ids
+        if self.add_eos:
+            input_ids = input_ids + [self.tokenizer.eos_id]
 
-    def load_data(self, dataset):
-        """
-        Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
-
-        params:
-            dataset: A list of json objects or a dictionary objects each
-                     containing the information needed for a training example
-        """
-        skipped = 0
-
-        for json_line in tqdm(dataset):
-
-            # Read example dict or load the information for a single example from .json file
-            if type(json_line) == dict:
-                doc = json_line
-            else:
-                doc = json.loads(json_line)
-
-            taskname = doc["taskname"]
-            prompt_template = self.task_templates[taskname]["prompt_template"]
-            prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
-            truncation_field = self.task_templates[taskname]['truncate_field']
-            answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
-            answer_field = self.task_templates[taskname]["answer_field"]
-
-            input_example = prompt_template
-
-            self._input_sanity_checks(
-                total_virtual_tokens,
-                virtual_token_splits,
+        # Try to truncate input text to fit into the max sequence length
+        if len(input_ids) > self.max_seq_length:
+            input_ids = self._truncate_input(
+                truncation_field,
+                input_ids,
+                taskname,
+                doc,
                 prompt_template,
                 prompt_template_fields,
-                truncation_field,
-                answer_only_loss,
-                answer_field,
-                doc,
+                virtual_token_splits,
             )
 
-            # Format the input example according to the template
-            input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
-            input_ids = self.tokenizer.text_to_ids(input_example)
+        if len(input_ids) > self.max_seq_length:
+            raise RuntimeError("Truncation failed.")
 
-            # Add BOS/EOS if desired, adds EOS by default
-            if self.add_bos:
-                input_ids = [self.tokenizer.bos_id] + input_ids
-            if self.add_eos:
-                input_ids = input_ids + [self.tokenizer.eos_id]
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_id = self.tokenizer.text_to_ids(taskname)
+        elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+            taskname_id = -1
+        else:
+            raise ValueError("Invalid virtual prompt source specified")
 
-            # Try to truncate input text to fit into the max sequence length
-            if len(input_ids) > self.max_seq_length:
-                input_ids = self._truncate_input(
-                    truncation_field,
-                    input_ids,
-                    taskname,
-                    doc,
-                    prompt_template,
-                    prompt_template_fields,
-                    virtual_token_splits,
-                )
-
-            # Skip example if the final length doesn't fit length requirements even after truncation
-            if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-                if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                    taskname_id = self.tokenizer.text_to_ids(taskname)
-                elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
-                    taskname_id = -1
-                else:
-                    raise ValueError("Invalid virtual prompt source specified")
-
-                # Find answer field indices if training and answer_only_loss is True
-                answer_start_idx = None
-                if answer_only_loss and self.for_train:
-                    answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
-
-                self.examples.append((taskname_id, input_ids, answer_start_idx))
-            else:
-                skipped += 1
-
-        logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
+        # Find answer field indices if training and answer_only_loss is True
+        answer_start_idx = None
+        if answer_only_loss and self.for_train:
+            answer_start_idx = self._find_answer_start(
+                taskname, input_ids, answer_field, doc
+            )
+        return (taskname_id, input_ids, answer_start_idx)
 
     def _input_sanity_checks(
         self,
@@ -217,40 +196,48 @@ class GPTPromptLearningDataset(Dataset):
         ), "Sum of prompt token split values must equal total number of prompt tokens"
 
         # Make sure number of virtual prompt locations match the number of virtual prompt splits
-        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+        assert prompt_template.count("<|VIRTUAL_PROMPT_") == len(
             virtual_token_splits
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
-        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
+        keys_not_in_template = list(
+            set(doc.keys()) - set(prompt_template_fields) - set(["taskname"])
+        )
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
         # Answer field checks
         if answer_only_loss and self.for_train:
-            assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
+            assert (
+                answer_field is not None
+            ), "If answer_only_loss=True, an answer_field must be given"
             assert (
                 answer_field in doc.keys()
             ), f"answer_only_loss=True but the given answer_field '{answer_field}' is not in data json"
-            assert truncation_field != answer_field, "Answer field and truncation field should not match"
+            assert (
+                truncation_field != answer_field
+            ), "Answer field and truncation field should not match"
 
             answer_placeholder = "{" + answer_field + "}"
             answer_placeholder_len = len(answer_placeholder)
             placeholder_start = len(prompt_template) - answer_placeholder_len
-            assert prompt_template[placeholder_start:] == answer_placeholder, "Answer field must be at prompt end"
+            assert (
+                prompt_template[placeholder_start:] == answer_placeholder
+            ), "Answer field must be at prompt end"
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
         for field in prompt_template_fields:
             if field in doc.keys():
                 field_text = doc[field]
-                input_example = input_example.replace('{' + field + '}', field_text)
+                input_example = input_example.replace("{" + field + "}", field_text)
 
             # If some fields from the template aren't present, e.g. {answer} during inference
             # just remove that field from the template, leaving the space blank
             else:
-                input_example = input_example.replace('{' + field + '}', "")
+                input_example = input_example.replace("{" + field + "}", "")
 
         return input_example.strip(" ")
 
@@ -258,17 +245,26 @@ class GPTPromptLearningDataset(Dataset):
         """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
         total_inserted_tokens = 0
 
-        for idx in range(len(virtual_token_splits)):
+        for idx, vts in enumerate(virtual_token_splits):
             split_start = total_inserted_tokens
-            split_end = total_inserted_tokens + virtual_token_splits[idx]
+            split_end = total_inserted_tokens + vts
             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
-            input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+            input_example = input_example.replace(
+                f"<|VIRTUAL_PROMPT_{idx}|>", pseudo_tokens_for_split
+            )
             total_inserted_tokens = split_end
 
         return input_example
 
     def _truncate_input(
-        self, truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields, virtual_token_splits
+        self,
+        truncation_field,
+        input_ids,
+        taskname,
+        doc,
+        prompt_template,
+        prompt_template_fields,
+        virtual_token_splits,
     ):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
@@ -282,14 +278,20 @@ class GPTPromptLearningDataset(Dataset):
 
             # Truncate field text
             field_text_ids = self.tokenizer.text_to_ids(field_text)
-            truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
+            truncated_text_ids = field_text_ids[
+                : -min(truncation_length, len(field_text_ids))
+            ]
             truncated_field_text = self.tokenizer.ids_to_text(truncated_text_ids)
             doc[truncation_field] = truncated_field_text
 
             # Re-insert the truncated text string into the text prompt
             input_example = prompt_template
-            input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
+            input_example = self._insert_text_in_template(
+                input_example, prompt_template_fields, doc
+            )
+            input_example = self._insert_virtual_token_placeholders(
+                input_example, virtual_token_splits
+            )
 
             # Re-tokenize the whole prompt
             input_ids = self.tokenizer.text_to_ids(input_example)
@@ -321,12 +323,6 @@ class GPTPromptLearningDataset(Dataset):
 
         return field_text
 
-    def __len__(self):
-        return len(self.examples)
-
-    def __getitem__(self, idx):
-        return self.examples[idx]
-
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
         taskname_ids, input_ids, answer_starts = zip(*batch)
@@ -334,7 +330,10 @@ class GPTPromptLearningDataset(Dataset):
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
-            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
+            taskname_ids = [
+                ids + [self.pad_token_id] * (max_taskname_length - len(ids))
+                for ids in taskname_ids
+            ]
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
@@ -350,7 +349,9 @@ class GPTPromptLearningDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(
+            input_ids, batch_max, answer_starts
+        )
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -361,9 +362,9 @@ class GPTPromptLearningDataset(Dataset):
 
         # Using causal attention mask for whole input
         batch_size = len(input_ids)
-        attention_mask = torch.tril(torch.ones((batch_size, batch_max, batch_max))).view(
-            batch_size, 1, batch_max, batch_max
-        )
+        attention_mask = torch.tril(
+            torch.ones((batch_size, batch_max, batch_max))
+        ).view(batch_size, 1, batch_max, batch_max)
 
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
@@ -381,7 +382,9 @@ class GPTPromptLearningDataset(Dataset):
                 loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
             else:
                 # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
-                loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
+                loss_mask = [
+                    float(token_id not in self.pseudo_token_ids) for token_id in ids
+                ]
 
             # Pad to max length
             input_length = len(ids)
@@ -410,7 +413,9 @@ class GPTPromptLearningDataset(Dataset):
         batch_max = input_lengths.max().item()
         batch_max += self.tokens_to_generate
 
-        input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        input_ids, _ = self.pad_batch_and_build_loss_mask(
+            input_ids, batch_max, answer_starts
+        )
         input_ids = input_ids.cuda()
         input_ids = torch.cuda.LongTensor(input_ids)
 
