@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import functools
-import json
 import os
 from pathlib import Path
-from typing import List
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -25,20 +24,15 @@ from scipy import ndimage
 from torch.special import gammaln
 
 
-def read_manifest(manifest_path: Path) -> List[dict]:
-    """Read manifest file at the given path and convert it to a list of dictionary entries.
-    """
-    with open(manifest_path, "r", encoding="utf-8") as manifest_f:
-        entries = [json.loads(line) for line in manifest_f]
-    return entries
+def get_audio_paths(audio_path: Path, base_path: Path) -> Tuple[Path, Path]:
+    if os.path.isabs(audio_path):
+        abs_path = audio_path
+        rel_path = audio_path.relative_to(base_path)
+    else:
+        rel_path = audio_path
+        abs_path = base_path / rel_path
 
-
-def write_manifest(manifest_path: Path, entries: List[dict]) -> None:
-    """Convert input entries to JSON format and write them as a manifest at the given path.
-    """
-    output_lines = [f"{json.dumps(entry, ensure_ascii=False)}\n" for entry in entries]
-    with open(manifest_path, "w", encoding="utf-8") as output_f:
-        output_f.writelines(output_lines)
+    return abs_path, rel_path
 
 
 def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Path) -> Path:
