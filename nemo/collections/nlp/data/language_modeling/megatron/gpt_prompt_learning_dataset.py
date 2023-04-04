@@ -342,14 +342,14 @@ class GPTPromptLearningDataset(Dataset):
             taskname_ids = torch.tensor(taskname_ids)
 
         # Get max sequence length of batch
-        batch_max = max(len(ids) for ids in input_ids)
+        batch_max = self.max_seq_length + 1
 
         if tp_workers > 1:
-            # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
-            resi_padding = (tp_workers - (batch_max - 1) % tp_workers) % tp_workers
-        else:
-            resi_padding = 0
-        batch_max += resi_padding
+            # make sure the sequence length is multiple of number of tp_workers, needed for sequence parallel.
+            assert (
+                tp_workers - (batch_max - 1) % tp_workers
+            ) % tp_workers == 0, "max_seq_length must be divisble by tp size"
+
         input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
@@ -407,7 +407,7 @@ class GPTPromptLearningDataset(Dataset):
         task_id_nums, input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
         task_id_nums = torch.cuda.LongTensor(task_id_nums)
-        batch_max = input_lengths.max().item()
+        batch_max = self.max_seq_length  # input_lengths.max().item()
         batch_max += self.tokens_to_generate
 
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)

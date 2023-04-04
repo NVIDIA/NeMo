@@ -29,7 +29,7 @@ from nemo.core.neural_types import ChannelType, NeuralType
 ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -157,9 +157,6 @@ class TPMLP(NeuralModule, Exportable):
 
         sequence_parallel = False
         gradient_accumulation_fusion = False
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
-        )
         self.first = tensor_parallel.ColumnParallelLinear(
             self.output_size,
             self.hidden_size,
@@ -169,7 +166,6 @@ class TPMLP(NeuralModule, Exportable):
             use_cpu_initialization=False,
             bias=True,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
         self.second = tensor_parallel.RowParallelLinear(
