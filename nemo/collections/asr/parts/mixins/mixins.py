@@ -480,6 +480,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 "return_transcription can not be False for Transducer models as decoder returns the transcriptions too."
             )
 
+        if not isinstance(self, asr_models.EncDecCTCModel) and return_log_probs is True:
+            logging.info("return_log_probs can only be True for CTC models.")
+
         (
             encoded,
             encoded_len,
@@ -580,7 +583,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             logprobs: (bool) pass True to get log probabilities instead of transcripts.
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
-            online_normalization: (bool)
+            online_normalization: (bool) Perform normalization on the run per chunk.
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
@@ -639,7 +642,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             cur_chunk_log_probs,
                             encoded_len,
                         ) = result
-                        batch_log_probs.append(cur_chunk_log_probs)
+                        batch_log_probs.append(cur_chunk_log_probs.cpu())
                     else:
                         (
                             pred_out_stream,
