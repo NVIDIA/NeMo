@@ -90,6 +90,56 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
     demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
 
 
+def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
+    asyncio.set_event_loop(loop)
+    with gr.Blocks() as demo:
+        with gr.Row():
+            with gr.Column(scale=2, width=200):
+                greedy_flag = gr.Checkbox(label="Greedy")
+                add_BOS = gr.Checkbox(label="Add BOS token", value=False)
+                token_to_gen = gr.Number(label='Number of Tokens to generate', value=300, type=int)
+                min_token_to_gen = gr.Number(label='Min number of Tokens to generate', value=1, type=int)
+                temperature = gr.Slider(minimum=0.0, maximum=10.0, value=1.0, label='Temperature', step=0.1)
+                top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.02, value=0.9, label='Top P')
+                top_k = gr.Slider(minimum=0, maximum=10000, step=2, value=0, label='Top K')
+                repetition_penality = gr.Slider(
+                    minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
+                )
+                end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
+            with gr.Column(scale=1, min_width=800):
+                chatbot = gr.Chatbot()
+                msg = gr.Textbox()
+                clear = gr.Button("Clear")
+                HUMAN_TOKEN = '<extra_id_1>'
+                ASSITANT_TOKEN = '<extra_id_2>'
+
+                def user(user_message, history):
+                    return "", history + [[user_message, None]]
+
+                def bot(history, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings):
+                    prompts = history[:-1]
+                    prompt_text = ''
+                    for prompt in prompts:
+                        prompt_text += HUMAN_TOKEN + prompt[
+                            0].replace('<br>', '\n') + '\n' + ASSITANT_TOKEN + prompt[1].replace('<br>', '\n') + '\n'
+                    prompt_text += HUMAN_TOKEN + history[-1][
+                        0].replace('<br>', '\n') + '\n' + ASSITANT_TOKEN
+                    bot_message = create_gen_function(server_port)(
+                        prompt_text, greedy_flag, add_BOS,
+                        token_to_gen, min_token_to_gen,
+                        temperature, top_p, top_k,
+                        repetition_penality, end_strings)
+                    bot_message = bot_message[len(prompt_text):]
+                    history[-1][1] = bot_message
+                    return history
+
+                msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+                    bot, [chatbot, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings], chatbot
+                )
+                clear.click(lambda: None, None, chatbot, queue=False)
+        demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
+
+
 class RetroDemoWebApp:
     def __init__(self, text_service_ip, text_service_port, combo_service_ip, combo_service_port):
         self.text_service_ip = text_service_ip

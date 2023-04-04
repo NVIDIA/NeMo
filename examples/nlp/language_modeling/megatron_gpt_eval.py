@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo, get_chatbot_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
@@ -260,7 +260,7 @@ def main(cfg) -> None:
             if cfg.web_server:
                 loop = asyncio.new_event_loop()
                 thread = threading.Thread(
-                    target=get_demo,
+                    target=get_chatbot_demo,
                     daemon=True,
                     args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
                 )
