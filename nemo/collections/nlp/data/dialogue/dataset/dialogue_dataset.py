@@ -23,7 +23,7 @@ class DialogueDataset(Dataset):
     Base class for Dialogue Datasets
         1. Performs Model-dependent (but Data-independent) operations (tokenization etc)
         2. This can allow the same model preprocessing for multiple datasources
-        3. Users can configurate which labels to use for modelling 
+        3. Users can configurate which labels to use for modelling
             (e.g. intent classification, slot filling or sequence generation etc)
     '''
 

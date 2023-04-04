@@ -43,7 +43,6 @@ def get_parser():
 
 
 def main(config_path, encoder_ckpt, decoder_ckpt, output_path, model_type):
-
     yaml = YAML(typ='safe')
     with open(config_path) as f:
         params = yaml.load(f)

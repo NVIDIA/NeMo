@@ -130,7 +130,7 @@ class DDSConv(nn.Module):
         self.norms_1 = nn.ModuleList()
         self.norms_2 = nn.ModuleList()
         for i in range(n_layers):
-            dilation = kernel_size ** i
+            dilation = kernel_size**i
             padding = (kernel_size * dilation - dilation) // 2
             self.convs_sep.append(
                 nn.Conv1d(channels, channels, kernel_size, groups=channels, dilation=dilation, padding=padding)
@@ -174,7 +174,7 @@ class WN(torch.nn.Module):
             self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         for i in range(n_layers):
-            dilation = dilation_rate ** i
+            dilation = dilation_rate**i
             padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = torch.nn.Conv1d(
                 hidden_channels, 2 * hidden_channels, kernel_size, dilation=dilation, padding=padding
@@ -428,7 +428,7 @@ class StochasticDurationPredictor(nn.Module):
             u = torch.sigmoid(z_u) * x_mask
             z0 = (w - u) * x_mask
             logdet_tot_q += torch.sum((F.logsigmoid(z_u) + F.logsigmoid(-z_u)) * x_mask, [1, 2])
-            logq = torch.sum(-0.5 * (math.log(2 * math.pi) + (e_q ** 2)) * x_mask, [1, 2]) - logdet_tot_q
+            logq = torch.sum(-0.5 * (math.log(2 * math.pi) + (e_q**2)) * x_mask, [1, 2]) - logdet_tot_q
 
             logdet_tot = 0
             z0, logdet = self.log_flow(z0, x_mask)
@@ -437,7 +437,7 @@ class StochasticDurationPredictor(nn.Module):
             for flow in flows:
                 z, logdet = flow(z, x_mask, g=x, reverse=reverse)
                 logdet_tot = logdet_tot + logdet
-            nll = torch.sum(0.5 * (math.log(2 * math.pi) + (z ** 2)) * x_mask, [1, 2]) - logdet_tot
+            nll = torch.sum(0.5 * (math.log(2 * math.pi) + (z**2)) * x_mask, [1, 2]) - logdet_tot
             return nll + logq  # [b]
         else:
             flows = list(reversed(self.flows))
@@ -511,7 +511,7 @@ class TextEncoder(nn.Module):
         self.p_dropout = p_dropout
 
         self.emb = nn.Embedding(n_vocab, hidden_channels, padding_idx=padding_idx)
-        nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
+        nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
         self.encoder = AttentionEncoder(hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout)
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
@@ -614,7 +614,7 @@ class Generator(torch.nn.Module):
             self.ups.append(
                 weight_norm(
                     nn.ConvTranspose1d(
-                        upsample_initial_channel // (2 ** i),
+                        upsample_initial_channel // (2**i),
                         upsample_initial_channel // (2 ** (i + 1)),
                         k,
                         u,
@@ -787,7 +787,6 @@ class SynthesizerTrn(nn.Module):
         use_sdp=True,
         **kwargs
     ):
-
         super().__init__()
         self.n_vocab = n_vocab
         self.spec_channels = spec_channels
@@ -860,12 +859,12 @@ class SynthesizerTrn(nn.Module):
             s_p_sq_r = torch.exp(-2 * logscale_prior)  # [b, d, t]
             neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logscale_prior, [1], keepdim=True)  # [b, 1, t_s]
             neg_cent2 = torch.matmul(
-                -0.5 * (z_p ** 2).transpose(1, 2), s_p_sq_r
+                -0.5 * (z_p**2).transpose(1, 2), s_p_sq_r
             )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
             neg_cent3 = torch.matmul(
                 z_p.transpose(1, 2), (mean_prior * s_p_sq_r)
             )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent4 = torch.sum(-0.5 * (mean_prior ** 2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
+            neg_cent4 = torch.sum(-0.5 * (mean_prior**2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(spec_mask, -1)
@@ -1033,7 +1032,7 @@ class MultiHeadAttention(nn.Module):
 
         if window_size is not None:
             n_heads_rel = 1 if heads_share else n_heads
-            rel_stddev = self.k_channels ** -0.5
+            rel_stddev = self.k_channels**-0.5
             self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
             self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
 
@@ -1145,7 +1144,7 @@ class MultiHeadAttention(nn.Module):
         batch, heads, length, _ = x.size()
         # padd along column
         x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length - 1]]))
-        x_flat = x.view([batch, heads, length ** 2 + length * (length - 1)])
+        x_flat = x.view([batch, heads, length**2 + length * (length - 1)])
         # add 0's in the beginning that will skew the elements after reshape
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [length, 0]]))
         x_final = x_flat.view([batch, heads, length, 2 * length])[:, :, :, 1:]

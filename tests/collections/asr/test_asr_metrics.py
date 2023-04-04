@@ -48,7 +48,6 @@ def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer
 
 
 class TestWordErrorRate:
-
     vocabulary = [' '] + list(string.ascii_lowercase) + ["'"]
     char_tokenizer = build_char_tokenizer_with_vocabulary(vocabulary)
 
@@ -125,7 +124,13 @@ class TestWordErrorRate:
             float("inf"),
             float("inf"),
         )
-        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (2.0, 1, 1.0, 1.0, 0.0,)
+        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (
+            2.0,
+            1,
+            1.0,
+            1.0,
+            0.0,
+        )
         assert word_error_rate_detail(hypotheses=['cat'], references=['cot']) == (1.0, 1, 0.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=['G P U'], references=['GPU']) == (3.0, 1, 2.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=[''], references=['ducuti motorcycle'], use_cer=True) == (
@@ -528,8 +533,7 @@ class TestWordErrorRate:
 
 class TestAudioMetricWrapper:
     def test_metric_full_batch(self):
-        """Test metric on batches where all examples have equal length.
-        """
+        """Test metric on batches where all examples have equal length."""
         ref_metric = SignalNoiseRatio()
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
 
@@ -563,8 +567,7 @@ class TestAudioMetricWrapper:
             wrapped_metric.reset()
 
     def test_input_length(self):
-        """Test metric on batches where examples have different length.
-        """
+        """Test metric on batches where examples have different length."""
         ref_metric = SignalNoiseRatio()
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
 
@@ -607,8 +610,7 @@ class TestAudioMetricWrapper:
     @pytest.mark.unit
     @pytest.mark.parametrize('channel', [0, 1])
     def test_channel(self, channel):
-        """Test metric on a single channel from a batch.
-        """
+        """Test metric on a single channel from a batch."""
         ref_metric = SignalNoiseRatio()
         # select only a single channel
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio(), channel=channel)

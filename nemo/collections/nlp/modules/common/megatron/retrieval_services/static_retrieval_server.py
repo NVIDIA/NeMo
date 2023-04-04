@@ -37,7 +37,12 @@ class FaissRetrievalResource(Resource):
     """
 
     def __init__(
-        self, index, tokenizer, ds, query_bert_ip, query_bert_port,
+        self,
+        index,
+        tokenizer,
+        ds,
+        query_bert_ip,
+        query_bert_port,
     ):
         # server
         self.index = index

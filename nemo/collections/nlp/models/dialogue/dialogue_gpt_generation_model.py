@@ -43,9 +43,10 @@ NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 
 class DialogueGPTGenerationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
-
         self.cfg = cfg
         self.data_prepared = False
 
@@ -86,7 +87,6 @@ class DialogueGPTGenerationModel(NLPModel):
         self.eval_epoch_end(outputs, mode='test')
 
     def eval_epoch_end(self, outputs, mode='val'):
-
         generated_field = []
         ground_truth_field = []
         inputs = []
@@ -104,7 +104,10 @@ class DialogueGPTGenerationModel(NLPModel):
         )
 
         DialogueGenerationMetrics.save_predictions(
-            filename, generated_field, ground_truth_field, inputs,
+            filename,
+            generated_field,
+            ground_truth_field,
+            inputs,
         )
 
         label_acc = np.mean([int(generated_field[i] == ground_truth_field[i]) for i in range(len(generated_field))])
@@ -138,7 +141,6 @@ class DialogueGPTGenerationModel(NLPModel):
         raise NotImplementedError()
 
     def forward(self, input_ids, attention_mask, labels, inference=True):
-
         if self.cfg.library == "huggingface":
             output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = output['loss']
@@ -149,7 +151,10 @@ class DialogueGPTGenerationModel(NLPModel):
             )
 
             position_ids = torch.arange(
-                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
+                start=0,
+                end=num_prompt_tokens + input_ids.size(1),
+                dtype=torch.long,
+                device=input_ids.device,
             )
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
@@ -222,7 +227,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
@@ -267,7 +272,6 @@ class DialogueGPTGenerationModel(NLPModel):
         return generated_tokens
 
     def generate_candidates(self, labels, template_length, input_ids, attn_masks):
-
         tokens_to_generate = self.cfg.tokens_to_generate
         if self.cfg.library == "huggingface":
             generated_tokens = []
@@ -303,7 +307,6 @@ class DialogueGPTGenerationModel(NLPModel):
         return generated_field, ground_truth_field
 
     def process_into_structured_fields(self, full_seq_ids, template_length=None):
-
         structured_field = []
         for i in range(full_seq_ids.size(0)):
             start_point = 0 if template_length is None else template_length[i].item()
@@ -318,7 +321,6 @@ class DialogueGPTGenerationModel(NLPModel):
         return structured_field
 
     def eval_step_helper(self, batch, mode='val'):
-
         input_ids, attn_masks, labels, template_length, utterance_length = batch
 
         loss = self(input_ids, attn_masks, labels)

@@ -22,7 +22,6 @@ from nemo.collections.tts.g2p.utils import GRAPHEME_CASE_LOWER, GRAPHEME_CASE_MI
 
 
 class TestIpaG2p:
-
     PHONEME_DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict")
     PHONEME_DICT_PATH_DE = os.path.join(PHONEME_DICT_DIR, "test_dict_de.txt")
     PHONEME_DICT_PATH_EN = os.path.join(PHONEME_DICT_DIR, "test_dict_en.txt")

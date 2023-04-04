@@ -113,7 +113,6 @@ class ThutmoseTaggerModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, input_mask, segment_ids):
-
         src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tag_logits = self.logits(hidden_states=src_hiddens)
         semiotic_logits = self.semiotic_logits(hidden_states=src_hiddens)
@@ -286,7 +285,7 @@ class ThutmoseTaggerModel(NLPModel):
     # Functions for inference
     @torch.no_grad()
     def _infer(self, sents: List[str]) -> List[List[int]]:
-        """ Main function for Inference
+        """Main function for Inference
 
         Args:
             sents: A list of input sentences (lowercase spoken-domain words separated by space).

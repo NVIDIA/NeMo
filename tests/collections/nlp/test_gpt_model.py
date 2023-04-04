@@ -31,7 +31,6 @@ if torch.cuda.is_available():
 
 @pytest.fixture()
 def model_cfg(test_data_dir):
-
     model_cfg = {
         'precision': 16,
         'micro_batch_size': 4,
@@ -101,7 +100,6 @@ def model_cfg(test_data_dir):
 
 @pytest.fixture()
 def trainer_cfg():
-
     trainer_cfg = {
         'devices': 1,
         'num_nodes': 1,
@@ -166,7 +164,6 @@ class TestGPTModel:
 
     @pytest.mark.unit
     def test_tokenizer(self, gpt_model, test_text):
-
         assert isinstance(gpt_model.tokenizer, AutoTokenizer)
         assert gpt_model.tokenizer.name == 'GPT2Tokenizer'
         assert gpt_model.tokenizer.vocab_size == 50257
@@ -197,7 +194,6 @@ class TestGPTModel:
     )
     @pytest.mark.unit
     def test_forward(self, gpt_model, test_text):
-
         dtype = None
         if gpt_model.cfg['precision'] == 32:
             dtype = torch.float

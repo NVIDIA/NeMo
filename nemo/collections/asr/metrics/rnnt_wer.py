@@ -306,7 +306,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
 
         elif self.cfg.strategy == 'beam':
-
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -319,7 +318,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'tsd':
-
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -333,7 +331,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'alsd':
-
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -347,7 +344,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'maes':
-
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -368,7 +364,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         else:
-
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
@@ -1051,7 +1046,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary,
+        self,
+        decoding_cfg,
+        decoder,
+        joint,
+        vocabulary,
     ):
         blank_id = (
             len(vocabulary) + joint.num_extra_outputs
@@ -1059,7 +1058,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
+            decoding_cfg=decoding_cfg,
+            decoder=decoder,
+            joint=joint,
+            blank_id=blank_id,
         )
 
         if isinstance(self.decoding, beam_decode.BeamRNNTInfer):

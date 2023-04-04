@@ -51,9 +51,10 @@ __all__ = ['DialogueGPTClassificationModel']
 
 class DialogueGPTClassificationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
-
         self.cfg = cfg
         self.eval_mode = cfg.dataset.eval_mode
         self.data_prepared = False
@@ -101,14 +102,14 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override for prompt learning. 
-        Optimizer will get self._optimizer_param_groups. 
+        ModelPT override for prompt learning.
+        Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         if not self.prompt_learning:
             super().setup_optimizer_param_groups()
@@ -187,7 +188,6 @@ class DialogueGPTClassificationModel(NLPModel):
         self.eval_epoch_end(outputs, mode='test')
 
     def eval_epoch_end(self, outputs, mode='val'):
-
         generated_field = []
         ground_truth_field = []
         inputs = []
@@ -273,7 +273,6 @@ class DialogueGPTClassificationModel(NLPModel):
             self.language_model.on_train_end()
 
     def get_prompt_token_labels_for_megatron_gpt(self, input_ids, num_prompt_tokens):
-
         prompt_token_labels = torch.full(
             size=(input_ids.size(0), num_prompt_tokens),
             fill_value=self.tokenizer.tokenizer.pad_token_id,
@@ -305,7 +304,6 @@ class DialogueGPTClassificationModel(NLPModel):
         return prompt_ids
 
     def forward(self, input_ids, attention_mask, labels, inference=True):
-
         if self.cfg.library == "huggingface":
             output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = output['loss']
@@ -322,7 +320,10 @@ class DialogueGPTClassificationModel(NLPModel):
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
             )
             position_ids = torch.arange(
-                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
+                start=0,
+                end=num_prompt_tokens + input_ids.size(1),
+                dtype=torch.long,
+                device=input_ids.device,
             )
 
             prompt_ids = self.get_virtual_prompt_ids_for_megatron_gpt(input_ids)
@@ -412,7 +413,6 @@ class DialogueGPTClassificationModel(NLPModel):
             lowest_loss = float("inf")
 
             for j in range(0, candidate_input_ids.size(1), 2):
-
                 if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
                     break
 
@@ -515,7 +515,6 @@ class DialogueGPTClassificationModel(NLPModel):
         return generated_field, ground_truth_field
 
     def generate_candidates(self, labels, template_length, input_ids, attn_masks):
-
         tokens_to_generate = self.cfg.tokens_to_generate
 
         if self.cfg.library == "huggingface":
@@ -542,7 +541,6 @@ class DialogueGPTClassificationModel(NLPModel):
             num_prompt_tokens = 0
 
         elif self.cfg.library == "megatron":
-
             prompt_ids = self.get_virtual_prompt_ids_for_megatron_gpt(input_ids)
 
             num_prompt_tokens = (
@@ -648,7 +646,6 @@ class DialogueGPTClassificationModel(NLPModel):
         }
 
     def process_into_structured_fields(self, generated_tokens, labels, template_length=None):
-
         generated_field = []
 
         for i in range(generated_tokens.size(0)):
@@ -702,7 +699,9 @@ class DialogueGPTClassificationModel(NLPModel):
             )
         elif self._cfg.dataset.task == 'design':
             self.dialogues_processor = DialogueDesignDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset,
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         else:
             raise ValueError("Only sgd, assistant, zero_shot, design supported for Dialogue GPT Classification Model")

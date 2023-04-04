@@ -36,7 +36,6 @@ class LogMode(enum.IntEnum):
 
 
 class Logger(metaclass=Singleton):
-
     # Level 0
     NOTSET = _logging.NOTSET
 
@@ -65,7 +64,6 @@ class Logger(metaclass=Singleton):
     }
 
     def __init__(self, capture_warnings=True):
-
         self._logger = None
         # Multi-GPU runs run in separate processes, thread locks shouldn't be needed
         self._logger_lock = threading.Lock()
@@ -76,7 +74,7 @@ class Logger(metaclass=Singleton):
         self.rank = 0 if is_global_rank_zero() else "UNK"
 
     def _define_logger(self, capture_warnings=True):
-        """ Creates the logger if not already created. Called in init"""
+        """Creates the logger if not already created. Called in init"""
 
         # Use double-checked locking to avoid taking lock unnecessarily.
         if self._logger is not None:
@@ -126,7 +124,7 @@ class Logger(metaclass=Singleton):
         self._logger.propagate = False
 
     def remove_stream_handlers(self):
-        """ Removes StreamHandler that log to stdout and stderr from the logger."""
+        """Removes StreamHandler that log to stdout and stderr from the logger."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -236,7 +234,7 @@ class Logger(metaclass=Singleton):
 
     @contextmanager
     def patch_stderr_handler(self, stream):
-        """ Sends messages that should log to stderr to stream instead. Useful for unittests """
+        """Sends messages that should log to stderr to stream instead. Useful for unittests"""
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stderr"].stream
@@ -268,7 +266,7 @@ class Logger(metaclass=Singleton):
 
     @contextmanager
     def patch_stdout_handler(self, stream):
-        """ Sends messages that should log to stdout to stream instead. Useful for unittests """
+        """Sends messages that should log to stdout to stream instead. Useful for unittests"""
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stdout"].stream
@@ -303,7 +301,6 @@ class Logger(metaclass=Singleton):
         """Sets the a temporary threshold for what messages will be logged."""
 
         if self._logger is not None:
-
             old_verbosity = self.get_verbosity()
 
             try:
@@ -328,7 +325,6 @@ class Logger(metaclass=Singleton):
         """
 
         if self._logger is not None:
-
             if capture and self.old_warnings_showwarning is None:
                 # Backup Method
                 self.old_warnings_showwarning = warnings.showwarning

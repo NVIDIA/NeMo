@@ -174,7 +174,6 @@ def test_get_average_dist_to_tok_start_and_end():
 
 @pytest.mark.unit
 def test_keep_relevant_docspans():
-
     _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
 
     doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]

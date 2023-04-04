@@ -133,7 +133,7 @@ def process_line(semiotic_class: str, line: str) -> Optional[Tuple[str, str, str
 
 def get_replacement_vocab() -> None:
     """Loops through the files with alignment results in each semiotic class subfolder, counts frequencies of different
-     replacement segments.
+    replacement segments.
     """
 
     full_vocab = Counter()

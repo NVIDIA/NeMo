@@ -26,7 +26,7 @@ def _feature_collate_fn(batch):
     """collate batch of feat sig, feat len, labels, labels len, assuming all features have the same shape.
     Args:
         batch (FloatTensor, LongTensor, LongTensor, LongTensor):  A tuple of tuples of feature, feature lengths,
-               encoded labels, and encoded labels length. 
+               encoded labels, and encoded labels length.
     """
     packed_batch = list(zip(*batch))
     if len(packed_batch) == 5:
@@ -61,7 +61,7 @@ def _audio_feature_collate_fn(batch, feat_pad_val, label_pad_id):
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
                LongTensor):  A tuple of tuples of feature, feature lengths,
-               labels, and label lengths.  This collate func assumes the 
+               labels, and label lengths.  This collate func assumes the
                features are torch tensors of Log-Melspectrogram (i.e. [N_MEL, T]).
     """
     packed_batch = list(zip(*batch))
@@ -178,8 +178,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         # TODO output type for external features
         output_types = {
             'external_feat': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -197,16 +196,26 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
             )
         else:
             output_types.update(
-                {'label': NeuralType(('B', 'T'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(('B', 'T'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
 
     def __init__(
-        self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
+        self,
+        *,
+        manifest_filepath: str,
+        labels: List[str],
+        feature_loader,
+        is_speaker_emb: bool = False,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','),)
+        self.collection = collections.ASRFeatureSequenceLabel(
+            manifests_files=manifest_filepath.split(','),
+        )
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels
@@ -277,8 +286,7 @@ class FeatureToLabelDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         output_types = {
             'audio_feat': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             'feat_length': NeuralType(tuple('B'), LengthsType()),
@@ -300,7 +308,9 @@ class FeatureToLabelDataset(Dataset):
         super().__init__()
         self.window_length_in_sec = window_length_in_sec
         self.shift_length_in_sec = shift_length_in_sec
-        self.collection = collections.ASRFeatureLabel(manifests_files=manifest_filepath.split(','),)
+        self.collection = collections.ASRFeatureLabel(
+            manifests_files=manifest_filepath.split(','),
+        )
 
         self.feature_loader = ExternalFeatureLoader(augmentor=augmentor)
         self.labels = labels if labels else self.collection.uniq_labels

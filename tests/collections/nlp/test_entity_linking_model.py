@@ -24,7 +24,6 @@ from nemo.collections.nlp.models import EntityLinkingModel
 
 
 def get_cfg():
-
     language_model = OmegaConf.create(
         {"pretrained_model_name": "bert-base-uncased", "config_file": None, "config": None, "lm_checkpoint": None}
     )

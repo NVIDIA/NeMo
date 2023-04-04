@@ -138,7 +138,8 @@ class TestRNNTDecoding:
         assert decoding is not None
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -179,7 +180,8 @@ class TestRNNTDecoding:
             print()
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -187,9 +189,20 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "beam_size": 2,},
-            {"search_type": "alsd", "alsd_max_target_len": 0.5, "beam_size": 2,},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2,},
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 0.5,
+                "beam_size": 2,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "beam_size": 2,
+            },
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
             {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
         ],

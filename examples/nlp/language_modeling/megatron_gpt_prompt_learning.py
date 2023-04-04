@@ -50,12 +50,15 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
 
     plugins = []
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:
             scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                init_scale=cfg.model.get('native_amp_init_scale', 2**32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
                 enabled=False

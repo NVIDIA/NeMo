@@ -33,8 +33,7 @@ __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
 
 class MegatronTransformerEncoderDecoderModule(MegatronModule):
-    """Transformer encoder-decoder model.
-    """
+    """Transformer encoder-decoder model."""
 
     def __init__(
         self,

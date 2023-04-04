@@ -25,7 +25,6 @@ from nemo.utils.app_state import AppState
 
 class BlendableDataset(torch.utils.data.Dataset):
     def __init__(self, datasets, weights, size):
-
         self.datasets = datasets
         num_datasets = len(datasets)
         assert num_datasets == len(weights)
@@ -85,7 +84,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
     """
     A BlendableDataset implementation that uses less memory than the original implementation.
     Indices are computed algorithmically instead of storing them in memory.
-    
+
     To test call: MemoryEfficientBlendableDataset.test_index_blending()
     """
 

@@ -121,7 +121,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         Args:
             outputs: list of individual outputs of each validation step.
         Returns:
-            
+
         """
         if outputs:
             avg_loss = torch.stack([x["val_loss"] for x in outputs if x["val_loss"] != None]).mean()
@@ -154,7 +154,6 @@ class EntityLinkingModel(NLPModel, Exportable):
         self._validation_dl = self.setup_dataloader(cfg=val_data_config)
 
     def setup_dataloader(self, cfg: Dict, is_index_data: bool = False) -> 'torch.utils.data.DataLoader':
-
         dataset = EntityLinkingDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.data_file,

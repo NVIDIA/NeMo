@@ -125,7 +125,6 @@ def split_into_pairwise_rttm(audio_rttm_map, input_manifest_path, output_dir):
 
 
 def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_folder, window, shift, step_count, decimals):
-
     if '.json' not in input_manifest_path:
         raise ValueError("input_manifest_path file should be .json file format")
     if output_manifest_path and '.json' not in output_manifest_path:
@@ -188,7 +187,9 @@ if __name__ == "__main__":
     parser.add_argument("--shift", help="Shift length for segmentation", type=float, required=True)
     parser.add_argument("--decimals", help="Rounding decimals", type=int, default=3, required=False)
     parser.add_argument(
-        "--step_count", help="Number of the unit segments you want to create per utterance", required=True,
+        "--step_count",
+        help="Number of the unit segments you want to create per utterance",
+        required=True,
     )
     args = parser.parse_args()
 

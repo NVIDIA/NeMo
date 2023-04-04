@@ -113,9 +113,9 @@ class HeteronymClassificationModel(NLPModel):
 
     def training_step(self, batch, batch_idx):
         """
-		Lightning calls this inside the training loop with the data from the training dataloader
-		passed in as `batch`.
-		"""
+        Lightning calls this inside the training loop with the data from the training dataloader
+        passed in as `batch`.
+        """
 
         loss, logits = self.make_step(batch)
         self.log('train_loss', loss)
@@ -256,7 +256,11 @@ class HeteronymClassificationModel(NLPModel):
                 item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "heteronym_span": cur_heteronyms}
                 f.write(json.dumps(item, ensure_ascii=False) + '\n')
 
-        all_preds = self._disambiguate(manifest=tmp_manifest, batch_size=batch_size, num_workers=num_workers,)
+        all_preds = self._disambiguate(
+            manifest=tmp_manifest,
+            batch_size=batch_size,
+            num_workers=num_workers,
+        )
 
         if wordid_to_phonemes_file is not None:
             self.set_wordid_to_phonemes(wordid_to_phonemes_file)
@@ -392,7 +396,6 @@ class HeteronymClassificationModel(NLPModel):
     def _setup_infer_dataloader(
         self, manifest: str, grapheme_field: str, batch_size: int, num_workers: int
     ) -> 'torch.utils.data.DataLoader':
-
         dataset = HeteronymClassificationDataset(
             manifest=manifest,
             grapheme_field=grapheme_field,

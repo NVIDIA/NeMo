@@ -84,7 +84,6 @@ class TestEncDecRegressionModel:
 
     @pytest.mark.unit
     def test_transcription(self, speech_regression_model, test_data_dir):
-
         audio_filenames = ['an22-flrp-b.wav', 'an90-fbbh-b.wav']
         audio_paths = [os.path.join(test_data_dir, "asr", "train", "an4", "wav", fp) for fp in audio_filenames]
 

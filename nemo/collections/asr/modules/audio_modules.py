@@ -88,8 +88,7 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
@@ -97,8 +96,7 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
@@ -106,14 +104,12 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
 
     @property
     def num_features(self) -> int:
-        """Configured number of features
-        """
+        """Configured number of features"""
         return self._num_features
 
     @property
     def num_channels(self) -> int:
-        """Configured number of channels
-        """
+        """Configured number of channels"""
         if self._num_channels is not None:
             return self._num_channels
         else:
@@ -264,8 +260,7 @@ class MaskEstimatorRNN(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
@@ -273,8 +268,7 @@ class MaskEstimatorRNN(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
             "output_length": NeuralType(('B',), LengthsType()),
@@ -358,8 +352,7 @@ class MaskReferenceChannel(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
@@ -368,8 +361,7 @@ class MaskReferenceChannel(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
@@ -437,8 +429,7 @@ class MaskBasedBeamformer(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType()),
@@ -447,8 +438,7 @@ class MaskBasedBeamformer(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType()),
@@ -464,7 +454,7 @@ class MaskBasedBeamformer(NeuralModule):
             input: Input signal complex-valued spectrogram, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
             mask: Mask for M output signals, shape (B, M, F, N)
-        
+
         Returns:
             M-channel output signal complex-valued spectrogram, shape (B, M, F, N)
         """
@@ -524,8 +514,7 @@ class WPEFilter(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "power": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
@@ -534,8 +523,7 @@ class WPEFilter(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -824,8 +812,7 @@ class MaskBasedDereverbWPE(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -834,8 +821,7 @@ class MaskBasedDereverbWPE(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -859,7 +845,6 @@ class MaskBasedDereverbWPE(NeuralModule):
         io_dtype = input.dtype
 
         with torch.cuda.amp.autocast(enabled=False):
-
             output = input.cdouble()
 
             for i in range(self.num_iterations):
@@ -870,7 +855,7 @@ class MaskBasedDereverbWPE(NeuralModule):
                     # Mask magnitude
                     magnitude = mask * magnitude
                 # Calculate power
-                power = magnitude ** 2
+                power = magnitude**2
                 # Apply filter
                 output, output_length = self.filter(input=output, input_length=input_length, power=power)
 

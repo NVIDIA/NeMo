@@ -130,7 +130,9 @@ class TestConfigUtils:
         assert dataclass_subset is None
 
     @pytest.mark.unit
-    def test_early_stopping_config(self,):
+    def test_early_stopping_config(
+        self,
+    ):
         result = config_utils.assert_dataclass_signature_match(EarlyStopping, EarlyStoppingParams)
         signatures_match, cls_subset, dataclass_subset = result
 

@@ -45,8 +45,7 @@ def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Pa
 
 
 def normalize_volume(audio: np.array, volume_level: float) -> np.array:
-    """Apply peak normalization to the input audio.
-    """
+    """Apply peak normalization to the input audio."""
     if not (0.0 <= volume_level <= 1.0):
         raise ValueError(f"Volume must be in range [0.0, 1.0], received {volume_level}")
 

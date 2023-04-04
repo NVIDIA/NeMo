@@ -27,8 +27,7 @@ from nemo.collections.common.parts.utils import flatten
 class TestListUtils:
     @pytest.mark.unit
     def test_flatten(self):
-        """Test flattening an iterable with different values: str, bool, int, float, complex.
-        """
+        """Test flattening an iterable with different values: str, bool, int, float, complex."""
         test_cases = []
         test_cases.append({'input': ['aa', 'bb', 'cc'], 'golden': ['aa', 'bb', 'cc']})
         test_cases.append({'input': ['aa', ['bb', 'cc']], 'golden': ['aa', 'bb', 'cc']})
@@ -43,8 +42,7 @@ class TestListUtils:
 class TestPreprocessingUtils:
     @pytest.mark.unit
     def test_get_full_path_local(self, tmpdir):
-        """Test with local paths
-        """
+        """Test with local paths"""
         # Create a few files
         num_files = 10
 
@@ -126,8 +124,7 @@ class TestPreprocessingUtils:
 
     @pytest.mark.unit
     def test_get_full_path_ais(self, tmpdir):
-        """Test with paths on AIStore.
-        """
+        """Test with paths on AIStore."""
         # Create a few files
         num_files = 10
 
@@ -210,8 +207,7 @@ class TestPreprocessingUtils:
 
     @pytest.mark.unit
     def test_get_full_path_invalid_type(self):
-        """Make sure exceptions are raised when audio_file is not a string or a list of strings.
-        """
+        """Make sure exceptions are raised when audio_file is not a string or a list of strings."""
 
         with pytest.raises(ValueError, match="Unexpected audio_file type"):
             get_full_path(1)
@@ -227,8 +223,7 @@ class TestPreprocessingUtils:
 
     @pytest.mark.unit
     def test_get_full_path_invalid_type(self):
-        """Make sure exceptions are raised when audio_file is not a string or a list of strings.
-        """
+        """Make sure exceptions are raised when audio_file is not a string or a list of strings."""
 
         with pytest.raises(ValueError, match="Use either manifest_file or data_dir"):
             # Using a relative path without manifest_file or data_dir is not allowed

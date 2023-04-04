@@ -174,7 +174,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-
         batch = self.batch_dict(batch)
         speaker_ids = batch['speaker_id']
         text = batch['text']
@@ -232,7 +231,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         }
 
     def validation_epoch_end(self, outputs):
-
         loss_outputs = outputs[0]["loss_outputs"]
 
         for k, v in loss_outputs.items():
@@ -292,7 +290,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             text_tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -311,7 +311,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "speaker": NeuralType(('B'), Index(), optional=True),
             "sigma": NeuralType(optional=True),
         },
-        output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),},
+        output_types={
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+        },
     )
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
         self.eval()
@@ -343,12 +345,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
@@ -472,7 +476,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
 
         inputs.update(
-            {'speaker_id': speaker, 'speaker_id_text': speaker, 'speaker_id_attributes': speaker,}
+            {
+                'speaker_id': speaker,
+                'speaker_id_text': speaker,
+                'speaker_id_attributes': speaker,
+            }
         )
         new_inputs = {
             'text': inp,
@@ -488,11 +496,24 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         return (new_inputs,)
 
     def forward_for_export(
-        self, text, batch_lengths, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
+        self,
+        text,
+        batch_lengths,
+        speaker_id,
+        speaker_id_text,
+        speaker_id_attributes,
+        pitch,
+        pace,
+        volume,
     ):
         if self.export_config["enable_ragged_batches"]:
             text, pitch, pace, volume_tensor, lens = batch_from_ragged(
-                text, pitch, pace, batch_lengths=batch_lengths, padding_idx=self.tokenizer_pad, volume=volume,
+                text,
+                pitch,
+                pace,
+                batch_lengths=batch_lengths,
+                padding_idx=self.tokenizer_pad,
+                volume=volume,
             )
             if volume is not None:
                 volume = volume_tensor

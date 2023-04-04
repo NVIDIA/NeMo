@@ -289,7 +289,6 @@ class GPTModel(MegatronModule):
             return lm_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
-
         state_dict_ = {}
         state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars

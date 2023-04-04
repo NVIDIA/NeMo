@@ -355,7 +355,13 @@ class AudioSegment(object):
         sample_rate = target_sr
 
         return cls(
-            samples, sample_rate, target_sr=target_sr, trim=trim, channel_selector=channel_selector, *args, **kwargs,
+            samples,
+            sample_rate,
+            target_sr=target_sr,
+            trim=trim,
+            channel_selector=channel_selector,
+            *args,
+            **kwargs,
         )
 
     @classmethod
@@ -443,9 +449,8 @@ class AudioSegment(object):
 
     @property
     def rms_db(self):
-        """Return per-channel RMS value.
-        """
-        mean_square = np.mean(self._samples ** 2, axis=0)
+        """Return per-channel RMS value."""
+        mean_square = np.mean(self._samples**2, axis=0)
         return 10 * np.log10(mean_square)
 
     @property
@@ -473,7 +478,11 @@ class AudioSegment(object):
                 f"Padding not implemented for signals with more that 2 dimensions. Current samples dimension: {samples_ndim}."
             )
         # apply padding
-        self._samples = np.pad(self._samples, pad_width, mode='constant',)
+        self._samples = np.pad(
+            self._samples,
+            pad_width,
+            mode='constant',
+        )
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.

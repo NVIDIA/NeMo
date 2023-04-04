@@ -34,7 +34,6 @@ class BaseIRModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         self.setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -142,13 +141,11 @@ class BaseIRModel(NLPModel):
             processed_queries = set()
 
             for i in range(len(all_query_ids)):
-
                 query_ids = all_query_ids[i].detach().cpu().numpy()
                 passage_ids = all_passage_ids[i].detach().cpu().numpy()
                 scores = all_scores[i].detach().cpu().numpy()
 
                 for j, query_id in enumerate(query_ids):
-
                     if query_id not in processed_queries:
                         processed_queries.add(query_id)
                         query2passages[query_id] = {
@@ -185,7 +182,6 @@ class BaseIRModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-
         dataset = BertInformationRetrievalDataset(
             tokenizer=self.tokenizer,
             passages=cfg.passages,

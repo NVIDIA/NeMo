@@ -133,7 +133,7 @@ def get_segments(
 
 
 def _prepare_tokenized_text_for_bpe_model(text: List[str], tokenizer, vocabulary: List[str], blank_idx: int = 0):
-    """ Creates a transition matrix for BPE-based models"""
+    """Creates a transition matrix for BPE-based models"""
     space_idx = vocabulary.index("▁")
     ground_truth_mat = [[-1, -1]]
     utt_begin_indices = []
@@ -301,7 +301,9 @@ def write_output(
 
 
 def write_labels_for_audacity(
-    out_path: str, segments: List[Tuple[float]], text_no_preprocessing: str,
+    out_path: str,
+    segments: List[Tuple[float]],
+    text_no_preprocessing: str,
 ):
     """
     Write the segmentation output to a file ready to be imported in Audacity with the unprocessed text as labels
@@ -315,7 +317,6 @@ def write_labels_for_audacity(
 
     # Uses char-wise alignments to get utterance-wise alignments and writes them into the given file
     with open(str(out_path), "w") as outfile:
-
         for i, segment in enumerate(segments):
             if isinstance(segment, list):
                 for j, x in enumerate(segment):

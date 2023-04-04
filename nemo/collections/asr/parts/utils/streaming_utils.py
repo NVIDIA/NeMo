@@ -442,7 +442,10 @@ class StreamingFeatureBufferer:
         device = self.asr_model.device
         audio_signal = samples.unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([samples.shape[1]]).to(device)
-        features, features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        features, features_len = self.raw_preprocessor(
+            input_signal=audio_signal,
+            length=audio_signal_len,
+        )
         features = features.squeeze()
         self._update_feature_buffer(features[:, -self.feature_chunk_len :])
 
@@ -476,7 +479,10 @@ class AudioFeatureIterator(IterableDataset):
         self._feature_frame_len = frame_len / timestep_duration
         audio_signal = torch.from_numpy(self._samples).unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
-        self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        self._features, self._features_len = preprocessor(
+            input_signal=audio_signal,
+            length=audio_signal_len,
+        )
         self._features = self._features.squeeze()
 
     def __iter__(self):
@@ -666,7 +672,6 @@ class FeatureFrameBufferer:
         batch_frames = self.get_batch_frames()
 
         while len(batch_frames) > 0:
-
             frame_buffers = self.get_frame_buffers(batch_frames)
             norm_consts = self.get_norm_consts_per_frame(batch_frames)
             if len(frame_buffers) == 0:
@@ -687,7 +692,11 @@ class FrameBatchASR:
     """
 
     def __init__(
-        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4,
+        self,
+        asr_model,
+        frame_len=1.6,
+        total_buffer=4.0,
+        batch_size=4,
     ):
         '''
         Args:
@@ -763,7 +772,6 @@ class FrameBatchASR:
     def _get_batch_preds(self):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
-
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
             log_probs, encoded_len, predictions = self.asr_model(
@@ -777,7 +785,9 @@ class FrameBatchASR:
             del predictions
 
     def transcribe(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         self.infer_logits()
         self.unmerged = []
@@ -1141,7 +1151,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         del best_hyp, pred
 
     def transcribe(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         """
         Performs "middle token" alignment prediction using the buffered audio chunk.
@@ -1150,7 +1162,6 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
-
             signal_end_idx = self.frame_bufferer.signal_end_index[idx]
             if signal_end_idx is None:
                 raise ValueError("Signal did not end")
@@ -1168,7 +1179,12 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(ids) > 0 and a_idx < signal_end_idx:
-                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,)
+                    self.unmerged[idx] = inplace_buffer_merge(
+                        self.unmerged[idx],
+                        ids,
+                        delay,
+                        model=self.asr_model,
+                    )
 
         output = []
         for idx in range(self.batch_size):
@@ -1234,7 +1250,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         self.alignment_basepath = alignment_basepath
 
     def transcribe(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         if self.lcs_delay < 0:
             raise ValueError(
@@ -1245,13 +1263,11 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
-
             signal_end_idx = self.frame_bufferer.signal_end_index[idx]
             if signal_end_idx is None:
                 raise ValueError("Signal did not end")
 
             for a_idx, alignment in enumerate(alignments):
-
                 # Middle token first chunk
                 if a_idx == 0:
                     # len(alignment) - 1 - delay + tokens_per_chunk
@@ -1260,13 +1276,15 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
 
                     if len(ids) > 0:
                         self.unmerged[idx] = inplace_buffer_merge(
-                            self.unmerged[idx], ids, delay, model=self.asr_model,
+                            self.unmerged[idx],
+                            ids,
+                            delay,
+                            model=self.asr_model,
                         )
 
                 else:
                     ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
                     if len(ids) > 0 and a_idx < signal_end_idx:
-
                         if self.alignment_basepath is not None:
                             basepath = self.alignment_basepath
                             sample_offset = self.sample_offset + idx

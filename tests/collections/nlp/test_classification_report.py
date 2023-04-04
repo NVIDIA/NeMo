@@ -26,7 +26,6 @@ class ClassificationReportTests:
 
     @pytest.mark.unit
     def test_classification_report(self):
-
         preds = torch.Tensor([0, 1, 1, 1, 2, 2, 0])
         labels = torch.Tensor([1, 0, 0, 1, 2, 1, 0])
 
@@ -34,7 +33,6 @@ class ClassificationReportTests:
             return torch.Tensor([round(sklearn_metric * 100)])[0]
 
         for mode in ['macro', 'micro', 'weighted']:
-
             classification_report_nemo = ClassificationReport(
                 num_classes=self.num_classes, label_ids=self.label_ids, mode=mode
             )

@@ -74,8 +74,8 @@ def word_error_rate_detail(
 ) -> Tuple[float, int, float, float, float]:
     """
     Computes Average Word Error Rate with details (insertion rate, deletion rate, substitution rate)
-    between two texts represented as corresponding lists of string. 
-    
+    between two texts represented as corresponding lists of string.
+
     Hypotheses and references must have same length.
     Args:
       hypotheses (list): list of hypotheses
@@ -87,7 +87,7 @@ def word_error_rate_detail(
       ins_rate (float): average insertion error rate
       del_rate (float): average deletion error rate
       sub_rate (float): average substitution error rate
-      
+
     """
     scores = 0
     words = 0
@@ -304,7 +304,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.compute_timestamps |= self.preserve_frame_confidence
 
         if self.cfg.strategy == 'greedy':
-
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
@@ -314,7 +313,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'beam':
-
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
@@ -330,7 +328,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding.override_fold_consecutive_value = False
 
         elif self.cfg.strategy == 'pyctcdecode':
-
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
@@ -347,7 +344,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding.override_fold_consecutive_value = False
 
         elif self.cfg.strategy == 'flashlight':
-
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
@@ -1019,7 +1015,9 @@ class CTCDecoding(AbstractCTCDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, vocabulary,
+        self,
+        decoding_cfg,
+        vocabulary,
     ):
         blank_id = len(vocabulary)
         self.vocabulary = vocabulary

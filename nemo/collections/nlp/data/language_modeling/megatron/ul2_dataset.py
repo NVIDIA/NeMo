@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Da
 
 
 class UL2Dataset(T5Dataset):
-    """ UL2 Dataset from https://arxiv.org/abs/2205.05131.
+    """UL2 Dataset from https://arxiv.org/abs/2205.05131.
     Consists of three different objectives:
     1. Short span masking with small probabilities (ex: T5). Typically max ngram size of 5 with 0.15 mask prob.
     2. Extreme span masking with either large probabilities or large ngram sizes or both.

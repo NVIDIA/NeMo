@@ -226,7 +226,10 @@ def build_map_dataset_to_nemo_func(cfg: HFDatasetConversionConfig, basedir):
 
 
 def convert_offline_dataset_to_nemo(
-    dataset: Dataset, cfg: HFDatasetConversionConfig, basedir: str, manifest_filepath: str,
+    dataset: Dataset,
+    cfg: HFDatasetConversionConfig,
+    basedir: str,
+    manifest_filepath: str,
 ):
     """
     Converts a HF dataset to a audio-preprocessed Nemo dataset in Offline mode.
@@ -280,7 +283,6 @@ def convert_streaming_dataset_to_nemo(
         for idx, sample in enumerate(
             tqdm.tqdm(ds_iter, desc=f'Processing {cfg.path} (split: {cfg.split}):', unit=' samples')
         ):
-
             audio_filepath = sample['audio']['path'].split("::")[0].replace("zip://", "")
             audio_filepath = os.path.abspath(os.path.join(basedir, audio_filepath))
             audio_filepath = prepare_audio_filepath(audio_filepath)

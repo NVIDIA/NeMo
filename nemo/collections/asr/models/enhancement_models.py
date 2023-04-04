@@ -182,7 +182,6 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         return paths2processed_files
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-
         is_concat = config.get('is_concat', False)
         if is_concat:
             raise NotImplementedError('Concat not implemented')

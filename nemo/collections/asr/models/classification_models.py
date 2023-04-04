@@ -148,7 +148,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         # Crop or pad is always applied
         if self.crop_or_pad is not None:
@@ -209,7 +210,6 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             return self._test_dl
 
     def _setup_dataloader_from_config(self, config: DictConfig):
-
         OmegaConf.set_struct(config, False)
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
@@ -445,7 +445,6 @@ class EncDecClassificationModel(_EncDecBaseModel):
     """Encoder decoder Classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         if cfg.get("is_regression_task", False):
             raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
 
@@ -825,7 +824,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return [float(pred) for pred in predictions]
 
     def _update_decoder_config(self, labels, cfg):
-
         OmegaConf.set_struct(cfg, False)
 
         if 'params' in cfg:

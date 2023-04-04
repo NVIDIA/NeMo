@@ -95,11 +95,11 @@ def get_char_tokens(text, model):
 
 def get_y_and_boundary_info_for_utt(text, model, separator):
     """
-    Get y_token_ids_with_blanks, token_info, word_info and segment_info for the text provided, tokenized 
+    Get y_token_ids_with_blanks, token_info, word_info and segment_info for the text provided, tokenized
     by the model provided.
     y_token_ids_with_blanks is a list of the indices of the text tokens with the blank token id in between every
     text token.
-    token_info, word_info and segment_info are lists of dictionaries containing information about 
+    token_info, word_info and segment_info are lists of dictionaries containing information about
     where the tokens/words/segments start and end.
     For example, 'hi world | hey ' with separator = '|' and tokenized by a BPE tokenizer can have token_info like:
     token_info = [
@@ -111,7 +111,7 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         {'text': '▁he', 's_start': 5, 's_end': 5},
         {'text': '<b>', 's_start': 6, 's_end': 6},
         {'text': 'y', 's_start': 7, 's_end': 7},
-        {'text': '<b>', 's_start': 8, 's_end': 8},    
+        {'text': '<b>', 's_start': 8, 's_end': 8},
     ]
     's_start' and 's_end' indicate where in the sequence of tokens does each token start and end.
 
@@ -140,11 +140,16 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
     segments = [seg.strip() for seg in segments]
 
     if hasattr(model, 'tokenizer'):
-
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
 
         y_token_ids_with_blanks = [BLANK_ID]
-        token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
+        token_info = [
+            {
+                "text": BLANK_TOKEN,
+                "s_start": 0,
+                "s_end": 0,
+            }
+        ]
         word_info = []
         segment_info = []
 
@@ -154,7 +159,6 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         for segment in segments:
             words = segment.split(" ")  # we define words to be space-separated sub-strings
             for word in words:
-
                 word_tokens = model.tokenizer.text_to_tokens(word)
                 word_ids = model.tokenizer.text_to_ids(word)
                 for token, id_ in zip(word_tokens, word_ids):
@@ -200,12 +204,17 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         return y_token_ids_with_blanks, token_info, word_info, segment_info
 
     elif hasattr(model.decoder, "vocabulary"):  # i.e. tokenization is simply character-based
-
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
         SPACE_ID = model.decoder.vocabulary.index(" ")
 
         y_token_ids_with_blanks = [BLANK_ID]
-        token_info = [{"text": BLANK_TOKEN, "s_start": 0, "s_end": 0,}]
+        token_info = [
+            {
+                "text": BLANK_TOKEN,
+                "s_start": 0,
+                "s_end": 0,
+            }
+        ]
         word_info = []
         segment_info = []
 
@@ -215,7 +224,6 @@ def get_y_and_boundary_info_for_utt(text, model, separator):
         for i_segment, segment in enumerate(segments):
             words = segment.split(" ")  # we define words to be space-separated characters
             for i_word, word in enumerate(words):
-
                 # convert string to list of characters
                 word_tokens = list(word)
                 # convert list of characters to list of their ids in the vocabulary

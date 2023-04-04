@@ -46,7 +46,6 @@ class BaseDecoder(object):
         topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
-
         if cfg is not None:
             intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
             intersect_conf = cfg.get("intersect_conf", intersect_conf)
@@ -121,7 +120,8 @@ class BaseDecoder(object):
             return lats
         else:
             shortest_path_fsas = k2.index_fsa(
-                k2.shortest_path(lats, True), invert_permutation(order).to(device=log_probs.device),
+                k2.shortest_path(lats, True),
+                invert_permutation(order).to(device=log_probs.device),
             )
             return self._extract_labels_and_probabilities(shortest_path_fsas, return_ilabels, output_aligned)
 

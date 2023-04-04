@@ -28,7 +28,6 @@ parser.add_argument("--out_filename", type=str, required=True, help="Path to out
 args = parser.parse_args()
 
 if __name__ == "__main__":
-
     vcb = {}
     filenames = []
     for fn in listdir(args.data_dir + "/train"):

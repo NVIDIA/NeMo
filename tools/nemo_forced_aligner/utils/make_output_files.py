@@ -31,7 +31,7 @@ def add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt):
     """
     We use the list of alignments to add the timesteps where each token/word/segment is predicted to
     start and end.
-    boundary_info_utt can be any one of the variables referred to as `token_info`, `word_info`, `segment_info` 
+    boundary_info_utt can be any one of the variables referred to as `token_info`, `word_info`, `segment_info`
     in other parts of the code.
 
     e.g. the input boundary info could be
@@ -43,7 +43,7 @@ def add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt):
 
     and the alignment could be
     alignment_utt = [ 1, 1, 3, 3, 4, 5, 7, 7, 9, 10, 11, 12, 13, 15, 17, 17, 19, 21, 23, 23]
-    
+
     in which case the output would be:
     boundary_info_utt = [
         {'text': 'hi', 's_start': 1, 's_end': 3, 't_start': 0, 't_end': 3},
@@ -127,7 +127,6 @@ def make_ctm(
     for boundary_info_utt, alignment_utt, manifest_line in zip(
         boundary_info_batch, alignments_batch, manifest_lines_batch
     ):
-
         boundary_info_utt = add_t_start_end_to_boundary_info(boundary_info_utt, alignment_utt)
 
         # get utt_id that will be used for saving CTM file as <utt_id>.ctm

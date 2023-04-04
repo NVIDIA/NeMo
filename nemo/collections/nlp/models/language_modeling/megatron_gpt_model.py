@@ -117,7 +117,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.model = self.model[0]
 
         if self.megatron_amp_o2:
-
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 if isinstance(self.model, list):
@@ -240,9 +239,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def configure_optimizers(self):
-
         if self.with_distributed_adam:
-
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -323,9 +320,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def training_step(self, dataloader_iter, batch_idx):
         """
-            We pass the dataloader iterator function to the micro-batch scheduler.
-            The input batch to each micro-batch is fetched using the dataloader function
-            in the micro-batch fwd function.
+        We pass the dataloader iterator function to the micro-batch scheduler.
+        The input batch to each micro-batch is fetched using the dataloader function
+        in the micro-batch fwd function.
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
@@ -443,7 +440,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
-            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
+            'global_step',
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
         )
 
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
@@ -458,20 +459,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
     def _append_sequence_parallel_module_grads(self, module, grads):
-        """ Helper method for allreduce_sequence_parallel_gradients"""
+        """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
             if getattr(self, 'transformer_engine', False):
@@ -486,9 +487,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 grads.append(grad.data)
 
     def allreduce_sequence_parallel_gradients(self):
-        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
-            Modified from megatron-lm:
-            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+        Modified from megatron-lm:
+        https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
 
         grads = []
@@ -504,7 +505,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             buf.copy_(synced)
 
     def allreduce_first_last_embeddings(self):
-
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
         # All-reduce word_embeddings' grad across first and last stages to ensure
         # that word_embeddings parameters stay in sync.
@@ -641,10 +641,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, dataloader_iter, batch_idx):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -804,7 +804,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -896,7 +896,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
     ) -> OutputType:
-
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
 
@@ -949,16 +948,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return None
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
@@ -983,7 +982,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return result
 
     def _set_tp_groups(self, module):
-        """ Helper method to set tp groups for transformer engine"""
+        """Helper method to set tp groups for transformer engine"""
 
         if self.cfg.get('transformer_engine', False):
             logging.info(f'Setting up transformer engine modules for tensor parallelism.')
@@ -997,8 +996,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_transformer_engine_tp_groups(self):
-        """ This should be called after model parallel groups have been initialized
-            and only needs to be called when using Transformer Engine.
+        """This should be called after model parallel groups have been initialized
+        and only needs to be called when using Transformer Engine.
         """
         if isinstance(self.model, list):
             for module in self.model:

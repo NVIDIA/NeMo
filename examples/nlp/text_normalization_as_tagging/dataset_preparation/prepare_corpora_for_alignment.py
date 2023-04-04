@@ -59,8 +59,7 @@ args = parser.parse_args()
 
 
 def prepare_subcorpora_from_data() -> None:
-    """Preprocess a corpus in Google TN Dataset format, extract TN-ITN phrase pairs, prepare input for GIZA++ alignment.
-    """
+    """Preprocess a corpus in Google TN Dataset format, extract TN-ITN phrase pairs, prepare input for GIZA++ alignment."""
     semiotic_vcb = Counter()
     cache_vcb = {}
     filenames = []

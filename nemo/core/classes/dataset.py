@@ -97,9 +97,7 @@ class IterableDataset(data.IterableDataset, Typing, Serialization):
 
 @dataclass
 class DatasetConfig:
-    """
-
-    """
+    """ """
 
     # ...
     batch_size: int = 32

@@ -117,7 +117,6 @@ def create_cs_data(
     pause_end_msec: int,
     cs_data_sampling_rate: int,
 ):
-
     """
     Args:
         intermediate_cs_manifest_list: the intermediate cs manifest obtained from code_switching_manifest_creation.py as a list
@@ -138,14 +137,12 @@ def create_cs_data(
 
     with open(manfest_save_path, 'w') as outfile:
         for data in tqdm(intermediate_cs_manifest_list):
-
             combined_audio = []
 
             staring_pause = np.zeros(int(pause_beg_msec * fs / 1000))
             combined_audio += list(staring_pause)
 
             for index in range(len(data['lang_ids'])):
-
                 data_sample, fs_sample = librosa.load(data['paths'][index], sr=fs)
                 # Alternative-  fs_sample, data_sample = wavfile.read(data['paths'][index])
 
@@ -204,7 +201,6 @@ def create_cs_data(
 
 
 def main():
-
     cs_intermediate_manifest_path = args.manifest_path
     audio_save_folder = args.audio_save_folder_path
     manifest_save_path = args.manifest_save_path

@@ -49,9 +49,9 @@ class MAPLoss(MLLoss):
     """
     Maximum a Posteriori Probability criterion.
     It implements Lattice-Free Maximum Mutual Information (LF-MMI) and LF-boosted-MMI (LF-bMMI) losses.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -108,11 +108,15 @@ class MAPLoss(MLLoss):
         raise NotImplementedError
 
     def _intersect_calc_scores_impl_exact_opt(
-        self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
+        self,
+        dense_fsa_vec: 'k2.DenseFsaVec',
+        num_graphs: 'k2.Fsa',
+        den_graph: 'k2.Fsa',
+        return_lats: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
         """Inner intersection method.
         Does joint (simultaneous) exact intersection of dense_fsa_vec against num_graphs and den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
@@ -170,11 +174,15 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores_impl_pruned(
-        self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
+        self,
+        dense_fsa_vec: 'k2.DenseFsaVec',
+        num_graphs: 'k2.Fsa',
+        den_graph: 'k2.Fsa',
+        return_lats: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
         """Inner intersection method.
         Does exact intersection of dense_fsa_vec against num_graphs and pruned intersection against den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
@@ -208,7 +216,10 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores(
-        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor,
+        self,
+        emissions_graphs: 'k2.DenseFsaVec',
+        supervision_graphs: Any,
+        supervisions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
         This version implicitly assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
@@ -237,14 +248,22 @@ class MAPLoss(MLLoss):
             )
             row_ids = emissions_graphs.emissions_graphs.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, num_lats.seqframe_idx),
+                    num_lats.seqframe_idx,
+                    num_lats.phones,
+                ],
                 values=num_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             del num_lats
             den_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, den_lats.seqframe_idx), den_lats.seqframe_idx, den_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, den_lats.seqframe_idx),
+                    den_lats.seqframe_idx,
+                    den_lats.phones,
+                ],
                 values=den_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,

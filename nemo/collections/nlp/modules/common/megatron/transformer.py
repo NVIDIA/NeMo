@@ -49,7 +49,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
     # fake missing classes with None attributes
@@ -549,7 +548,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     checkpoint_core_attention=checkpoint_core_attention,
                 )
             else:
-
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
                     enc_dec_attn_mask,
@@ -1019,6 +1017,7 @@ class ParallelTransformer(MegatronModule):
         # TODO: Add similar assert for encoder-decoder.
 
         self.num_layers = self.get_num_layers(num_layers)
+
         # Transformer layers.
         def build_layer(layer_number):
             if isinstance(layer_type, list):
@@ -1473,7 +1472,6 @@ class ParallelTransformer(MegatronModule):
                             checkpoint_core_attention = False
 
                         if self.transformer_engine:
-
                             inference_params = None
 
                             hidden_states = layer(

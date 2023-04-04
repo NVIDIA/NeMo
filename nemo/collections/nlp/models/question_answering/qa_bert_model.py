@@ -34,10 +34,9 @@ from nemo.utils import logging
 
 
 class BERTQAModel(BaseQAModel):
-    """ BERT model with a QA (token classification) head """
+    """BERT model with a QA (token classification) head"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=False)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -109,7 +108,6 @@ class BERTQAModel(BaseQAModel):
 
         eval_results, all_predictions, all_nbest = {}, [], []
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-
             unique_ids = []
             start_logits = []
             end_logits = []
@@ -175,7 +173,7 @@ class BERTQAModel(BaseQAModel):
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
-            
+
         Returns:
             model predictions, model nbest list
         """
@@ -194,7 +192,10 @@ class BERTQAModel(BaseQAModel):
             logging.set_verbosity(logging.WARNING)
 
             infer_datalayer = self.setup_inference_data(
-                file, batch_size=batch_size, num_samples=num_samples, num_workers=2,
+                file,
+                batch_size=batch_size,
+                num_samples=num_samples,
+                num_workers=2,
             )
 
             all_logits = []
@@ -229,7 +230,9 @@ class BERTQAModel(BaseQAModel):
 
             if output_prediction_file:
                 QAMetrics.dump_predicted_answers_to_file(
-                    output_prediction_file, infer_datalayer.dataset.examples, all_predictions,
+                    output_prediction_file,
+                    infer_datalayer.dataset.examples,
+                    all_predictions,
                 )
 
             if output_nbest_file:
@@ -309,8 +312,7 @@ class BERTQAModel(BaseQAModel):
         all_predictions = collections.OrderedDict()
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
-        for (example_index, example) in enumerate(examples):
-
+        for example_index, example in enumerate(examples):
             # finish this loop if we went through all batch examples
             if example_index >= len(unique_ids):
                 break
@@ -334,7 +336,7 @@ class BERTQAModel(BaseQAModel):
             null_start_logit = 0
             # end logit at the slice with min null score
             null_end_logit = 0
-            for (feature_index, feature) in enumerate(curr_features):
+            for feature_index, feature in enumerate(curr_features):
                 pos = unique_id_to_pos[feature.unique_id]
                 start_indexes = self._get_best_indexes(start_logits[pos], n_best_size)
                 end_indexes = self._get_best_indexes(end_logits[pos], n_best_size)
@@ -453,7 +455,7 @@ class BERTQAModel(BaseQAModel):
             probs = _compute_softmax(total_scores)
 
             nbest_json = []
-            for (i, entry) in enumerate(nbest):
+            for i, entry in enumerate(nbest):
                 output = collections.OrderedDict()
                 output["question"] = example.question_text
                 output["text"] = entry.text
@@ -516,7 +518,7 @@ class BERTQAModel(BaseQAModel):
         return data_loader
 
     def _get_best_indexes(self, logits, n_best_size):
-        """ Get the n-best logits from a list """
+        """Get the n-best logits from a list"""
 
         best_indices = np.argsort(logits)[::-1]
 
@@ -555,7 +557,7 @@ class BERTQAModel(BaseQAModel):
         def _strip_spaces(text):
             ns_chars = []
             ns_to_s_map = collections.OrderedDict()
-            for (i, c) in enumerate(text):
+            for i, c in enumerate(text):
                 if c == " ":
                     continue
                 ns_to_s_map[len(ns_chars)] = i
@@ -584,14 +586,16 @@ class BERTQAModel(BaseQAModel):
         if len(orig_ns_text) != len(tok_ns_text):
             if verbose_logging:
                 logging.warning(
-                    "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
+                    "Length not equal after stripping spaces: '%s' vs '%s'",
+                    orig_ns_text,
+                    tok_ns_text,
                 )
             return orig_text
 
         # We then project the characters in `pred_text` back to `orig_text` using
         # the character-to-character alignment.
         tok_s_to_ns_map = {}
-        for (i, tok_index) in tok_ns_to_s_map.items():
+        for i, tok_index in tok_ns_to_s_map.items():
             tok_s_to_ns_map[tok_index] = i
 
         orig_start_position = None

@@ -147,7 +147,10 @@ def _write_batches_to_tarfiles(
             tar_file_path = os.path.join(
                 out_dir, f'%s-batches.%d.%d.%d.tar' % (file_name, batch_size, max_seq_len, tar_file_ctr)
             )
-            tar_file_ptr = tarfile.open(tar_file_path, 'w',)
+            tar_file_ptr = tarfile.open(
+                tar_file_path,
+                'w',
+            )
             batch_ctr = 0
 
     # return tar files paths that have batches remaining
@@ -245,9 +248,13 @@ if __name__ == '__main__':
                 remainder_tar_file_ctr += 1
                 remainder_tar_file_ptr.close()
                 remainder_tar_file_path = os.path.join(
-                    args.out_dir, f'remainder-batches.tokens.{args.batch_size}.tar_file_{remainder_tar_file_ctr}.tar',
+                    args.out_dir,
+                    f'remainder-batches.tokens.{args.batch_size}.tar_file_{remainder_tar_file_ctr}.tar',
                 )
-                remainder_tar_file_ptr = tarfile.open(remainder_tar_file_path, 'w',)
+                remainder_tar_file_ptr = tarfile.open(
+                    remainder_tar_file_path,
+                    'w',
+                )
                 batch_in_tar_ctr = 0
         tar_file_ptr.close()
         os.remove(tar_file_path)

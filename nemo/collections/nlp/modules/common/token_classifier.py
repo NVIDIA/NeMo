@@ -61,7 +61,6 @@ class TokenClassifier(Classifier):
         dropout: float = 0.0,
         use_transformer_init: bool = True,
     ) -> None:
-
         """
         Initializes the Token Classifier module.
 
@@ -120,7 +119,6 @@ class BertPretrainingTokenClassifier(Classifier):
         dropout: float = 0.0,
         use_transformer_init: bool = True,
     ) -> None:
-
         """
         Initializes the Token Classifier module.
 

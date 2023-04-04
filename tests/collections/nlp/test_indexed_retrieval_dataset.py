@@ -302,7 +302,6 @@ class TestRetrievalIndexFiles:
 
     @pytest.mark.unit
     def test_create_retrieval_data_index(self):
-
         chunk_size = 64
         pad_id = 0
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
@@ -441,7 +440,6 @@ class TestRetrievalIndexFiles:
     @pytest.mark.unit
     @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
     def test_retro_dataset(self):
-
         chunk_size = 64
         pad_id = 0
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
@@ -543,7 +541,6 @@ class TestRetrievalIndexFiles:
         # training data and retrieval data are the same
 
         try:
-
             builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, True)
             builder.add_item(sentence1)
             builder.add_item(sentence2)
@@ -697,7 +694,6 @@ class TestRetrievalIndexFiles:
         # training data and retrieval data are the same
 
         try:
-
             builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, True, stride=32)
             builder.add_item(sentence1)
             builder.add_item(sentence2)

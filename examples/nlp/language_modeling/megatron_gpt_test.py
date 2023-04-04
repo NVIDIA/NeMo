@@ -38,7 +38,7 @@ def main(cfg) -> None:
         trainer = Trainer(
             plugins=[
                 NLPNativeMixedPrecisionPlugin(
-                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                    init_scale=cfg.model.get('native_amp_init_scale', 2**32),
                     growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 ),
             ],
@@ -46,7 +46,13 @@ def main(cfg) -> None:
             **cfg.trainer,
         )
     elif cfg.trainer.precision == 'bf16':
-        trainer = Trainer(plugins=[NLPNativeBfloat16PrecisionPlugin(),], strategy=NLPDDPStrategy(), **cfg.trainer,)
+        trainer = Trainer(
+            plugins=[
+                NLPNativeBfloat16PrecisionPlugin(),
+            ],
+            strategy=NLPDDPStrategy(),
+            **cfg.trainer,
+        )
     else:
         trainer = Trainer(plugins=[NLPPrecisionPlugin()], strategy=NLPDDPStrategy(), **cfg.trainer)
 
@@ -55,7 +61,9 @@ def main(cfg) -> None:
     app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(
-        cfg.restore_from_path, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+        cfg.restore_from_path,
+        trainer=trainer,
+        save_restore_connector=NLPSaveRestoreConnector(),
     )
 
     # Note: most nemo models must have the data paths configured before instantiating the model

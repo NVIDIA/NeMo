@@ -33,7 +33,7 @@ from nemo.collections.nlp.data.text_normalization import constants
 
 # Longest Common Subsequence
 def lcs(X, Y):
-    """ Function for finding the longest common subsequence between two lists.
+    """Function for finding the longest common subsequence between two lists.
     In this script, this function is particular used for aligning between the
     ground-truth output string and the predicted string (for visualization purpose).
     Args:
@@ -68,7 +68,6 @@ def lcs(X, Y):
     i = m
     j = n
     while i > 0 and j > 0:
-
         # If current character in X[] and Y are same, then
         # current character is part of LCS
         if X[i - 1] == Y[j - 1]:

@@ -334,7 +334,7 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
-    Generic function generator to replace BaseT module with DestT wrapper. 
+    Generic function generator to replace BaseT module with DestT wrapper.
     Args:
         BaseT : module type to replace
         DestT : destination module type

@@ -244,7 +244,6 @@ def load_list_write_manifest(
     duration_limit=100.0,
     filter_long=True,
 ):
-
     filename = prefix + '_' + filename
     file_path = os.path.join(data_dir, filename)
 
@@ -294,7 +293,6 @@ def rebalance_json(data_dir, data_json, num, prefix):
 
 
 def generate_variety_noise(data_dir, filename, prefix):
-
     curr_dir = data_dir.split("_background_noise_")[0]
     silence_path = os.path.join(curr_dir, "_background_noise_more")
 

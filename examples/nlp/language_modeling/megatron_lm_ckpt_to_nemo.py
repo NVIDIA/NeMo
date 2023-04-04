@@ -252,9 +252,9 @@ def load_from_checkpoint(
     **kwargs,
 ):
     """
-        Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
-        """
+    Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
+    For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+    """
     checkpoint = None
     try:
         cls._set_model_restore_state(is_being_restored=True)
@@ -376,7 +376,6 @@ def megatron_lm_inject_model_parallel_rank(filepath):
 
 
 def convert(local_rank, rank, world_size, args):
-
     app_state = AppState()
     initialize_model_parallel_for_nemo(
         world_size=world_size,

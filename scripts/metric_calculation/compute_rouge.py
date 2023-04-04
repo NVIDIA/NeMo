@@ -84,7 +84,6 @@ def load_preds(filename, split_string):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--ground-truth', type=str, help="ground truth .jsonl")
     parser.add_argument('--preds', type=str, help="Text file with test set prompts + model predictions.")

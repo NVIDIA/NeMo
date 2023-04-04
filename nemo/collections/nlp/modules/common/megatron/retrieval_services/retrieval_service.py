@@ -34,7 +34,7 @@ PORT_NUM_DYN = 17180
 
 class RetrievalService:
     """
-    Abstract class for Retrieval Service. 
+    Abstract class for Retrieval Service.
     """
 
     @abc.abstractmethod
@@ -65,7 +65,11 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None, updatable: bool = False,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
+        updatable: bool = False,
     ):
         self.updatable = updatable
         self.tokenizer = tokenizer
@@ -101,7 +105,10 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
     ):
         super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port, updatable=True)
 
@@ -147,12 +154,15 @@ class ComboRetrievalService(DynamicFaissRetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
     ):
         super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port)
 
     def update_weights(self, weights: List[float]):
-        """ update the weights between the children services
+        """update the weights between the children services
         Args:
             weights (List[float]): weights for children services
         """

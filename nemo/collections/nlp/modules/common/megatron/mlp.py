@@ -37,7 +37,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
     # fake missing classes with None attributes
@@ -208,7 +207,6 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 )
 
     def forward(self, hidden_states):
-
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
@@ -259,7 +257,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
 class SwitchMLP(MegatronModule):
     """Top-1 MoE
-    
+
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(

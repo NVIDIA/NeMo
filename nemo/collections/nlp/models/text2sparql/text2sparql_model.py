@@ -45,7 +45,6 @@ class Text2SparqlModel(ModelPT):
         }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         # must assign tokenizers before init
         if cfg.language_model.pretrained_model_name:
             if cfg.language_model.pretrained_encoder_model_name or cfg.language_model.pretrained_decoder_model_name:
@@ -145,7 +144,10 @@ class Text2SparqlModel(ModelPT):
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+            input_ids=input_ids,
+            attention_mask=input_mask,
+            decoder_input_ids=decoder_input_ids,
+            labels=labels,
         )[0]
 
         tensorboard_logs = {"train_loss": loss, "lr": self._optimizer.param_groups[0]["lr"]}
@@ -159,7 +161,10 @@ class Text2SparqlModel(ModelPT):
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss, logits = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+            input_ids=input_ids,
+            attention_mask=input_mask,
+            decoder_input_ids=decoder_input_ids,
+            labels=labels,
         )[:2]
 
         self.validation_perplexity(logits=logits)

@@ -107,7 +107,6 @@ class AlignmentConfig:
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     if is_dataclass(cfg):
@@ -217,7 +216,10 @@ def main(cfg: AlignmentConfig):
             segment_info_batch,
             pred_text_batch,
         ) = get_batch_tensors_and_boundary_info(
-            manifest_lines_batch, model, cfg.additional_ctm_grouping_separator, cfg.align_using_pred_text,
+            manifest_lines_batch,
+            model,
+            cfg.additional_ctm_grouping_separator,
+            cfg.align_using_pred_text,
         )
 
         if cfg.align_using_pred_text:

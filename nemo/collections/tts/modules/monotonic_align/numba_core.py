@@ -19,7 +19,7 @@ import torch
 
 
 def maximum_path(neg_cent, mask):
-    """ Numba version.
+    """Numba version.
     neg_cent: [b, t_t, t_s]
     mask: [b, t_t, t_s]
     """

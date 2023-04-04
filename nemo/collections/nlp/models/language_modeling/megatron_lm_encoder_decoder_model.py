@@ -113,7 +113,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if self.megatron_amp_o2:
-
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 self.enc_dec_model.cuda(torch.cuda.current_device())
@@ -137,9 +136,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
 
     def configure_optimizers(self):
-
         if self.with_distributed_adam:
-
             # Identify params that require grad reductions between
             # pipeline stages
             # See: allreduce_word_and_position_embeddings
@@ -305,12 +302,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def training_step(self, batch, batch_idx):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        Batch should be a list of microbatches and those microbatches should on CPU.
+        Microbatches are then moved to GPU during the pipeline.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
@@ -425,21 +422,21 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
-           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
         """
         # Bucketize and all-reduce
         buckets = {}
@@ -463,7 +460,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 buf.copy_(synced)
 
     def allreduce_word_and_position_embeddings(self):
-
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
         # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings parameters stay in sync.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
@@ -787,7 +783,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss
 
     def process_micro_batch(self, micro_batch):
-        """ Micro batch returned by MegatronT5 dataloader"""
+        """Micro batch returned by MegatronT5 dataloader"""
 
         data_b = micro_batch
 
@@ -803,8 +799,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def _process_global_batch_without_megatron_batch_sampler(self, global_batch, tokenizer=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
+        """Prepares the global batch for apex fwd/bwd functions.
+        Global batch is a list of micro batches.
         """
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         text_enc_list = []
@@ -920,11 +916,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
+            pin_memory=True,
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -1144,7 +1143,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
         enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
         num_tokens_to_generate - the max number of tokens to generate.
-        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).
         tokenizer - a tokenizer object.
         enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
         enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
@@ -1341,13 +1340,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         # choose top-k hypotheses with length penalty applied
                         len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, beam_alpha)
                         scores = scores / len_penalties
-                        scores, indices = sample_token_fn(scores.view(-1, beam_size ** 2), dim=1, log_softmax=False)
+                        scores, indices = sample_token_fn(scores.view(-1, beam_size**2), dim=1, log_softmax=False)
                         scores = scores.view(-1, 1) * len_penalties
 
                         # select predicted sequences which correspond to the chosen hypotheses
                         predicted_tokens_dec = predicted_tokens_dec.unsqueeze(1).repeat(1, beam_size, 1)
                         predicted_tokens_dec = torch.cat((predicted_tokens_dec, token_ids.unsqueeze(2)), dim=2)
-                        predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size ** 2, -1)
+                        predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size**2, -1)
                         p_len = predicted_tokens_dec.size(2)
                         predicted_tokens_dec_ids = indices.unsqueeze(2).repeat(1, 1, p_len)
                         predicted_tokens_dec = predicted_tokens_dec.gather(1, predicted_tokens_dec_ids).view(-1, p_len)
@@ -1355,7 +1354,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         # select logits which correspond to the chosen hypotheses
                         predicted_log_probs = predicted_log_probs.unsqueeze(1).repeat(1, beam_size, 1)
                         predicted_log_probs = torch.cat((predicted_log_probs, log_probs.unsqueeze(2)), dim=2)
-                        predicted_log_probs = predicted_log_probs.view(batch_size, beam_size ** 2, -1)
+                        predicted_log_probs = predicted_log_probs.view(batch_size, beam_size**2, -1)
                         predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(
                             -1, p_len - 1
                         )
@@ -1499,16 +1498,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(

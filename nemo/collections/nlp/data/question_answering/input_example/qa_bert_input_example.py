@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 
 @dataclass
 class BERTQAInputExample(object):
-    """ A single set of features of a QA example for BERT-like model """
+    """A single set of features of a QA example for BERT-like model"""
 
     unique_id: int
     input_ids: List[int]

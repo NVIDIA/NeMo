@@ -75,7 +75,6 @@ def create_cs_manifest(
     num_samples_lang1 = len(data_lang_1)
 
     while total_duration < (data_requirement_hrs * 3600):
-
         created_sample_duration_sec = 0
         created_sample_dict = {}
         created_sample_dict['lang_ids'] = []
@@ -84,7 +83,6 @@ def create_cs_manifest(
         created_sample_dict['durations'] = []
 
         while created_sample_duration_sec < min_sample_duration_sec:
-
             lang_selection = random.randint(0, 1)
 
             if lang_selection == 0:
@@ -118,7 +116,6 @@ def create_cs_manifest(
 
 
 def main():
-
     manifest0 = args.manifest_language1
     manifest1 = args.manifest_language2
     lid0 = args.id_language1

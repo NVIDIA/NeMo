@@ -35,7 +35,11 @@ class SentenceBertResource(Resource):
     """
 
     def __init__(
-        self, bert_model, tokenizer, pool, sentence_bert_batch,
+        self,
+        bert_model,
+        tokenizer,
+        pool,
+        sentence_bert_batch,
     ):
         # server
         self.bert_model = bert_model
@@ -97,7 +101,12 @@ class SentenceBertServer(object):
         api.add_resource(
             SentenceBertResource,
             '/knn',
-            resource_class_args=[self.bert_model, self.tokenizer, self.pool, self.sentence_bert_batch,],
+            resource_class_args=[
+                self.bert_model,
+                self.tokenizer,
+                self.pool,
+                self.sentence_bert_batch,
+            ],
         )
 
     def run(self, url, port=None):
@@ -120,7 +129,13 @@ def start_sentence_bert_server(
     Doesn't support multiple nodes yet.
     """
     # register the bert model port number
-    server = SentenceBertServer(name, devices, tokenizer, sentence_bert, sentence_bert_batch,)
+    server = SentenceBertServer(
+        name,
+        devices,
+        tokenizer,
+        sentence_bert,
+        sentence_bert_batch,
+    )
     server.run("0.0.0.0", port=port)
     # sleep to make sure the sentence bert server is full started.
     time.sleep(2)

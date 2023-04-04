@@ -28,12 +28,12 @@ from nemo.utils import logging
 
 
 def list2str(l: List[int]) -> str:
-    """ Converts list to a string"""
+    """Converts list to a string"""
     return ' '.join([str(x) for x in l])
 
 
 def tensor2list(tensor: Tensor) -> List[Union[int, float]]:
-    """ Converts tensor to a list """
+    """Converts tensor to a list"""
     return tensor.detach().cpu().tolist()
 
 

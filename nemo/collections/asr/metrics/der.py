@@ -79,7 +79,7 @@ def score_labels(
         metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
         mapping_dict = {}
-        for (reference, hypothesis) in zip(all_reference, all_hypothesis):
+        for reference, hypothesis in zip(all_reference, all_hypothesis):
             ref_key, ref_labels = reference
             _, hyp_labels = hypothesis
             uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
@@ -286,7 +286,7 @@ def calculate_session_cpWER(
         # Calculate WER for each speaker in hypothesis with reference
         # There are (number of hyp speakers) x (number of ref speakers) combinations
         lsa_wer_list = []
-        for (spk_hyp_trans, spk_ref_trans) in all_pairs:
+        for spk_hyp_trans, spk_ref_trans in all_pairs:
             spk_wer = word_error_rate(hypotheses=[spk_hyp_trans], references=[spk_ref_trans])
             lsa_wer_list.append(spk_wer)
 
@@ -340,7 +340,7 @@ def concat_perm_word_error_rate(
             f"{len(spk_hypotheses)} and {len(spk_references)} correspondingly"
         )
     cpWER_values, hyps_spk, refs_spk = [], [], []
-    for (spk_hypothesis, spk_reference) in zip(spk_hypotheses, spk_references):
+    for spk_hypothesis, spk_reference in zip(spk_hypotheses, spk_references):
         cpWER, min_hypothesis, concat_reference = calculate_session_cpWER(spk_hypothesis, spk_reference)
         cpWER_values.append(cpWER)
         hyps_spk.append(min_hypothesis)

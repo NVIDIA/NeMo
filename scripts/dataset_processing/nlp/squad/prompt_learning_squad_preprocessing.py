@@ -130,7 +130,6 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
 
     with open(save_path, 'w') as save_file:
         for example_json in tqdm(data):
-
             # Dont want labels in the test set
             if split_type == "test" and not make_ground_truth:
                 del example_json["answer"]

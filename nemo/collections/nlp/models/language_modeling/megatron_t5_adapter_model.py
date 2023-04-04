@@ -57,7 +57,15 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         self.adapter_name_keys = []
 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self,
+        input_ids,
+        dec_input,
+        enc_mask,
+        dec_mask,
+        position_ids,
+        taskname_ids,
+        labels=None,
+        inference=False,
     ):
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -162,7 +170,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         return metrics
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
-
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
@@ -190,13 +197,13 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         self.frozen_model.freeze()  # Freeze the entire model
         opt_params = []
@@ -260,7 +267,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
-        Loads a state_dict expecting the state_dict to contain key,values 
+        Loads a state_dict expecting the state_dict to contain key,values
         only for the adapter parameters.
         """
         for name, module in self.frozen_model.named_modules():
@@ -309,11 +316,10 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
             # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
             if parallel_state.get_data_parallel_rank() == 0:
-
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
                 correct = 0
-                for (input, pred, label) in gather_results_dedup:
+                for input, pred, label in gather_results_dedup:
                     if pred == label:
                         correct += 1
 
@@ -425,8 +431,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
     Three adapter's are inserted into each Transformer layer in the base GPT Model. Each adapter is basically a vector that simply scales the key, value or ffn hidden representations.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -536,7 +542,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
-        Loads a state_dict expecting the state_dict to contain key,values 
+        Loads a state_dict expecting the state_dict to contain key,values
         only for the adapter parameters.
         """
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder

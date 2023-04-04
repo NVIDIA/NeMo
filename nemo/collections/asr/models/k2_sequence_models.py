@@ -76,7 +76,11 @@ class EncDecK2SeqModel(EncDecCTCModel, ASRK2Mixin):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -159,7 +163,11 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE, ASRK2Mixin):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         """
         Forward pass of the model.

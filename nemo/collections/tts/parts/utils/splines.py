@@ -267,7 +267,7 @@ def piecewise_quadratic_transform(x, w_tilde, v_tilde, inverse=False):
 
     if not inverse:
         alpha = (x - w_bn1) / w_b.clamp(min=torch.finfo(w_b.dtype).eps)
-        c = (alpha ** 2) / 2 * (v_bp1 - v_b) * w_b + alpha * v_b * w_b + cdf_bn1
+        c = (alpha**2) / 2 * (v_bp1 - v_b) * w_b + alpha * v_b * w_b + cdf_bn1
 
         # just sum of log pdfs
         log_j = torch.lerp(v_b, v_bp1, alpha).clamp(min=torch.finfo(c.dtype).eps).log()
@@ -282,7 +282,7 @@ def piecewise_quadratic_transform(x, w_tilde, v_tilde, inverse=False):
         a = (v_bp1 - v_b) * w_b / 2
         b = v_b * w_b
         c = cdf_bn1 - x
-        alpha = (-b + torch.sqrt((b ** 2) - 4 * a * c)) / (2 * a)
+        alpha = (-b + torch.sqrt((b**2) - 4 * a * c)) / (2 * a)
         inv = alpha * w_b + w_bn1
 
         # make sure it falls into [0,1)
@@ -302,7 +302,6 @@ def piecewise_rational_quadratic_transform(
     min_bin_height=1e-3,
     min_derivative=1e-3,
 ):
-
     if tails is None:
         spline_fn = rational_quadratic_spline
         spline_kwargs = {}
@@ -390,7 +389,6 @@ def rational_quadratic_spline(
     min_bin_height=1e-3,
     min_derivative=1e-3,
 ):
-
     if torch.min(inputs) < left or torch.max(inputs) > right:
         raise ValueError('Input to a transform is not within its domain')
 

@@ -53,7 +53,6 @@ seed_everything(42)
 
 @hydra_runner(config_path="conf", config_name="SpeakerNet_verification_3x2x256.yaml")
 def main(cfg):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))

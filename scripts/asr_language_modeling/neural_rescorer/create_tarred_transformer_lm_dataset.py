@@ -149,7 +149,6 @@ def __tokenize_text(
     last_batch = False
 
     with joblib.Parallel(n_jobs=-2, verbose=10) as parallel:
-
         while True:
             try:
                 data, num_lines = next(text_generator)
@@ -199,8 +198,7 @@ def __tokenize_text(
 
 
 def __create_chunk(data_root, chunk_path, shard_id, compute_metrics=False):
-    """Creates a tarball containing the tokenized text chunks.
-       """
+    """Creates a tarball containing the tokenized text chunks."""
     tar = tarfile.open(os.path.join(data_root, f'text_{shard_id}.tar'), mode='a', encoding='utf-8')
 
     # We squash the filename since we do not preserve directory structure of tokenized text in the tarball.

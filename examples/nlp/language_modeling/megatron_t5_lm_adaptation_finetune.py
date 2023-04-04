@@ -48,7 +48,7 @@ def main(cfg) -> None:
         scaler = None
         if cfg.trainer.precision == 16:
             scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                init_scale=cfg.model.get('native_amp_init_scale', 2**32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )
@@ -82,7 +82,6 @@ def main(cfg) -> None:
         )
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
-
             # Override data from T5 to Prefix-LM
             encoder_seq_length = pretrained_cfg.data.seq_length
             decoder_seq_length = (

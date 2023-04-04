@@ -174,7 +174,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
     frame_asr = FrameBatchASR(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
+        asr_model=asr_model,
+        frame_len=chunk_len,
+        total_buffer=cfg.total_buffer_in_secs,
+        batch_size=cfg.batch_size,
     )
 
     hyps = get_buffered_pred_feat(

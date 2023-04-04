@@ -45,7 +45,6 @@ try:
     HAVE_INTERLEAVED = True
 
 except:
-
     HAVE_INTERLEAVED = False
 
 
@@ -63,7 +62,6 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
 ):
-
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
         raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in Apex for interleaved.")
 

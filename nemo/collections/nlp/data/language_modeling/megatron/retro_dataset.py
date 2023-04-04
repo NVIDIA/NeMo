@@ -57,7 +57,7 @@ class RETRODataset(Dataset):
 
     It constructs single data record from the training/retrieval indexed retrieval dataset and knn index file.
     The KNN index file maps data chunk id to K-nearest neighbors in the the retrieval dataset chunk ids.
-    First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN 
+    First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN
     chunks from the retrieval dataset using the KNN index. Lastly, compute the masks based on pad id.
     """
 
@@ -155,7 +155,7 @@ class RETRODataset(Dataset):
 
     def _get_chunks(self, chunk_id: int, num_chunks: int, chunks: List):
         """
-        starting from chunk_id, loop for num_chunks, get the 
+        starting from chunk_id, loop for num_chunks, get the
         KNN chunk ids from retrieval dataset, and get the chunk token ids,
         put them into the chunks list
         """
@@ -245,8 +245,8 @@ def build_train_valid_test_datasets(
     knn_map_path: List[str],
 ):
     """Build train, valid, and test RETRO datasets.
-       There is one to one mapping between data_prefix and knn_map_path.
-       Currently only supports one retrieval dataset.
+    There is one to one mapping between data_prefix and knn_map_path.
+    Currently only supports one retrieval dataset.
     """
     # make sure there is one to one mapping  between data_prefix and knn_map_path
     assert len(data_prefix) == len(knn_map_path)
@@ -434,7 +434,11 @@ class MockRETRODataset(torch.utils.data.Dataset):
 
 
 def build_mock_train_valid_test_datasets(
-    cfg, trainer, splits_string, tokenizer, mock_data_size,
+    cfg,
+    trainer,
+    splits_string,
+    tokenizer,
+    mock_data_size,
 ):
     """Build train, valid, and test datasets."""
 
@@ -457,7 +461,13 @@ def build_mock_train_valid_test_datasets(
     def build_dataset(index, name):
         dataset = None
         if splits[index + 1] > splits[index]:
-            dataset = MockRETRODataset(cfg, trainer, tokenizer, name, splits[index + 1] - splits[index],)
+            dataset = MockRETRODataset(
+                cfg,
+                trainer,
+                tokenizer,
+                name,
+                splits[index + 1] - splits[index],
+            )
         return dataset
 
     train_dataset = build_dataset(0, 'train')

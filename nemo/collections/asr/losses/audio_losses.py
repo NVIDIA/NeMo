@@ -271,7 +271,11 @@ def calculate_sdr_batch(
         target = scale_invariant_target(estimate=estimate, target=target, mask=mask, eps=eps)
     elif convolution_invariant:
         target = convolution_invariant_target(
-            estimate=estimate, target=target, mask=mask, filter_length=convolution_filter_length, eps=eps,
+            estimate=estimate,
+            target=target,
+            mask=mask,
+            filter_length=convolution_filter_length,
+            eps=eps,
         )
 
     distortion = estimate - target
@@ -346,8 +350,7 @@ class SDRLoss(Loss, Typing):
 
     @property
     def input_types(self):
-        """Input types definitions for SDRLoss.
-        """
+        """Input types definitions for SDRLoss."""
         signal_shape = ('B', 'C', 'T')
         return {
             "estimate": NeuralType(signal_shape, AudioSignal()),

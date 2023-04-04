@@ -49,7 +49,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     """
 
     def __init__(self, params, disable_distributed_parameters=False, **kwargs):
-
         # Initialize process groups
         if 'process_group' not in kwargs and not parallel_state.is_unitialized():
             kwargs['process_group'] = parallel_state.get_data_parallel_group()
@@ -81,7 +80,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             for param in itertools.chain.from_iterable(param_group['params'] for param_group in param_groups)
         )
         if (dtype != torch.float32 or grad_sync_dtype != torch.float32) and needs_fp32_optimizer:
-
             # Find params that require explicit FP32 optimizer
             distopt_param_groups = []
             fp32_param_groups = []
@@ -130,7 +128,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     self._grad_copy(param)
                     if self.overlap_grad_sync and not getattr(param, '_disable_overlap_grad_sync', False):
                         self._try_start_bucket_grad_sync(
-                            params=[param], ignore_last_bucket=need_to_initialize,
+                            params=[param],
+                            ignore_last_bucket=need_to_initialize,
                         )
 
         return hook
@@ -178,7 +177,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             for main_param in self._fp32_optim_main_params.values():
                 sync_requests.append(
                     torch.distributed.all_reduce(
-                        main_param.grad, op=torch.distributed.ReduceOp.AVG, group=self.process_group, async_op=True,
+                        main_param.grad,
+                        op=torch.distributed.ReduceOp.AVG,
+                        group=self.process_group,
+                        async_op=True,
                     )
                 )
         for req in sync_requests:
@@ -214,10 +216,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Compute grad norm
         if force or self._grad_norm is None:
-
             # Compute norm of local gradients for distributed optimizer
             grad_norm_sq = self._local_grad_norm(
-                parameters=self._filter_distopt_params(parameters), norm_type=norm_type,
+                parameters=self._filter_distopt_params(parameters),
+                norm_type=norm_type,
             )
             if self.redundant_size > 1:
                 grad_norm_sq /= self.redundant_size
@@ -236,7 +238,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
             # Sum over all procs to get grad norm
             torch.distributed.all_reduce(
-                grad_norm_sq, op=torch.distributed.ReduceOp.SUM,
+                grad_norm_sq,
+                op=torch.distributed.ReduceOp.SUM,
             )
             self._grad_norm = grad_norm_sq.sqrt()
 
@@ -244,12 +247,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         return super().grad_norm()
 
     def step(self, closure=None, *, grad_scaler=None):
-
         # Apply distributed optimizer
         loss = super().step(closure=closure, grad_scaler=grad_scaler)
 
         if self._fp32_optim is not None:
-
             # Handle grad scaling
             if grad_scaler is not None:
                 scaler_state = grad_scaler._per_optimizer_states[id(self)]

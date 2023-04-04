@@ -81,7 +81,12 @@ def textonly_unnormalized_manifest_path(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def tts_normalizer():
-    normalizer = Normalizer(lang="en", input_case="cased", overwrite_cache=True, cache_dir=None,)
+    normalizer = Normalizer(
+        lang="en",
+        input_case="cased",
+        overwrite_cache=True,
+        cache_dir=None,
+    )
     return normalizer
 
 

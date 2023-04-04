@@ -81,6 +81,7 @@ def get_confidence_measure_bank():
     neg_entropy_gibbs = lambda x: (x.exp() * x).sum(-1)
     neg_entropy_temperature = lambda x, t: (x * t).exp().sum(-1)
     neg_entropy_temperature_gibbs = lambda x, t: ((x * t).exp() * x).sum(-1)
+
     # too big for a lambda
     def entropy_tsallis_exp(x, v, t):
         exp_neg_max_ent = math.exp((1 - math.pow(v, 1 - t)) / (1 - t))
@@ -156,13 +157,12 @@ def get_confidence_aggregation_bank():
 
 class ConfidenceMeasureMixin(ABC):
     """Confidence Measure Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
     def _init_confidence_measure(self, confidence_method_cfg: Optional[DictConfig] = None):
-        """Initialize per-frame confidence measure from config.
-        """
+        """Initialize per-frame confidence measure from config."""
         if confidence_method_cfg is None:
             confidence_method_cfg = OmegaConf.structured(ConfidenceMethodConfig())
 
@@ -193,13 +193,12 @@ class ConfidenceMeasureMixin(ABC):
 
 class ConfidenceMixin(ABC):
     """Confidence Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
     def _init_confidence(self, confidence_cfg: Optional[DictConfig] = None):
-        """Initialize confidence-related fields and confidence aggregation function from config.
-        """
+        """Initialize confidence-related fields and confidence aggregation function from config."""
         if confidence_cfg is None:
             confidence_cfg = OmegaConf.structured(ConfidenceConfig())
 

@@ -42,7 +42,6 @@ class SentenceDataset(Dataset):
         max_seq_length: int = 512,
         min_seq_length: int = 1,
     ):
-
         self.tokenizer = tokenizer
         self.tokens_in_batch = tokens_in_batch
 

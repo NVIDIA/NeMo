@@ -400,7 +400,10 @@ class BertPretrainingPreprocessedDataloader(DataLoader):
             # print(os.getpid(), train_sampler.rank, train_sampler.num_replicas, train_sampler.num_samples)
             # print("---")
             train_dataloader = DataLoader(
-                dataset=train_data, sampler=train_sampler, batch_size=self.batch_size, shuffle=False,
+                dataset=train_data,
+                sampler=train_sampler,
+                batch_size=self.batch_size,
+                shuffle=False,
             )
             for x in train_dataloader:
                 yield x

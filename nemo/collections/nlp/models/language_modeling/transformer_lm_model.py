@@ -43,7 +43,6 @@ class TransformerLMModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.world_size = 1
         if trainer is not None:
@@ -96,7 +95,7 @@ class TransformerLMModel(ModelPT):
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.encoder.embedding.token_embedding.weight
 
-        std_init_range = 1 / self.encoder.hidden_size ** 0.5
+        std_init_range = 1 / self.encoder.hidden_size**0.5
 
         # initialize weights if not using pretrained encoder
         if not self._cfg.encoder.get('pretrained', False):
@@ -192,9 +191,12 @@ class TransformerLMModel(ModelPT):
         self.eval_epoch_end(outputs, 'test')
 
     def setup_tokenizer(
-        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,
+        self,
+        tokenizer_name=None,
+        tokenizer_model=None,
+        vocab_file=None,
+        bpe_dropout=0.0,
     ):
-
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'word']
         if tokenizer_name not in supported_tokenizers:
             raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
@@ -252,7 +254,6 @@ class TransformerLMModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
-
         if cfg.get("use_tarred_dataset", False):
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")

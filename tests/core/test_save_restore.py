@@ -126,11 +126,15 @@ class MockModelWithChildren(MockModel):
         self.child1_model: Optional[MockModel]  # annotate type for IDE autocompletion and type checking
         if cfg.get("child1_model") is not None:
             self.register_nemo_submodule(
-                "child1_model", config_field="child1_model", model=MockModel(self.cfg.child1_model),
+                "child1_model",
+                config_field="child1_model",
+                model=MockModel(self.cfg.child1_model),
             )
         elif cfg.get("child1_model_path") is not None:
             self.register_nemo_submodule(
-                "child1_model", config_field="child1_model", model=MockModel.restore_from(self.cfg.child1_model_path),
+                "child1_model",
+                config_field="child1_model",
+                model=MockModel.restore_from(self.cfg.child1_model_path),
             )
         else:
             self.child1_model = None
@@ -140,7 +144,9 @@ class MockModelWithChildren(MockModel):
         self.child2_model: Optional[MockModelWithChildren]  # annotate type for IDE autocompletion and type checking
         if cfg.get("child2_model") is not None:
             self.register_nemo_submodule(
-                "child2_model", config_field="child2_model", model=MockModelWithChildren(self.cfg.child2_model),
+                "child2_model",
+                config_field="child2_model",
+                model=MockModelWithChildren(self.cfg.child2_model),
             )
         elif cfg.get("child2_model_path") is not None:
             self.register_nemo_submodule(
@@ -169,7 +175,9 @@ class MockModelWithChildEncDecCTCBPE(MockModel):
 
         if cfg.get("ctc_model", None) is not None:
             self.register_nemo_submodule(
-                "ctc_model", config_field="ctc_model", model=EncDecCTCModelBPE(self.cfg.ctc_model),
+                "ctc_model",
+                config_field="ctc_model",
+                model=EncDecCTCModelBPE(self.cfg.ctc_model),
             )
         else:
             # model is mandatory
@@ -196,7 +204,9 @@ class MockModelWithChildCustomConfigPath(MockModel):
         self.child1_model: Optional[MockModel]  # annotate type for IDE autocompletion and type checking
         if cfg.get("child1_model_config") is not None:
             self.register_nemo_submodule(
-                "child1_model", config_field="child1_model_config", model=MockModel(self.cfg.child1_model_config),
+                "child1_model",
+                config_field="child1_model_config",
+                model=MockModel(self.cfg.child1_model_config),
             )
         else:
             self.child1_model = None

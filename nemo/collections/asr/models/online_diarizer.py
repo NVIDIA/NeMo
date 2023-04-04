@@ -444,7 +444,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
     @timeit
     def _perform_online_clustering(
-        self, uniq_embs_and_timestamps: Dict[str, torch.Tensor], cuda=False,
+        self,
+        uniq_embs_and_timestamps: Dict[str, torch.Tensor],
+        cuda=False,
     ) -> torch.Tensor:
         """
         Launch online clustering for `uniq_embs_and_timestamps` input variable.
@@ -478,7 +480,11 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
 
         # Perform online version of clustering with history-concatenated embedding vectors
-        Y_concat = self.online_clus.forward_infer(emb=concat_emb, frame_index=self.frame_index, cuda=cuda,)
+        Y_concat = self.online_clus.forward_infer(
+            emb=concat_emb,
+            frame_index=self.frame_index,
+            cuda=cuda,
+        )
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
         merged_clus_labels = self.online_clus.match_labels(Y_concat, add_new)
@@ -542,7 +548,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-
             # Step 1: Get subsegments for embedding extraction.
             audio_sigs, segment_ranges, range_inds = self.online_segmentor.run_online_segmentation(
                 audio_buffer=audio_buffer,
@@ -577,7 +582,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
 
         # Step 3 - Clustering: Perform an online version of clustering algorithm
-        cluster_label_hyp = self._perform_online_clustering(embs_and_timestamps[self.uniq_id], cuda=self.cuda,)
+        cluster_label_hyp = self._perform_online_clustering(
+            embs_and_timestamps[self.uniq_id],
+            cuda=self.cuda,
+        )
 
         # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
         diar_hyp, _ = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)

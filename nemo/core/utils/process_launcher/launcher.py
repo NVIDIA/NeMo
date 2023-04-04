@@ -163,7 +163,11 @@ def execute_job(
     return proc, res, (std_error_buffer, drainerthread)
 
 
-def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: int,) -> Sequence[JobReturn]:
+def launch(
+    launcher,
+    job_overrides: Sequence[Sequence[str]],
+    initial_job_idx: int,
+) -> Sequence[JobReturn]:
     """
     Args:
         launcher: Reference to the Launched subclass
@@ -188,7 +192,8 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
 
     logging.info(
         "ProcessLauncher({}) is launching {} jobs".format(
-            ",".join([f"{k}={v}" for k, v in runner_cfg.items()]), len(job_overrides),
+            ",".join([f"{k}={v}" for k, v in runner_cfg.items()]),
+            len(job_overrides),
         )
     )
     logging.info("Launching jobs, sweep output dir : {}".format(sweep_dir))
@@ -348,18 +353,26 @@ class ProcessLauncher(Launcher):
 
         self.runner = kwargs  # type: ProcessLauncherConfig
 
-    def setup(self, *, hydra_context: HydraContext, task_function: TaskFunction, config: DictConfig,) -> None:
+    def setup(
+        self,
+        *,
+        hydra_context: HydraContext,
+        task_function: TaskFunction,
+        config: DictConfig,
+    ) -> None:
         self.config = config
         self.task_function = task_function
         self.hydra_context = hydra_context
 
     def launch(self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int) -> Sequence[JobReturn]:
-
         return launch(launcher=self, job_overrides=job_overrides, initial_job_idx=initial_job_idx)
 
 
 ConfigStore.instance().store(
-    group="hydra/launcher", name="nemo_launcher", node=ProcessLauncherConfig, provider="nemo_process_launcher",
+    group="hydra/launcher",
+    name="nemo_launcher",
+    node=ProcessLauncherConfig,
+    provider="nemo_process_launcher",
 )
 
 Plugins.instance().register(ProcessLauncher)

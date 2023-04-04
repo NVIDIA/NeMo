@@ -200,8 +200,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -210,8 +209,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -382,11 +380,9 @@ class BeamRNNTInfer(Typing):
                 total=encoder_output.size(0),
                 unit='sample',
             ) as idx_gen:
-
                 # Freeze the decoder and joint to prevent recording of gradients
                 # during the beam loop.
                 with self.decoder.as_frozen(), self.joint.as_frozen():
-
                     _p = next(self.joint.parameters())
                     dtype = _p.dtype
 
@@ -638,7 +634,10 @@ class BeamRNNTInfer(Typing):
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
-                kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
+                kept_most_prob = sorted(
+                    [hyp for hyp in kept_hyps if hyp.score > hyps_max],
+                    key=lambda x: x.score,
+                )
 
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
@@ -1472,7 +1471,6 @@ class BeamRNNTInfer(Typing):
         return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
-
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':

@@ -46,7 +46,8 @@ except ImportError:
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Export NeMo models to ONNX/Torchscript",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=f"Export NeMo models to ONNX/Torchscript",
     )
     parser.add_argument("source", help="Source .nemo file")
     parser.add_argument("out", help="Location to write result to")

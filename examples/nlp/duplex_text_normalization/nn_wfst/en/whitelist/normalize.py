@@ -21,7 +21,7 @@ from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 class WhitelistNormalizer(Normalizer):
     """
     Normalizer for WHITELIST.
-    
+
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
         lang: language
@@ -41,7 +41,6 @@ class WhitelistNormalizer(Normalizer):
         overwrite_cache: bool = False,
         whitelist: str = None,
     ):
-
         from nn_wfst.en.whitelist.tokenize_and_classify import ClassifyFst
         from nn_wfst.en.whitelist.verbalize_final import VerbalizeFinalFst
 
