@@ -38,13 +38,13 @@ exp_manager:
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: True
     save_best_model: True
-    create_early_stopping_callback: True
-    early_stopping_callback_params:
-      monitor: "val_loss"
-      mode: "min"
-      min_delta: 0.001
-      patience: 10
-      verbose: True
+  create_early_stopping_callback: True
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
 
 model:
   seed: 1234
