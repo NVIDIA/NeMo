@@ -95,7 +95,7 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
-                greedy_flag = gr.Checkbox(label="Greedy")
+                greedy_flag = gr.Checkbox(label="Greedy", value=True)
                 add_BOS = gr.Checkbox(label="Add BOS token", value=False)
                 token_to_gen = gr.Number(label='Number of Tokens to generate', value=300, type=int)
                 min_token_to_gen = gr.Number(label='Min number of Tokens to generate', value=1, type=int)
