@@ -22,7 +22,6 @@ from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 
 try:
@@ -199,25 +198,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
-
-    def training_step(self, batch, batch_idx):
-        global_batch_size_per_gpu = batch['text_enc'].size(0)
-        # This should happen only on the last batch of the dataset.
-        if (
-            global_batch_size_per_gpu
-            != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
-        ):
-            # NOTE: This should never really be called since `drop_last=True` is required for training datasets.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        batch = self._process_global_batch(batch)
-        return super().training_step(batch, batch_idx)
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
         if metric_name == 'exact_string_match':
@@ -516,7 +496,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
-        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+        self, dataset, batch_size, shuffle, num_workers, pin_memory, drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -537,16 +517,21 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             dataset,
             collate_fn=collate_fn,
             sampler=sampler,
-            batch_size=global_batch_size // parallel_state.get_data_parallel_world_size(),
+            batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
         )
 
     def setup_training_data(self):
+        if not self.cfg.data.train_ds.drop_last:
+            raise AttributeError(
+                "`drop_last` is required for the training dataset to ensure each batch is the same micro-batch size."
+                "To set this, set the variable `data.train_ds.drop_last=True` in the config."
+            )
         self._train_dl = self.build_data_loader(
             self._train_ds,
-            global_batch_size=self.cfg.data.train_ds.global_batch_size,
+            batch_size=self.cfg.data.train_ds.micro_batch_size,
             shuffle=self.cfg.data.train_ds.shuffle,
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
@@ -558,7 +543,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=data_cfg.global_batch_size,
+                batch_size=self.cfg.data.train_ds.micro_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

@@ -15,7 +15,7 @@
 import copy
 import functools
 import inspect
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -23,17 +23,17 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
@@ -47,11 +47,6 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer.enums import ModelType
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
         get_micro_batch_size,
@@ -61,12 +56,13 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-    ModelType = ApexGuardDefaults()
 
     HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.enums import ModelType
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -100,7 +96,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
 
-        # TODO: Not sure how to use lists of modules with PTL.
+        # TODO: Currently does not support interleaved pipeline parallelism.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         if isinstance(self.trainer.accelerator, CPUAccelerator):
             logging.warning("Using CPUAccelerator, model will be built on CPU.")
@@ -312,7 +308,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return output_tensor
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -321,65 +317,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
-        # we prepare the micro batches for the apex fwd/bwd function
-        batch_for_pipeline = self.process_global_batch(batch)
-        encoder_seq_length = batch_for_pipeline[0].size(1)
-        decoder_seq_length = batch_for_pipeline[1].size(1)
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
-        # handle asynchronous grad reduction
-        custom_sync_context_handler = None
-        custom_grad_sync_func = None
-        if self.with_distributed_adam:
-            if self.megatron_amp_o2:
-                # copy grads to main grad
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-            else:
-                # keep grad tensors around
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
-            custom_grad_sync_func = self.reduce_overlap_gradients
-        else:
-            if (
-                self.megatron_amp_o2
-                and self.cfg.get('pipeline_model_parallel_size', 1) == 1
-                and not self.cfg.get('sequence_parallel', False)
-            ):
-                custom_sync_context_handler = self._optimizer.no_sync
-            else:
-                # TODO: enable async grad all reduce with O1/autocast
-                # mixed precision training, with pipeline parallelism,
-                # or with sequence parallelism
-                custom_sync_context_handler = None
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=False,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                custom_sync_context_handler=custom_sync_context_handler,
-                custom_grad_sync_func=custom_grad_sync_func,
-            )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=False,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                custom_sync_context_handler=custom_sync_context_handler,
-            )
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=[self.enc_dec_model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            decoder_seq_length=self.max_decoder_seq_length,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+        )
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
@@ -419,19 +374,29 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log(
+            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
+        )
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
+            batch_size=1,
         )
-
         return loss_mean
+
+    @property
+    def max_decoder_seq_length(self) -> int:
+        return self._cfg.data.seq_length_dec
+
+    @property
+    def max_encoder_seq_length(self) -> int:
+        return self.cfg.seq_length
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -558,7 +523,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     )
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            batch = self._process_training_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
 
@@ -638,7 +605,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         kwargs - shared arguments (non tensors)
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
 
             # map batch and shared args into forward args
@@ -652,98 +620,23 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    def validation_step_logits(self, batch, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        batch_for_pipeline = self.process_global_batch(batch)
-        encoder_seq_length = batch_for_pipeline[0].size(1)
-        decoder_seq_length = batch_for_pipeline[1].size(1)
-
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
-
-        (
-            encoder_input_ids,
-            decoder_input_ids,
-            loss_mask,
-            lm_labels,
-            encoder_attn_mask,
-            decoder_attn_mask,
-        ) = batch_for_pipeline
-        batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
-        arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
-
-        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            output_tensor = forward_backward_pipelining_without_interleaving(
-                forward_step_func=forward_step_func,
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
-        else:
-            output_tensor = forward_backward_no_pipelining(
-                forward_step_func=forward_step_func,
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
-
-        if output_tensor:
-            # average loss across micro batches
-            logits_tensors_list = [o['logits'] for o in output_tensor]
-            logits_tensor = torch.concat(logits_tensors_list)
-        else:
-            # we're not on the last pipeline stage so no losses
-            logits_tensor = []
-
-        return logits_tensor
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        """
-        return_values - if given, returns a dictionary with given keys and corresponding values
-        """
-        batch_for_pipeline = self.process_global_batch(batch)
-        encoder_seq_length = batch_for_pipeline[0].size(1)
-        decoder_seq_length = batch_for_pipeline[1].size(1)
-
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=decoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
+        fwd_bwd_func = get_forward_backward_func()
+        losses_reduced_per_micro_batch = fwd_bwd_func(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=[self.enc_dec_model],
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            num_microbatches=get_num_microbatches(),
+            decoder_seq_length=self.max_decoder_seq_length,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+        )
 
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -770,8 +663,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return averaged_loss
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter, batch_idx):
+        return self.validation_step(dataloader_iter, batch_idx)
 
     def test_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
@@ -876,18 +769,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             'dec_mask': dec_mask_tensor,
         }
 
-    def process_global_batch(self, global_batch):
+    def _process_training_batch(self, batch: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
-        global_batch['dec_mask'][:, 0] = 1
-
+        batch['dec_mask'][:, 0] = 1
+        # Megatron Core expects a data iterator to iterate over the micro-batches.
+        # split the global batch into smaller micro-batches.
         return [
-            global_batch["text_enc"],
-            global_batch["text_dec"],
-            global_batch["loss_mask"],
-            global_batch["labels"],
-            global_batch["enc_mask"],
-            global_batch["dec_mask"],
+            batch["text_enc"],
+            batch["text_dec"],
+            batch["loss_mask"],
+            batch["labels"],
+            batch["enc_mask"],
+            batch["dec_mask"],
         ]
 
     def build_train_valid_test_datasets(self):
@@ -903,7 +797,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Megatron sampler
         if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
             if self._cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingBatchSampler(
+                batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,
@@ -913,11 +807,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     drop_last=self._cfg.get('drop_last', True),
                 )
             elif self._cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,
-                    global_batch_size=self._cffg.global_batch_size,
+                    global_batch_size=self._cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self._cfg.get('drop_last', True),
@@ -1024,7 +918,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
 
             def dummy():
                 return
@@ -1084,29 +978,22 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
         )
 
-        # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length because while running `.enocde()`, the last hidden states from encoder are passed through as identity through the pipeline. Setting it to anything else will cause hanging due to tensor shape mismatches.
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            output_tensor = forward_backward_pipelining_without_interleaving(
-                forward_step_func=forward_step_func,
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=encoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-            )
-        else:
-            output_tensor = forward_backward_no_pipelining(
-                forward_step_func=forward_step_func,
-                batch=batch_for_pipeline,
-                model=self.enc_dec_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                decoder_sequence_length=encoder_seq_length,
-                dtype=self.autocast_dtype,
-                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
-            )
+        fwd_bwd_func = get_forward_backward_func()
+
+        # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length
+        # because while running `.encode()`, the last hidden states from encoder are passed through
+        # as identity through the pipeline.
+        # Setting it to anything else will cause hanging due to tensor shape mismatches.
+        output_tensor = fwd_bwd_func(
+            forward_step_func=forward_step_func,
+            data_iterator=iter([batch_for_pipeline,]),
+            model=[self.enc_dec_model],
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            num_microbatches=1,
+            decoder_seq_length=encoder_seq_length,
+            dtype=self.autocast_dtype,
+        )
 
         if output_tensor:
             output_tensor = output_tensor[0]['hiddens']
@@ -1186,7 +1073,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             logging.info(f'Decoding using the {sampling_method} method...')
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
 
             def dummy():
                 return
@@ -1258,26 +1145,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                output_tensor = forward_backward_pipelining_without_interleaving(
-                    forward_step_func=forward_step_func,
-                    batch=batch_for_pipeline,
-                    model=self.enc_dec_model,
-                    forward_only=True,
-                    tensor_shape=tensor_shape,
-                    decoder_sequence_length=decoder_seq_length,
-                    dtype=self.autocast_dtype,
-                )
-            else:
-                output_tensor = forward_backward_no_pipelining(
-                    forward_step_func=forward_step_func,
-                    batch=batch_for_pipeline,
-                    model=self.enc_dec_model,
-                    forward_only=True,
-                    tensor_shape=tensor_shape,
-                    decoder_sequence_length=decoder_seq_length,
-                    dtype=self.autocast_dtype,
-                )
+            fwd_bwd_func = get_forward_backward_func()
+
+            output_tensor = fwd_bwd_func(
+                forward_step_func=forward_step_func,
+                data_iterator=iter([batch_for_pipeline,]),
+                model=[self.enc_dec_model],
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                num_microbatches=1,
+                decoder_seq_length=encoder_seq_length,
+                dtype=self.autocast_dtype,
+            )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
