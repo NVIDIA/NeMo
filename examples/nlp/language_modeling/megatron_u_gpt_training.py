@@ -60,6 +60,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.tokenizer.num_sentinel_tokens = 1000  # Hard-coded for now.
         gpt_cfg.tokenizer.sentencepiece_legacy = True
         gpt_cfg.attn_mask_type = cfg.model.attn_mask_type
+        gpt_cfg.masked_softmax_fusion = cfg.model.masked_softmax_fusion
+        gpt_cfg.get_attention_mask_from_fusion = False
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
