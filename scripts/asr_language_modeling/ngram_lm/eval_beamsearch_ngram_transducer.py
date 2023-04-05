@@ -28,14 +28,18 @@ python eval_beamsearch_ngram.py --cfg job
 
 # USAGE
 
-python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
+python eval_beamsearch_ngram_transducer.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file \
            kenlm_model_file=<path to the binary KenLM model> \
            beam_width=[<list of the beam widths, separated with commas>] \
            beam_alpha=[<list of the beam alphas, separated with commas>] \
            preds_output_folder=<optional folder to store the predictions> \
            probs_cache_file=null \
-           decoding_strategy=maes
+           decoding_strategy=<greedy_batch or maes decoding>
+           maes_prefix_alpha=[<list of the maes prefix alphas, separated with commas>] \
+           maes_expansion_gamma=[<list of the maes expansion gammas, separated with commas>] \
+           hat_subtract_ilm=<in case of HAT model: subtract internal LM or not> \
+           hat_ilm_weight=[<in case of HAT model: list of the HAT internal LM weights, separated with commas>] \
            ...
 
 
