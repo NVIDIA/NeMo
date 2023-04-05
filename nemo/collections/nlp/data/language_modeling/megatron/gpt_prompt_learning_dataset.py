@@ -77,7 +77,6 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.max_num_samples = max_num_samples
-        self._cache_processed_examples = {}
 
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
@@ -97,12 +96,8 @@ class GPTPromptLearningDataset(Dataset):
             idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
-        if idx in self._cache_processed_examples:
-            processed_example = self._cache_processed_examples[idx]
-        else:
-            unprocessed_example = self.indexed_dataset[idx]
-            processed_example = self._process_example(unprocessed_example)
-            self._cache_processed_examples[idx] = processed_example
+        unprocessed_example = self.indexed_dataset[idx]
+        processed_example = self._process_example(unprocessed_example)
         return processed_example
 
     def _process_example(self, doc):
