@@ -39,7 +39,9 @@ repos:
         exclude: docs/
 
   - repo: https://github.com/psf/black
-    rev: 23.3.0
+    # The `refs/tags/<tag>:refs/tags/<tag>` is needed for black's required-version to work:
+    # https://github.com/psf/black/issues/2493#issuecomment-1081987650
+    rev: 'refs/tags/22.3.0:refs/tags/22.3.0'
     hooks:
       - id: black
         name: Format code
