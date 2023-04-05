@@ -298,21 +298,27 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def get_iterator_k_split(self, batch, k):
+        assert batch[0].shape[0] % k == 0, "Issue with batch size configuration!"
+        split_batch = [torch.tensor_split(item, k, dim=0) for item in batch]
+        microbatches = [[elem[i] for elem in split_batch] for i in range(k)]
+        return itertools.chain(microbatches)
+
+    def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # Get seq length of batch
-        max_seq_length = self.frozen_model.cfg.encoder_seq_length
-        if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
-            max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
-        tensor_shape = [max_seq_length, get_micro_batch_size(), self.hidden_size]
+        _, seq_length = batch[0].shape
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
+        data_iter = self.get_iterator_k_split(batch, get_num_microbatches())
+
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
+            data_iterator=data_iter,
             model=[self],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
@@ -337,7 +343,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     def training_step(self, dataloader_iter, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, forward_only=False)
+        batch = next(dataloader_iter)
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -383,12 +390,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
 
     def validation_step(self, dataloader_iter, batch_idx):
+        batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, forward_only=True)
+        self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        # Does not work with dataloader_iter
         if self.cfg.get('report_validation_metric', False):
             preds_text, labels_text = [], []
             input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
@@ -515,7 +523,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
-                batch_size=self.cfg.micro_batch_size,
+                batch_size=self.cfg.global_batch_size,
                 max_seq_length=max_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
@@ -536,13 +544,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size),
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=max_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
-                drop_last=True,  # self.cfg.get('validation_drop_last', True),
+                drop_last=self.cfg.get('validation_drop_last', True),
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
@@ -554,13 +562,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.data.get('test_ds', None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.test_ds,
-                batch_size=self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size),
+                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=False,
-                drop_last=True,  # older: False,
+                drop_last=False,
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
@@ -629,7 +637,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             dataset,
             collate_fn=collate_fn,
             sampler=sampler,
-            batch_size=batch_size,
+            batch_size=batch_size // data_parallel_size,
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
