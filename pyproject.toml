@@ -27,7 +27,7 @@ extend_skip = ["setup.py", "docs/source/conf.py"]
 line-length = 119
 target-version = ['py38']
 skip-string-normalization = true
-required-version = "23"
+required-version = "23"  # 23.x versions are compatible
 
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
