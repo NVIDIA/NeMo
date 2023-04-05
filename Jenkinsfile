@@ -3321,9 +3321,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
         model.data.train_ds.micro_batch_size=1 \
         model.data.train_ds.global_batch_size=4 \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
@@ -3346,9 +3343,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
         model.data.train_ds.micro_batch_size=1 \
         model.data.train_ds.global_batch_size=4 \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
