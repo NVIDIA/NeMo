@@ -30,7 +30,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessor
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
 
@@ -72,13 +72,20 @@ def setup_tokenizer(tokenizer_model_file):
         model = nemo_asr.models.ASRModel.restore_from(tokenizer_model_file, map_location=torch.device('cpu'))
     else:
         logging.warning(
-            "tokenizer_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+            "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
         )
         model = nemo_asr.models.ASRModel.from_pretrained(tokenizer_model_file, map_location=torch.device('cpu'))
 
+
     if tokenizer_model_file.endswith('.model'):
         encoding_level = 'subword'
+        is_aggregate_tokenizer = False
     else:
+        if type(model.tokenizer).__name__ == 'AggregateTokenizer':
+            is_aggregate_tokenizer = True
+        else:
+            is_aggregate_tokenizer = False
+        
         encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
         if not encoding_level:
             logging.warning(
@@ -89,39 +96,39 @@ def setup_tokenizer(tokenizer_model_file):
         tokenizer_nemo = model.tokenizer
         del model
 
-    return tokenizer_nemo, encoding_level
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
 def iter_files(
-    train_path, tokenizer_model_file, do_lowercase, clean_text, punctuation_to_preserve, separate_punctuation
+    train_path, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation
 ):
-    tokenizer, encoding_level = setup_tokenizer(tokenizer_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer = setup_tokenizer(tokenizer_model_file)
     for fname in train_path:
         dataset = read_train_file(
-            fname, do_lowercase, punctuation_to_preserve, separate_punctuation, clean_text, verbose=0
+            fname, do_lowercase, rm_punctuation, separate_punctuation,
+            is_aggregate_tokenizer=is_aggregate_tokenizer,
+            verbose=0
         )
         tokenize_text(
-            dataset,
-            tokenizer,
+            data = dataset,
+            tokenizer = tokenizer,
             path='',
             chunk_size=CHUNK_SIZE,
             buffer_size=CHUNK_BUFFER_SIZE,
-            token_offset=DEFAULT_TOKEN_OFFSET,
         )
 
 
 def read_train_file(
     path,
     do_lowercase: bool = False,
-    punctuation_to_preserve: str = "",
-    separate_punctuation: bool = True,
-    clean_text: bool = True,
+    rm_punctuation: bool = False,
+    separate_punctuation: bool = False,
+    is_aggregate_tokenizer: bool = False,
     verbose: int = 0,
 ):
     lines_read = 0
-    text_dataset = []
-    text_processor = TextProcessor(punctuation_to_preserve)
-    punctuation_capitalization = PunctuationCapitalization(punctuation_to_preserve)
+    text_dataset, lang_dataset = [], []
+    punctuation_capitalization = PunctuationCapitalization('.,?')
     if path[-8:] == '.json.gz':
         fin = gzip.open(path, 'r')
     else:
@@ -133,47 +140,52 @@ def read_train_file(
         reader = fin
 
     for line in reader:
+        lang = None
         if line:
             if path[-8:] == '.json.gz':
                 line = json.loads(line.decode('utf-8'))['text']
             elif path.endswith('.json'):
-                line = json.loads(line)['text']
+                jline = json.loads(line)
+                line = jline['text']
+                if is_aggregate_tokenizer:
+                    lang = jline['lang']
 
             line_list = line.split("\n")
-
+            if rm_punctuation:
+                line_list = punctuation_capitalization.rm_punctuation(line_list)
             if separate_punctuation:
                 line_list = punctuation_capitalization.separate_punctuation(line_list)
-            if clean_text:
-                line_list = text_processor.get_text_pc(line_list)
             if do_lowercase:
                 line_list = punctuation_capitalization.do_lowercase(line_list)
 
             line = " ".join(line_list)
             if line:
                 text_dataset.append(line)
+                if lang:
+                    lang_dataset.append(lang)
                 lines_read += 1
                 if verbose > 0 and lines_read % 100000 == 0:
                     reader.set_description(f"Read {lines_read} lines")
         else:
             break
-    return text_dataset
+    if is_aggregate_tokenizer:
+        assert len(text_dataset) == len(lang_dataset), f"text_dataset length {len(text_dataset)} and lang_dataset length {len(lang_dataset)} must be the same!"
+        return list(zip(text_dataset, lang_dataset))
+    else:
+        return list(zip(text_dataset))
 
 
-def tokenize_str(texts, tokenizer, offset):
+def tokenize_str(texts, tokenizer):
     tokenized_text = []
     for text in texts:
-        tok_text = tokenizer.text_to_ids(text)
-        if offset < 0:
-            tok_text = [str(token) for token in tok_text]
-        else:
-            tok_text = [chr(token + offset) for token in tok_text]
+        tok_text = tokenizer.text_to_ids(*text)
+        tok_text = [chr(token + DEFAULT_TOKEN_OFFSET) for token in tok_text]
         tokenized_text.append(tok_text)
     return tokenized_text
 
 
-def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_offset=100):
+def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32):
     dataset_len = len(data)
-
     current_step = 0
     if path and os.path.exists(path):
         os.remove(path)
@@ -184,7 +196,7 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_
             end = min((current_step + buffer_size) * chunk_size, dataset_len)
 
             tokenized_data = parallel(
-                delayed(tokenize_str)(data[start : start + chunk_size], tokenizer, token_offset)
+                delayed(tokenize_str)(data[start : start + chunk_size], tokenizer)
                 for start in range(start, end, chunk_size)
             )
 
@@ -233,13 +245,10 @@ def _parse_args():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
-    parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
     parser.add_argument(
-        "--punctuation_to_preserve",
-        required=False,
-        default='',
-        type=str,
-        help="Punctuation marks to preserve in text when --clean_text is used. For instanse --punctuation_to_preserve=,.? ",
+        "--rm_punctuation",
+        action='store_true',
+        help="Whether to remove punctuation marks from text",
     )
     parser.add_argument(
         "--separate_punctuation",

@@ -90,42 +90,30 @@ def main():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
-    parser.add_argument("--clean_text", action='store_true', help="Whether to clean the text")
 
     parser.add_argument(
         '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
     )
     parser.add_argument(
-        "--punctuation_to_preserve",
-        required=False,
-        default='',
-        type=str,
-        help="Punctuation marks to preserve in text when --clean_text is used",
+        "--rm_punctuation",
+        action='store_true',
+        help="Whether to remove punctuation marks from text",
     )
     parser.add_argument(
         "--separate_punctuation",
         action='store_true',
-        help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used",
+        help="Whether to separate punctuation with the previouse word by space ",
     )
     parser.add_argument("--verbose", type=int, default=0, help="Verbose level from 0. Default is 1 ")
 
     args = parser.parse_args()
 
-    assert (
-        args.clean_text or (not args.punctuation_to_preserve) and (not args.clean_text)
-    ), "--punctuation_to_preserve work only with --clean_text "
-    assert (
-        args.clean_text
-        or (not args.punctuation_to_preserve)
-        and (not args.clean_text)
-        and (not args.separate_punctuation)
-    ), "--separate_punctuation work only with --clean_text and --punctuation_to_preserve"
     args.train_path = kenlm_utils.get_train_list(args.train_path)
 
     if type(args.ngram_prun) == str:
         args.ngram_prun = [args.ngram_prun]
 
-    tokenizer, encoding_level = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
     encoded_train_files = []
 
     if args.cache_path:
@@ -146,20 +134,19 @@ def main():
                 dataset = kenlm_utils.read_train_file(
                     train_file,
                     do_lowercase=args.do_lowercase,
-                    punctuation_to_preserve=args.punctuation_to_preserve,
+                    rm_punctuation=args.rm_punctuation,
                     separate_punctuation=args.separate_punctuation,
-                    clean_text=args.clean_text,
+                    is_aggregate_tokenizer=is_aggregate_tokenizer,
                     verbose=args.verbose,
                 )
 
                 if encoding_level == "subword":
                     kenlm_utils.tokenize_text(
-                        dataset,
-                        tokenizer,
+                        data=dataset,
+                        tokenizer=tokenizer,
                         path=encoded_train_file,
                         chunk_size=CHUNK_SIZE,
                         buffer_size=CHUNK_BUFFER_SIZE,
-                        token_offset=DEFAULT_TOKEN_OFFSET,
                     )
                 else:
                     with open(encoded_train_file, 'w', encoding='utf-8') as f:
@@ -176,12 +163,10 @@ def main():
             os.path.join(file_path, "kenlm_utils.py"),
             "--tokenizer_model_file",
             args.tokenizer_model_file,
-            "--punctuation_to_preserve",
-            args.punctuation_to_preserve,
             "--train_path",
         ] + args.train_path
-        if args.clean_text:
-            first_process_args.append("--clean_text")
+        if args.rm_punctuation:
+            first_process_args.append("--rm_punctuation")
         if args.do_lowercase:
             first_process_args.append("--do_lowercase")
         if args.separate_punctuation:
