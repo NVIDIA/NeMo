@@ -539,11 +539,7 @@ class AlignerWrapperModel(ASRModel):
 
     @torch.no_grad()
     def transcribe(
-        self,
-        manifest: List[str],
-        batch_size: int = 4,
-        num_workers: int = None,
-        verbose: bool = True,
+        self, manifest: List[str], batch_size: int = 4, num_workers: int = None, verbose: bool = True,
     ) -> List['FrameCtmUnit']:
         """
         Does alignment. Use this method for debugging and prototyping.
