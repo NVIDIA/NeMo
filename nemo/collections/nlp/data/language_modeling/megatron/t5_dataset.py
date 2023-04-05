@@ -125,7 +125,6 @@ class T5Dataset(Dataset):
         self.pad_id = tokenizer.pad_id
         self.bos_id = tokenizer.bos_id
         self.eos_id = tokenizer.eos_id
-
         self.vocab_id_list = self.tokenizer.vocab
         self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
 
@@ -136,6 +135,9 @@ class T5Dataset(Dataset):
         Class-specific build method to be overridden by child classes.
         """
         self.sentinel_tokens = self.tokenizer.additional_special_tokens_ids
+        if len(self.sentinel_tokens) == 0:
+            # fix until https://github.com/NVIDIA/NeMo/pull/6256 is merged
+            self.sentinel_tokens = [self.tokenizer.text_to_ids(f'<extra_id_{i}>')[0] for i in range(1000)]
         assert len(self.sentinel_tokens) > 0
 
     def __len__(self):
@@ -318,7 +320,6 @@ class T5Dataset(Dataset):
             masked_spans = None
         else:
             (output_tokens, masked_positions, masked_labels, _, masked_spans) = lm_pred
-
         # Padding.
         tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(
             output_tokens=output_tokens,

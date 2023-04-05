@@ -40,7 +40,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import CSVMemMapDataset, TextMemMapDataset
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
+    CSVMemMapDataset,
+    JSONLMemMapDataset,
+    TextMemMapDataset,
+)
 from nemo.utils import logging
 
 
@@ -114,6 +118,8 @@ def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
     # first handle text memap
     if impl == 'text_mmap':
         return TextMemMapDataset(path, **impl_kwargs)
+    elif impl == 'json_mmap':
+        return JSONLMemMapDataset(path, **impl_kwargs)
     elif impl == 'csv_mmap':
         return CSVMemMapDataset(path, **impl_kwargs)
 

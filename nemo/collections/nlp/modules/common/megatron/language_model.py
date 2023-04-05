@@ -15,13 +15,13 @@
 """Transformer based language model."""
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+    ALiBiRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
-    ALiBiRelativePositionEmbedding,
-)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -527,7 +527,7 @@ class TransformerLanguageModel(MegatronModule):
 
         elif position_embedding_type == 'alibi':
             # TODO: If this is used for encoder-decoder model, implement proper logic and following
-            # addition for decoder. Currently it is only used for decoder model only. 
+            # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
                 bidirectional=False,
@@ -699,7 +699,7 @@ class TransformerLanguageModel(MegatronModule):
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
-            
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
@@ -714,7 +714,8 @@ class TransformerLanguageModel(MegatronModule):
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias
-                if encoder_self_attention_relative_position_bias is not None else None
+                if encoder_self_attention_relative_position_bias is not None
+                else None,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

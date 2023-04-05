@@ -868,7 +868,7 @@ def build_train_valid_test_datasets(
     data_impl_kwargs={},
 ):
     # for VSC and text memmap we need to provide a tokenizer, if not given
-    if data_impl in ["text_mmap", "csv_mmap"]:
+    if data_impl in ["text_mmap", "csv_mmap", "json_mmap"]:
         if "tokenizer" not in data_impl_kwargs:
             if isinstance(data_impl_kwargs, DictConfig):
                 data_impl_kwargs = OmegaConf.to_object(data_impl_kwargs)
@@ -1194,7 +1194,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
-    if data_impl in ['text_mmap', 'csv_mmap']:
+    if data_impl in ['text_mmap', 'csv_mmap', 'json_mmap']:
         # make csv/text memmap compatible with Megatron sampling
         make_indexed_dataset_compatibility(indexed_dataset)
 
