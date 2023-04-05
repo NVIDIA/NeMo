@@ -15,6 +15,7 @@
 import asyncio
 
 import gradio as gr
+from nemo.collections.nlp.modules.common.chatbot_component import Chatbot
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
     convert_retrieved_to_md,
@@ -107,7 +108,7 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 )
                 end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
-                chatbot = gr.Chatbot()
+                chatbot = Chatbot()
                 msg = gr.Textbox()
                 clear = gr.Button("Clear")
                 HUMAN_TOKEN = '<extra_id_1>'
