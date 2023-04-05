@@ -157,7 +157,9 @@ def test_perplexity(ngram_bin_path, mod_c, symbols, test_txt, nemo_model_file, t
     return res_p
 
 
-def main(ngram_bin_path, kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, test_file, symbols, nemo_model_file, force):
+def main(
+    ngram_bin_path, kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, test_file, symbols, nemo_model_file, force
+):
 
     mod_c, arpa_c = merge(ngram_bin_path, arpa_a, alpha, arpa_b, beta, out_path, force)
 
@@ -175,8 +177,20 @@ def main(ngram_bin_path, kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, 
 
 def _parse_args():
     parser = argparse.ArgumentParser(description="Avg pytorch weights")
-    parser.add_argument("--ngram_bin_path", required=False, default="/root/miniconda3/bin", type=str, help="The path to the bin folder of Ngram")
-    parser.add_argument("--kenlm_bin_path", required=False, default="/workspace/nemo/decoders/kenlm/build/bin/build_binary", type=str, help="The path to the bin folder of KenLM")
+    parser.add_argument(
+        "--ngram_bin_path",
+        required=False,
+        default="/root/miniconda3/bin",
+        type=str,
+        help="The path to the bin folder of Ngram",
+    )
+    parser.add_argument(
+        "--kenlm_bin_path",
+        required=False,
+        default="/workspace/nemo/decoders/kenlm/build/bin/build_binary",
+        type=str,
+        help="The path to the bin folder of KenLM",
+    )
     parser.add_argument("--arpa_a", required=True, type=str, help="Path to the arpa_a")
     parser.add_argument("--alpha", required=True, type=float, help="Weight of arpa_a")
     parser.add_argument("--arpa_b", required=True, type=str, help="Path to the arpa_b")
