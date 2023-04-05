@@ -15,11 +15,12 @@
 import json
 import os
 import pickle
-from typing import Optional
 
 import numpy as np
 import torch
 from tqdm.auto import tqdm
+from typing import Optional, Dict, List
+
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.collections.nlp.modules.common import VirtualPromptSource
@@ -111,7 +112,7 @@ class GPTPromptLearningDataset(Dataset):
         prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
         total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
         virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
-        truncation_field = self.task_templates[taskname]["truncate_field"]
+        truncation_field = self.task_templates[taskname]["truncate_field"]  #TODO: (@adithyare) should probably make truncation_field required...
         answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
         answer_field = self.task_templates[taskname]["answer_field"]
         input_example = prompt_template
@@ -137,18 +138,18 @@ class GPTPromptLearningDataset(Dataset):
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
-            input_ids = self._truncate_input(
-                truncation_field,
-                input_ids,
-                taskname,
-                doc,
-                prompt_template,
-                prompt_template_fields,
-                virtual_token_splits,
-            )
+            if truncation_field is not None and truncation_field in doc:
+                input_ids = self._maybe_truncate_input(
+                    truncation_field,
+                    len(input_ids),
+                    doc,
+                    prompt_template,
+                    prompt_template_fields,
+                    virtual_token_splits,
+                )
 
         if len(input_ids) > self.max_seq_length:
-            raise RuntimeError("Truncation failed.")
+            logging.warning(f"Truncation has not reduced sequence length of input_ids below {self.max_seq_length}")
 
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             taskname_id = self.tokenizer.text_to_ids(taskname)
@@ -165,14 +166,14 @@ class GPTPromptLearningDataset(Dataset):
 
     def _input_sanity_checks(
         self,
-        total_virtual_tokens,
-        virtual_token_splits,
-        prompt_template,
-        prompt_template_fields,
-        truncation_field,
-        answer_only_loss,
-        answer_field,
-        doc,
+        total_virtual_tokens: int,
+        virtual_token_splits: List[int],
+        prompt_template: str,
+        prompt_template_fields: List[str],
+        truncation_field: Optional[str],
+        answer_only_loss: bool,
+        answer_field: str,
+        doc: Dict,
     ):
         # Sanity check amount of virtual token
         assert (
@@ -235,40 +236,37 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_example
 
-    def _truncate_input(
+    def _maybe_truncate_input(
         self,
-        truncation_field,
-        input_ids,
-        taskname,
-        doc,
-        prompt_template,
-        prompt_template_fields,
-        virtual_token_splits,
+        truncation_field: str,
+        len_input_ids: int,
+        doc: Dict,
+        prompt_template: str,
+        prompt_template_fields: List[str],
+        virtual_token_splits: List[int],
     ):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
-            f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
+            f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}'"
         )
 
         # Truncate the text ids in this part of input to try and fit max sequence length
-        if truncation_field is not None and truncation_field in doc.keys():
-            truncation_length = (len(input_ids) - self.max_seq_length) + 1
-            field_text = doc[truncation_field]
+        truncation_length = (len_input_ids - self.max_seq_length) + 1
+        field_text = doc[truncation_field]
 
-            # Truncate field text
-            field_text_ids = self.tokenizer.text_to_ids(field_text)
-            truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
-            truncated_field_text = self.tokenizer.ids_to_text(truncated_text_ids)
-            doc[truncation_field] = truncated_field_text
+        # Truncate field text
+        field_text_ids = self.tokenizer.text_to_ids(field_text)
+        truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
+        truncated_field_text = self.tokenizer.ids_to_text(truncated_text_ids)
+        doc[truncation_field] = truncated_field_text
 
-            # Re-insert the truncated text string into the text prompt
-            input_example = prompt_template
-            input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
-            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
+        # Re-insert the truncated text string into the text prompt
+        input_example = prompt_template
+        input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+        input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
-            # Re-tokenize the whole prompt
-            input_ids = self.tokenizer.text_to_ids(input_example)
-
+        # Re-tokenize the whole prompt
+        input_ids = self.tokenizer.text_to_ids(input_example)
         return input_ids
 
     def _find_answer_start(self, taskname, input_ids, answer_field, doc):
