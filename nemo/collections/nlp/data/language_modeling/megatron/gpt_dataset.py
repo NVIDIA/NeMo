@@ -37,7 +37,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
 
@@ -100,9 +99,30 @@ def build_train_valid_test_datasets(
         if tokenizer is None:
             # Vocabulary size is inferred from tokenizer.
             raise ValueError("Tokenizer is required for a mock GPT dataset")
-        train_ds = MockGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
-        valid_ds = MockGPTDataset(cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,)
-        test_ds = MockGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
+        train_ds = MockGPTDataset(
+            cfg,
+            tokenizer,
+            "train",
+            int(train_valid_test_num_samples[0]),
+            seq_length,
+            seed,
+        )
+        valid_ds = MockGPTDataset(
+            cfg,
+            tokenizer,
+            "valid",
+            int(train_valid_test_num_samples[1]),
+            seq_length,
+            seed,
+        )
+        test_ds = MockGPTDataset(
+            cfg,
+            tokenizer,
+            "test",
+            int(train_valid_test_num_samples[2]),
+            seq_length,
+            seed,
+        )
         return train_ds, valid_ds, test_ds
 
     if isinstance(data_prefix, DictConfig):
@@ -363,7 +383,6 @@ class GPTDataset(Dataset):
         return self.sample_idx.shape[0] - 1
 
     def _get_text(self, idx: int) -> np.ndarray:
-
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
@@ -407,7 +426,11 @@ class GPTDataset(Dataset):
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            tokens,
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss,
         )
         loss_mask[labels == -1] = 0.0
         tokens[tokens == -1] = 0
@@ -430,7 +453,13 @@ class GPTDataset(Dataset):
 
 class MockGPTDataset(Dataset):
     def __init__(
-        self, cfg, tokenizer, name, num_samples, seq_length, seed,
+        self,
+        cfg,
+        tokenizer,
+        name,
+        num_samples,
+        seq_length,
+        seed,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -474,7 +503,11 @@ class MockGPTDataset(Dataset):
 
 @torch.no_grad()
 def _create_ltor_masks_and_position_ids(
-    tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
+    tokens: torch.Tensor,
+    eod_token: int,
+    reset_position_ids: bool,
+    reset_attention_mask: bool,
+    eod_mask_loss: bool,
 ):
     """Create `attention_mask`, `loss_mask`, and `position_ids`.
 
@@ -566,7 +599,6 @@ def _build_index_mappings(
             or (not os.path.isfile(sample_idx_filename))
             or (not os.path.isfile(shuffle_idx_filename))
         ):
-
             logging.info(' > WARNING: could not find index map files, building ' 'the indices on rank 0 ...')
 
             # For the last epoch, decide whether include the entire epoch

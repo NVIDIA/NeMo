@@ -101,8 +101,7 @@ class AudioEvaluationConfig(process_audio.ProcessConfig):
 
 
 def get_evaluation_dataloader(config):
-    """Prepare a dataloader for evaluation.
-    """
+    """Prepare a dataloader for evaluation."""
     dataset = audio_to_audio_dataset.get_audio_to_target_dataset(config=config)
 
     return torch.utils.data.DataLoader(
@@ -117,8 +116,7 @@ def get_evaluation_dataloader(config):
 
 
 def get_metrics(cfg: AudioEvaluationConfig):
-    """Prepare a dictionary with metrics.
-    """
+    """Prepare a dictionary with metrics."""
     available_metrics = ['sdr', 'sisdr', 'stoi', 'estoi', 'pesq']
 
     metrics = dict()

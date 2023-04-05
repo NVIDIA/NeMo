@@ -52,13 +52,11 @@ class RAdam(Optimizer):
         super().__init__(params, defaults)
 
     def step(self, closure=None):
-
         loss = None
         if closure is not None:
             loss = closure()
 
         for group in self.param_groups:
-
             for p in group['params']:
                 if p.grad is None:
                     continue

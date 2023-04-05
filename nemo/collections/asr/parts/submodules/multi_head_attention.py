@@ -419,7 +419,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
     @lru_cache()
     def _get_invalid_locations_mask(self, w: int, device: str):
-
         diagonals_list = []
         for j in range(-w, 1):
             diagonal_mask = torch.zeros(w, device='cpu', dtype=torch.uint8)
@@ -433,7 +432,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int,
+        self,
+        input_tensor: torch.Tensor,
+        w: int,
     ):
         """
         Mask locations invalid for the sliding window attention

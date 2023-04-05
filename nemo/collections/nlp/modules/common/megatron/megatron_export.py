@@ -109,7 +109,10 @@ class DecEmb(torch.nn.Module, Exportable):
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),)
+            rpe = self.rpe(
+                query_seq_length=input_ids.size(1),
+                key_seq_length=input_ids.size(1),
+            )
 
         dec_out = (
             self.decoder(
@@ -212,7 +215,10 @@ class EncEmb(torch.nn.Module, Exportable):
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,)
+            rpe = self.rpe(
+                query_seq_length=enc_seq_length,
+                key_seq_length=enc_seq_length,
+            )
 
         return (
             self.encoder(

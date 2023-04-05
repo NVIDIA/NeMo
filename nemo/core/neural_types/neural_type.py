@@ -42,7 +42,6 @@ class NeuralType(object):
     """
 
     def __str__(self):
-
         if self.axes is not None:
             return f"axes: {self.axes}; elements_type: {self.elements_type.__class__.__name__}"
         else:
@@ -109,7 +108,7 @@ class NeuralType(object):
             return NeuralTypeComparisonResult.INCOMPATIBLE
 
     def compare_and_raise_error(self, parent_type_name, port_name, second_object):
-        """ Method compares definition of one type with another and raises an error if not compatible. """
+        """Method compares definition of one type with another and raises an error if not compatible."""
         type_comatibility = self.compare(second_object)
         if (
             type_comatibility != NeuralTypeComparisonResult.SAME

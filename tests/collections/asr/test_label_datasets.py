@@ -109,7 +109,6 @@ class TestASRDatasets:
 
     @pytest.mark.unit
     def test_feat_label_dataset(self):
-
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = os.path.join(tmpdir, 'manifest_input.json')
             with open(manifest_path, 'w', encoding='utf-8') as fp:

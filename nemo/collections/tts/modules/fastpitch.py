@@ -238,7 +238,6 @@ class FastPitchModule(NeuralModule):
         mel_lens=None,
         input_lens=None,
     ):
-
         if not self.learn_alignment and self.training:
             assert durs is not None
             assert pitch is not None
@@ -454,7 +453,6 @@ class FastPitchSSLModule(NeuralModule):
 
     @typecheck()
     def forward(self, *, enc_out=None, enc_mask=None, durs=None, pitch=None, pace=1.0):
-
         log_durs_predicted, durs_predicted = None, None
         if self.duration_predictor is not None:
             log_durs_predicted = self.duration_predictor(enc_out, enc_mask)

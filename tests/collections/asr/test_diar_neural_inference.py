@@ -28,7 +28,10 @@ class TestNeuralDiarizerInference:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )

@@ -35,7 +35,7 @@ class RetroQAFineTuneDataset(Dataset):
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
         pad_token_id (int): ID of pad token from tokenizer
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         for_train (bool): Whether you're creating a dataset for training or inference
@@ -171,7 +171,7 @@ class RetroQAFineTuneDataset(Dataset):
         return results
 
     def collate_fn(self, batch, tp_workers=0):
-        """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        """Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch"""
         input_ids, answer_starts, chunks = zip(*batch)
         # convert chunks into torch tensors
         chunks = torch.tensor(chunks)
@@ -209,7 +209,7 @@ class RetroQAFineTuneDataset(Dataset):
         }
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         batch_loss_masks = []
         padded_input_ids = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):

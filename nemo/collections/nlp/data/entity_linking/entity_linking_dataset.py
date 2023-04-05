@@ -32,8 +32,8 @@ class EntityLinkingDataset(Dataset):
 
     Args:
         tokenizer (obj): huggingface tokenizer,
-        data_file (str): path to tab separated column file where data 
-            pairs apear in the format 
+        data_file (str): path to tab separated column file where data
+            pairs apear in the format
             concept_ID\tconcept_synonym1\tconcept_synonym2\n
         newline_idx_file (str): path to pickle file containing location
             of data_file newline characters
@@ -50,7 +50,6 @@ class EntityLinkingDataset(Dataset):
         max_seq_length: Optional[int] = 512,
         is_index_data: bool = False,
     ):
-
         self.tokenizer = tokenizer
 
         # Try and load pair indices file if already exists
@@ -81,7 +80,6 @@ class EntityLinkingDataset(Dataset):
         return self.num_lines
 
     def __getitem__(self, idx):
-
         concept_offset = self.newline_indices[idx]
 
         with open(self.data_file, "r", encoding='utf-8-sig') as f:

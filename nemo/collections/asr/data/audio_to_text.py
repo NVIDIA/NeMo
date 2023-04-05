@@ -249,8 +249,7 @@ def cache_datastore_manifests(
     if num_datastore_manifests > 0:
         # Local utility function
         def cache_data(manifest_filepaths, cache_audio, num_workers, max_num_workers):
-            """Cache manifests and audio data from object store.
-            """
+            """Cache manifests and audio data from object store."""
             # Determine the number of workers to use
             if num_workers is None:
                 num_workers = os.cpu_count() - 1
@@ -373,8 +372,7 @@ class _AudioTextDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -492,8 +490,7 @@ class AudioToCharDataset(_AudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -586,8 +583,7 @@ class AudioToBPEDataset(_AudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -844,8 +840,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return TarredAudioFilter(self.manifest_processor.collection)
 
     def _loop_offsets(self, iterator):
-        """This function is used to iterate through utterances with different offsets for each file.
-        """
+        """This function is used to iterate through utterances with different offsets for each file."""
 
         class TarredAudioLoopOffsets:
             def __init__(self, collection):
@@ -878,8 +873,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename, offset_id = tup
 
         # Grab manifest entry from self.manifest_preprocessor.collection
@@ -1234,7 +1228,9 @@ class BucketingDataset(IterableDataset):
     """
 
     def __init__(
-        self, dataset: IterableDataset, bucketing_batch_size: int,
+        self,
+        dataset: IterableDataset,
+        bucketing_batch_size: int,
     ):
         self.wrapped_dataset = dataset
         self.bucketing_batch_size = bucketing_batch_size

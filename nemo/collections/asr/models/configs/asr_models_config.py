@@ -101,7 +101,9 @@ class CacheAwareStreamingConfig:
     cache_drop_size: int = 0  # the number of steps to drop from the cache
     last_channel_cache_size: int = 0  # the size of the needed cache for last channel layers
 
-    valid_out_len: int = 0  # the number of the steps in the final output which are valid (have the same value as in the offline mode)
+    valid_out_len: int = (
+        0  # the number of the steps in the final output which are valid (have the same value as in the offline mode)
+    )
 
     pre_encode_cache_size: int = 0  # the size of the needed cache for the pre-encoding part of the model to avoid caching inside the pre-encoding layers
     drop_extra_pre_encoded: int = 0  # the number of steps to get dropped after the pre-encoding layer

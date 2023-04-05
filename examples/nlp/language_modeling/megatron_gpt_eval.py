@@ -145,7 +145,9 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self,):
+    def __len__(
+        self,
+    ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
@@ -154,7 +156,6 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (

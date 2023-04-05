@@ -45,7 +45,13 @@ pcfg = DictConfig(
     }
 )
 
-wcfg = DictConfig({"waveglow": mcfg, "sigma": 1.0, "preprocessor": pcfg,})
+wcfg = DictConfig(
+    {
+        "waveglow": mcfg,
+        "sigma": 1.0,
+        "preprocessor": pcfg,
+    }
+)
 
 
 def input_example(sz):
@@ -90,7 +96,11 @@ class TestWaveGlow:
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
             WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
-                tmp_file_name, input_example=inp, verbose=False, check_trace=False, do_constant_folding=True,
+                tmp_file_name,
+                input_example=inp,
+                verbose=False,
+                check_trace=False,
+                do_constant_folding=True,
             )
 
 

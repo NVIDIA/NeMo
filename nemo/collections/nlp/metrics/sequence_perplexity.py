@@ -57,7 +57,6 @@ class SequencePerplexity(Metric):
         self.add_state('num_sequences', default=torch.tensor(0, dtype=torch.int64), dist_reduce_fx='sum')
 
     def update(self, log_probs: torch.Tensor, labels: torch.Tensor, mask=None):
-
         if mask is None:
             mask = torch.ones_like(labels)
         if mask.dtype is not log_probs.dtype:

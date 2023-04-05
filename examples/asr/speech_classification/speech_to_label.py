@@ -155,7 +155,6 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="../conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = pl.Trainer(**cfg.trainer)

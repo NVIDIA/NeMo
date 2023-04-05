@@ -140,7 +140,7 @@ class DiscriminatorLoss(Loss):
             dr = dr.float()
             dg = dg.float()
             r_loss = torch.mean((1 - dr) ** 2)
-            g_loss = torch.mean(dg ** 2)
+            g_loss = torch.mean(dg**2)
             loss += r_loss + g_loss
             r_losses.append(r_loss.item())
             g_losses.append(g_loss.item())

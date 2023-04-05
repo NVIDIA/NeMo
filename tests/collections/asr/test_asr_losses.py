@@ -33,8 +33,7 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr(self, num_channels: int):
-        """Test SDR calculation
-        """
+        """Test SDR calculation"""
         test_eps = [0, 1e-16, 1e-1]
         batch_size = 8
         num_samples = 50
@@ -46,11 +45,9 @@ class TestAudioLosses:
 
         for remove_mean in [True, False]:
             for eps in test_eps:
-
                 sdr_loss = SDRLoss(eps=eps, remove_mean=remove_mean)
 
                 for n in range(num_batches):
-
                     # Generate random signal
                     target = _rng.normal(size=(batch_size, num_channels, num_samples))
                     # Random noise + scaling
@@ -71,12 +68,18 @@ class TestAudioLosses:
                     for b in range(batch_size):
                         for m in range(num_channels):
                             golden_sdr[b, m] = calculate_sdr_numpy(
-                                estimate=estimate[b, m, :], target=target[b, m, :], remove_mean=remove_mean, eps=eps,
+                                estimate=estimate[b, m, :],
+                                target=target[b, m, :],
+                                remove_mean=remove_mean,
+                                eps=eps,
                             )
 
                     # Calculate SDR in torch
                     uut_sdr = calculate_sdr_batch(
-                        estimate=tensor_estimate, target=tensor_target, remove_mean=remove_mean, eps=eps,
+                        estimate=tensor_estimate,
+                        target=tensor_target,
+                        remove_mean=remove_mean,
+                        eps=eps,
                     )
 
                     # Calculate SDR loss
@@ -95,8 +98,7 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr_weighted(self, num_channels: int):
-        """Test SDR calculation with weighting for channels
-        """
+        """Test SDR calculation with weighting for channels"""
         batch_size = 8
         num_samples = 50
         num_batches = 10
@@ -110,7 +112,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss(weight=channel_weight)
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, num_samples))
             # Random noise + scaling
@@ -145,8 +146,7 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr_input_length(self, num_channels):
-        """Test SDR calculation with input length.
-        """
+        """Test SDR calculation with input length."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -158,7 +158,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss()
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
@@ -196,8 +195,7 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr_scale_invariant(self, num_channels: int):
-        """Test SDR calculation with scale invariant option.
-        """
+        """Test SDR calculation with scale invariant option."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -209,7 +207,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss(scale_invariant=True)
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
@@ -249,8 +246,7 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr_binary_mask(self, num_channels):
-        """Test SDR calculation with temporal mask.
-        """
+        """Test SDR calculation with temporal mask."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -262,7 +258,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss()
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
@@ -301,8 +296,7 @@ class TestAudioLosses:
     @pytest.mark.parametrize('num_channels', [1])
     @pytest.mark.parametrize('sdr_max', [10, 0])
     def test_sdr_max(self, num_channels: int, sdr_max: float):
-        """Test SDR calculation with soft max threshold.
-        """
+        """Test SDR calculation with soft max threshold."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -314,7 +308,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss(sdr_max=sdr_max)
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
@@ -353,8 +346,7 @@ class TestAudioLosses:
     @pytest.mark.parametrize('filter_length', [1, 32])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_target_calculation(self, num_channels: int, filter_length: int):
-        """Test target calculation with scale and convolution invariance.
-        """
+        """Test target calculation with scale and convolution invariance."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -364,7 +356,6 @@ class TestAudioLosses:
         _rng = np.random.default_rng(seed=random_seed)
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling
@@ -418,8 +409,7 @@ class TestAudioLosses:
     @pytest.mark.parametrize('filter_length', [1, 32])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr_convolution_invariant(self, num_channels: int, filter_length: int):
-        """Test SDR calculation with convolution invariant option.
-        """
+        """Test SDR calculation with convolution invariant option."""
         batch_size = 8
         max_num_samples = 50
         num_batches = 10
@@ -431,7 +421,6 @@ class TestAudioLosses:
         sdr_loss = SDRLoss(convolution_invariant=True, convolution_filter_length=filter_length)
 
         for n in range(num_batches):
-
             # Generate random signal
             target = _rng.normal(size=(batch_size, num_channels, max_num_samples))
             # Random noise + scaling

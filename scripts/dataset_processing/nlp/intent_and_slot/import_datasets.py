@@ -38,7 +38,7 @@ def ids2text(ids, vocab):
 
 
 def process_atis(infold, outfold, modes=['train', 'test'], do_lower_case=False):
-    """ 
+    """
     Process ATIS dataset found at https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk
     Args:
         infold: location for input fold of data
@@ -134,7 +134,7 @@ def process_snips(infold, outfold, do_lower_case, modes=['train', 'test'], dev_s
 def process_jarvis_datasets(
     infold, outfold, modes=['train', 'test', 'dev'], do_lower_case=False, ignore_prev_intent=False
 ):
-    """ 
+    """
     Process and convert Jarvis datasets into NeMo's BIO format
     Args:
         infold: location for input fold of data
@@ -249,7 +249,10 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
     parser.add_argument(
-        "--dataset_name", required=True, type=str, choices=['atis', 'snips', 'jarvis', 'assistant'],
+        "--dataset_name",
+        required=True,
+        type=str,
+        choices=['atis', 'snips', 'jarvis', 'assistant'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'

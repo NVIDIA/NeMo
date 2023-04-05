@@ -168,7 +168,7 @@ def get_buffered_pred_feat(
 
 
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
-    """ Wrap transcription to the expected format in func write_transcription """
+    """Wrap transcription to the expected format in func write_transcription"""
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
@@ -177,7 +177,7 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
 
 
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
-    """ Setup model from cfg and return model and model name for next step """
+    """Setup model from cfg and return model and model name for next step"""
     if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
@@ -185,7 +185,8 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location,
+            restore_path=cfg.model_path,
+            map_location=map_location,
         )  # type: ASRModel
         if hasattr(cfg, "model_change"):
             asr_model.change_attention_model(
@@ -196,7 +197,8 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location,
+            model_name=cfg.pretrained_name,
+            map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -204,7 +206,7 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
 
 
 def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
-    """ Prepare audio data and decide whether it's partial_audio condition. """
+    """Prepare audio data and decide whether it's partial_audio condition."""
     # this part may need refactor alongsides with refactor of transcribe
     partial_audio = False
 
@@ -235,7 +237,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
 
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
-    """ Compute filename of output manifest and update cfg"""
+    """Compute filename of output manifest and update cfg"""
     if cfg.output_filename is None:
         # create default output filename
         if cfg.audio_dir is not None:
@@ -276,7 +278,7 @@ def write_transcription(
     compute_langs: bool = False,
     compute_timestamps: bool = False,
 ) -> str:
-    """ Write generated transcription to output file. """
+    """Write generated transcription to output file."""
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
         if cfg.pred_name_postfix is not None:
@@ -361,7 +363,7 @@ def transcribe_partial_audio(
     augmentor: DictConfig = None,
 ) -> List[str]:
     """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py"""
 
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
@@ -413,7 +415,9 @@ def transcribe_partial_audio(
                     hypotheses.append(lg.cpu().numpy())
             else:
                 current_hypotheses, all_hyp = asr_model.decoding.ctc_decoder_predictions_tensor(
-                    logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                    logits,
+                    decoder_lengths=logits_len,
+                    return_hypotheses=return_hypotheses,
                 )
 
                 if return_hypotheses:

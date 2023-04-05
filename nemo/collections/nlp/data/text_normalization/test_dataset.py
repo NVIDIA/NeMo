@@ -22,6 +22,7 @@ from nemo.utils import logging
 
 __all__ = ['TextNormalizationTestDataset']
 
+
 # Test Dataset
 class TextNormalizationTestDataset:
     """
@@ -47,7 +48,7 @@ class TextNormalizationTestDataset:
             [],
             [],
         )
-        for (classes, w_words, s_words) in insts:
+        for classes, w_words, s_words in insts:
             # Extract words that are not punctuations
             for direction in constants.INST_DIRECTIONS:
                 if direction == constants.INST_BACKWARD:

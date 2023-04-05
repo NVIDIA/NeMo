@@ -62,7 +62,6 @@ if HAVE_APEX:
                     probs = probs.bfloat16()
             return probs
 
-
 else:
 
     class MatchedScaleMaskSoftmax(ApexGuardDefaults):

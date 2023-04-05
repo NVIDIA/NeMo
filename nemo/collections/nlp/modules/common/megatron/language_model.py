@@ -252,7 +252,10 @@ class Embedding(MegatronModule):
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
+            vocab_size,
+            self.hidden_size,
+            init_method=self.init_method,
+            use_cpu_initialization=use_cpu_initialization,
         )
         self._word_embeddings_key = 'word_embeddings'
 
@@ -494,7 +497,6 @@ class TransformerLanguageModel(MegatronModule):
         self.sequence_parallel = sequence_parallel
 
         if kv_channels is None:
-
             assert (
                 hidden_size % num_attention_heads == 0
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
@@ -631,7 +633,7 @@ class TransformerLanguageModel(MegatronModule):
                 self._output_layer_key = 'output_layer'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         # This is usually handled in schedules.py but some inference code still
         # gives us non-lists or None
         if not isinstance(input_tensor, list):

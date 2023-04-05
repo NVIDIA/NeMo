@@ -92,7 +92,8 @@ class TextNormalizationDecoderDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}.pkl',
+            data_dir,
+            f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}.pkl',
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -145,7 +146,7 @@ class TextNormalizationDecoderDataset(Dataset):
         """
         all_semiotic_classes = set([])
         insts = []
-        for (classes, w_words, s_words) in tqdm(raw_instances):
+        for classes, w_words, s_words in tqdm(raw_instances):
             for ix, (_class, w_word, s_word) in enumerate(zip(classes, w_words, s_words)):
                 all_semiotic_classes.update([_class])
                 if s_word in constants.SPECIAL_WORDS:

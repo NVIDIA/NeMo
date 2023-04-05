@@ -344,7 +344,12 @@ class TestEMATrain:
     @pytest.mark.parametrize("validate_original_weights", [True, False])
     @pytest.mark.run_only_on('GPU')
     def test_ema_run_cuda(
-        self, test_data_dir, precision, accumulate_grad_batches, validate_original_weights, tmpdir,
+        self,
+        test_data_dir,
+        precision,
+        accumulate_grad_batches,
+        validate_original_weights,
+        tmpdir,
     ):
         self.run_training_test(
             accumulate_grad_batches=accumulate_grad_batches,

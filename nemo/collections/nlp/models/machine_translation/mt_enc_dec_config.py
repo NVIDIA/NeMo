@@ -109,7 +109,6 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
 
 @dataclass
 class AAYNBaseConfig(MTEncDecModelConfig):
-
     # Attention is All You Need Base Configuration
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')

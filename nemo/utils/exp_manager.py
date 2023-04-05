@@ -52,11 +52,11 @@ from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_pa
 
 
 class NotFoundError(NeMoBaseException):
-    """ Raised when a file or folder is not found"""
+    """Raised when a file or folder is not found"""
 
 
 class LoggerMisconfigurationError(NeMoBaseException):
-    """ Raised when a mismatch between trainer.logger and exp_manager occurs"""
+    """Raised when a mismatch between trainer.logger and exp_manager occurs"""
 
     def __init__(self, message):
         message = (
@@ -67,7 +67,7 @@ class LoggerMisconfigurationError(NeMoBaseException):
 
 
 class CheckpointMisconfigurationError(NeMoBaseException):
-    """ Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
+    """Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
 
 
 @dataclass
@@ -129,8 +129,7 @@ class EMAParams:
 
 @dataclass
 class ExpManagerConfig:
-    """Experiment Manager config for validation of passed arguments.
-    """
+    """Experiment Manager config for validation of passed arguments."""
 
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -288,7 +287,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
 
     returns:
@@ -618,7 +617,7 @@ def check_resume(
 def check_explicit_log_dir(
     trainer: 'pytorch_lightning.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
 ) -> Tuple[Path, str, str, str]:
-    """ Checks that the passed arguments are compatible with explicit_log_dir.
+    """Checks that the passed arguments are compatible with explicit_log_dir.
 
     Returns:
         log_dir (Path): the log_dir
@@ -832,8 +831,7 @@ def configure_loggers(
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
-    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
-    """
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end"""
 
     def __init__(
         self,
@@ -1064,9 +1062,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig',
+    trainer: 'pytorch_lightning.Trainer',
+    log_dir: Path,
+    name: str,
+    resume: bool,
+    params: 'DictConfig',
 ):
-    """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
+    """Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback
     """
     for callback in trainer.callbacks:
@@ -1134,7 +1136,12 @@ def check_slurm(trainer):
 class StatelessTimer(Timer):
     """Extension of PTL timers to be per run."""
 
-    def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
+    def __init__(
+        self,
+        duration: timedelta = None,
+        interval: str = Interval.step,
+        verbose: bool = True,
+    ) -> None:
         super().__init__(duration, interval, verbose)
 
     # Override PTL Timer's state dict to not store elapsed time information so that we can restore and continue training.

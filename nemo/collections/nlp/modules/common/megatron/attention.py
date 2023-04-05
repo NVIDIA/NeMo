@@ -33,7 +33,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
     # fake missing classes with None attributes
@@ -277,7 +276,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             """[s, b, num_splits * np * hn]
             -->(view) [s, b, num_splits, np, hn]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 num_splits,
@@ -291,7 +290,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             """[s, b, np * hn * num_splits]
             -->(view) [s, b, np, hn, num_splits]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 self.num_attention_heads_per_partition,
@@ -638,9 +637,9 @@ class ParallelChunkedCrossAttention(MegatronModule):
 
 
 class CoreAttention(MegatronModule):
-    """ Region where selective activation recomputation is applied.
-        See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
-        https://arxiv.org/pdf/2205.05198.pdf for more details.
+    """Region where selective activation recomputation is applied.
+    See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
+    https://arxiv.org/pdf/2205.05198.pdf for more details.
 
     """
 
@@ -660,7 +659,6 @@ class CoreAttention(MegatronModule):
         normalize_attention_scores=True,
         multi_query_attention=False,
     ):
-
         super(CoreAttention, self).__init__()
 
         self.precision = precision
@@ -730,7 +728,6 @@ class CoreAttention(MegatronModule):
         relative_position_bias=None,
         headscale_tensor=None,
     ):
-
         # ===================================
         # Raw attention scores. [b, np, s, s]
         # ===================================

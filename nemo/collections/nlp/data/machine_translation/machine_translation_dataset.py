@@ -204,7 +204,6 @@ class TranslationDataset(Dataset):
 
         while i < len(buckets):
             while buckets[indices[i]]:
-
                 i_src = max(src_len, indices[i])
                 i_tgt = max(tgt_len, buckets[indices[i]][0][0])
 
@@ -228,7 +227,6 @@ class TranslationDataset(Dataset):
                 batch_size += 1
 
                 if batch_size * (src_len + tgt_len) > self.tokens_in_batch:
-
                     num_examples_to_split = len(batches[num_batches])
                     batches_to_evict = 8 * ((num_examples_to_split - 1) // 8)
 

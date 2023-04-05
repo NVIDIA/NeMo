@@ -62,7 +62,11 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
                 repetition_penality = gr.Slider(
                     minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
-                end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
+                end_strings = gr.Textbox(
+                    label="End strings (comma separated)",
+                    value="<|endoftext|>,",
+                    lines=1,
+                )
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
@@ -161,12 +165,20 @@ class RetroDemoWebApp:
                     repetition_penality = gr.Slider(
                         minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                     )
-                    end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
+                    end_strings = gr.Textbox(
+                        label="End strings (comma separated)",
+                        value="<|endoftext|>,",
+                        lines=1,
+                    )
                     k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
                     weight = gr.Slider(
                         minimum=0.0, maximum=1.0, value=1.0, label='Weight for the Static Retrieval DB', step=0.02
                     )
-                    add_retrival_doc = gr.Textbox(label="Add New Retrieval Doc", value="", lines=5,)
+                    add_retrival_doc = gr.Textbox(
+                        label="Add New Retrieval Doc",
+                        value="",
+                        lines=5,
+                    )
                     add_EOS = gr.Checkbox(label="Add EOS token to Retrieval Doc", value=False)
                     with gr.Row():
                         add_btn = gr.Button(value="Add")

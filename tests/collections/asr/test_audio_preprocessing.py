@@ -48,7 +48,6 @@ class TestAudioSpectrogram:
         _rng = np.random.default_rng(seed=random_seed)
 
         for n in range(num_examples):
-
             # Generate time-domain examples with different length
             input_length = _rng.integers(low=fft_length, high=100 * fft_length, size=batch_size)  # in samples
             x = _rng.normal(size=(batch_size, num_channels, np.max(input_length)))
@@ -64,7 +63,6 @@ class TestAudioSpectrogram:
                 batch_spec, batch_spec_len = audio2spec(input=x, input_length=torch.tensor(input_length))
 
                 for b in range(batch_size):
-
                     # Transform just the current example
                     b_spec, b_spec_len = audio2spec(input=x[b : b + 1, :, : input_length[b]])
                     actual_len = b_spec.size(-1)
@@ -102,7 +100,6 @@ class TestAudioSpectrogram:
         _rng = np.random.default_rng(seed=random_seed)
 
         for n in range(num_examples):
-
             # Generate spectrogram examples with different lengths
             input_length = _rng.integers(low=10, high=100, size=batch_size)  # in frames
             input_shape = (batch_size, num_channels, fft_length // 2 + 1, np.max(input_length))
@@ -121,7 +118,6 @@ class TestAudioSpectrogram:
                 batch_x, batch_x_len = spec2audio(input=spec, input_length=torch.tensor(input_length))
 
                 for b in range(batch_size):
-
                     # Transform just the current example
                     b_x, b_x_len = spec2audio(input=spec[b : b + 1, ..., : input_length[b]])
 
@@ -156,8 +152,7 @@ class TestAudioSpectrogram:
     @pytest.mark.parametrize('fft_length', [128, 1024])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_audio_to_spectrogram_reconstruction(self, fft_length: int, num_channels: int):
-        """Test analysis and synthesis transform result in a perfect reconstruction.
-        """
+        """Test analysis and synthesis transform result in a perfect reconstruction."""
         batch_size = 4
         num_samples = fft_length * 50
         num_examples = 25

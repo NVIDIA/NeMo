@@ -85,7 +85,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         # Setup decoding objects
         self.decoding = RNNTDecoding(
-            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
         # Setup WER calculation
         self.wer = RNNTWER(
@@ -366,7 +369,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
             self.decoding = RNNTDecoding(
-                decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+                decoding_cfg=decoding_cfg,
+                decoder=self.decoder,
+                joint=self.joint,
+                vocabulary=self.joint.vocabulary,
             )
 
             self.wer = RNNTWER(
@@ -421,7 +427,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
         self.decoding = RNNTDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
 
         self.wer = RNNTWER(
@@ -637,7 +646,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         # Spec augment is not applied during evaluation/testing

@@ -59,7 +59,9 @@ class PromptEmbedding(NeuralModule, Exportable):
     """
 
     def __init__(
-        self, hidden_size, total_virtual_tokens,
+        self,
+        hidden_size,
+        total_virtual_tokens,
     ):
         super().__init__()
 
@@ -74,7 +76,9 @@ class PromptEmbedding(NeuralModule, Exportable):
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
 
-    def clear_prompt_embedding_weights(self,):
+    def clear_prompt_embedding_weights(
+        self,
+    ):
         """
         Method sets the prompt embedding weights to 0.0
         """
@@ -86,16 +90,18 @@ class PromptEmbedding(NeuralModule, Exportable):
         """
         self.prompt_embeddings.weight.data = weight.type_as(self.prompt_embeddings.weight.data)
 
-    def forward(self,):
-        """ 
+    def forward(
+        self,
+    ):
+        """
         Does forward pass
         """
         return self.prompt_embeddings(self.indices)
 
 
 class InferenceTable(NeuralModule, Exportable):
-    """ 
-    A wrapper class that holds the output representations of the PromptEncoder Model. 
+    """
+    A wrapper class that holds the output representations of the PromptEncoder Model.
     At inference time we do not need to forward pass through the full PromptEncoder and can just use this class.
     """
 
@@ -117,13 +123,17 @@ class InferenceTable(NeuralModule, Exportable):
         self.prompt_table[self.taskname].set_prompt_embedding_weights(prompt_representation)
         self.is_inference_ready = True
 
-    def get_prompt_table(self,):
-        """ 
+    def get_prompt_table(
+        self,
+    ):
+        """
         Returns the prompt representation cached in the prompt table
         """
         return self.prompt_table[self.taskname].forward()
 
-    def clear_prompt_table(self,):
+    def clear_prompt_table(
+        self,
+    ):
         """
         Method "clears" the prompt embedding inside self.prompt_table[taskname] by setting it to zero.
         """
@@ -133,12 +143,16 @@ class InferenceTable(NeuralModule, Exportable):
 
 class TPMLP(NeuralModule, Exportable):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     """
 
     def __init__(
-        self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float,
+        self,
+        total_virtual_tokens: int,
+        hidden_size: int,
+        output_size: int,
+        init_std: float,
     ):
         """
         Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
@@ -146,7 +160,7 @@ class TPMLP(NeuralModule, Exportable):
             total_virtual_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.hidden_size = hidden_size
@@ -193,7 +207,7 @@ class TPMLP(NeuralModule, Exportable):
 
 class PromptEncoder(NeuralModule, Exportable):
     """
-    The prompt encoder network that is used to generate the virtual 
+    The prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning.
     """
 
@@ -268,7 +282,12 @@ class PromptEncoder(NeuralModule, Exportable):
             self.mlp_head = nn.Sequential(*layers)
 
         elif self.encoder_type == PromptEncoderType.TPMLP:
-            self.tpmlp = TPMLP(self.total_virtual_tokens, self.hidden_size, self.output_size, self.init_std,)
+            self.tpmlp = TPMLP(
+                self.total_virtual_tokens,
+                self.hidden_size,
+                self.output_size,
+                self.init_std,
+            )
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
@@ -279,10 +298,14 @@ class PromptEncoder(NeuralModule, Exportable):
         prompt_representation = prompt_representation.detach().clone()
         self.inference_table.set_prompt_table(prompt_representation)
 
-    def clear_inference_table(self,):
+    def clear_inference_table(
+        self,
+    ):
         self.inference_table.clear_prompt_table()
 
-    def get_inference_table(self,):
+    def get_inference_table(
+        self,
+    ):
         return self.inference_table.get_prompt_table()
 
     def state_dict(self, desination=None, prefix=None, keep_vars=False):
@@ -322,7 +345,9 @@ class PromptEncoder(NeuralModule, Exportable):
             raise ValueError("Prompt encoder type not recognized. Pl.")
         return
 
-    def _forward(self,):
+    def _forward(
+        self,
+    ):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         if self.encoder_type == PromptEncoderType.EMBEDDING:
             output_embeds = input_embeds
@@ -338,7 +363,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, batch_size: int, use_cached_reps: bool) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:

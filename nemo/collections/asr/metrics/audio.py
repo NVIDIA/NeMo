@@ -145,8 +145,7 @@ class AudioMetricWrapper(Metric):
                 self._metric.update(preds=b_preds, target=b_target)
 
     def compute(self) -> torch.Tensor:
-        """Compute the underlying metric.
-        """
+        """Compute the underlying metric."""
         return self._metric.compute()
 
     def forward(
@@ -177,19 +176,16 @@ class AudioMetricWrapper(Metric):
             return self._batch_reduction(batch_values)
 
     def reset(self) -> None:
-        """Reset the underlying metric.
-        """
+        """Reset the underlying metric."""
         self._metric.reset()
 
     def __repr__(self) -> str:
-        """Return string representation of the object.
-        """
+        """Return string representation of the object."""
         _op_metric = f"(metric: {repr(self._metric)}, channel: {self._channel})"
         repr_str = self.__class__.__name__ + _op_metric
 
         return repr_str
 
     def _wrap_compute(self, compute: Callable) -> Callable:
-        """Overwrite to do nothing, as in CompositionalMetric.
-        """
+        """Overwrite to do nothing, as in CompositionalMetric."""
         return compute

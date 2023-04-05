@@ -144,7 +144,6 @@ def get_huggingface_transformer(
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
 ) -> Union[HuggingFaceEncoderModule, HuggingFaceDecoderModule]:
-
     if encoder:
         model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
     else:
@@ -160,7 +159,6 @@ def get_megatron_transformer(
     encoder: bool = True,
     checkpoint_file: str = None,
 ) -> None:
-
     raise ValueError(
         "megatron-lm bert encoders are deprecated in NeMo 1.5.0. Please use NeMo 1.4.0 until megatron bert support is added again."
     )

@@ -21,10 +21,14 @@ from nemo.collections.asr.models import EncDecDiarLabelModel
 
 @pytest.fixture()
 def msdd_model():
-
     preprocessor = {
         'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-        'params': {"features": 80, "window_size": 0.025, "window_stride": 0.01, "sample_rate": 16000,},
+        'params': {
+            "features": 80,
+            "window_size": 0.025,
+            "window_stride": 0.01,
+            "sample_rate": 16000,
+        },
     }
 
     speaker_model_encoder = {

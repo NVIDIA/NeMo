@@ -45,7 +45,6 @@ if not torch.cuda.is_available():
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_inference")
 def main(cfg) -> None:
-
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 

@@ -81,7 +81,6 @@ class BertLMHead(MegatronModule):
         onnx_safe,
         sequence_parallel=False,
     ):
-
         super(BertLMHead, self).__init__()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
@@ -114,7 +113,13 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,
+    lm_output,
+    pooled_output,
+    lm_head,
+    binary_head,
+    lm_labels,
+    logit_weights,
+    fp16_lm_cross_entropy,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -257,7 +262,6 @@ class BertModel(MegatronModule):
         lm_labels=None,
         checkpoint_activations_all_layers=None,
     ):
-
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
 
         if parallel_state.is_pipeline_first_stage():

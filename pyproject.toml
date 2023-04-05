@@ -23,6 +23,11 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"
 extend_skip = ["setup.py", "docs/source/conf.py"]
 
+[tool.black]
+line-length = 119
+target-version = ['py38']
+skip-string-normalization = true
+required-version = "23"
 
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.

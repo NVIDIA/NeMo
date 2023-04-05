@@ -43,9 +43,9 @@ class MLLoss(torch.nn.Module):
     Maximum Likelihood criterion.
     It implements Connectionist Temporal Classification (CTC) loss,
     but can be extended to support other loss functions (ASG, HMM, RNNT, ...).
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/ctc.py
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """

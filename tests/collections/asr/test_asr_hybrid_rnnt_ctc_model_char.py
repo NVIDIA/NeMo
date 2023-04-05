@@ -116,7 +116,8 @@ def hybrid_asr_model():
 
 class TestEncDecHybridRNNTCTCModel:
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_constructor(self, hybrid_asr_model):
@@ -128,7 +129,8 @@ class TestEncDecHybridRNNTCTCModel:
         assert isinstance(instance2, EncDecHybridRNNTCTCModel)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_forward(self, hybrid_asr_model):
@@ -162,7 +164,8 @@ class TestEncDecHybridRNNTCTCModel:
         assert diff <= 1e-6
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_vocab_change(self, hybrid_asr_model):
@@ -185,10 +188,12 @@ class TestEncDecHybridRNNTCTCModel:
         assert hybrid_asr_model.ctc_decoder.vocabulary == hybrid_asr_model.joint.vocabulary
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_decoding_change(self, hybrid_asr_model):
@@ -283,11 +288,13 @@ class TestEncDecHybridRNNTCTCModel:
         assert dataclass_subset is None
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -318,11 +325,13 @@ class TestEncDecHybridRNNTCTCModel:
             _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer],
     )
     def test_greedy_multi_decoding(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -355,11 +364,13 @@ class TestEncDecHybridRNNTCTCModel:
             _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding_stateless_decoder(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -390,11 +401,13 @@ class TestEncDecHybridRNNTCTCModel:
             _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer],
     )
     def test_greedy_multi_decoding_stateless_decoder(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -427,11 +440,13 @@ class TestEncDecHybridRNNTCTCModel:
             _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding_preserve_alignment(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -471,7 +486,8 @@ class TestEncDecHybridRNNTCTCModel:
                     assert torch.is_tensor(label)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -505,7 +521,12 @@ class TestEncDecHybridRNNTCTCModel:
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-        beam = beam_decode.BeamRNNTInfer(decoder, joint_net, beam_size=beam_size, **beam_config,)
+        beam = beam_decode.BeamRNNTInfer(
+            decoder,
+            joint_net,
+            beam_size=beam_size,
+            **beam_config,
+        )
 
         # (B, D, T)
         enc_out = torch.randn(1, encoder_output_size, 30)
@@ -515,12 +536,16 @@ class TestEncDecHybridRNNTCTCModel:
             _ = beam(encoder_output=enc_out, encoded_lengths=enc_len)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
-        [{"search_type": "greedy"}, {"search_type": "default", "score_norm": False, "return_best_hypothesis": False},],
+        [
+            {"search_type": "greedy"},
+            {"search_type": "default", "score_norm": False, "return_best_hypothesis": False},
+        ],
     )
     def test_beam_decoding_preserve_alignments(self, beam_config):
         token_list = [" ", "a", "b", "c"]
@@ -565,11 +590,13 @@ class TestEncDecHybridRNNTCTCModel:
                     assert torch.is_tensor(label)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
+        "greedy_class",
+        [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding_SampledRNNTJoint(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -600,7 +627,8 @@ class TestEncDecHybridRNNTCTCModel:
             _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -634,7 +662,12 @@ class TestEncDecHybridRNNTCTCModel:
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = SampledRNNTJoint(jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list)
 
-        beam = beam_decode.BeamRNNTInfer(decoder, joint_net, beam_size=beam_size, **beam_config,)
+        beam = beam_decode.BeamRNNTInfer(
+            decoder,
+            joint_net,
+            beam_size=beam_size,
+            **beam_config,
+        )
 
         # (B, D, T)
         enc_out = torch.randn(1, encoder_output_size, 30)

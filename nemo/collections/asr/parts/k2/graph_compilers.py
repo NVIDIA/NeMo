@@ -38,7 +38,7 @@ from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 class CtcTopologyCompiler(object):
     """Default graph compiler.
     It applies its topology to the input token sequence to compile the supervision graph.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/training/ctc_graph.py
     """
 
@@ -99,7 +99,10 @@ class CtcNumGraphCompiler(CtcTopologyCompiler):
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
 
     def compile(
-        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional['k2.Fsa'] = None,
+        self,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        aux_graph: Optional['k2.Fsa'] = None,
     ) -> 'k2.Fsa':
         if aux_graph is None and self.base_graph is None:
             raise ValueError(
@@ -138,7 +141,10 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
         super().to(device)
 
     def compile(
-        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional['k2.Fsa'] = None,
+        self,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        aux_graph: Optional['k2.Fsa'] = None,
     ) -> Tuple['k2.Fsa', 'k2.Fsa']:
         supervision_graphs = super().compile(targets, target_lengths, aux_graph)
         if aux_graph is None and self.decoding_graph is None:

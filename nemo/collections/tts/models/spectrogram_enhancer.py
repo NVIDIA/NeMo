@@ -122,7 +122,12 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         }
     )
     def forward(
-        self, *, input_spectrograms: torch.Tensor, lengths: torch.Tensor, mixing: bool = False, normalize: bool = True,
+        self,
+        *,
+        input_spectrograms: torch.Tensor,
+        lengths: torch.Tensor,
+        mixing: bool = False,
+        normalize: bool = True,
     ):
         """
         Generator forward pass. Noise inputs will be generated.
@@ -257,7 +262,10 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             return g_loss + c_loss
 
     def configure_optimizers(self):
-        generator_opt = instantiate(self._cfg.generator_opt, params=self.generator.parameters(),)
+        generator_opt = instantiate(
+            self._cfg.generator_opt,
+            params=self.generator.parameters(),
+        )
         discriminator_opt = instantiate(self._cfg.discriminator_opt, params=self.discriminator.parameters())
         return [discriminator_opt, generator_opt], []
 

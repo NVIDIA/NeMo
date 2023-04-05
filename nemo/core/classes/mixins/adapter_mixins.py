@@ -119,7 +119,7 @@ def _prepare_default_adapter_config(*, global_key: str, meta_key: str, cfg: Dict
 
 
 class AdapterModuleMixin(ABC):
-    """ Generic Adapter Mixin that can augment any torch.nn.Module with Adapter module support.
+    """Generic Adapter Mixin that can augment any torch.nn.Module with Adapter module support.
 
     This mixin class adds a hierarchical way to add any type of Adapter modules to a pre-existing module.
     Since Models are inherently also nn.Module, this mixin can be attached to any Model or Module.
@@ -356,7 +356,9 @@ class AdapterModuleMixin(ABC):
 
         self._accepted_adapter_types = set(types)
 
-    def get_accepted_adapter_types(self,) -> Set[type]:
+    def get_accepted_adapter_types(
+        self,
+    ) -> Set[type]:
         """
         Utility function to get the set of all classes that are accepted by the module.
 
@@ -538,7 +540,7 @@ class AdapterModuleMixin(ABC):
 
 
 class AdapterModelPTMixin(AdapterModuleMixin):
-    """ Adapter Mixin that can augment a ModelPT subclass with Adapter support.
+    """Adapter Mixin that can augment a ModelPT subclass with Adapter support.
 
     This mixin class should be used only with a top level ModelPT subclass.
     This mixin class adds several utility methods which should be subclassed and overriden to
@@ -634,7 +636,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 self.cfg.adapters = OmegaConf.create({})
 
             self.cfg.adapters = _prepare_default_adapter_config(
-                global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key, cfg=self.cfg.adapters,
+                global_key=self.adapter_global_cfg_key,
+                meta_key=self.adapter_metadata_cfg_key,
+                cfg=self.cfg.adapters,
             )
 
             # If the adapter is not being restored, force unique name to be provided for all adapters.

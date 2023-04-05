@@ -57,7 +57,6 @@ class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
 
 
 class TransformerBottleneckEncoderNM(TransformerEncoderNM):
-
     _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver", "max_pool", "avg_pool"]
 
     def __init__(
@@ -214,7 +213,9 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         input_types = super().input_types
         input_types.update(
-            {"return_mask": NeuralType((), BoolType(), True),}
+            {
+                "return_mask": NeuralType((), BoolType(), True),
+            }
         )
 
         return input_types
@@ -223,7 +224,9 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         output_types = super().output_types
         output_types.update(
-            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True),}
+            {
+                "hidden_mask": NeuralType(('B', 'T'), MaskType(), True),
+            }
         )
         return output_types
 
@@ -247,7 +250,8 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             encoder_hidden_mask = encoder_mask
         else:
             encoder_hidden_states, encoder_hidden_mask = self._encoder(
-                encoder_states=embeddings, encoder_mask=encoder_mask,
+                encoder_states=embeddings,
+                encoder_mask=encoder_mask,
             )
 
         if return_mask:

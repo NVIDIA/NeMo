@@ -214,7 +214,9 @@ class RadTTSModule(NeuralModule, Exportable):
                     n_flowstep_cond_dims = self.n_speaker_dim + n_text_dim * n_group_size
 
                 self.context_lstm = BiLSTM(
-                    input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
+                    input_size=n_in_context_lstm,
+                    hidden_size=n_context_lstm_hidden,
+                    num_layers=1,
                 )
 
             if self.n_group_size > 1:
@@ -600,7 +602,6 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask=None,
         pitch_shift=None,
     ):
-
         batch_size = text.shape[0]
         if in_lens is None:
             in_lens = text.new_ones((batch_size,), dtype=torch.int64) * text.shape[1]
@@ -633,7 +634,11 @@ class RadTTSModule(NeuralModule, Exportable):
             pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
-            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size, dur_lens=in_lens,
+            dur,
+            txt_enc.transpose(1, 2),
+            pace,
+            group_size=self.n_group_size,
+            dur_lens=in_lens,
         )
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
@@ -685,7 +690,12 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = pitch_shift_spec_len.squeeze(-1) + f0_bias
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True,
+            txt_enc_time_expanded,
+            spk_vec,
+            out_lens,
+            (f0 + f0_bias) * voiced_mask,
+            energy_avg,
+            assume_padded=True,
         )
 
         residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
@@ -754,8 +764,7 @@ class RadTTSModule(NeuralModule, Exportable):
         return energy
 
     def remove_norms(self):
-        """Removes spectral and weightnorms from model. Call before inference
-        """
+        """Removes spectral and weightnorms from model. Call before inference"""
         dev = next(self.parameters()).device
         for name, module in self.named_modules():
             try:

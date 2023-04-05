@@ -93,7 +93,9 @@ def main():
         help="Path to .nemo model file(s). If ensembling, provide comma separated paths to multiple models.",
     )
     parser.add_argument(
-        "--language_model", type=str, help="Optional path to an LM model that has the same tokenizer as NMT models.",
+        "--language_model",
+        type=str,
+        help="Optional path to an LM model that has the same tokenizer as NMT models.",
     )
     parser.add_argument(
         "--forward_model_coef",
@@ -108,7 +110,10 @@ def main():
         help="Weight assigned to the reverse NMT model for re-ranking.",
     )
     parser.add_argument(
-        "--target_lm_coef", type=float, default=0.07, help="Weight assigned to the target LM model for re-ranking.",
+        "--target_lm_coef",
+        type=float,
+        default=0.07,
+        help="Weight assigned to the target LM model for re-ranking.",
     )
     parser.add_argument(
         "--srctext",

@@ -102,7 +102,6 @@ class MegatronBertModel(MegatronBaseModel):
             self.model = self.model[0]
 
         if self.megatron_amp_o2:
-
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 if isinstance(self.model, list):
@@ -168,8 +167,8 @@ class MegatronBertModel(MegatronBaseModel):
         return model
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
@@ -280,7 +279,6 @@ class MegatronBertModel(MegatronBaseModel):
         return output_tensor
 
     def training_step(self, dataloader_iter, batch_idx):
-
         self._optimizer.zero_grad()
 
         if self.with_distributed_adam:
@@ -399,7 +397,6 @@ class MegatronBertModel(MegatronBaseModel):
         return loss_mean[0]
 
     def allreduce_first_last_embeddings(self):
-
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
         # All-reduce word_embeddings' grad across first and last stages to ensure
         # that word_embeddings parameters stay in sync.
@@ -548,20 +545,20 @@ class MegatronBertModel(MegatronBaseModel):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
     def _append_sequence_parallel_module_grads(self, module, grads):
-        """ Helper method for allreduce_sequence_parallel_gradients"""
+        """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel_enabled', False)
@@ -573,7 +570,7 @@ class MegatronBertModel(MegatronBaseModel):
                 grads.append(grad.data)
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -623,9 +620,9 @@ class MegatronBertModel(MegatronBaseModel):
             self.setup_transformer_engine_tp_groups()
 
     def allreduce_sequence_parallel_gradients(self):
-        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
-            Modified from megatron-lm:
-            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+        Modified from megatron-lm:
+        https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
 
         grads = []
@@ -673,7 +670,10 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
         )
 
     def setup_training_data(self, cfg):
@@ -701,10 +701,10 @@ class MegatronBertModel(MegatronBaseModel):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
@@ -754,9 +754,7 @@ class MegatronBertModel(MegatronBaseModel):
         self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def configure_optimizers(self):
-
         if self.with_distributed_adam:
-
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:

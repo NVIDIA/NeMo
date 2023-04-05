@@ -41,8 +41,7 @@ class SpecAugment(nn.Module, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {
             "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
             "length": NeuralType(tuple('B'), LengthsType()),
@@ -50,12 +49,17 @@ class SpecAugment(nn.Module, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
-        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
+        self,
+        freq_masks=0,
+        time_masks=0,
+        freq_width=10,
+        time_width=10,
+        rng=None,
+        mask_value=0.0,
     ):
         super().__init__()
 
@@ -118,14 +122,12 @@ class SpecCutout(nn.Module, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(self, rect_masks=0, rect_time=5, rect_freq=20, rng=None):

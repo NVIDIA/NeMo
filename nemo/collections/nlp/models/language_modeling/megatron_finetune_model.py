@@ -417,7 +417,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
             # Write predictions, labels, and inputs to a file for each validation/test dataset.
             if data_cfg.get("write_predictions_to_file", False):
-
                 # Check if the user provided a prefix path to the file(s) they want to write.
                 if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
                     raise ValueError(
@@ -508,7 +507,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
-        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+        self,
+        dataset,
+        global_batch_size,
+        shuffle,
+        num_workers,
+        pin_memory,
+        drop_last,
     ):
         """Buld dataloader given an input dataset."""
 

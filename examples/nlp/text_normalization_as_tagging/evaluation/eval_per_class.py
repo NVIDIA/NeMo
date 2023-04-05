@@ -49,7 +49,6 @@ args = parser.parse_args()
 
 # Main code
 if __name__ == '__main__':
-
     # delete all class-specific reports, as they are created in the append mode
     for f in glob.glob(args.output_file + ".*"):
         os.remove(f)

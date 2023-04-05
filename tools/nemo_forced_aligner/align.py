@@ -125,7 +125,6 @@ class AlignmentConfig:
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     if is_dataclass(cfg):

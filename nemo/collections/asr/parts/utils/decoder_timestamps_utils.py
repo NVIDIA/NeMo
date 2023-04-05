@@ -120,7 +120,6 @@ class WERBPE_TS(WERBPE):
         word_ts, word_seq = [], []
         word_open_flag = False
         for idx, ch in enumerate(decoded_char_list):
-
             # If the symbol is space and not an end of the utterance, move on
             if idx != end_idx and (space == ch and space in decoded_char_list[idx + 1]):
                 continue
@@ -192,7 +191,9 @@ class WER_TS(WER):
         return token_list, timestamp_list
 
     def ctc_decoder_predictions_tensor_with_ts(
-        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None,
+        self,
+        predictions: torch.Tensor,
+        predictions_len: torch.Tensor = None,
     ) -> List[str]:
         """
         A shortened version of the original function ctc_decoder_predictions_tensor().
@@ -263,7 +264,6 @@ class FrameBatchASR_Logits(FrameBatchASR):
     def _get_batch_preds(self):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
-
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
             log_probs, encoded_len, predictions = self.asr_model(
@@ -279,7 +279,9 @@ class FrameBatchASR_Logits(FrameBatchASR):
             del predictions
 
     def transcribe_with_ts(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         self.infer_logits()
         self.unmerged = []
@@ -709,7 +711,10 @@ class ASRDecoderTimeStamps:
         elif len(spaces_in_sec) > 0:
             # word_timetamps_middle should be an empty list if len(spaces_in_sec) == 1.
             word_timetamps_middle = [
-                [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),]
+                [
+                    round(spaces_in_sec[k][1], 2),
+                    round(spaces_in_sec[k + 1][0], 2),
+                ]
                 for k in range(len(spaces_in_sec) - 1)
             ]
             word_timestamps = (

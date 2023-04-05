@@ -250,7 +250,6 @@ try:
 
         return constant_std_init_(tensor, sampler_)
 
-
 except (ImportError, ModuleNotFoundError):
     warnings.warn(
         'Failed to import _no_grad_trunc_normal_ from torch.nn.init; '

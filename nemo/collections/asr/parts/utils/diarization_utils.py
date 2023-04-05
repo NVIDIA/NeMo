@@ -188,7 +188,9 @@ def convert_word_dict_seq_to_ctm(
 
 
 def get_total_result_dict(
-    der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]], csv_columns: List[str],
+    der_results: Dict[str, Dict[str, float]],
+    wer_results: Dict[str, Dict[str, float]],
+    csv_columns: List[str],
 ):
     """
     Merge WER results and DER results into a single dictionary variable.
@@ -438,7 +440,8 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def get_speech_labels_from_decoded_prediction(
-        input_word_ts: List[float], nonspeech_threshold: float,
+        input_word_ts: List[float],
+        nonspeech_threshold: float,
     ) -> List[float]:
         """
         Extract speech labels from the ASR output (decoded predictions)
@@ -640,7 +643,9 @@ class OfflineDiarWithASR:
         return cursor
 
     def _compensate_word_ts_list(
-        self, audio_file_list: List[str], word_ts_dict: Dict[str, List[float]],
+        self,
+        audio_file_list: List[str],
+        word_ts_dict: Dict[str, List[float]],
     ) -> Dict[str, List[List[float]]]:
         """
         Compensate the word timestamps based on the VAD output.
@@ -782,7 +787,7 @@ class OfflineDiarWithASR:
 
                 Example:
                 >>> word_ts = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
-            
+
             word_ts_refined (list):
                 Dictionary containing the refined (end point fixed) word timestamps based on hypothesis
                 word timestamps. Indexed by unique IDs.
@@ -795,9 +800,9 @@ class OfflineDiarWithASR:
                 List containing word by word dictionary containing word, timestamps and speaker labels.
 
                 Example:
-                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
-                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
-                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},
                      ...]
         """
         if word_rfnd_ts is None:
@@ -817,7 +822,10 @@ class OfflineDiarWithASR:
         return word_dict_seq_list
 
     def _make_json_output(
-        self, uniq_id: str, diar_labels: List[str], word_dict_seq_list: List[Dict[str, float]],
+        self,
+        uniq_id: str,
+        diar_labels: List[str],
+        word_dict_seq_list: List[Dict[str, float]],
     ) -> Dict[str, Dict[str, str]]:
         """
         Generate json output files and transcripts from the ASR and diarization results.
@@ -1108,7 +1116,7 @@ class OfflineDiarWithASR:
             wer_results['total']['average_cpWER'] = word_error_rate(hypotheses=hyps_spk, references=refs_spk)
             wer_results['total']['average_WER'] = word_error_rate(hypotheses=mix_hypotheses, references=mix_references)
 
-            for (uniq_id, cpWER, WER) in zip(uniq_id_list, cpWER_values, WER_values):
+            for uniq_id, cpWER, WER in zip(uniq_id_list, cpWER_values, WER_values):
                 # Save session-level cpWER and WER values
                 wer_results[uniq_id] = {}
                 wer_results[uniq_id]['cpWER'] = cpWER

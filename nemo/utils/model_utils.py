@@ -268,7 +268,6 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     ds_values = cfg.validation_ds[ds_key]
 
     if isinstance(ds_values, (list, tuple, ListConfig)):
-
         for ds_value in ds_values:
             if isinstance(ds_value, (dict, DictConfig)):
                 # this is a nested dataset
@@ -347,7 +346,6 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     ds_values = cfg.test_ds[ds_key]
 
     if isinstance(ds_values, (list, tuple, ListConfig)):
-
         for ds_value in ds_values:
             if isinstance(ds_value, (dict, DictConfig)):
                 # this is a nested dataset
@@ -414,7 +412,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
 
 def _convert_config(cfg: 'OmegaConf'):
-    """ Recursive function convertint the configuration from old hydra format to the new one. """
+    """Recursive function convertint the configuration from old hydra format to the new one."""
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
         exit(1)

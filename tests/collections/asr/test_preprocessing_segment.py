@@ -27,7 +27,6 @@ from nemo.collections.asr.parts.utils.audio_utils import select_channels
 
 
 class TestAudioSegment:
-
     sample_rate = 16000
     signal_duration_sec = 2
     max_diff_tol = 1e-9
@@ -40,8 +39,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0, 1, [0, 1]])
     def test_init_single_channel(self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]):
-        """Test the constructor directly.
-        """
+        """Test the constructor directly."""
         if num_channels == 1:
             # samples is a one-dimensional vector for single-channel signal
             samples = np.random.rand(self.num_samples)
@@ -95,8 +93,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0])
     def test_from_file(self, num_channels, channel_selector):
-        """Test loading a signal from a file.
-        """
+        """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')
@@ -127,8 +124,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("data_channels", [1, 4])
     @pytest.mark.parametrize("noise_channels", [1, 4])
     def test_noise_perturb_channels(self, data_channels, noise_channels):
-        """Test loading a signal from a file.
-        """
+        """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')
@@ -179,8 +175,7 @@ class TestAudioSegment:
                     _ = perturber.perturb_with_foreground_noise(audio, noise)
 
     def test_silence_perturb(self):
-        """Test loading a signal from a file and apply silence perturbation
-        """
+        """Test loading a signal from a file and apply silence perturbation"""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')

@@ -201,7 +201,6 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
 
 
 class GermanCharsTokenizer(BaseCharsTokenizer):
-
     _LOCALE = "de-DE"
     _PUNCT_LIST = get_ipa_punctuation_list(_LOCALE)
     _CHARSET_STR = get_grapheme_character_set(locale=_LOCALE, case="mixed")
@@ -239,11 +238,15 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
 
 
 class SpanishCharsTokenizer(BaseCharsTokenizer):
-
     PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Spanish grapheme tokenizer.
         Args:

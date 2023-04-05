@@ -35,7 +35,7 @@ def _build_index_from_memdata(fn, newline_int):
     """
     Build index of delimiter positions between samples in memmap.
     Can be provided externally.
-    
+
     Returns a 1D array of ints.
     """
     # use memmap to read file
@@ -280,7 +280,13 @@ class JSONLMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
+        self,
+        dataset_paths,
+        newline_int=10,
+        header_lines=1,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
     ):
         super().__init__(
             dataset_paths=dataset_paths,

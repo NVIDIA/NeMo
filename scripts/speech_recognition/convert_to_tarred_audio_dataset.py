@@ -120,7 +120,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--metadata_path", required=False, default=None, type=str, help="Path to metadata file for the dataset.",
+    "--metadata_path",
+    required=False,
+    default=None,
+    type=str,
+    help="Path to metadata file for the dataset.",
 )
 
 parser.add_argument(
@@ -161,7 +165,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--buckets_num", type=int, default=1, help="Number of buckets to create based on duration.",
+    "--buckets_num",
+    type=int,
+    default=1,
+    help="Number of buckets to create based on duration.",
 )
 
 parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
@@ -538,8 +545,7 @@ class ASRTarredDatasetBuilder:
         return entries, total_duration, filtered_entries, filtered_duration
 
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
-        """Creates a tarball containing the audio files from `entries`.
-        """
+        """Creates a tarball containing the audio files from `entries`."""
         if self.config.sort_in_shards:
             entries.sort(key=lambda x: x["duration"], reverse=False)
 

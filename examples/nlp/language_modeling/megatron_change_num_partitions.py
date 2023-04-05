@@ -346,7 +346,6 @@ def split_partition(
     # We need to extract the parameters from the global map in reverse order to fill in the
     # parameters of this model in forward order.
     for param_name, param in model.named_parameters():
-
         # Since we are moving forward, we may reach the end of the global map
         # but GPT has an additional word embedding as its last parameter
         # Therefore we check for this, and reset the index to the parameter of the PP 0 TP 0 rank
@@ -670,7 +669,6 @@ def main():
 
     # If target model has TP > 1 or PP > 1
     if tgt_pp_size > 1 or tgt_tp_size > 1:
-
         # Preserve the TP 1 PP 1 model parameters and names
         global_params = []
         global_params.append([p for n, p in model.named_parameters()])  # params
@@ -692,7 +690,6 @@ def main():
         logging.info(f"Final layer offset for parameters: {global_offset}")
 
         for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
-
             with open_dict(model.cfg):
                 model.cfg.pipeline_model_parallel_size = tgt_pp_size
                 model.cfg.tensor_model_parallel_size = tgt_tp_size

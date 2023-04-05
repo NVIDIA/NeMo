@@ -56,7 +56,11 @@ def beam_search_eval(all_hypotheses, target_transcripts, preds_output_file=None)
     if preds_output_file:
         out_file = open(preds_output_file, 'w')
 
-    it = tqdm(range(len(all_hypotheses)), desc=f"Beam search decoding...", ncols=120,)
+    it = tqdm(
+        range(len(all_hypotheses)),
+        desc=f"Beam search decoding...",
+        ncols=120,
+    )
 
     for sample_idx in it:
         hypotheses = all_hypotheses[sample_idx]
@@ -138,10 +142,16 @@ def main():
         help="The decoding scheme to be used for evaluation.",
     )
     parser.add_argument(
-        "--beam_width", required=True, type=int, help="The width for the beam search decoding",
+        "--beam_width",
+        required=True,
+        type=int,
+        help="The width for the beam search decoding",
     )
     parser.add_argument(
-        "--beam_alpha", required=True, type=float, help="The alpha parameter for the beam search decoding",
+        "--beam_alpha",
+        required=True,
+        type=float,
+        help="The alpha parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
@@ -245,9 +255,13 @@ def main():
 
     if args.preds_output_folder:
         preds_output_file = os.path.join(
-            args.preds_output_folder, f"preds_out_width{args.beam_width}_alpha{args.beam_alpha}.tsv",
+            args.preds_output_folder,
+            f"preds_out_width{args.beam_width}_alpha{args.beam_alpha}.tsv",
         )
-        preds_output_manifest = os.path.join(args.preds_output_folder, f"preds_manifest.json",)
+        preds_output_manifest = os.path.join(
+            args.preds_output_folder,
+            f"preds_manifest.json",
+        )
         with open(preds_output_manifest, 'w') as fn:
             for i, file_name in enumerate(audio_file_paths):
                 item = {
@@ -262,7 +276,9 @@ def main():
         preds_output_file = None
 
     beam_search_eval(
-        all_hypotheses=all_hypotheses, target_transcripts=target_transcripts, preds_output_file=preds_output_file,
+        all_hypotheses=all_hypotheses,
+        target_transcripts=target_transcripts,
+        preds_output_file=preds_output_file,
     )
 
 

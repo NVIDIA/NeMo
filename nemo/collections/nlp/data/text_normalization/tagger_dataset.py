@@ -69,7 +69,8 @@ class TextNormalizationTaggerDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{max_seq_length}.pkl',
+            data_dir,
+            f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{max_seq_length}.pkl',
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -88,7 +89,7 @@ class TextNormalizationTaggerDataset(Dataset):
 
             # Convert raw instances to TaggerDataInstance
             insts = []
-            for (_, w_words, s_words) in tqdm(raw_insts):
+            for _, w_words, s_words in tqdm(raw_insts):
                 for inst_dir in constants.INST_DIRECTIONS:
                     if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE:
                         continue

@@ -154,7 +154,9 @@ class ComboRetrievalServer(object):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, services_cfg: list,
+        self,
+        tokenizer: TokenizerSpec,
+        services_cfg: list,
     ):
         self.app = Flask(__name__, static_url_path='')
         services = []
@@ -177,7 +179,12 @@ class ComboRetrievalServer(object):
 
         api = Api(self.app)
         api.add_resource(
-            ComboRetrievalResource, '/knn', resource_class_args=[services, self.weight_container,],
+            ComboRetrievalResource,
+            '/knn',
+            resource_class_args=[
+                services,
+                self.weight_container,
+            ],
         )
 
     def run(self, url, port=None):

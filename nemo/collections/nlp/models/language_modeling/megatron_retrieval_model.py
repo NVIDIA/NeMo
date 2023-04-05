@@ -86,7 +86,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if self.megatron_amp_o2:
-
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 self.model.cuda(torch.cuda.current_device())
@@ -462,7 +461,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -517,7 +519,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         sampling_params: SamplingParam = None,
         **args,
     ) -> OutputType:
-
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
 

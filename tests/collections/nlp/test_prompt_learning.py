@@ -26,7 +26,11 @@ from nemo.core import Dataset
 
 
 def get_prompt_tuning_dataset(
-    dataset_path, tokenizer, virtual_prompt_source, task_templates, pseudo_tokens,
+    dataset_path,
+    tokenizer,
+    virtual_prompt_source,
+    task_templates,
+    pseudo_tokens,
 ):
     dataset = GPTPromptLearningDataset(
         data=[dataset_path],
@@ -98,7 +102,11 @@ class TestMegatronGPTPromptLearningDataset:
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, VirtualPromptSource.PROMPT_ENCODER, task_templates, pseudo_tokens,
+            dataset_path,
+            tokenizer,
+            VirtualPromptSource.PROMPT_ENCODER,
+            task_templates,
+            pseudo_tokens,
         )
 
         print(type(dataset))
@@ -120,7 +128,11 @@ class TestMegatronGPTPromptLearningDataset:
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, VirtualPromptSource.PROMPT_ENCODER, task_templates, pseudo_tokens,
+            dataset_path,
+            tokenizer,
+            VirtualPromptSource.PROMPT_ENCODER,
+            task_templates,
+            pseudo_tokens,
         )
 
         batch = [dataset[i] for i in range(8)]

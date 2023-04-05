@@ -31,7 +31,6 @@ __all__ = ["vocab_parallel_cross_entropy"]
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
     def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
-
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
         torch.distributed.all_reduce(
@@ -108,7 +107,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-
         # Retreive tensors from the forward path.
         softmax, target_mask, masked_target_1d, label_smoothing, vocab_size = ctx.saved_tensors
 

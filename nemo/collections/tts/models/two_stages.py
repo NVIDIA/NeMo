@@ -107,7 +107,6 @@ class TwoStagesModel(Vocoder):
     """Two Stages model used to convert mel spectrograms, to linear spectrograms, and then to audio"""
 
     def __init__(self, cfg: DictConfig):
-
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 

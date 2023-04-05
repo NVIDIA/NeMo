@@ -56,7 +56,6 @@ def convert_msmarco_to_squad_format(msmarco_data, args):
     ids = list(msmarco_data["query"])
     squad_data = {"data": [{"title": "MSMARCO", "paragraphs": []}], "version": "v2.1"}
     for index, _id in enumerate(tqdm(ids)):
-
         context = get_context_from_passages(msmarco_data["passages"][_id], args.keep_only_relevant_passages)
         if not context:
             continue
@@ -77,7 +76,12 @@ def convert_msmarco_to_squad_format(msmarco_data, args):
             {
                 "context": context,
                 "qas": [
-                    {"id": index, "question": query, "answers": answers, "is_impossible": False if answers else True,}
+                    {
+                        "id": index,
+                        "question": query,
+                        "answers": answers,
+                        "is_impossible": False if answers else True,
+                    }
                 ],
             }
         )

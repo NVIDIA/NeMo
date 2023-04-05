@@ -180,7 +180,9 @@ def beam_search_eval(
                 )
 
             _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
-                packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
+                packed_batch,
+                decoder_lengths=probs_lens,
+                return_hypotheses=True,
             )
         pc = PunctuationCapitalization(',.?')
         for beams_idx, beams in enumerate(beams_batch):
@@ -306,7 +308,6 @@ def main(cfg: EvalBeamSearchNGramConfig):
             else:
                 autocast = default_autocast
         else:
-
             autocast = default_autocast
 
         with autocast():

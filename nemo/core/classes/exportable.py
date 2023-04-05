@@ -172,7 +172,6 @@ class Exportable(ABC):
 
             # Set module mode
             with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
-
                 if input_example is None:
                     input_example = self.input_module.input_example()
 
@@ -281,7 +280,7 @@ class Exportable(ABC):
 
     def get_export_subnet(self, subnet=None):
         """
-        Returns Exportable subnet model/module to export 
+        Returns Exportable subnet model/module to export
         """
         if subnet is None or subnet == 'self':
             return self

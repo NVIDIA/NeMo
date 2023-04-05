@@ -188,7 +188,6 @@ def __process_data(data_folder: str, data_set: str):
 def main():
     data_root = args.data_root
     for data_set in URL.keys():
-
         # data_set = 'data_aishell'
         logging.info("\n\nWorking on: {0}".format(data_set))
         file_path = os.path.join(data_root, data_set + ".tgz")

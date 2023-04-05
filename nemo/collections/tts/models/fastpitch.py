@@ -200,7 +200,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         text_tokenizer_kwargs = {}
 
         if "g2p" in cfg.text_tokenizer:
-
             # for backward compatibility
             if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
                 cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
@@ -212,12 +211,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             # for backward compatability
@@ -417,16 +418,25 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
             spec_predict = mels_pred[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
-                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+                "train_mel_predicted",
+                plot_spectrogram_to_numpy(spec_predict),
+                self.global_step,
+                dataformats="HWC",
             )
             if self.learn_alignment:
                 attn = attn_hard[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
-                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+                    "train_attn",
+                    plot_alignment_to_numpy(attn.T),
+                    self.global_step,
+                    dataformats="HWC",
                 )
                 soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
-                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+                    "train_soft_attn",
+                    plot_alignment_to_numpy(soft_attn.T),
+                    self.global_step,
+                    dataformats="HWC",
                 )
 
         return loss
@@ -450,7 +460,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        (mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch, energy_pred, energy_tgt,) = self(
+        (
+            mels_pred,
+            _,
+            _,
+            log_durs_pred,
+            pitch_pred,
+            _,
+            _,
+            _,
+            attn_hard_dur,
+            pitch,
+            energy_pred,
+            energy_tgt,
+        ) = self(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -506,7 +529,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
             spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(spec_predict),
+                self.global_step,
+                dataformats="HWC",
             )
             self.log_train_images = True
 

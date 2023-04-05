@@ -152,7 +152,12 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             if len(batch) == self._global_batch_size:
                 # start_idx, end_idx = self.get_start_end_idx()
                 indices = [
-                    batch[i] for i in range(self.data_parallel_rank, self._global_batch_size, self.data_parallel_size,)
+                    batch[i]
+                    for i in range(
+                        self.data_parallel_rank,
+                        self._global_batch_size,
+                        self.data_parallel_size,
+                    )
                 ]
                 assert len(indices) == self._global_batch_size_on_this_data_parallel_rank
                 yield indices
@@ -171,7 +176,6 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
 
 @experimental
 class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
-
     # NOTE (mkozuki): [[Argument of `dataset` and `data_sharding`]]
     # From the commit below, it seems like `dataset` argument and `data_sharding` argument
     # are necessary for ViT training. However, to keep this simple,

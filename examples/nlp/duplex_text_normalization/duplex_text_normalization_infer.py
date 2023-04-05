@@ -98,14 +98,17 @@ def main(cfg: DictConfig) -> None:
             ]
 
         def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
-            """ Runs inference on a batch data without labels and saved predictions to a file. """
+            """Runs inference on a batch data without labels and saved predictions to a file."""
             assert mode in ['tn', 'itn']
             file_name, extension = os.path.splitext(text_file)
             batch, all_preds = [], []
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),)
+                    outputs = tn_model._infer(
+                        batch,
+                        [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),
+                    )
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)

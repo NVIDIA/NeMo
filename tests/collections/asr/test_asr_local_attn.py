@@ -55,7 +55,6 @@ class TestASRLocalAttention:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_change_save_restore(self):
-
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
         model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
         attr_for_eq_check = ["encoder.self_attention_model", "encoder.att_context_size"]

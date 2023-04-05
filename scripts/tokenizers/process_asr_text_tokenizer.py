@@ -142,7 +142,8 @@ args = parser.parse_args()
 
 
 def __build_document_from_manifests(
-    data_root: str, manifests: str,
+    data_root: str,
+    manifests: str,
 ):
     if ',' in manifests:
         manifests = manifests.split(',')
@@ -218,7 +219,6 @@ def __process_data(
     Returns:
     """
     if tokenizer_type == 'spe':
-
         # Prepare directory of tokenizer
         if spe_max_sentencepiece_length > 0:
             tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max_{}').format(

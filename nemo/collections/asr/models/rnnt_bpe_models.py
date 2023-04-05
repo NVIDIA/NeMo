@@ -283,7 +283,10 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         # Setup decoding object
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            tokenizer=self.tokenizer,
         )
 
         # Setup wer object
@@ -380,7 +383,10 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            tokenizer=self.tokenizer,
         )
 
         self.wer = RNNTBPEWER(
@@ -429,7 +435,10 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            tokenizer=self.tokenizer,
         )
 
         self.wer = RNNTBPEWER(

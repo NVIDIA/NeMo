@@ -107,12 +107,12 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             )
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
-            total_norm = grad_norm ** norm_type
+            total_norm = grad_norm**norm_type
 
         else:
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
-                total_norm += grad_norm ** norm_type
+                total_norm += grad_norm**norm_type
 
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(
@@ -130,7 +130,6 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
 
 def count_zeros_fp32(parameters):
-
     if isinstance(parameters, torch.Tensor):
         parameters = [parameters]
 

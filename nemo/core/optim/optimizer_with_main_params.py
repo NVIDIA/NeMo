@@ -27,7 +27,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
 
@@ -93,7 +92,7 @@ class GradBucket(object):
         self.data.zero_()
 
     def allreduce_buffer(self):
-        """Synchronous buffer data allreduce """
+        """Synchronous buffer data allreduce"""
         self.data.div_(get_data_parallel_world_size())
         torch.distributed.all_reduce(self.data, group=get_data_parallel_group())
 
@@ -149,7 +148,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     Arguments:
         optimizer: base optimizer such as Adam or SGD.
         fp32_grad_accum: to enable the use of fp32 in gradient accumulation and allreduce.
-        contiguous_grad_bucket: to enable allocating the master gradients in the 
+        contiguous_grad_bucket: to enable allocating the master gradients in the
             contiguous memory space to reduce memory fragmentation.
         async_grad_allreduce: enable asynchronous gradient allreduce that is executed
             along with the training step backprop.
@@ -297,6 +296,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def _make_param_hook(self, param, main_param, i, grad_chunk_info):
         """Create the grad accumulation and all-reduce hook for backprop."""
+
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
@@ -326,7 +326,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         else:
                             allreduce_tensor.div_(get_data_parallel_world_size())
                             torch.distributed.all_reduce(
-                                allreduce_tensor, group=get_data_parallel_group(), async_op=True,
+                                allreduce_tensor,
+                                group=get_data_parallel_group(),
+                                async_op=True,
                             )
                 else:
                     if self._grad_div_ar_fusion:
@@ -339,7 +341,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                     else:
                         main_param.grad.div_(get_data_parallel_world_size())
                         torch.distributed.all_reduce(
-                            main_param.grad, group=get_data_parallel_group(), async_op=True,
+                            main_param.grad,
+                            group=get_data_parallel_group(),
+                            async_op=True,
                         )
 
         return param_hook
@@ -453,7 +457,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @contextmanager
     def no_sync(self):
-        """ A context manager to disable gradient synchronizations across
+        """A context manager to disable gradient synchronizations across
         data-parallel ranks."""
         old_require_backward_grad_sync = self._require_backward_grad_sync
         self._require_backward_grad_sync = False

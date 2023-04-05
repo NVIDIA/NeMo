@@ -248,7 +248,12 @@ def get_text_query_with_resource_limit_checks(client, query: str, filters: list,
 
     while pages is None:
         try:
-            pages = client.text_search(query=query, filter=" ".join(filters), fields=fields, page_size=str(page_size),)
+            pages = client.text_search(
+                query=query,
+                filter=" ".join(filters),
+                fields=fields,
+                page_size=str(page_size),
+            )
 
         except freesound.FreesoundException as e:
             # Most probably a rate limit or a request limit
@@ -346,7 +351,6 @@ def download_song(basepath, id, name, download_url):
 
         try:
             while data is None:
-
                 try:
                     # Get the sound data
                     data = get_resource_with_auto_refresh(session, download_url)
@@ -431,12 +435,12 @@ def get_songs_by_category(
     print(f"Query : {query}")
 
     page_size = min(page_size, 150)
-    max_filesize = int(max_filesize_in_mb * (2 ** 20))
+    max_filesize = int(max_filesize_in_mb * (2**20))
 
     if min_filesize_in_mb == 0:
         min_filesize_in_mb = 1
     else:
-        min_filesize_in_mb = int(min_filesize_in_mb * (2 ** 20))
+        min_filesize_in_mb = int(min_filesize_in_mb * (2**20))
 
     if max_num_samples < 0:
         max_num_samples = int(1e6)
@@ -522,7 +526,6 @@ def get_songs_by_category(
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser(description="Freesound download script")
 
     parser.add_argument(
@@ -546,7 +549,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.auth:
-        """ Initialize oauth token to be used by all """
+        """Initialize oauth token to be used by all"""
         oauth, token = initialize_oauth()
         oauth.close()
 

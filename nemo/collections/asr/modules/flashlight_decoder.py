@@ -108,7 +108,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         unk_weight: float = -math.inf,
         sil_weight: float = 0.0,
     ):
-
         try:
             from flashlight.lib.text.decoder import (
                 LM,
@@ -196,7 +195,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
 
             self.decoder = LexiconDecoder(
-                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
+                self.decoder_opts,
+                self.trie,
+                self.lm,
+                self.silence,
+                self.blank,
+                self.unk_word,
+                [],
+                False,
             )
         else:
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions

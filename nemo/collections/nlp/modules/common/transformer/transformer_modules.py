@@ -65,7 +65,9 @@ class FixedPositionalEncoding(nn.Module):
                 f'Max position id {max_pos_id} is greater than max sequence length {self._max_sequence_length}. Expanding position embeddings just for this batch. This is not expected to work very well. Consider chunking your input into smaller sequences.'
             )
             self._build_pos_enc(
-                hidden_size=self._hidden_size, max_sequence_length=max_pos_id + 1, device=position_ids.device,
+                hidden_size=self._hidden_size,
+                max_sequence_length=max_pos_id + 1,
+                device=position_ids.device,
             )
 
         embeddings = torch.embedding(self.pos_enc, position_ids)
@@ -185,7 +187,6 @@ class MultiHeadAttention(nn.Module):
         return x.permute(0, 2, 1, 3)
 
     def forward(self, queries, keys, values, attention_mask):
-
         # attention_mask is needed to hide the tokens which correspond to [PAD]
         # in the case of BERT, or to hide the future tokens in the case of
         # vanilla language modeling and translation

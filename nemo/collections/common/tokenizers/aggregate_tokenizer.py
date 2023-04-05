@@ -47,7 +47,6 @@ class AggregateTokenizer(TokenizerSpec):
     '''
 
     def __init__(self, tokenizers: Dict):
-
         self.tokenizers_dict = tokenizers
         self.vocabulary = []
 

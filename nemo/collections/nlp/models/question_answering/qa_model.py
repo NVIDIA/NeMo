@@ -130,7 +130,6 @@ class QAModel(NLPModel):
 
         exact_match, f1, all_predictions, all_nbest = -1, -1, [], []
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-
             unique_ids = []
             start_logits = []
             end_logits = []
@@ -181,7 +180,7 @@ class QAModel(NLPModel):
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
-            
+
         Returns:
             model predictions, model nbest list
         """

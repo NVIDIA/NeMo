@@ -307,7 +307,7 @@ class DuplexDecoderModel(NLPModel):
         span_ends: List[List[int]],
         inst_directions: List[str],
     ):
-        """ Main function for Inference
+        """Main function for Inference
         Args:
             sents: A list of inputs tokenized by a basic tokenizer.
             nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
@@ -363,7 +363,6 @@ class DuplexDecoderModel(NLPModel):
 
         # Use covering grammars (if enabled)
         if self.use_cg:
-
             # Compute sequence probabilities
             sequence_probs = torch.ones(len(all_inputs)).to(self.device)
             for ix, cur_toks_scores in enumerate(sequence_toks_scores):

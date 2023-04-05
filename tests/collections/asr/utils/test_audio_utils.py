@@ -45,12 +45,15 @@ from nemo.collections.asr.parts.utils.audio_utils import (
 class TestAudioSegment:
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "num_channels, channel_selectors", [(1, [None, 'average', 0]), (3, [None, 'average', 0, 1, [0, 1]]),]
+        "num_channels, channel_selectors",
+        [
+            (1, [None, 'average', 0]),
+            (3, [None, 'average', 0, 1, [0, 1]]),
+        ],
     )
     @pytest.mark.parametrize("sample_rate", [8000, 16000, 22500])
     def test_audio_segment_from_file(self, tmpdir, num_channels, channel_selectors, sample_rate):
-        """Test loading and audio signal from a file.
-        """
+        """Test loading and audio signal from a file."""
         signal_len_sec = 4
         num_samples = signal_len_sec * sample_rate
         num_examples = 10
@@ -124,13 +127,16 @@ class TestAudioSegment:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "num_channels, channel_selectors", [(1, [None, 'average', 0]), (3, [None, 'average', 0, 1, [0, 1]]),]
+        "num_channels, channel_selectors",
+        [
+            (1, [None, 'average', 0]),
+            (3, [None, 'average', 0, 1, [0, 1]]),
+        ],
     )
     @pytest.mark.parametrize("offset", [0, 1.5])
     @pytest.mark.parametrize("duration", [1, 2])
     def test_audio_segment_multichannel_with_list(self, tmpdir, num_channels, channel_selectors, offset, duration):
-        """Test loading an audio signal from a list of single-channel files.
-        """
+        """Test loading an audio signal from a list of single-channel files."""
         sample_rate = 16000
         signal_len_sec = 5
         num_samples = signal_len_sec * sample_rate
@@ -149,7 +155,6 @@ class TestAudioSegment:
         sf.write(mc_file, samples, sample_rate)
 
         for channel_selector in channel_selectors:
-
             # UUT: loading audio from a list of files
             uut_segment = AudioSegment.from_file(
                 audio_file=audio_files, offset=offset, duration=duration, channel_selector=channel_selector
@@ -318,8 +323,7 @@ class TestGenerateApproximateNoiseField:
     def test_theoretical_coherence_matrix(
         self, num_mics: int, mic_spacing: float, fft_length: int, sample_rate: float, field: str
     ):
-        """Test calculation of a theoretical coherence matrix.
-        """
+        """Test calculation of a theoretical coherence matrix."""
         # test setup
         max_diff_tol = 1e-9
 
@@ -368,8 +372,7 @@ class TestGenerateApproximateNoiseField:
         field: str,
         save_figures: bool = False,
     ):
-        """Test approximate noise field with white noise as the input noise.
-        """
+        """Test approximate noise field with white noise as the input noise."""
         duration_in_sec = 20
         relative_mse_tol_dB = -30
         relative_mse_tol = 10 ** (relative_mse_tol_dB / 10)
@@ -445,8 +448,7 @@ class TestGenerateApproximateNoiseField:
 class TestAudioUtilsElements:
     @pytest.mark.unit
     def test_rms(self):
-        """Test RMS calculation
-        """
+        """Test RMS calculation"""
         # setup
         A = np.random.rand()
         omega = 100
@@ -464,8 +466,7 @@ class TestAudioUtilsElements:
 
     @pytest.mark.unit
     def test_db_conversion(self):
-        """Test conversions to and from dB.
-        """
+        """Test conversions to and from dB."""
         num_examples = 10
         abs_threshold = 1e-6
 
@@ -474,7 +475,7 @@ class TestAudioUtilsElements:
 
         assert all(np.abs(mag - 10 ** (mag_db / 20)) < abs_threshold)
         assert all(np.abs(db2mag(mag_db) - 10 ** (mag_db / 20)) < abs_threshold)
-        assert all(np.abs(pow2db(mag ** 2) - mag_db) < abs_threshold)
+        assert all(np.abs(pow2db(mag**2) - mag_db) < abs_threshold)
 
     @pytest.mark.unit
     def test_get_segment_start(self):
@@ -610,8 +611,7 @@ class TestAudioUtilsElements:
     @pytest.mark.parametrize('filter_length', [10])
     @pytest.mark.parametrize('num_samples', [10, 100])
     def test_toeplitz(self, num_channels: int, filter_length: int, num_samples: int):
-        """Test construction of a Toeplitz matrix for a given signal.
-        """
+        """Test construction of a Toeplitz matrix for a given signal."""
         atol = 1e-6
         random_seed = 42
         num_batches = 10

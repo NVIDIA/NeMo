@@ -26,7 +26,6 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
 
 
@@ -158,7 +157,6 @@ class MegatronModule(torch.nn.Module):
                 self.decoder_embedding.zero_parameters()
 
     def sync_initial_word_embeddings(self):
-
         if torch.distributed.is_initialized():
             if parallel_state.is_rank_in_embedding_group() and self.share_token_embeddings:
                 torch.distributed.all_reduce(

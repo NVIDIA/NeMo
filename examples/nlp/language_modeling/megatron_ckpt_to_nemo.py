@@ -90,7 +90,6 @@ def get_args():
 
 
 def convert(local_rank, rank, world_size, args):
-
     app_state = AppState()
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node

@@ -29,7 +29,6 @@ from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model impor
 
 @pytest.mark.unit
 def test_dialogue_metric_generation_f1():
-
     generated_field = 'That is so good'
     ground_truth_field = 'That is so awesome'
 
@@ -112,7 +111,6 @@ def test_dialogue_assistant_data_processor_get_continuous_slots():
 
 @pytest.mark.unit
 def test_dialogue_assistant_map_bio_format_slots_to_unified_slots():
-
     slots = ['B-time', 'I-time', 'B-alarm', 'I-alarm', 'O']
     gt_bio_slot_ids_to_unified_slot_ids = {'0': '0', '1': '0', '2': '1', '3': '1', '4': '2'}
     gt_unified_slots = ['time', 'alarm', 'O']
@@ -138,7 +136,6 @@ def test_dialogue_assistant_map_bio_format_slots_to_unified_slots():
 
 @pytest.mark.unit
 def test_dialogue_data_processor_get_relevant_idxs():
-
     dataset_split = 'train'
     dev_proportion = 10
     n_samples = 1000
@@ -184,7 +181,6 @@ def test_dialogue_sgd_data_processor_convert_camelcase_to_lower():
 
 @pytest.mark.unit
 def test_dialogue_gpt_classification_dataset_linearize_slots():
-
     slots = []
     linearized_slots = 'None'
     assert linearized_slots == DialogueGPTClassificationDataset.linearize_slots(slots)
@@ -200,7 +196,6 @@ def test_dialogue_gpt_classification_dataset_linearize_slots():
 
 @pytest.mark.unit
 def test_dialogue_gpt_classification_dataset_linearize_slots():
-
     actions = [
         {'act': 'inform', 'slot': 'time', 'values': ['7pm', '1900']},
         {'act': 'confirm', 'slot': 'place', 'values': ['hall']},
@@ -221,7 +216,6 @@ def test_dialogue_gpt_classification_dataset_linearize_slots():
 
 @pytest.mark.unit
 def test_dialogue_sgd_dataset_naive_tokenize():
-
     utterance = 'I am feeling hungry so I would like to find a place to eat.'
     tokens = [
         'I',
@@ -258,7 +252,6 @@ def test_dialogue_sgd_dataset_naive_tokenize():
 
 @pytest.mark.unit
 def test_dialogue_nearest_neighbour_mean_pooling():
-
     model_output = [torch.ones(8, 512, 768)]
     attention_mask = torch.ones(8, 512)
     assert torch.equal(

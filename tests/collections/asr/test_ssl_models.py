@@ -166,7 +166,6 @@ class TestSSLModel:
 
     @pytest.mark.unit
     def test_contr_mlm(self, ssl_model):
-
         input_signal = torch.randn(size=(4, 64000))
         length = torch.randint(low=48000, high=64000, size=[4])
 

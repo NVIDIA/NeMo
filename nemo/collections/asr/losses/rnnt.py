@@ -225,8 +225,7 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 class RNNTLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
             "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),
@@ -281,7 +280,7 @@ class RNNTLoss(Loss):
             num_classes: Number of target classes for the joint network to predict.
                 (Excluding the RNN-T blank token).
 
-            reduction: Type of reduction to perform on loss. Possible values are 
+            reduction: Type of reduction to perform on loss. Possible values are
                 `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
                 `None` will return a torch vector comprising the individual loss values of the batch.
                 `mean_batch` will average the losses in the batch
@@ -304,7 +303,6 @@ class RNNTLoss(Loss):
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
 
     def reduce(self, losses, target_lengths):
-
         if isinstance(losses, List):
             losses = torch.cat(losses, 0)
             target_lengths = torch.cat(target_lengths, 0)

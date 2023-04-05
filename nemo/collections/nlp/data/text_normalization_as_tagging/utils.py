@@ -125,16 +125,16 @@ def get_src_and_dst_for_alignment(
     semiotic_class: str, written: str, spoken: str, lang: str
 ) -> Tuple[str, str, str, str]:
     """Tokenize written and spoken span.
-        Args:
-            semiotic_class: str - lowercase semiotic class, ex. "cardinal"
-            written: str - written form, ex. "2015 году"
-            spoken: str - spoken form, ex. "две тысячи пятнадцатом году"
-            lang: str - language
-        Return:
-            src: str - written part, where digits and foreign letters are tokenized by characters, ex. "2 0 1 5"
-            dst: str - spoken part tokenized by space, ex. "две тысячи пятнадцатом"
-            same_begin: str
-            same_end: str
+    Args:
+        semiotic_class: str - lowercase semiotic class, ex. "cardinal"
+        written: str - written form, ex. "2015 году"
+        spoken: str - spoken form, ex. "две тысячи пятнадцатом году"
+        lang: str - language
+    Return:
+        src: str - written part, where digits and foreign letters are tokenized by characters, ex. "2 0 1 5"
+        dst: str - spoken part tokenized by space, ex. "две тысячи пятнадцатом"
+        same_begin: str
+        same_end: str
     """
     written = written.casefold()
     # ATTENTION!!! This is INPUT transformation! Need to do the same at inference time!

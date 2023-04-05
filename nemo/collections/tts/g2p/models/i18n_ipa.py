@@ -344,8 +344,7 @@ class IpaG2p(BaseG2p):
         return len(self.phoneme_dict[word]) == 1
 
     def parse_one_word(self, word: str) -> Tuple[List[str], bool]:
-        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
-        """
+        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise)."""
         word = set_grapheme_case(word, case=self.grapheme_case)
 
         # Punctuation (assumes other chars have been stripped)

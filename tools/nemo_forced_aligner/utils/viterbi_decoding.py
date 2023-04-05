@@ -18,14 +18,14 @@ from utils.constants import V_NEGATIVE_NUM
 
 def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
     """
-    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
+    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension).
     Args:
         log_probs_batch: tensor of shape (B, T_max, V). The parts of log_probs_batch which are 'padding' are filled
             with 'V_NEGATIVE_NUM' - a large negative number which represents a very low probability.
         y_batch: tensor of shape (B, U_max) - contains token IDs including blanks in every other position. The parts of
             y_batch which are padding are filled with the number 'V'. V = the number of tokens in the vocabulary + 1 for
             the blank token.
-        T_batch: tensor of shape (B, 1) - contains the durations of the log_probs_batch (so we can ignore the 
+        T_batch: tensor of shape (B, 1) - contains the durations of the log_probs_batch (so we can ignore the
             parts of log_probs_batch which are padding)
         U_batch: tensor of shape (B, 1) - contains the lengths of y_batch (so we can ignore the parts of y_batch
             which are padding).
@@ -82,7 +82,6 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     bp_absolute_template = torch.arange(U_max, device=viterbi_device).unsqueeze(0).repeat(B, 1)
 
     for t in range(1, T_max):
-
         # e_current is a tensor of shape (B, U_max) of the log probs of every possible token at the current timestep
         e_current = log_probs_reordered[:, t, :]
 
@@ -105,7 +104,12 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         # we need this v_prev_dup tensor so we can calculated the viterbi probability of every possible
         # token position simultaneously
         v_prev_dup = torch.cat(
-            (v_prev.unsqueeze(2), v_prev_shifted.unsqueeze(2), v_prev_shifted2.unsqueeze(2),), dim=2,
+            (
+                v_prev.unsqueeze(2),
+                v_prev_shifted.unsqueeze(2),
+                v_prev_shifted2.unsqueeze(2),
+            ),
+            dim=2,
         )
 
         # candidates_v_current are our candidate viterbi probabilities for every token position, from which

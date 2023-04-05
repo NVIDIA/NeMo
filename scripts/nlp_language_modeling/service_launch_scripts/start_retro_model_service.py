@@ -66,7 +66,10 @@ def main(cfg) -> None:
         save_restore_connector.model_extracted_dir = model_path
 
     model_cfg = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+        model_path,
+        trainer=trainer,
+        return_config=True,
+        save_restore_connector=save_restore_connector,
     )
 
     with open_dict(model_cfg):
@@ -76,7 +79,10 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     model = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
+        model_path,
+        trainer=trainer,
+        save_restore_connector=save_restore_connector,
+        override_config_path=model_cfg,
     )
 
     # check whether the DDP is initialized

@@ -154,7 +154,6 @@ def get_megatron_transformer(
     encoder: bool = True,
     checkpoint_file: str = None,
 ) -> None:
-
     raise ValueError(
         "megatron-lm bert encoders are deprecated in NeMo 1.5.0. Please use NeMo 1.4.0 until megatron bert support is added again."
     )

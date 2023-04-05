@@ -61,7 +61,6 @@ def resample_file(resampled_dir, filepath, ext, sample_rate):
         return None
 
     except sox.core.SoxError as e:
-
         try:
             # Check if the file is readable
             librosa.load(path=filepath)
@@ -115,5 +114,4 @@ def main():
 
 
 if __name__ == '__main__':
-
     main()

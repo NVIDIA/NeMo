@@ -37,8 +37,7 @@ class DialogueBERTDataset(DialogueDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -133,7 +132,6 @@ class DialogueBERTDataset(DialogueDataset):
         all_input_ids,
         all_segment_ids,
     ):
-
         too_long_count = 0
 
         for i, subtokens in enumerate(all_subtokens):
@@ -183,7 +181,7 @@ class DialogueBERTDataset(DialogueDataset):
         ignore_start_end=False,
     ):
         """
-        Convert queries (utterance, intent label and slot labels) to BERT input format 
+        Convert queries (utterance, intent label and slot labels) to BERT input format
         """
 
         all_subtokens = []
@@ -297,7 +295,7 @@ class DialogueIntentSlotInferenceDataset(DialogueBERTDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """
-            Returns definitions of module output ports.
+        Returns definitions of module output ports.
         """
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),

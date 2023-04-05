@@ -199,7 +199,6 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     if reset_position_ids or reset_attention_mask:
         # Loop through the batches:
         for b in range(micro_batch_size):
-
             # Find indecies where EOD token is.
             eod_index = position_ids[b, data[b] == eod_token]
             # Detach indecies from positions if going to modify positions.
@@ -234,7 +233,6 @@ def attn_mask_postprocess(attn_mask):
 
 
 def enc_dec_extended_attention_mask(attention_mask_list):
-
     return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
 
 
@@ -270,9 +268,7 @@ def make_inference_attention_mask_3d(source_block, target_block, pad_id):
 def make_inference_history_mask_3d(block):
     batch, length = block.shape
     arange = torch.arange(length, device=block.device)
-    history_mask = (arange[None,] <= arange[:, None])[
-        None,
-    ]
+    history_mask = (arange[None,] <= arange[:, None])[None,]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask
 

@@ -324,7 +324,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if reduction and reduction_factor > 1:
             assert reduction_position >= -1 and reduction_position < n_layers
             self.reduction_subsampling = SubsamplingReductionModule(
-                reduction=reduction, d_model=d_model, reduction_factor=reduction_factor,
+                reduction=reduction,
+                d_model=d_model,
+                reduction_factor=reduction_factor,
             )
             self.reduction_position = reduction_position
         else:
@@ -675,14 +677,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self, chunk_size: int = None, shift_size: int = None, left_chunks: int = None, max_context: int = 10000
     ):
         """
-            This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
-            The streaming configuration is needed to simulate streaming inference.
-            Args:
-                chunk_size (int): overrides the chunk size
-                shift_size (int): overrides the shift size for chunks
-                left_chunks (int): overrides the number of left chunks visible to each chunk
-                max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
-                    Defaults to -1 (means feat_out is d_model)
+        This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+        The streaming configuration is needed to simulate streaming inference.
+        Args:
+            chunk_size (int): overrides the chunk size
+            shift_size (int): overrides the shift size for chunks
+            left_chunks (int): overrides the number of left chunks visible to each chunk
+            max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
+                Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = CacheAwareStreamingConfig()
         if chunk_size is not None:
@@ -816,7 +818,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         update_config: bool = True,
         device: torch.device = None,
     ):
-
         """
         Update the self_attention_model which changes the positional encoding and attention layers.
 
@@ -884,7 +885,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         for name, m in self.named_modules():
             if type(m) == ConformerLayer:
-
                 if self_attention_model == 'rel_pos':
                     new_attn = RelPositionMultiHeadAttention(
                         n_head=self._cfg.n_heads,
@@ -929,7 +929,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
-
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)
@@ -955,7 +954,9 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
 
-    def get_accepted_adapter_types(self,) -> Set[type]:
+    def get_accepted_adapter_types(
+        self,
+    ) -> Set[type]:
         types = super().get_accepted_adapter_types()
 
         if len(types) == 0:

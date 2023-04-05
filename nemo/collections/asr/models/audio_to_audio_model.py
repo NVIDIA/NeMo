@@ -34,8 +34,7 @@ class AudioToAudioModel(ModelPT, ABC):
         self._setup_loss()
 
     def _setup_loss(self):
-        """Setup loss for this model.
-        """
+        """Setup loss for this model."""
         self.loss = AudioToAudioModel.from_config_dict(self._cfg.loss)
 
     def _get_num_dataloaders(self, tag: str = 'val'):

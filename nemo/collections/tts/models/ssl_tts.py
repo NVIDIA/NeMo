@@ -38,10 +38,10 @@ from nemo.utils.decorators import experimental
 class SSLDisentangler(ModelPT):
     """
     SSLDisentangler is a Conformer based model for extracting disentangled content and speaker embeddings
-    from an audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content 
-    and speaker representations using a pre-trained Conformer, two randomly initialized downstream 
-    heads are added and the entire setup is finetuned in multi-task manner for speech recognition and speaker verification. 
-    These representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding 
+    from an audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content
+    and speaker representations using a pre-trained Conformer, two randomly initialized downstream
+    heads are added and the entire setup is finetuned in multi-task manner for speech recognition and speaker verification.
+    These representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding
     of a given source utterance, with the speaker embedding of a target speaker.
     """
 
@@ -54,7 +54,6 @@ class SSLDisentangler(ModelPT):
 
         self.downstream_nets = torch.nn.ModuleDict()
         for task in self._cfg.downstream_heads.task_names:
-
             if task == 'speaker_verification':
                 # setting up downstream heads and loss functions for speaker verification task
                 in_dim = self._cfg.encoder.d_model
@@ -92,7 +91,10 @@ class SSLDisentangler(ModelPT):
         librosa_mel_filter = librosa.filters.mel(
             sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000
         )
-        fb = torch.tensor(librosa_mel_filter, dtype=torch.float,).unsqueeze(0)
+        fb = torch.tensor(
+            librosa_mel_filter,
+            dtype=torch.float,
+        ).unsqueeze(0)
 
         self.register_buffer("fb", fb)
 
@@ -137,7 +139,6 @@ class SSLDisentangler(ModelPT):
         return self._tb_logger
 
     def __setup_dataloader_from_config(self, data_config):
-
         if hasattr(self, '_text_tokenizer') and isinstance(self._text_tokenizer, BaseTokenizer):
             _text_tokenizer = self._text_tokenizer
 
@@ -212,7 +213,10 @@ class SSLDisentangler(ModelPT):
         sched_downstream_config = optim_downstream_config.pop("sched", None)
         OmegaConf.set_struct(optim_downstream_config, True)
 
-        optim_backbone = instantiate(optim_backbone_config, params=self.encoder.parameters(),)
+        optim_backbone = instantiate(
+            optim_backbone_config,
+            params=self.encoder.parameters(),
+        )
         optim_downstream = instantiate(
             optim_downstream_config,
             params=itertools.chain(
@@ -224,7 +228,6 @@ class SSLDisentangler(ModelPT):
         )
 
         if sched_backbone_config is not None and sched_downstream_config is not None:
-
             scheduler_backbone = WarmupPolicy(
                 optimizer=optim_backbone,
                 max_steps=None,
@@ -252,9 +255,9 @@ class SSLDisentangler(ModelPT):
             return [optim_backbone, optim_downstream]
 
     def forward(self, input_signal=None, input_signal_length=None, normalize_content=True):
-
         processed_signal, processed_signal_length = self.preprocessor_disentangler(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
@@ -292,7 +295,9 @@ class SSLDisentangler(ModelPT):
         # Same as forward right now. Earlier version of encoder had a different forward for export.
         # This function is still kept for compatibility with older evaluation/inference scripts.
         return self.forward(
-            input_signal=input_signal, input_signal_length=input_signal_length, normalize_content=normalize_content,
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            normalize_content=normalize_content,
         )
 
     def training_step(self, batch, batch_idx):
@@ -357,7 +362,6 @@ class SSLDisentangler(ModelPT):
                     if self.aug_loss_type == "mse":
                         sim_loss = self.mse_loss(content_embedding, content_embedding_aug)
                     elif self.aug_loss_type == "cosine":
-
                         cosine_similarity = torch.nn.functional.cosine_similarity(
                             content_embedding, content_embedding_aug, dim=-1
                         ).mean()
@@ -405,7 +409,6 @@ class SSLDisentangler(ModelPT):
             self.log("t_loss", loss)
 
     def validation_step(self, batch, batch_idx):
-
         loss_total = 0
         for key in batch.keys():
             if key == 'sv':

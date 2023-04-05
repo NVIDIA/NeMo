@@ -424,7 +424,14 @@ class T5Dataset(Dataset):
 
 class MockT5Dataset(Dataset):
     def __init__(
-        self, cfg, tokenizer, name, num_samples, max_seq_length, max_seq_length_dec, seed,
+        self,
+        cfg,
+        tokenizer,
+        name,
+        num_samples,
+        max_seq_length,
+        max_seq_length_dec,
+        seed,
     ):
         super().__init__()
         self.name = name

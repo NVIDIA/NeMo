@@ -18,7 +18,7 @@ from typing import List
 
 @dataclass
 class QAExample(object):
-    """ A single training/test example for a QA dataset, as loaded from disk """
+    """A single training/test example for a QA dataset, as loaded from disk"""
 
     qas_id: str  # The example's unique identifier
     question_text: str

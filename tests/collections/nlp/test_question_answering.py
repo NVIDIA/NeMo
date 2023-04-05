@@ -42,7 +42,6 @@ def test_get_tokens():
 
 @pytest.mark.unit
 def test_f1_score():
-
     generated_field = 'That is so good'
     ground_truth_field = 'That is so awesome'
 
@@ -58,7 +57,6 @@ def test_f1_score():
 
 @pytest.mark.unit
 def test_exact_match_score():
-
     generated_field = 'That is so good'
     ground_truth_field = 'That is so awesome'
 
@@ -137,7 +135,6 @@ def test_get_average_dist_to_tok_start_and_end():
 
 @pytest.mark.unit
 def test_keep_relevant_docspans():
-
     _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
 
     doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]

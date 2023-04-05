@@ -53,7 +53,7 @@ class LatticeLoss(Loss):
 
         backend: Which backend to use for loss calculation. Currently only `k2` is supported.
 
-        criterion_type: Type of criterion to use. Choices: `ml` and `map`, 
+        criterion_type: Type of criterion to use. Choices: `ml` and `map`,
             with `ml` standing for Maximum Likelihood and `map` for Maximum A Posteriori Probability.
 
         loss_type: Type of the loss function to use. Choices: `ctc` and `rnnt` for `ml`, and `mmi` for `map`.
@@ -66,8 +66,7 @@ class LatticeLoss(Loss):
 
     @property
     def input_types(self):
-        """Input types definitions for LatticeLoss.
-        """
+        """Input types definitions for LatticeLoss."""
         return {
             "log_probs": NeuralType(("B", "T", "D") if self._3d_input else ("B", "T", "T", "D"), LogprobsType()),
             "targets": NeuralType(("B", "T"), LabelsType()),
@@ -122,7 +121,10 @@ class LatticeLoss(Loss):
                 raise ValueError(f"Unsupported `criterion_type`: {criterion_type}.")
 
             self._loss = K2Loss(
-                num_classes=self._blank + 1, blank=self._blank, reduction=inner_reduction, cfg=graph_module_cfg,
+                num_classes=self._blank + 1,
+                blank=self._blank,
+                reduction=inner_reduction,
+                cfg=graph_module_cfg,
             )
         elif backend == "gtn":
             raise NotImplementedError(f"Backend {backend} is not supported.")
@@ -140,8 +142,7 @@ class LatticeLoss(Loss):
             self._partial_loss = PartialGrad(self._loss)
 
     def update_graph(self, graph):
-        """Updates graph of the backend loss function.
-        """
+        """Updates graph of the backend loss function."""
         if self.criterion_type != "ml":
             self._loss.update_graph(graph)
 
@@ -176,7 +177,10 @@ class LatticeLoss(Loss):
             loss = torch.cat(loss_list, 0)
         else:
             loss, _ = self._loss(
-                log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths,
+                log_probs=log_probs,
+                targets=targets,
+                input_lengths=input_lengths,
+                target_lengths=target_lengths,
             )
         if self._apply_batch_mean:
             # torch.mean gives nan if loss is empty

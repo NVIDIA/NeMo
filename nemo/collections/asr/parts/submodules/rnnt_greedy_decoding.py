@@ -42,8 +42,10 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, H
 from nemo.utils import logging
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
-
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
     if hasattr(logitlen, 'cpu'):
         logitlen_cpu = logitlen.to('cpu')
     else:
@@ -134,8 +136,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -144,8 +145,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -738,10 +738,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # All of this should only be done iff the current time index <= sample-level AM length.
                         # Otherwise ignore and move to next sample / next timestep.
                         if self.preserve_alignments:
-
                             # convert Ti-th logits into a torch array
                             for batch_idx in range(batchsize):
-
                                 # this checks if current timestep <= sample-level AM length
                                 # If current timestep > sample-level AM length, no alignments will be added
                                 # Therefore the list of Uj alignments is empty here.
@@ -750,7 +748,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                         # Do the same if preserving per-frame confidence
                         if self.preserve_frame_confidence:
-
                             for batch_idx in range(batchsize):
                                 if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                                     hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
@@ -953,10 +950,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # All of this should only be done iff the current time index <= sample-level AM length.
                         # Otherwise ignore and move to next sample / next timestep.
                         if self.preserve_alignments:
-
                             # convert Ti-th logits into a torch array
                             for batch_idx in range(batchsize):
-
                                 # this checks if current timestep <= sample-level AM length
                                 # If current timestep > sample-level AM length, no alignments will be added
                                 # Therefore the list of Uj alignments is empty here.
@@ -965,7 +960,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                         # Do the same if preserving per-frame confidence
                         if self.preserve_frame_confidence:
-
                             for batch_idx in range(batchsize):
                                 if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                                     hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
@@ -1112,7 +1106,6 @@ class ExportedModelGreedyBatchedRNNTInfer:
             blank_mask = time_idx >= out_len
             # Start inner loop
             while not_blank and (self.max_symbols_per_step is None or symbols_added < self.max_symbols_per_step):
-
                 # Batch prediction and joint network steps
                 # If very first prediction step, submit SOS tag (blank) to pred_step.
                 # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
@@ -1902,10 +1895,8 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
                         # All of this should only be done iff the current time index <= sample-level AM length.
                         # Otherwise ignore and move to next sample / next timestep.
                         if self.preserve_alignments:
-
                             # convert Ti-th logits into a torch array
                             for batch_idx in range(batchsize):
-
                                 # this checks if current timestep <= sample-level AM length
                                 # If current timestep > sample-level AM length, no alignments will be added
                                 # Therefore the list of Uj alignments is empty here.
@@ -1914,7 +1905,6 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
 
                         # Do the same if preserving per-frame confidence
                         if self.preserve_frame_confidence:
-
                             for batch_idx in range(batchsize):
                                 if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                                     hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
@@ -2118,10 +2108,8 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
                         # All of this should only be done iff the current time index <= sample-level AM length.
                         # Otherwise ignore and move to next sample / next timestep.
                         if self.preserve_alignments:
-
                             # convert Ti-th logits into a torch array
                             for batch_idx in range(batchsize):
-
                                 # this checks if current timestep <= sample-level AM length
                                 # If current timestep > sample-level AM length, no alignments will be added
                                 # Therefore the list of Uj alignments is empty here.
@@ -2130,7 +2118,6 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
 
                         # Do the same if preserving per-frame confidence
                         if self.preserve_frame_confidence:
-
                             for batch_idx in range(batchsize):
                                 if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                                     hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep

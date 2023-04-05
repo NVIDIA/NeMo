@@ -44,7 +44,6 @@ class BertJointIRModel(BaseIRModel):
         return self.sim_score_regressor.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         model_name = cfg.language_model.pretrained_model_name
         self.tokenizer = get_tokenizer(tokenizer_name=model_name)
 
@@ -53,15 +52,18 @@ class BertJointIRModel(BaseIRModel):
         self.bert_model = self.get_lm_model_with_padded_embedding(cfg)
         hidden_size = self.bert_model.config.hidden_size
         self.sim_score_regressor = SequenceRegression(
-            hidden_size=hidden_size, num_layers=1, dropout=cfg.language_model.sim_score_dropout,
+            hidden_size=hidden_size,
+            num_layers=1,
+            dropout=cfg.language_model.sim_score_dropout,
         )
         self.loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
         )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]

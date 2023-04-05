@@ -26,7 +26,7 @@ from nemo.utils import logging
 
 
 class S2SQADataset(QADataset):
-    """ Creates a Dataset for T5/BART architecture based Generative QA """
+    """Creates a Dataset for T5/BART architecture based Generative QA"""
 
     def __init__(
         self,
@@ -59,7 +59,6 @@ class S2SQADataset(QADataset):
 
         self._set_cached_features_filename()
         if use_cache and os.path.exists(self.cached_features_file):
-
             # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
                 del self.examples
@@ -75,7 +74,7 @@ class S2SQADataset(QADataset):
             self.features[i] = S2SQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
-        """ Creates cache filename using dataset config parameters """
+        """Creates cache filename using dataset config parameters"""
 
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
@@ -117,7 +116,12 @@ class S2SQADataset(QADataset):
             context_tokens, context_spans = self._prep_context(example, query_tokens, context_prefix_tokens)
 
             unique_id = self._encode_all_context_spans(
-                unique_id, context_spans, context_tokens, formatted_query, example, example_index,
+                unique_id,
+                context_spans,
+                context_tokens,
+                formatted_query,
+                example,
+                example_index,
             )
 
         # delete self.examples during training mode to save memory
@@ -155,7 +159,13 @@ class S2SQADataset(QADataset):
         return context_tokens, context_spans
 
     def _encode_all_context_spans(
-        self, unique_id, context_spans, context_tokens, formatted_query, example, example_index,
+        self,
+        unique_id,
+        context_spans,
+        context_tokens,
+        formatted_query,
+        example,
+        example_index,
     ):
         """
         Fromats all spans extracted from a single context as:
@@ -165,7 +175,6 @@ class S2SQADataset(QADataset):
         """
 
         for context_span_idx, context_span in enumerate(context_spans):
-
             # format query and context span text
             context_span_tokens = context_tokens[context_span.start : context_span.start + context_span.length]
             context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
@@ -173,7 +182,11 @@ class S2SQADataset(QADataset):
 
             # encode input
             encoded_input_dict = self.tokenizer.tokenizer(
-                source, truncation=True, max_length=self.max_seq_length, padding="max_length", return_tensors="pt",
+                source,
+                truncation=True,
+                max_length=self.max_seq_length,
+                padding="max_length",
+                return_tensors="pt",
             )
             input_ids = torch.squeeze(encoded_input_dict["input_ids"])
             input_attn_mask = torch.squeeze(encoded_input_dict["attention_mask"])
@@ -223,7 +236,11 @@ class S2SQADataset(QADataset):
             target = example.answer_text
 
         encoded_output_dict = self.tokenizer.tokenizer(
-            target, truncation=True, max_length=self.max_answer_length, padding="max_length", return_tensors="pt",
+            target,
+            truncation=True,
+            max_length=self.max_answer_length,
+            padding="max_length",
+            return_tensors="pt",
         )
         labels = torch.squeeze(encoded_output_dict["input_ids"])
         labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100

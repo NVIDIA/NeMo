@@ -100,16 +100,16 @@ class MHAResidualAddAdapterStrategyConfig(adapter_mixin_strategies.ResidualAddAd
 
 class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterModuleUtil):
     """Multi-Head Attention layer of Transformer.
-     Args:
-         n_head (int): number of heads
-         n_feat (int): size of the features
-         dropout_rate (float): dropout rate
-         proj_dim (int, optional): Optional integer value for projection before computing attention.
-            If None, then there is no projection (equivalent to proj_dim = n_feat).
-            If > 0, then will project the n_feat to proj_dim before calculating attention.
-            If <0, then will equal n_head, so that each head has a projected dimension of 1.
-        adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
-     """
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
+        proj_dim (int, optional): Optional integer value for projection before computing attention.
+           If None, then there is no projection (equivalent to proj_dim = n_feat).
+           If > 0, then will project the n_feat to proj_dim before calculating attention.
+           If <0, then will equal n_head, so that each head has a projected dimension of 1.
+       adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
+    """
 
     def __init__(
         self,
@@ -319,9 +319,12 @@ class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AdapterM
         xscale=1.0,
         adapter_strategy: adapter_mixin_strategies.ReturnResultAdapterStrategyConfig = None,
     ):
-
         super().__init__(
-            d_model=d_model, dropout_rate=0.0, max_len=max_len, xscale=xscale, dropout_rate_emb=0.0,
+            d_model=d_model,
+            dropout_rate=0.0,
+            max_len=max_len,
+            xscale=xscale,
+            dropout_rate_emb=0.0,
         )
 
         # Setup adapter strategy

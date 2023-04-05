@@ -149,7 +149,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--lines_per_dataset_fragment",
         type=int,
-        default=10 ** 6,
+        default=10**6,
         help="A number of lines processed by one worker during creation of tarred dataset. A worker tokenizes "
         "`--lines_per_dataset_fragment` lines and keeps in RAM tokenized text labels before packing them into "
         "batches. Reducing `--lines_per_dataset_fragment` leads to reducing of the amount of memory required by this "

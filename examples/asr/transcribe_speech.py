@@ -94,7 +94,6 @@ python transcribe_speech.py \
 
 @dataclass
 class ModelChangeConfig:
-
     # Sub-config for changes specific to the Conformer Encoder
     conformer: ConformerChangeConfig = ConformerChangeConfig()
 

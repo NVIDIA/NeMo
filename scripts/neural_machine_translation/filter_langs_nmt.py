@@ -76,7 +76,10 @@ def get_args():
         type=Path,
     )
     parser.add_argument(
-        "--output-tgt", "-T", help="Path to the output target file", type=Path,
+        "--output-tgt",
+        "-T",
+        help="Path to the output target file",
+        type=Path,
     )
     parser.add_argument(
         "--source-lang",
@@ -90,10 +93,17 @@ def get_args():
         help="Output language. For options see https://fasttext.cc/docs/en/language-identification.html.",
     )
     parser.add_argument(
-        "--removed-src", "-r", required=True, help="Path to file where removed source lines will be saved", type=Path,
+        "--removed-src",
+        "-r",
+        required=True,
+        help="Path to file where removed source lines will be saved",
+        type=Path,
     )
     parser.add_argument(
-        "--removed-tgt", "-R", help="Path to file where removed target lines will be saved", type=Path,
+        "--removed-tgt",
+        "-R",
+        help="Path to file where removed target lines will be saved",
+        type=Path,
     )
     parser.add_argument(
         "--num-jobs",
@@ -237,7 +247,13 @@ def filter_pairs(
 
 
 def filter_singles(
-    src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
+    src_edges,
+    input_src,
+    filtered_dir_src,
+    removed_dir_src,
+    source_lang,
+    fasttext_model,
+    rank,
 ):
     logging.debug("filter singles")
     global counter
@@ -285,7 +301,13 @@ def filter_by_lang(args):
         if tgt_edges is not None:
             warnings.warn("If input target is not provided `tgt_edges` argument is expected to be `None`")
         filter_singles(
-            src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
+            src_edges,
+            input_src,
+            filtered_dir_src,
+            removed_dir_src,
+            source_lang,
+            fasttext_model,
+            rank,
         )
     else:
         filter_pairs(

@@ -91,7 +91,7 @@ def recommend_hyperparameters_human_readable(recommended_hyperparameters):
 def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
-    
+
     All hyperparameters except batch_size, max_batch_size and max_seq_length are hardcoded based on API defaults for now
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]

@@ -21,7 +21,6 @@ from nemo.core.classes import Loss
 
 
 def compute_flow_loss(z, log_det_W_list, log_s_list, n_elements, n_dims, mask, sigma=1.0):
-
     log_det_W_total = 0.0
     for i, log_s in enumerate(log_s_list):
         if i == 0:
