@@ -490,9 +490,11 @@ def get_batch_variables(
 
     log_probs_list_batch = []
     T_list_batch = []
+    pred_text_batch = []
     for hypothesis in hypotheses:
         log_probs_list_batch.append(hypothesis.y_sequence)
         T_list_batch.append(hypothesis.y_sequence.shape[0])
+        pred_text_batch.append(hypothesis.text)
 
     # we loop over every line in the manifest that is in our current batch,
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and

@@ -8,7 +8,7 @@ PLAYERRESY = 288
 MARGINL = 10
 MARGINR = 10
 
-from utils.constants import BLANK_TOKEN
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Token, Utterance, Word
 
 
@@ -164,7 +164,7 @@ def make_word_level_ass_file(
                             )
                             f.write(subtitle_text + '\n')
 
-    utt_obj.saved_output_files[f"word_level_ass_filepath"] = output_file
+    utt_obj.saved_output_files[f"words_level_ass_filepath"] = output_file
 
     return utt_obj
 
@@ -241,6 +241,7 @@ def make_token_level_ass_file(
 
         for token in tokens_in_first_segment:
             token.text = token.text.replace("▁", " ")  # replace underscores used in subword tokens with spaces
+            token.text = token.text.replace(SPACE_TOKEN, " ")  # space token with actual space
 
         text_before_speech = r"{\c&c7c1c2&}" + "".join([x.text for x in tokens_in_first_segment]) + r"{\r}"
         subtitle_text = (
@@ -266,6 +267,7 @@ def make_token_level_ass_file(
 
                 for token in tokens_in_segment:
                     token.text = token.text.replace("▁", " ")  # replace underscores used in subword tokens with spaces
+                    token.text = token.text.replace(SPACE_TOKEN, " ")  # space token with actual space
 
                 for token_i, token in enumerate(tokens_in_segment):
 
@@ -302,6 +304,6 @@ def make_token_level_ass_file(
                             )
                             f.write(subtitle_text + '\n')
 
-    utt_obj.saved_output_files[f"token_level_ass_filepath"] = output_file
+    utt_obj.saved_output_files[f"tokens_level_ass_filepath"] = output_file
 
     return utt_obj
