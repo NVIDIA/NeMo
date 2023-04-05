@@ -15,12 +15,11 @@
 import json
 import os
 import pickle
+from typing import Optional
 
 import numpy as np
 import torch
 from tqdm.auto import tqdm
-from typing import Optional
-
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.collections.nlp.modules.common import VirtualPromptSource
