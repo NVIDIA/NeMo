@@ -152,32 +152,31 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
 
         self.model.freeze()
         if cfg.adapter_tuning.pre_decoder is True:
+            logging.info(f'Adding pre decoder adapters')
             for _, module in self.model.model.pre_decoder.named_modules():
-                logging.info(f'Named modules:\n{module}')
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     self.add_adapters_init(module, adapter_cfg)
         if cfg.adapter_tuning.post_decoder is True:
+            logging.info(f'Adding post decoder adapters')
             for _, module in self.model.model.post_decoder.named_modules():
-                logging.info(f'Named modules:\n{module}')
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     self.add_adapters_init(module, adapter_cfg)
         if cfg.adapter_tuning.encoder is True:
+            logging.info(f'Adding encoder adapters')
             for _, module in self.model.model.encoder.named_modules():
-                logging.info(f'Named modules:\n{module}')
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     self.add_adapters_init(module, adapter_cfg)
 
         logging.info(f'After adding adapters:\n{self.model.summarize()}')
 
-        for name, module in self.model.named_modules():
-            logging.info(f'Module name:\n{name}{module}')
+        # for name, module in self.model.named_modules():
+        #     logging.info(f'Module name:\n{name}{module}')
 
         logging.info("Done")
         # self.model = self.frozen_model
         # if cfg.eval == True:
         #     self.load_adapters(strict=False)
 
-        print("HEre")
         # self.model.freeze()
 
     def add_adapters_init(self, module, adapter_cfg):
