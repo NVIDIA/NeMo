@@ -21,7 +21,7 @@ from nemo.utils import logging
 class PreemptionCallback(Callback):
     """
     PreemptionCallback class creates a callback that checks for preemption during training at the end of every step.
-    Upon preemption the callback provides a function to gracefully exit the training immediately and also saves the state of training 
+    Upon preemption the callback provides a function to gracefully exit the training immediately and also saves the current state in a checkpoint as *last.ckpt. 
     (to be able to start from the same step without wasting any compute while resuming the next time).
 
     PreemptionCallback is always enabled by default via the arg create_preemption_callback under ExpManagerConfig. To disable please pass
@@ -46,16 +46,18 @@ class PreemptionCallback(Callback):
         Defines custom handlers at the beginning of training to be executed when the 
         preemption signal is received.
         """
+
+        # Check if torch distributed is initialised, as its needed for broadcasting the preemption signal to all the ranks
+        if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
+            logging.info("Preemption requires torch distributed to be initialized, disabling preemption")
+            #Remove the callback from the callbacks list
+            trainer.callbacks.remove(self)
+            return
+
         # Bool var that's initialized to false and made True upon receving the preemption signal
         self._interrupted = False
         self.released = False
         self.original_handler = signal.getsignal(self.sig)
-
-        # Check if torch distributed is initialised, as its needed for broadcasting the preemption signal to all the ranks
-        if pl_module.device.type == 'cuda':
-            assert torch.distributed.is_available() and torch.distributed.is_initialized(), "Preemption requires torch distributed to be initialized"
-        else:
-            logging.info("Preemption is supported only on GPUs")
 
         # Master handler executed only by rank 0 when the preemption siganal is received, to avoid deadlock conditions
         def master_handler(signum, frame):
@@ -85,7 +87,7 @@ class PreemptionCallback(Callback):
         # a regular local variable
         interrupted = self.interrupted
         if interrupted:
-            logging.info("Received SIGTERM, exiting")
+            logging.info("Received SIGTERM, saving checkpoint and exiting")
             monitor_candidates = self.checkpoint_callback._monitor_candidates(trainer)
             self.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
             sys.exit(0)

@@ -892,10 +892,15 @@ def configure_checkpointing(
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
     if create_preemption_callback:
-        ## By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
-        ## PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
-        preemption_callback = PreemptionCallback(checkpoint_callback)
-        trainer.callbacks.append(preemption_callback)
+        # Check if cuda is avialable as preemption is supported only on GPUs
+        if torch.cuda.is_available():
+            ## By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
+            ## PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
+            preemption_callback = PreemptionCallback(checkpoint_callback)
+            trainer.callbacks.append(preemption_callback)
+        else:
+            logging.info("Preemption is supported only on GPUs, disabling preemption")
+
 
 def check_slurm(trainer):
     try:
