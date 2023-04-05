@@ -730,9 +730,8 @@ class UGPTDataset(UL2Dataset):
         attention_mask = torch.tril(torch.ones((len(inputs), len(inputs)))).unsqueeze(0)
         if self.use_prefix_noncausal_mask:
             # If using bidrectional masking, set the mask of the prefix to 1.
-            attention_mask[:, :, : len(example['text_enc'])] = 1.0
-            # Set the mask of the suffix to 0 to prevent attention to padding tokens.
-            attention_mask[:, :, len(example['text_enc']) + len(example['labels']) :] = 0.0
+            attention_mask[:, :, : len(example['text_enc']) - 1] = 1.0
+
         attention_mask = attention_mask < 0.5
         return {
             'tokens': torch.LongTensor(inputs),

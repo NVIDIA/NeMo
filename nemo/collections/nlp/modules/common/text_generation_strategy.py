@@ -16,6 +16,7 @@ import abc
 from typing import List, Tuple
 
 import torch
+import numpy as np
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -204,6 +205,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
+
         """
         # types2use = None
         if step == 0:
@@ -231,6 +233,58 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
         batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+
+class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokens = context_tokens.contiguous().cuda()
+        self.attention_mask = torch.tril(torch.ones((tokens.size(0), tokens.size(1), tokens.size(1)), device=tokens.device))
+        context_lengths = context_length.tolist()
+        # Get the attention mask and postition ids.
+        for i, l in enumerate(context_lengths):
+            self.attention_mask[i][:, :l] = 1.0
+        
+        self.attention_mask = self.attention_mask.unsqueeze(1) < 0.5
+        position_ids = torch.arange(tokens.size(1), dtype=torch.long, device=tokens.device)
+        self.position_ids = position_ids.unsqueeze(0).repeat(tokens.size(0), 1)
+
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        # types2use = None
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        batch = [tokens2use, self.attention_mask, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
@@ -309,6 +363,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron_u_gpt_model import MegatronUGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
@@ -321,6 +376,8 @@ def model_inference_strategy_dispatcher(model, **args):
 
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
+    elif isinstance(model, MegatronUGPTModel):
+        return UGPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronGPTModel):
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):

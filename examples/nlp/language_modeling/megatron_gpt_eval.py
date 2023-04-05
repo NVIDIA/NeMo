@@ -22,12 +22,14 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_u_gpt_model import MegatronUGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.utils.distributed import initialize_distributed
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -154,7 +156,17 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-
+    model_class = MegatronGPTModel if not cfg.get('u_gpt', False) else MegatronUGPTModel
+    if cfg.get('u_gpt', False):
+        OmegaConf.set_struct(cfg, True)
+        with open_dict(cfg):
+            cfg.local_rank = None
+        _, _, _ = initialize_distributed(cfg)
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
+            pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
+        )
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
@@ -167,7 +179,7 @@ def main(cfg) -> None:
         if os.path.isdir(cfg.gpt_model_file):
             save_restore_connector.model_extracted_dir = cfg.gpt_model_file
 
-        pretrained_cfg = MegatronGPTModel.restore_from(
+        pretrained_cfg = model_class.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             return_config=True,
@@ -179,7 +191,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
-        model = MegatronGPTModel.restore_from(
+        model = model_class.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
@@ -206,7 +218,7 @@ def main(cfg) -> None:
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
             )
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        model = model_class.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
