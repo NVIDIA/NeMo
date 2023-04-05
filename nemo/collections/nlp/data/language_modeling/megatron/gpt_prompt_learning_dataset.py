@@ -62,7 +62,7 @@ class GPTPromptLearningDataset(Dataset):
         add_eos: bool = True,
         for_train: bool = True,
         tokens_to_generate=None,
-        max_num_samples=None,
+        max_num_samples: Optional[int] = None,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
