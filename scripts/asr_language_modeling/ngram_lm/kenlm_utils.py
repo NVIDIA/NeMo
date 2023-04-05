@@ -76,7 +76,6 @@ def setup_tokenizer(tokenizer_model_file):
         )
         model = nemo_asr.models.ASRModel.from_pretrained(tokenizer_model_file, map_location=torch.device('cpu'))
 
-
     if tokenizer_model_file.endswith('.model'):
         encoding_level = 'subword'
         is_aggregate_tokenizer = False
@@ -85,7 +84,7 @@ def setup_tokenizer(tokenizer_model_file):
             is_aggregate_tokenizer = True
         else:
             is_aggregate_tokenizer = False
-        
+
         encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
         if not encoding_level:
             logging.warning(
@@ -99,22 +98,19 @@ def setup_tokenizer(tokenizer_model_file):
     return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
-def iter_files(
-    train_path, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation
-):
+def iter_files(train_path, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation):
     tokenizer, encoding_level, is_aggregate_tokenizer = setup_tokenizer(tokenizer_model_file)
     for fname in train_path:
         dataset = read_train_file(
-            fname, do_lowercase, rm_punctuation, separate_punctuation,
+            fname,
+            do_lowercase,
+            rm_punctuation,
+            separate_punctuation,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            verbose=0
+            verbose=0,
         )
         tokenize_text(
-            data = dataset,
-            tokenizer = tokenizer,
-            path='',
-            chunk_size=CHUNK_SIZE,
-            buffer_size=CHUNK_BUFFER_SIZE,
+            data=dataset, tokenizer=tokenizer, path='', chunk_size=CHUNK_SIZE, buffer_size=CHUNK_BUFFER_SIZE,
         )
 
 
@@ -169,7 +165,9 @@ def read_train_file(
         else:
             break
     if is_aggregate_tokenizer:
-        assert len(text_dataset) == len(lang_dataset), f"text_dataset length {len(text_dataset)} and lang_dataset length {len(lang_dataset)} must be the same!"
+        assert len(text_dataset) == len(
+            lang_dataset
+        ), f"text_dataset length {len(text_dataset)} and lang_dataset length {len(lang_dataset)} must be the same!"
         return list(zip(text_dataset, lang_dataset))
     else:
         return list(zip(text_dataset))
@@ -246,9 +244,7 @@ def _parse_args():
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
     parser.add_argument(
-        "--rm_punctuation",
-        action='store_true',
-        help="Whether to remove punctuation marks from text",
+        "--rm_punctuation", action='store_true', help="Whether to remove punctuation marks from text",
     )
     parser.add_argument(
         "--separate_punctuation",
