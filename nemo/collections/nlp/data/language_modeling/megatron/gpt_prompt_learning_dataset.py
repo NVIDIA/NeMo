@@ -164,6 +164,7 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = input_ids + [self.tokenizer.eos_id]
 
             # Try to truncate input text to fit into the max sequence length
+            
             if len(input_ids) > self.max_seq_length:
                 
                 input_ids = self._truncate_input(
@@ -247,6 +248,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
+        
         for field in prompt_template_fields:
             if field in doc.keys():
                 field_text = doc[field]
@@ -281,6 +283,7 @@ class GPTPromptLearningDataset(Dataset):
         )
 
         # Truncate the text ids in this part of input to try and fit max sequence length
+        
         if truncation_field is not None and truncation_field in doc.keys():
             truncation_length = (len(input_ids) - self.max_seq_length) + 1
             field_text = doc[truncation_field]

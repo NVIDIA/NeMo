@@ -594,6 +594,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
+        
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
@@ -641,6 +642,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
 
     def validation_step(self, batch, batch_idx):
+
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
@@ -777,8 +779,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
-            
+        if self.cfg.data.get('train_ds', None):            
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
@@ -794,6 +795,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
             )
+
 
     def setup_validation_data(self, validation_data_config=None):
         if self.cfg.data.get('validation_ds', None):
