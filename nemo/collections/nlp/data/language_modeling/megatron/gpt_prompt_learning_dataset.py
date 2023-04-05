@@ -15,12 +15,11 @@
 import json
 import os
 import pickle
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 from tqdm.auto import tqdm
-from typing import Optional, Dict, List
-
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.collections.nlp.modules.common import VirtualPromptSource
@@ -112,7 +111,9 @@ class GPTPromptLearningDataset(Dataset):
         prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
         total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
         virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
-        truncation_field = self.task_templates[taskname]["truncate_field"]  #TODO: (@adithyare) should probably make truncation_field required...
+        truncation_field = self.task_templates[taskname][
+            "truncate_field"
+        ]  # TODO: (@adithyare) should probably make truncation_field required...
         answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
         answer_field = self.task_templates[taskname]["answer_field"]
         input_example = prompt_template
@@ -246,9 +247,7 @@ class GPTPromptLearningDataset(Dataset):
         virtual_token_splits: List[int],
     ):
         """ Try to truncate input text to fit into the max sequence length """
-        logging.info(
-            f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}'"
-        )
+        logging.info(f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}'")
 
         # Truncate the text ids in this part of input to try and fit max sequence length
         truncation_length = (len_input_ids - self.max_seq_length) + 1
