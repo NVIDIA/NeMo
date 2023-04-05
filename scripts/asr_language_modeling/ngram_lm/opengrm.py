@@ -5,9 +5,6 @@ import sys
 
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
-NGRAM_BIN_PATH = "/root/miniconda3/bin/"
-KENLM_BIN_PATH = "/workspace/nemo/decoders/kenlm/build/bin/build_binary"
-
 # Example
 # python3 opengrm.py --arpa_a /path/ngram_a.kenlm.tmp.arpa \
 #                     --alpha 2 \
@@ -16,7 +13,7 @@ KENLM_BIN_PATH = "/workspace/nemo/decoders/kenlm/build/bin/build_binary"
 #                     --out_path /path/out \
 
 
-def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c):
+def ngrammerge(ngram_bin_path, arpa_a, alpha, arpa_b, beta, arpa_c):
     mod_a = arpa_a + ".mod"
     mod_b = arpa_b + ".mod"
     mod_c = arpa_c + ".mod"
@@ -24,7 +21,7 @@ def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c):
         print("File", mod_c, "exists. Skipping.")
     else:
         sh_args = [
-            os.path.join(NGRAM_BIN_PATH, "ngrammerge"),
+            os.path.join(ngram_bin_path, "ngrammerge"),
             "--alpha=" + str(alpha),
             "--beta=" + str(beta),
             "--normalize",
@@ -41,13 +38,13 @@ def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c):
     return mod_c
 
 
-def arpa2mod(arpa_path, force):
+def arpa2mod(ngram_bin_path, arpa_path, force):
     mod_path = arpa_path + ".mod"
     if os.path.isfile(mod_path) and not force:
         return "File " + mod_path + " exists. Skipping."
     else:
         sh_args = [
-            os.path.join(NGRAM_BIN_PATH, "ngramread"),
+            os.path.join(ngram_bin_path, "ngramread"),
             "--ARPA",
             arpa_path,
             mod_path,
@@ -55,12 +52,12 @@ def arpa2mod(arpa_path, force):
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def merge(arpa_a, alpha, arpa_b, beta, out_path, force):
-    print("\n", arpa2mod(arpa_a, force), "\n")
+def merge(ngram_bin_path, arpa_a, alpha, arpa_b, beta, out_path, force):
+    print("\n", arpa2mod(ngram_bin_path, arpa_a, force), "\n")
 
-    print("\n", arpa2mod(arpa_b, force), "\n")
+    print("\n", arpa2mod(ngram_bin_path, arpa_b, force), "\n")
     arpa_c = os.path.join(out_path, f"{os.path.split(arpa_a)[1]}-{alpha}-{os.path.split(arpa_b)[1]}-{beta}.arpa",)
-    mod_c = ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c)
+    mod_c = ngrammerge(ngram_bin_path, arpa_a, alpha, arpa_b, beta, arpa_c)
     return mod_c, arpa_c
 
 
@@ -76,7 +73,7 @@ def make_symbol_list(asr_model, symbols, force):
 
 
 def farcompile(
-    symbols, text_file, test_far, nemo_model_file, clean_text, do_lowercase, rm_punctuation,
+    ngram_bin_path, symbols, text_file, test_far, nemo_model_file, clean_text, do_lowercase, rm_punctuation,
 ):
     file_path = os.path.split(os.path.realpath(__file__))[0]
     if os.path.isfile(test_far):
@@ -84,7 +81,7 @@ def farcompile(
         return
     else:
         sh_args = [
-            os.path.join(NGRAM_BIN_PATH, "farcompilestrings"),
+            os.path.join(ngram_bin_path, "farcompilestrings"),
             "--generate_keys=10",
             "--fst_type=compact",
             "--symbols=" + symbols,
@@ -117,9 +114,9 @@ def farcompile(
         return ps.communicate()[0]
 
 
-def perplexity(ngram_mod, test_far):
+def perplexity(ngram_bin_path, ngram_mod, test_far):
     sh_args = [
-        os.path.join(NGRAM_BIN_PATH, "ngramperplexity"),
+        os.path.join(ngram_bin_path, "ngramperplexity"),
         "--v=1",
         ngram_mod,
         test_far,
@@ -129,13 +126,13 @@ def perplexity(ngram_mod, test_far):
     return ps
 
 
-def make_arpa(ngram_mod, ngram_arpa, force):
+def make_arpa(ngram_bin_path, ngram_mod, ngram_arpa, force):
     if os.path.isfile(ngram_arpa) and not force:
         print("File", ngram_arpa, "exists. Skipping.")
         return
     else:
         sh_args = [
-            os.path.join(NGRAM_BIN_PATH, "ngramprint"),
+            os.path.join(ngram_bin_path, "ngramprint"),
             "--ARPA",
             ngram_mod,
             ngram_arpa,
@@ -143,41 +140,43 @@ def make_arpa(ngram_mod, ngram_arpa, force):
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def make_kenlm(ngram_arpa, force):
+def make_kenlm(kenlm_bin_path, ngram_arpa, force):
     ngram_kenlm = ngram_arpa + ".kenlm"
     if os.path.isfile(ngram_kenlm) and not force:
         print("File", ngram_kenlm, "exists. Skipping.")
         return
     else:
-        sh_args = [KENLM_BIN_PATH, "trie", "-i", ngram_arpa, ngram_kenlm]
+        sh_args = [kenlm_bin_path, "trie", "-i", ngram_arpa, ngram_kenlm]
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def test_perplexity(mod_c, symbols, test_txt, nemo_model_file, tmp_path):
+def test_perplexity(ngram_bin_path, mod_c, symbols, test_txt, nemo_model_file, tmp_path):
     test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
-    farcompile(symbols, test_txt, test_far, nemo_model_file, False, False, False)
-    res_p = perplexity(mod_c, test_far)
+    farcompile(ngram_bin_path, symbols, test_txt, test_far, nemo_model_file, False, False, False)
+    res_p = perplexity(ngram_bin_path, mod_c, test_far)
     return res_p
 
 
-def main(arpa_a, alpha, arpa_b, beta, out_path, test_file, symbols, nemo_model_file, force):
+def main(ngram_bin_path, kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, test_file, symbols, nemo_model_file, force):
 
-    mod_c, arpa_c = merge(arpa_a, alpha, arpa_b, beta, out_path, force)
+    mod_c, arpa_c = merge(ngram_bin_path, arpa_a, alpha, arpa_b, beta, out_path, force)
 
     if test_file and nemo_model_file:
         if not symbols:
             symbols = os.path.join(out_path, os.path.split(nemo_model_file)[1] + ".syms")
             make_symbol_list(nemo_model_file, symbols, force)
-        test_p = test_perplexity(mod_c, symbols, test_file, nemo_model_file, out_path)
+        test_p = test_perplexity(ngram_bin_path, mod_c, symbols, test_file, nemo_model_file, out_path)
         print("Test perplexity", test_p)
 
     print("Making ARPA model", arpa_c)
-    print("\n", make_arpa(mod_c, arpa_c, force), "\n")
-    print("\n", make_kenlm(arpa_c, force), "\n")
+    print("\n", make_arpa(ngram_bin_path, mod_c, arpa_c, force), "\n")
+    print("\n", make_kenlm(kenlm_bin_path, arpa_c, force), "\n")
 
 
 def _parse_args():
     parser = argparse.ArgumentParser(description="Avg pytorch weights")
+    parser.add_argument("--ngram_bin_path", required=False, default="/root/miniconda3/bin", type=str, help="The path to the bin folder of Ngram")
+    parser.add_argument("--kenlm_bin_path", required=False, default="/workspace/nemo/decoders/kenlm/build/bin/build_binary", type=str, help="The path to the bin folder of KenLM")
     parser.add_argument("--arpa_a", required=True, type=str, help="Path to the arpa_a")
     parser.add_argument("--alpha", required=True, type=float, help="Weight of arpa_a")
     parser.add_argument("--arpa_b", required=True, type=str, help="Path to the arpa_b")
