@@ -138,9 +138,6 @@ class GPTSFTDataset(Dataset):
         output = example[self.label_key]
 
         if self.prompt_template is not None:
-            import ipdb
-
-            ipdb.set_trace()
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
             # Make sure that '{output}' always occurs at the end of the prompt template string
