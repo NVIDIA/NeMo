@@ -778,10 +778,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
+            
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
+                max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.encoder_seq_length),
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
@@ -799,7 +800,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
                 batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
+                max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.encoder_seq_length),
                 min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
