@@ -324,9 +324,15 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         
         # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
         # but still padding in the middle between virtual tokens and top1
+        # padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+        # input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        # answer_start_idx += padding_length
+
+        # padding strategy 3: pad at the beginning, make the length_before_answer be a mutiple of chunk_size
         padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
-        input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        input_ids = [self.pad_token_id] * padding_length + input_ids
         answer_start_idx += padding_length
+
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
@@ -607,6 +613,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        # input_ids, answer_starts, chunks, num_virtual_tokens = zip(*batch)
+        # pad strategy 3
         input_ids, answer_starts, chunks, num_virtual_tokens = zip(*batch)
         num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
         # convert chunks into torch tensors
@@ -646,8 +654,11 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
       
 
         # lob off the space holder for virtual tokens
-        input_ids = input_ids[:, num_virtual_tokens:]
+        # input_ids = input_ids[:, num_virtual_tokens:]
 
+        # pad strategy 3: do not lob off here
+
+        # input_ids: eos padding + vt + real tokens + batch padding
         return input_ids, hidden_mask, loss_mask, chunks, context_mask, labels
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):

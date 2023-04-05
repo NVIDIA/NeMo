@@ -470,6 +470,8 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
 
         # if add_BOS:
         #     context_tokens = [[tokenizer.bos_id] + s for s in context_tokens]
+
+        # is this necessary? we already padded during data loading to make sure length_before_answer a multiple of chunk size
         if self.pad_token_for_retrieval:
             padded = []
             for line in context_tokens:
@@ -482,7 +484,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
 
         # for ptuning, add virtual token placeholders before building masks
         # self.num_virtual_tokens = len(self.model.pseudo_token_ids)
-        context_tokens = [self.model.pseudo_token_ids + c for c in context_tokens]
+        # context_tokens = [self.model.pseudo_token_ids + c for c in context_tokens]
 
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
@@ -543,8 +545,8 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
             #     types2use = type_ids[:, :context_length]
 
             # lob off virtual token placeholders
-            tokens2use = tokens2use[:, len(self.model.pseudo_token_ids):]
-            positions2use = positions2use[:, len(self.model.pseudo_token_ids):]
+            # tokens2use = tokens2use[:, len(self.model.pseudo_token_ids):]
+            # positions2use = positions2use[:, len(self.model.pseudo_token_ids):]
 
         else:
             # Set this to false so the memory is not reallocated.
