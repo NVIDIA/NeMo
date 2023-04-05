@@ -785,7 +785,7 @@ class CoreAttention(MegatronModule):
         else:
             if self.position_embedding_type.lower() == 'xpos':
                 query_layer = rearrange(query_layer, 's b h d -> (b h) s d')
-                key_layer = rearrange(query_layer, 's b h d -> (b h) s d')
+                key_layer = rearrange(key_layer, 's b h d -> (b h) s d')
                 key_layer = self.xpos(key_layer, offset=0, downscale=True)
                 query_layer = self.xpos(query_layer, offset=sq-1, downscale=False)
 
