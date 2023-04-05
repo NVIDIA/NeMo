@@ -95,9 +95,7 @@ def main():
         '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
     )
     parser.add_argument(
-        "--rm_punctuation",
-        action='store_true',
-        help="Whether to remove punctuation marks from text",
+        "--rm_punctuation", action='store_true', help="Whether to remove punctuation marks from text",
     )
     parser.add_argument(
         "--separate_punctuation",
