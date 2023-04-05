@@ -296,7 +296,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     if return_encoder_embiddings:
                         # dump encoder embeddings per file
                         for idx in range(encoded.shape[0]):
-                            encoded_no_pad = encoded[idx, :, :encoded_len[idx]]
+                            encoded_no_pad = encoded[idx, :, : encoded_len[idx]]
                             hypotheses.append(encoded_no_pad)
                     else:
                         best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
