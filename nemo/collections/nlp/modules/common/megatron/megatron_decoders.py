@@ -87,6 +87,7 @@ def get_decoder_model(
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
     version=1,
+    position_embedding_type='learned_absolute'
 ):
     """Build language model and return along with the key to save."""
 
