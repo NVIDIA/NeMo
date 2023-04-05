@@ -29,9 +29,9 @@ from nemo.collections.nlp.modules.common.text_generation_server import MegatronS
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.utils.distributed import initialize_distributed
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
+from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:

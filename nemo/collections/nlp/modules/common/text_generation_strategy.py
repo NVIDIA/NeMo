@@ -15,8 +15,8 @@
 import abc
 from typing import List, Tuple
 
-import torch
 import numpy as np
+import torch
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -245,12 +245,14 @@ class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokens = context_tokens.contiguous().cuda()
-        self.attention_mask = torch.tril(torch.ones((tokens.size(0), tokens.size(1), tokens.size(1)), device=tokens.device))
+        self.attention_mask = torch.tril(
+            torch.ones((tokens.size(0), tokens.size(1), tokens.size(1)), device=tokens.device)
+        )
         context_lengths = context_length.tolist()
         # Get the attention mask and postition ids.
         for i, l in enumerate(context_lengths):
             self.attention_mask[i][:, :l] = 1.0
-        
+
         self.attention_mask = self.attention_mask.unsqueeze(1) < 0.5
         position_ids = torch.arange(tokens.size(1), dtype=torch.long, device=tokens.device)
         self.position_ids = position_ids.unsqueeze(0).repeat(tokens.size(0), 1)
@@ -363,11 +365,11 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_u_gpt_model import MegatronUGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+    from nemo.collections.nlp.models.language_modeling.megatron_u_gpt_model import MegatronUGPTModel
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,
