@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-from utils.data_prep import get_utt_obj, Token, Word, Segment, Utterance
-
 from dataclasses import asdict
 
-from nemo.collections.asr.models import ASRModel
-
 import prettyprinter
-from prettyprinter import register_pretty, pretty_call
+import pytest
+from prettyprinter import pretty_call, register_pretty
+from utils.data_prep import Segment, Token, Utterance, Word, get_utt_obj
+
+from nemo.collections.asr.models import ASRModel
 
 
 def get_utt_obj_pp_string(utt_obj):
@@ -58,7 +57,6 @@ def get_utt_obj_pp_string(utt_obj):
             text=value.text,
             token_ids_with_blanks=value.token_ids_with_blanks,
             S=value.S,
-            T=value.T,
             segments_and_tokens=value.segments_and_tokens,
         )
 
@@ -71,7 +69,6 @@ EN_CN_EXPECTED_UTTERANCE = Utterance(
     text='hi world | hey',
     token_ids_with_blanks=[1024, 317, 1024, 472, 1024, 25, 1024, 20, 1024],
     S=9,
-    T=None,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(
@@ -156,7 +153,6 @@ EN_QN_EXPECTED_UTTERANCE = Utterance(
         28,
     ],
     S=25,
-    T=None,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(
@@ -256,7 +252,6 @@ ZH_CN_EXPECTED_UTTERANCE = Utterance(
         5206,
     ],
     S=17,
-    T=None,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(

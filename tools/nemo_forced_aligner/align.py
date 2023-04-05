@@ -13,19 +13,23 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from dataclasses import dataclass, field, is_dataclass
+from pathlib import Path
+from typing import List, Optional
 
 import torch
 from omegaconf import OmegaConf
 from utils.data_prep import (
+    add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
-    get_batch_tensors_and_boundary_info,
+    get_batch_variables,
     get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
 )
-from utils.make_output_files import make_ctms, make_new_manifest
+from utils.make_ass_files import make_ass_files
+from utils.make_ctm_files import make_ctm_files
+from utils.make_output_manifest import write_manifest_out_line
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -58,6 +62,7 @@ Arguments:
         The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
         (otherwise will set it to 'cpu').
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+    TODO: update description and variable name:
     additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
         files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. 
@@ -81,6 +86,17 @@ Arguments:
 
 
 @dataclass
+class CTMFileConfig:
+    remove_blank_tokens: bool = False
+
+
+@dataclass
+class ASSFileConfig:
+    fontsize: int = 20
+    marginv: int = 20
+
+
+@dataclass
 class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
@@ -94,9 +110,12 @@ class AlignmentConfig:
     viterbi_device: Optional[str] = None
     batch_size: int = 1
     additional_ctm_grouping_separator: Optional[str] = None
-    remove_blank_tokens_from_ctm: bool = False
     minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
+
+    save_output_file_formats: List[str] = field(default_factory=lambda: ["ctm", "ass"])
+    ctm_file_config: CTMFileConfig = CTMFileConfig()
+    ass_file_config: ASSFileConfig = ASSFileConfig()
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -194,53 +213,49 @@ def main(cfg: AlignmentConfig):
     else:
         pred_text_all_lines = None
 
-    # init model_downsample_factor = None and we will calculate and update it during the first batch
-    model_downsample_factor = None
+    # init output_timestep_duration = None and we will calculate and update it during the first batch
+    output_timestep_duration = None
+
+    # init f_manifest_out
+    os.makedirs(cfg.output_dir, exist_ok=True)
+    tgt_manifest_name = str(Path(cfg.manifest_filepath).stem) + "_with_ctm_paths.json"
+    tgt_manifest_filepath = str(Path(cfg.output_dir) / tgt_manifest_name)
+    f_manifest_out = open(tgt_manifest_filepath, 'w')
 
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        (
-            log_probs_batch,
-            y_batch,
-            T_batch,
-            U_batch,
-            utt_obj_batch,
-            pred_text_batch,
-            model_downsample_factor,
-        ) = get_batch_tensors_and_boundary_info(
+        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
             manifest_lines_batch,
             model,
             cfg.additional_ctm_grouping_separator,
             cfg.align_using_pred_text,
-            model_downsample_factor,
+            cfg.audio_filepath_parts_in_utt_id,
+            output_timestep_duration,
         )
-
-        if cfg.align_using_pred_text:
-            pred_text_all_lines.extend(pred_text_batch)
 
         alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
-        make_ctms(
-            utt_obj_batch,
-            alignments_batch,
-            manifest_lines_batch,
-            model,
-            model_downsample_factor,
-            cfg.output_dir,
-            cfg.remove_blank_tokens_from_ctm,
-            cfg.audio_filepath_parts_in_utt_id,
-            cfg.minimum_timestamp_duration,
-        )
+        for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
 
-    make_new_manifest(
-        cfg.output_dir,
-        cfg.manifest_filepath,
-        cfg.additional_ctm_grouping_separator,
-        cfg.audio_filepath_parts_in_utt_id,
-        pred_text_all_lines,
-    )
+            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+
+            if "ctm" in cfg.save_output_file_formats:
+                utt_obj = make_ctm_files(
+                    utt_obj, model, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ctm_file_config,
+                )
+
+            if "ass" in cfg.save_output_file_formats:
+                make_ass_files(
+                    utt_obj, model, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ass_file_config,
+                )
+
+            write_manifest_out_line(
+                f_manifest_out, utt_obj,
+            )
+
+    f_manifest_out.close()
 
     return None
 

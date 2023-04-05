@@ -14,8 +14,8 @@
 
 import json
 import os
-
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Union
 
 import librosa
@@ -23,6 +23,13 @@ import torch
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 from nemo.utils import logging
+
+
+def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
+    fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
+    utt_id = Path("_".join(fp_parts)).stem
+    utt_id = utt_id.replace(" ", "-")  # replace any spaces in the filepath with dashes
+    return utt_id
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
@@ -114,8 +121,8 @@ class Token:
     text_cased: str = None
     s_start: int = None
     s_end: int = None
-    t_start: int = None
-    t_end: int = None
+    t_start: float = None
+    t_end: float = None
 
 
 @dataclass
@@ -123,8 +130,8 @@ class Word:
     text: str = None
     s_start: int = None
     s_end: int = None
-    t_start: int = None
-    t_end: int = None
+    t_start: float = None
+    t_end: float = None
     tokens: List[Token] = field(default_factory=list)
 
 
@@ -133,18 +140,21 @@ class Segment:
     text: str = None
     s_start: int = None
     s_end: int = None
-    t_start: int = None
-    t_end: int = None
+    t_start: float = None
+    t_end: float = None
     words_and_tokens: List[Union[Word, Token]] = field(default_factory=list)
 
 
 @dataclass
 class Utterance:
-    text: str = None
     token_ids_with_blanks: List[int] = field(default_factory=list)
     S: int = None
-    T: int = None
     segments_and_tokens: List[Union[Segment, Token]] = field(default_factory=list)
+    text: str = None
+    pred_text: str = None
+    audio_filepath: str = None
+    utt_id: str = None
+    saved_output_files: dict = field(default_factory=dict)
 
 
 def get_utt_obj(text, model, separator):
@@ -368,8 +378,92 @@ def get_utt_obj(text, model, separator):
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def get_batch_tensors_and_boundary_info(
-    manifest_lines_batch, model, separator, align_using_pred_text, model_downsample_factor
+def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration):
+    """
+    TODO
+    """
+
+    # General idea:
+    # the timestep where a token s starts is the location of the first appearance of s_start in alignment_utt
+    # the timestep where a token s ends is the location of the final appearance of s_end in alignment_utt
+    # We will make dictionaries num_to_first_alignment_appearance and
+    # num_to_last_appearance and use that to update all of
+    # the t_start and t_end values in utt_obj.
+    # We will put t_start = t_end = -1 for tokens that are skipped (should only be blanks)
+
+    num_to_first_alignment_appearance = dict()
+    num_to_last_alignment_appearance = dict()
+
+    prev_s = -1  # use prev_s to keep track of when the s changes
+    for t, s in enumerate(alignment_utt):
+        if s > prev_s:
+            num_to_first_alignment_appearance[s] = t
+
+            if prev_s >= 0:  # dont record prev_s = -1
+                num_to_last_alignment_appearance[prev_s] = t - 1
+        prev_s = s
+    # add last appearance of the final s
+    num_to_last_alignment_appearance[prev_s] = len(alignment_utt) - 1
+
+    # update all the t_start and t_end in utt_obj
+    for segment_or_token in utt_obj.segments_and_tokens:
+        if type(segment_or_token) is Segment:
+            segment = segment_or_token
+            segment.t_start = num_to_first_alignment_appearance[segment.s_start] * output_timestep_duration
+            segment.t_end = (num_to_last_alignment_appearance[segment.s_end] + 1) * output_timestep_duration
+
+            for word_or_token in segment.words_and_tokens:
+                if type(word_or_token) is Word:
+                    word = word_or_token
+                    word.t_start = num_to_first_alignment_appearance[word.s_start] * output_timestep_duration
+                    word.t_end = (num_to_last_alignment_appearance[word.s_end] + 1) * output_timestep_duration
+
+                    for token in word.tokens:
+                        if token.s_start in num_to_first_alignment_appearance:
+                            token.t_start = num_to_first_alignment_appearance[token.s_start] * output_timestep_duration
+                        else:
+                            token.t_start = -1
+
+                        if token.s_end in num_to_last_alignment_appearance:
+                            token.t_end = (
+                                num_to_last_alignment_appearance[token.s_end] + 1
+                            ) * output_timestep_duration
+                        else:
+                            token.t_end = -1
+                else:
+                    token = word_or_token
+                    if token.s_start in num_to_first_alignment_appearance:
+                        token.t_start = num_to_first_alignment_appearance[token.s_start] * output_timestep_duration
+                    else:
+                        token.t_start = -1
+
+                    if token.s_end in num_to_last_alignment_appearance:
+                        token.t_end = (num_to_last_alignment_appearance[token.s_end] + 1) * output_timestep_duration
+                    else:
+                        token.t_end = -1
+
+        else:
+            token = segment_or_token
+            if token.s_start in num_to_first_alignment_appearance:
+                token.t_start = num_to_first_alignment_appearance[token.s_start] * output_timestep_duration
+            else:
+                token.t_start = -1
+
+            if token.s_end in num_to_last_alignment_appearance:
+                token.t_end = (num_to_last_alignment_appearance[token.s_end] + 1) * output_timestep_duration
+            else:
+                token.t_end = -1
+
+    return utt_obj
+
+
+def get_batch_variables(
+    manifest_lines_batch,
+    model,
+    separator,
+    align_using_pred_text,
+    audio_filepath_parts_in_utt_id,
+    output_timestep_duration,
 ):
     """
     Returns:
@@ -396,11 +490,9 @@ def get_batch_tensors_and_boundary_info(
 
     log_probs_list_batch = []
     T_list_batch = []
-    pred_text_batch = []
     for hypothesis in hypotheses:
         log_probs_list_batch.append(hypothesis.y_sequence)
         T_list_batch.append(hypothesis.y_sequence.shape[0])
-        pred_text_batch.append(hypothesis.text)
 
     # we loop over every line in the manifest that is in our current batch,
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and
@@ -415,6 +507,17 @@ def get_batch_tensors_and_boundary_info(
         else:
             gt_text_for_alignment = line["text"]
         utt_obj = get_utt_obj(gt_text_for_alignment, model, separator)
+
+        # update utt_obj.pred_text or utt_obj.text
+        if align_using_pred_text:
+            utt_obj.pred_text = pred_text_batch[i_line]
+            if "text" in line:
+                utt_obj.text = line["text"]
+        else:
+            utt_obj.text = line["text"]
+
+        utt_obj.audio_filepath = audio_filepaths_batch[i_line]
+        utt_obj.utt_id = _get_utt_id(utt_obj.audio_filepath, audio_filepath_parts_in_utt_id)
 
         y_list_batch.append(utt_obj.token_ids_with_blanks)
         U_list_batch.append(utt_obj.S)
@@ -443,20 +546,31 @@ def get_batch_tensors_and_boundary_info(
         U_utt = U_batch[b]
         y_batch[b, :U_utt] = torch.tensor(y_utt)
 
-    # calculate model_downsample_factor if it is None
-    if model_downsample_factor is None:
+    # calculate output_timestep_duration if it is None
+    if output_timestep_duration is None:
         if not 'window_stride' in model.cfg.preprocessor:
             raise ValueError(
                 "Don't have attribute 'window_stride' in 'model.cfg.preprocessor' => cannot calculate "
                 " model_downsample_factor => stopping process"
             )
 
+        if not 'sample_rate' in model.cfg.preprocessor:
+            raise ValueError(
+                "Don't have attribute 'sample_rate' in 'model.cfg.preprocessor' => cannot calculate start "
+                " and end time of segments => stopping process"
+            )
+
         audio_dur = librosa.get_duration(path=audio_filepaths_batch[0])
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))
 
+        output_timestep_duration = (
+            model.preprocessor.featurizer.hop_length * model_downsample_factor / model.cfg.preprocessor.sample_rate
+        )
+
         logging.info(
             f"Calculated that the model downsample factor is {model_downsample_factor}"
+            f" and therefore the ASR model output timestep duration is {output_timestep_duration}"
             " -- will use this for all batches"
         )
 
@@ -466,6 +580,5 @@ def get_batch_tensors_and_boundary_info(
         T_batch,
         U_batch,
         utt_obj_batch,
-        pred_text_batch,
-        model_downsample_factor,
+        output_timestep_duration,
     )
