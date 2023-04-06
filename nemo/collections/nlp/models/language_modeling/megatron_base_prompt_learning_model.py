@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import re
 from collections import OrderedDict
+from typing import Any, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
@@ -32,7 +35,26 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptStyle,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.utils import logging
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 
 __all__ = ['MegatronBasePromptLearningModel']
 
@@ -353,6 +375,73 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
+
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+    def get_iterator_k_split(self, batch, k):
+        assert batch[0].shape[0] % k == 0, "Issue with batch size configuration!"
+        split_batch = [torch.tensor_split(item, k, dim=0) for item in batch]
+        microbatches = [[elem[i] for elem in split_batch] for i in range(k)]
+        return itertools.chain(microbatches)
+
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
+
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler_cfg in scheduler_cfgs:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
+
+                    # Removing the line below because it messes up train_valid_test_num_samples calculation.
+                    # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
