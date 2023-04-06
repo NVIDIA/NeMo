@@ -46,7 +46,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank, ckpt_to_dir
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -282,10 +282,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         # dist_checkpointing expects a directory so we will name the directory
         # using the path with the file extension removed
-        dirname = os.path.dirname(filepath)
-        basename = os.path.basename(filepath)
-        root, _ = os.path.splitext(basename)
-        checkpoint_dir = os.path.join(dirname, root)
+        checkpoint_dir = ckpt_to_dir(filepath)
 
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
@@ -345,12 +342,18 @@ class NLPDDPStrategy(DDPStrategy):
         return sharded_state_dict
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
-        app_state = AppState()
-        # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(filepath)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            logging.info(f'Removing checkpoint: {filepath}')
-            self.checkpoint_io.remove_checkpoint(filepath)
+        # check if filepath is a distributed checkpoint
+        if ckpt_to_dir(filepath).is_dir():
+            if self.is_global_zero:
+                shutil.rmtree(self._ckpt_to_dir(filepath))
+
+        else:
+            app_state = AppState()
+            # PTL override to accomodate model parallel checkpoints
+            filepath = inject_model_parallel_rank(filepath)
+            if self.is_global_zero or app_state.data_parallel_rank == 0:
+                logging.info(f'Removing checkpoint: {filepath}')
+                self.checkpoint_io.remove_checkpoint(filepath)
 
     @property
     def distributed_sampler_kwargs(self):
