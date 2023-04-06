@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from typing import Dict, List
 
 import torch
 from omegaconf import DictConfig, ListConfig
@@ -22,10 +23,15 @@ from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
+from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -33,6 +39,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -137,11 +144,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             self.setup_test_data()
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
-
-    def _process_global_batch(self, global_batch):
-        """Optionally processes a global batch."""
-        # TODO: maybe remove this now that we've refactored data batch sizes.
-        return global_batch
 
     def on_validation_epoch_start(self):
         app_state = AppState()
@@ -268,36 +270,72 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-        processed_batch = self._process_global_batch(batch)
-        return processed_batch
+    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        # Get seq length of batch
+        _, seq_length = batch[0].shape
+        _, dec_seq_length = batch[1].shape
+        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        # Regular finetuning datasets will return a list of dicts for each microbatch. But T0 datasets will return a single dict for the global batch.
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=data_iter,
+            model=[self.enc_dec_model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            decoder_seq_length=dec_seq_length,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
+    def inference_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, mode: str, dataloader_idx=0):
+        # Regular finetuning datasets will return a list of dicts for each microbatch.
+        # But T0 datasets will return a single dict for the global batch.
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
-        processed_batch = self._reconfigure_and_process_inference_batch(batch, data_cfg)
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
 
-        # Call parent validation step to get the loss.
-        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
-        loss = super().validation_step(processed_batch, batch_idx)
+        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
+        # this will be ignored.
+        loss = self.fwd_bwd_step(self._process_batch(batch), batch_idx, forward_only=True)
 
         predicted_token_ids, _ = self.decode(
-            tokens_enc=processed_batch['text_enc'],
-            enc_mask=processed_batch['enc_mask'],
+            tokens_enc=batch['text_enc'],
+            enc_mask=batch['enc_mask'],
             num_tokens_to_generate=30,
             bos_id=self.tokenizer.pad_id if data_cfg.replace_bos_with_pad else self.tokenizer.bos_id,
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        labels_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['labels'], self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['text_enc'], self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(batch['labels'], self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(batch['text_enc'], self.tokenizer)
 
         if not batch_has_lang_information:
             categories = [None] * len(preds_text)
         else:
-            categories = processed_batch['lang']
+            categories = batch['lang']
 
         metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
         assert len(categories) == len(preds_text) == len(labels_text)

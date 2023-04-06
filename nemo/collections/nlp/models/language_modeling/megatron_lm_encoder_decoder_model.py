@@ -522,10 +522,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         grad, group=parallel_state.get_decoder_relative_position_embedding_group()
                     )
 
+    def _process_batch(self, global_batch: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
+        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
+        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
+        global_batch['dec_mask'][:, 0] = 1
+
+        return [
+            global_batch["text_enc"],
+            global_batch["text_dec"],
+            global_batch["loss_mask"],
+            global_batch["labels"],
+            global_batch["enc_mask"],
+            global_batch["dec_mask"],
+        ]
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            batch = self._process_training_batch(batch)
+            if isinstance(batch, dict):
+                # convert to list if not already converted.
+                batch = self._process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
 
@@ -768,21 +784,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             'enc_mask': enc_mask_tensor,
             'dec_mask': dec_mask_tensor,
         }
-
-    def _process_training_batch(self, batch: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
-        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
-        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
-        batch['dec_mask'][:, 0] = 1
-        # Megatron Core expects a data iterator to iterate over the micro-batches.
-        # split the global batch into smaller micro-batches.
-        return [
-            batch["text_enc"],
-            batch["text_dec"],
-            batch["loss_mask"],
-            batch["labels"],
-            batch["enc_mask"],
-            batch["dec_mask"],
-        ]
 
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
