@@ -722,8 +722,8 @@ class UGPTDataset(UL2Dataset):
             inputs = np.concatenate([inputs, [self.tokenizer.pad_id] * (self.max_seq_length - len(inputs))])
             labels = np.concatenate([labels, [self.tokenizer.pad_id] * (self.max_seq_length - len(labels))])
         loss_mask = (
-            [0] * len(example['text_enc'])
-            + [1] * (len(example['labels']) - 1)
+            [0] * (len(example['text_enc']) - 1)
+            + [1] * (len(example['labels']))
             + [0] * (self.max_seq_length - len(example['text_enc']) - len(example['labels']) + 1)
         )
         # Start with a lower triangular mask.
