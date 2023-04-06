@@ -337,7 +337,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
                 self.cfg.get('hidden_size'),
             ]
-            te_module.pre_init_ub(shape=input_shape, is_fp8=self.cfg.get('fp8'))
+            ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+            if ub_cfg_file_name is not None:
+                try:
+                    import yaml
+                    with open(ub_cfg_file_name, 'r') as ub_cfg_file:
+                        ub_cfgs = yaml.safe_load(ub_cfg_file)
+                except (ImportError, TypeError):
+                    print("Fail to read ub_tp_comm_overlap config file.")
+            else:
+                ub_cfgs = None
+            te_module.initialize_ub(
+                shape=input_shape,
+                tp_size=self.cfg.get('tensor_model_parallel_size'),
+                use_fp8=self.cfg.get('fp8'),
+                ub_cfgs=ub_cfgs,
+            )
             self.initialize_ub = False
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions

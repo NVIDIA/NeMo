@@ -168,6 +168,10 @@ model:
   ub_tp_comm_overlap: False
   # Use userbuffer backend to overlap tensor-parallel communications with computes.
   # This feature is only available with Transformer Engine and squence parallelism enabled and, currently, supports only GPT models.
+  ub_tp_comm_overlap_cfg: null
+  # A yaml file with userbuffer communicator configurations. This file should provide `method`, `dtype`, `num_sm`, `num_splits`,
+  # `cga_size`, `num_splits`, `set_sm_margin`, and `aggregate` for the communicators to use custom settings.
+  # If the configuration file is not provided a default setting is used for all communicators.
 
   data:
    # Path to data must be specified by the user.
