@@ -33,6 +33,7 @@ class PreemptionCallback(Callback):
         if self.sig is None:
             self.sig = signal.SIGTERM
         self.checkpoint_callback = checkpoint_callback
+        self.preemption_enabled = False
 
     @property
     def interrupted(self):
@@ -46,51 +47,51 @@ class PreemptionCallback(Callback):
         Defines custom handlers at the beginning of training to be executed when the 
         preemption signal is received.
         """
-
+        
         # Check if torch distributed is initialised, as its needed for broadcasting the preemption signal to all the ranks
         if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
             logging.info("Preemption requires torch distributed to be initialized, disabling preemption")
-            #Remove the callback from the callbacks list
-            trainer.callbacks.remove(self)
-            return
-
-        # Bool var that's initialized to false and made True upon receving the preemption signal
-        self._interrupted = False
-        self.released = False
-        self.original_handler = signal.getsignal(self.sig)
-
-        # Master handler executed only by rank 0 when the preemption siganal is received, to avoid deadlock conditions
-        def master_handler(signum, frame):
-            self.release()
-            self._interrupted = True
-        
-        # Handler executed by the non zero ranks
-        def ignoring_handler(signum, frame):
-            self.release()
-
-        self.private_rank = torch.distributed.get_rank()
-        if self.private_rank == 0:
-            signal.signal(self.sig, master_handler)
         else:
-            signal.signal(self.sig, ignoring_handler)
+            self.preemption_enabled = True
+            # Bool var that's initialized to false and made True upon receving the preemption signal
+            self._interrupted = False
+            self.released = False
+            self.original_handler = signal.getsignal(self.sig)
+
+            # Master handler executed only by rank 0 when the preemption siganal is received, to avoid deadlock conditions
+            def master_handler(signum, frame):
+                self.release()
+                self._interrupted = True
+            
+            # Handler executed by the non zero ranks
+            def ignoring_handler(signum, frame):
+                self.release()
+
+            self.private_rank = torch.distributed.get_rank()
+            if self.private_rank == 0:
+                signal.signal(self.sig, master_handler)
+            else:
+                signal.signal(self.sig, ignoring_handler)
 
         return self
 
     def on_train_end(self, trainer, pl_module):
-        self.release()
+        if self.preemption_enabled:
+            self.release()
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int):
-        # check if the job was preempted at the end of every training step/iteration
-        # NOTE: "self.interrupted" is a property which triggers a
-        # distributed broadcast of "_interrupted" flag from rank 0 to all other
-        # ranks, to avoid performance overheads it's best to store the result in
-        # a regular local variable
-        interrupted = self.interrupted
-        if interrupted:
-            logging.info("Received SIGTERM, saving checkpoint and exiting")
-            monitor_candidates = self.checkpoint_callback._monitor_candidates(trainer)
-            self.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
-            sys.exit(0)
+        if self.preemption_enabled:
+            # check if the job was preempted at the end of every training step/iteration
+            # NOTE: "self.interrupted" is a property which triggers a
+            # distributed broadcast of "_interrupted" flag from rank 0 to all other
+            # ranks, to avoid performance overheads it's best to store the result in
+            # a regular local variable
+            interrupted = self.interrupted
+            if interrupted:
+                logging.info("Received SIGTERM, saving checkpoint and exiting")
+                monitor_candidates = self.checkpoint_callback._monitor_candidates(trainer)
+                self.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
+                sys.exit(0)
             
     def release(self):
         if self.released:
