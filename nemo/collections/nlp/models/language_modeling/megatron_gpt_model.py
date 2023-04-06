@@ -341,6 +341,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if ub_cfg_file_name is not None:
                 try:
                     import yaml
+
                     with open(ub_cfg_file_name, 'r') as ub_cfg_file:
                         ub_cfgs = yaml.safe_load(ub_cfg_file)
                 except (ImportError, TypeError):
