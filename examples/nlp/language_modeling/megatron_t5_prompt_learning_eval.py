@@ -49,7 +49,7 @@ def main(cfg) -> None:
         or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
     ):
         model_config = MegatronT5PromptLearningModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+            restore_path=cfg.language_model_path, trainer=trainer, return_config=True,
         )
 
         with open_dict(cfg):
