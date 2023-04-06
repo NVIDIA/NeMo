@@ -218,7 +218,7 @@ def main(cfg: AlignmentConfig):
 
     # init f_manifest_out
     os.makedirs(cfg.output_dir, exist_ok=True)
-    tgt_manifest_name = str(Path(cfg.manifest_filepath).stem) + "_with_ctm_paths.json"
+    tgt_manifest_name = str(Path(cfg.manifest_filepath).stem) + "_with_output_file_paths.json"
     tgt_manifest_filepath = str(Path(cfg.output_dir) / tgt_manifest_name)
     f_manifest_out = open(tgt_manifest_filepath, 'w')
 
