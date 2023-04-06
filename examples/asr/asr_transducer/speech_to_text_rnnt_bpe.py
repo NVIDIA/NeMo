@@ -61,11 +61,52 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
+import torch
 
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+def flatten(l):
+  for el in l:
+    if isinstance(el, list) or isinstance(el, tuple):
+      yield from flatten(el)
+    elif isinstance(el, torch.Tensor):
+      yield el
+
+def _hook_wrapper(_idx, _name):
+  _rank = torch.distributed.get_rank() if \
+      torch.distributed.is_initialized() else 0
+  def _forward_hook(module, input, output):
+    global _saved
+    _finite = True
+    _str = ''
+    name = _name if _name else module._get_name()
+    # Skip the check if input contains Inf/Nan
+    if isinstance(input, torch.Tensor):
+      input = [input]
+    _input = flatten(input)
+    for i, x in enumerate(_input):
+      if not torch.all(torch.isfinite(x)):
+        return
+    # Check whether output contains Inf/Nan
+    if isinstance(output, torch.Tensor):
+      output = [output]
+    _output = flatten(output)
+    for i, x in enumerate(_output):
+      if not torch.all(torch.isfinite(x)):
+        _finite = False
+        _str += "{}[{:02d}][{:04d}]:{}:\toutput {} is not finite, shape {}".format(
+            '\n' if _str else '',
+            _rank, _idx, _name, i, list(x.size()))
+    # Check whether parameters contain Inf/Nan
+    for n, p in module.named_parameters(prefix=name, recurse=False):
+      if not torch.all(torch.isfinite(p)):
+        _str += "\n|--> {} is not finite".format(n)
+    if not _finite:
+      raise Exception(_str)
+  return _forward_hook
 
 
 @hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt_bpe")
@@ -78,6 +119,9 @@ def main(cfg):
 
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
+    
+    for idx, (name, module) in enumerate(asr_model.named_modules()):
+        module.register_forward_hook(_hook_wrapper(idx, name))
 
     trainer.fit(asr_model)
 
