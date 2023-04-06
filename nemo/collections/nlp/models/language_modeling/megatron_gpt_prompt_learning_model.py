@@ -512,7 +512,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.data.get('train_ds', None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
-                max_seq_length = self.cfg.data.max_seq_length
+                max_seq_length = min(max_seq_length, self.cfg.data.max_seq_length)
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
@@ -533,7 +533,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.data.get('validation_ds', None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
-                max_seq_length = self.cfg.data.max_seq_length
+                max_seq_length = min(max_seq_length, self.cfg.data.max_seq_length)
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
                 batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
