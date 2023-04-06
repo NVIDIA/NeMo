@@ -47,7 +47,7 @@ class PreemptionCallback(Callback):
         Defines custom handlers at the beginning of training to be executed when the 
         preemption signal is received.
         """
-        
+
         # Check if torch distributed is initialised, as its needed for broadcasting the preemption signal to all the ranks
         if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
             logging.info("Preemption requires torch distributed to be initialized, disabling preemption")
