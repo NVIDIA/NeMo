@@ -113,7 +113,7 @@ model:
 
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos_local_attn # longformer-style attention (sliding window + global tokens)
-    global_tokens: 1 # number of tokens that attend and are attended to by all tokens
+    global_tokens: 1 # number of tokens that attend and are attended to by all tokens (put 0 to disable)
     global_tokens_spacing: 1 # how far apart the global tokens are
     global_attn_separate: false # whether global tokens should use separate q,k,v layers
     n_heads: 8 # may need to be lower for smaller d_models
