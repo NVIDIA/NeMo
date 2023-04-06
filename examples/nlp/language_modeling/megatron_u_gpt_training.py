@@ -17,7 +17,6 @@ import tempfile
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
