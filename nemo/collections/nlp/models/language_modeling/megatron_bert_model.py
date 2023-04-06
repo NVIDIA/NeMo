@@ -36,6 +36,8 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
+import itertools as it
+
 
 try:
     from apex.transformer import parallel_state
@@ -709,7 +711,7 @@ class MegatronBertModel(MegatronBaseModel):
                 num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
                 dp_gbs = num_micro_batches * self.cfg.micro_batch_size
                 wind_iters = self.compute_consumed_samples(0) // dp_gbs
-                loader_iter = iter(self._train_dl)
+                loader_iter = it.cycle(self._train_dl)
                 for i in range(wind_iters):
                     next(loader_iter)
             else:
