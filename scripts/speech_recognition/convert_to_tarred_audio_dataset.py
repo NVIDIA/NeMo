@@ -174,6 +174,11 @@ parser.add_argument(
         "and it must be filled out by the user."
     ),
 )
+parser.add_argument(
+    "--shard_manifests",
+    action='store_false',
+    help="Whether or not to write sharded manifests along with the aggregated one.",
+)
 parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
 args = parser.parse_args()
 
@@ -321,6 +326,15 @@ class ASRTarredDatasetBuilder:
                 delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i, manifest_folder)
                 for i, (start_idx, end_idx) in enumerate(zip(start_indices, end_indices))
             )
+
+        if config.shard_manifests:
+            for manifest in new_entries_list:
+                shard_id = manifest[0]['shard_id']
+                new_manifest_shard_path = os.path.join(target_dir, f'tam_{shard_id}.json')
+                with open(new_manifest_shard_path, 'w') as m2:
+                    for entry in manifest:
+                        json.dump(entry, m2)
+                        m2.write('\n')
 
         # Flatten the list of list of entries to a list of entries
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
