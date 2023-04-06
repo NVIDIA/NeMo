@@ -18,7 +18,8 @@
 #  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
 #  | XLarge (644M)|  1024   |    8   |    24     |        5         |     1e-3     |           640            |        2        |
 #  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+  
-
+#
+# You may find more info about Conformer-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-hat-hybrid-autoregressive-transducer
 
 name: "Conformer-HAT-BPE"
 
