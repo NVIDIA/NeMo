@@ -346,6 +346,9 @@ def get_tarred_dataset(
     ):
         if len(tarred_audio_filepath) == 1:
             tarred_audio_filepath = tarred_audio_filepath[0]
+        if len(manifest_filepath) == 1:
+            manifest_filepath = manifest_filepath[0]
+            
         if tokenizer is None:
             dataset = audio_to_text.TarredAudioToCharDataset(
                 audio_tar_filepaths=tarred_audio_filepath,
