@@ -17,11 +17,13 @@
 Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
 """
 
+CHUNK_SIZE = 8192
+CHUNK_BUFFER_SIZE = 512
+
 import argparse
 import gzip
 import json
 import os
-import re
 
 import numpy as np
 import torch
@@ -40,9 +42,8 @@ SUPPORTED_MODELS = {
     'EncDecCTCModel': 'char',
     'EncDecRNNTBPEModel': 'subword',
     'EncDecRNNTModel': 'char',
+    'EncDecHybridRNNTCTCBPEModel': 'subword',
 }
-CHUNK_SIZE = 8192
-CHUNK_BUFFER_SIZE = 512
 
 
 def softmax(x):
@@ -170,7 +171,7 @@ def read_train_file(
         ), f"text_dataset length {len(text_dataset)} and lang_dataset length {len(lang_dataset)} must be the same!"
         return list(zip(text_dataset, lang_dataset))
     else:
-        return list(zip(text_dataset))
+        return [[text] for text in text_dataset]
 
 
 def tokenize_str(texts, tokenizer):
