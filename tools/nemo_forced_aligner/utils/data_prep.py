@@ -115,6 +115,46 @@ def get_char_tokens(text, model):
     return tokens
 
 
+def restore_token_case(word, word_tokens):
+
+    # remove repeated "▁" and "_" from word as that is what the tokenizer will do
+    while "▁▁" in word:
+        word = word.replace("▁▁", "▁")
+
+    while "__" in word:
+        word = word.repalce("__", "_")
+
+    word_tokens_cased = []
+    word_char_pointer = 0
+
+    for token_i, token in enumerate(word_tokens):
+        token_cased = ""
+
+        for token_char in token:
+            if token_char == word[word_char_pointer]:
+                token_cased += token_char
+                word_char_pointer += 1
+
+            else:
+                if token_char.upper() == word[word_char_pointer]:
+                    token_cased += token_char.upper()
+                    word_char_pointer += 1
+                else:
+                    if token_char == "▁" or token_char == "_":
+                        if word[word_char_pointer] == "▁" or word[word_char_pointer] == "_":
+                            token_cased += token_char
+                            word_char_pointer += 1
+                        elif word_char_pointer == 0:
+                            token_cased += token_char
+
+                    else:
+                        raise RuntimeError("Unexpected error - failed to recover capitalization of tokens")
+
+        word_tokens_cased.append(token_cased)
+
+    return word_tokens_cased
+
+
 @dataclass
 class Token:
     text: str = None
@@ -199,7 +239,8 @@ def get_utt_obj(text, model, separator):
             for word_i, word in enumerate(words):
 
                 word_tokens = model.tokenizer.text_to_tokens(word)
-                word_ids = model.tokenizer.text_to_ids(word)
+                word_token_ids = model.tokenizer.text_to_ids(word)
+                word_tokens_cased = restore_token_case(word, word_tokens)
 
                 # add the word to word_info and increment the word_s_pointer
                 utt.segments_and_tokens[-1].words_and_tokens.append(
@@ -207,14 +248,16 @@ def get_utt_obj(text, model, separator):
                 )
                 word_s_pointer += len(word_tokens) * 2  # TODO check this
 
-                for token_i, (token, token_id) in enumerate(zip(word_tokens, word_ids)):
+                for token_i, (token, token_id, token_cased) in enumerate(
+                    zip(word_tokens, word_token_ids, word_tokens_cased)
+                ):
                     # add the text tokens and the blanks in between them
                     # to our token-based variables
                     utt.token_ids_with_blanks.extend([token_id, BLANK_ID])
                     utt.segments_and_tokens[-1].words_and_tokens[-1].tokens.append(
                         Token(
                             text=token,
-                            text_cased=token,
+                            text_cased=token_cased,
                             s_start=len(utt.token_ids_with_blanks) - 2,
                             s_end=len(utt.token_ids_with_blanks) - 2,
                         )
@@ -281,7 +324,7 @@ def get_utt_obj(text, model, separator):
                 # convert string to list of characters
                 word_tokens = list(word)
                 # convert list of characters to list of their ids in the vocabulary
-                word_ids = get_char_tokens(word, model)
+                word_token_ids = get_char_tokens(word, model)
 
                 # add the word to word_info and increment the word_s_pointer
                 utt.segments_and_tokens[-1].words_and_tokens.append(
@@ -289,7 +332,7 @@ def get_utt_obj(text, model, separator):
                 )
                 word_s_pointer += len(word_tokens) * 2 + 2  # TODO check this
 
-                for token_i, (token, token_id) in enumerate(zip(word_tokens, word_ids)):
+                for token_i, (token, token_id) in enumerate(zip(word_tokens, word_token_ids)):
                     # add the text tokens and the blanks in between them
                     # to our token-based variables
                     utt.token_ids_with_blanks.extend([token_id])

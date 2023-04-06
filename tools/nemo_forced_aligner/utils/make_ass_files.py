@@ -240,10 +240,12 @@ def make_token_level_ass_file(
                 break
 
         for token in tokens_in_first_segment:
-            token.text = token.text.replace("▁", " ")  # replace underscores used in subword tokens with spaces
-            token.text = token.text.replace(SPACE_TOKEN, " ")  # space token with actual space
+            token.text_cased = token.text_cased.replace(
+                "▁", " "
+            )  # replace underscores used in subword tokens with spaces
+            token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
 
-        text_before_speech = r"{\c&c7c1c2&}" + "".join([x.text for x in tokens_in_first_segment]) + r"{\r}"
+        text_before_speech = r"{\c&c7c1c2&}" + "".join([x.text_cased for x in tokens_in_first_segment]) + r"{\r}"
         subtitle_text = (
             f"Dialogue: 0,{seconds_to_ass_format(0)},{seconds_to_ass_format(tokens_in_first_segment[0].t_start)},Default,,0,0,0,,"
             + text_before_speech.rstrip()
@@ -266,22 +268,24 @@ def make_token_level_ass_file(
                                 tokens_in_segment.append(token)
 
                 for token in tokens_in_segment:
-                    token.text = token.text.replace("▁", " ")  # replace underscores used in subword tokens with spaces
-                    token.text = token.text.replace(SPACE_TOKEN, " ")  # space token with actual space
+                    token.text_cased = token.text_cased.replace(
+                        "▁", " "
+                    )  # replace underscores used in subword tokens with spaces
+                    token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
 
                 for token_i, token in enumerate(tokens_in_segment):
 
-                    text_before = "".join([x.text for x in tokens_in_segment[:token_i]])
+                    text_before = "".join([x.text_cased for x in tokens_in_segment[:token_i]])
                     text_before = r"{\c&H3d2e31&}" + text_before + r"{\r}"
 
                     if token_i < len(tokens_in_segment) - 1:
-                        text_after = "".join([x.text for x in tokens_in_segment[token_i + 1 :]])
+                        text_after = "".join([x.text_cased for x in tokens_in_segment[token_i + 1 :]])
                     else:
                         text_after = ""
                     text_after = r"{\c&c7c1c2&}" + text_after + r"{\r}"
 
-                    aligned_text = r"{\c&H09ab39&}" + token.text + r"{\r}"
-                    aligned_text_off = r"{\c&H3d2e31&}" + token.text + r"{\r}"
+                    aligned_text = r"{\c&H09ab39&}" + token.text_cased + r"{\r}"
+                    aligned_text_off = r"{\c&H3d2e31&}" + token.text_cased + r"{\r}"
 
                     subtitle_text = (
                         f"Dialogue: 0,{seconds_to_ass_format(token.t_start)},{seconds_to_ass_format(token.t_end)},Default,,0,0,0,,"
