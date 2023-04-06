@@ -65,8 +65,8 @@ def main():
             restore_path=args.model_file, trainer=Trainer(strategy=NLPDDPStrategy()), return_config=True,
         )
 
-        args.tensor_model_parallel_size = model_config.tensor_model_parallel_size
-        args.pipeline_model_parallel_size = model_config.pipeline_model_parallel_size
+        args.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+        args.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
         args.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
     # trainer required for restoring model parallel models

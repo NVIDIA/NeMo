@@ -91,8 +91,8 @@ def main(cfg) -> None:
         )
 
         with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.tensor_model_parallel_size
-            cfg.pipeline_model_parallel_size = model_config.pipeline_model_parallel_size
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
             cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
     assert (

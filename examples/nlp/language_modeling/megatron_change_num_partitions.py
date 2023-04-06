@@ -560,8 +560,8 @@ def main():
             restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"), return_config=True,
         )
 
-        tp_size = model_config_internal.tensor_model_parallel_size
-        pp_size = model_config_internal.pipeline_model_parallel_size
+        tp_size = model_config_internal.get('tensor_model_parallel_size', 1)
+        pp_size = model_config_internal.get('pipeline_model_parallel_size', 1)
 
     app_state = AppState()
     app_state.data_parallel_rank = 0

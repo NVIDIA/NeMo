@@ -81,8 +81,8 @@ def main(cfg) -> None:
         or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
     ):
         with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_cfg.tensor_model_parallel_size
-            cfg.pipeline_model_parallel_size = model_cfg.pipeline_model_parallel_size
+            cfg.tensor_model_parallel_size = model_cfg.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_cfg.get('pipeline_model_parallel_size', 1)
             cfg.pipeline_model_parallel_split_rank = model_cfg.get('pipeline_model_parallel_split_rank', 0)
 
     model = MegatronRetrievalModel.restore_from(
