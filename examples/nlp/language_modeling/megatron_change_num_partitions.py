@@ -285,9 +285,7 @@ def split_partition(
 
     if 'gpt' in model.cfg.target.lower():
         logging.info("Splitting GPT model")
-        if (
-            pp_rank == (pp_size - 1) and hasattr(model, 'model') and hasattr(model.model, 'word_embeddings')
-        ):
+        if pp_rank == (pp_size - 1) and hasattr(model, 'model') and hasattr(model.model, 'word_embeddings'):
             # duplicate embedding copy (tied weights)
             duplicate_gpt_word_embedding_offset = 1
 
