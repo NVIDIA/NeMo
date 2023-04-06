@@ -171,31 +171,32 @@ class ASRManifestProcessor:
         return t, tl
 
 
-def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size: int, global_rank: int):
+
+def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size: int, global_rank: int):
     valid_shard_strategies = ['scatter', 'replicate']
     if shard_strategy not in valid_shard_strategies:
         raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
 
-    if isinstance(audio_tar_filepaths, str):
+    if isinstance(sharded_filepaths, str):
         # Replace '(' and '[' with '{'
         brace_keys_open = ['(', '[', '<', '_OP_']
         for bkey in brace_keys_open:
-            if bkey in audio_tar_filepaths:
-                audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
+            if bkey in sharded_filepaths:
+                sharded_filepaths = sharded_filepaths.replace(bkey, "{")
 
         # Replace ')' and ']' with '}'
         brace_keys_close = [')', ']', '>', '_CL_']
         for bkey in brace_keys_close:
-            if bkey in audio_tar_filepaths:
-                audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
+            if bkey in sharded_filepaths:
+                sharded_filepaths = sharded_filepaths.replace(bkey, "}")
 
-    if isinstance(audio_tar_filepaths, str):
+    if isinstance(sharded_filepaths, str):
         # Brace expand
-        audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
+        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths))
 
     # Expand store paths into WebDataset URLs
-    audio_tar_filepaths = [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in audio_tar_filepaths
+    sharded_filepaths = [
+        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in sharded_filepaths
     ]
 
     # Check for distributed and partition shards accordingly
@@ -203,15 +204,15 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
 
-            if len(audio_tar_filepaths) % world_size != 0:
+            if len(sharded_filepaths) % world_size != 0:
                 logging.warning(
-                    f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
+                    f"Number of shards in tarred dataset ({len(sharded_filepaths)}) is not divisible "
                     f"by number of distributed workers ({world_size})."
                 )
 
-            begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
-            end_idx = begin_idx + len(audio_tar_filepaths) // world_size
-            audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+            begin_idx = (len(sharded_filepaths) // world_size) * global_rank
+            end_idx = begin_idx + len(sharded_filepaths) // world_size
+            sharded_filepaths = sharded_filepaths[begin_idx:end_idx]
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
@@ -221,7 +222,7 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
         else:
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
-    return audio_tar_filepaths
+    return sharded_filepaths
 
 
 def cache_datastore_manifests(
@@ -776,6 +777,13 @@ class _TarredAudioToTextDataset(IterableDataset):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
+        manifest_filepath = expand_sharded_filepaths(
+            sharded_filepaths=manifest_filepath,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
+
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
@@ -795,8 +803,8 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = expand_audio_filepaths(
-            audio_tar_filepaths=audio_tar_filepaths,
+        audio_tar_filepaths = expand_sharded_filepaths(
+            sharded_filepaths=audio_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
             global_rank=global_rank,
