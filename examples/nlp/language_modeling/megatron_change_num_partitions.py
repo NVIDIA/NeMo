@@ -427,11 +427,8 @@ def split_partition(
     # Add 1 to offset to account for last PP rank's duplicated Embedding
     offset_diff = offset - num_params
     # GPT offset correction
-    if pp_size > 1 and pp_rank == (pp_size - 1) and pp_split_rank == 0:
+    if not untied_gpt_embedding and pp_size > 1 and pp_rank == (pp_size - 1) and pp_split_rank == 0:
         offset_diff += 1
-    # GPT untied embedding offset correction
-    if pp_size > 1 and pp_rank == (pp_size - 1) and untied_gpt_embedding:
-        offset_diff += -1
     # T5 offset correction for shared embedding when pp split rank == pp rank
     if shared_enc_dec_embeddings:
         offset_diff += 2
