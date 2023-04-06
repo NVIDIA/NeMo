@@ -185,12 +185,6 @@ def beam_search_eval(
         pc = PunctuationCapitalization(',.?')
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]
-            if cfg.separate_punctuation:
-                target = pc.separate_punctuation([target])[0]
-            if cfg.do_lowercase:
-                target = pc.do_lowercase([target])[0]
-            if cfg.rm_punctuation:
-                target = pc.rm_punctuation([target])[0]
             target_split_w = target.split()
             target_split_c = list(target)
             words_count += len(target_split_w)
@@ -281,6 +275,14 @@ def main(cfg: EvalBeamSearchNGramConfig):
             target_transcripts.append(data['text'])
             audio_file_paths.append(str(audio_file.absolute()))
 
+    pc = PunctuationCapitalization(',.?')
+    if cfg.separate_punctuation:
+        target_transcripts = pc.separate_punctuation(target_transcripts)
+    if cfg.do_lowercase:
+        target_transcripts = pc.do_lowercase(target_transcripts)
+    if cfg.rm_punctuation:
+        target_transcripts = pc.rm_punctuation(target_transcripts)
+
     if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
         logging.info(f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ...")
@@ -327,6 +329,10 @@ def main(cfg: EvalBeamSearchNGramConfig):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        if cfg.do_lowercase:
+            pred_text = pc.do_lowercase([pred_text])[0]
+        if cfg.rm_punctuation:
+            pred_text = pc.rm_punctuation([pred_text])[0]
 
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
