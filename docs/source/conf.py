@@ -258,7 +258,7 @@ def setup(app):
 
 # OpenGraph settings
 ogp_site_url = 'https://nvidia.github.io/NeMo/'
-ogp_image = 'https://nvidia.github.io/NeMo/assets/images/nvidia-logo.png'
+ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
 
 # MathJax CDN
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/mml-chtml.min.js"
