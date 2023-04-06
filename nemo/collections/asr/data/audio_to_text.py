@@ -171,6 +171,9 @@ class ASRManifestProcessor:
         return t, tl
 
 
+def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size: int, global_rank: int):
+    return expand_sharded_filepaths(sharded_filepaths = audio_tar_filepaths, shard_strategy = shard_strategy, 
+        world_size = world_size, global_rank = global_rank)
 
 def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size: int, global_rank: int):
     valid_shard_strategies = ['scatter', 'replicate']
