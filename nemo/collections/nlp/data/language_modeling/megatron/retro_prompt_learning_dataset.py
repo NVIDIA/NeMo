@@ -711,7 +711,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
         # lob off the space holder for virtual tokens
         
-        input_ids = [ids[num_virtual_tokens:] for ids in input_ids]
+        # input_ids = [ids[num_virtual_tokens:] for ids in input_ids]
         
         return (input_ids, chunks)
 
