@@ -40,13 +40,13 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.utils.callbacks import PreemptionCallback, NeMoModelCheckpoint
 
 
 class NotFoundError(NeMoBaseException):
@@ -442,7 +442,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
-            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params, cfg.create_preemption_callback
+            trainer,
+            log_dir,
+            checkpoint_name,
+            cfg.resume_if_exists,
+            cfg.checkpoint_callback_params,
+            cfg.create_preemption_callback,
         )
 
     if cfg.disable_validation_on_resume:
@@ -833,7 +838,12 @@ def configure_loggers(
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig', create_preemption_callback: bool
+    trainer: 'pytorch_lightning.Trainer',
+    log_dir: Path,
+    name: str,
+    resume: bool,
+    params: 'DictConfig',
+    create_preemption_callback: bool,
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback
