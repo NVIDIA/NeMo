@@ -38,8 +38,12 @@ def make_ass_files(
     utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,
 ):
 
-    utt_obj = make_word_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
+    # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
+    # in the case of the ground truth text being empty or the number of tokens being too large vs audio duration
+    if not utt_obj.segments_and_tokens:
+        return utt_obj
 
+    utt_obj = make_word_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
     utt_obj = make_token_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
 
     return utt_obj

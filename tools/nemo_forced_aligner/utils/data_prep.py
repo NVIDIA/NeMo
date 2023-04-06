@@ -197,7 +197,9 @@ class Utterance:
     saved_output_files: dict = field(default_factory=dict)
 
 
-def get_utt_obj(text, model, separator):
+def get_utt_obj(
+    text, model, separator, T, audio_filepath, utt_id,
+):
     """
     TODO
     """
@@ -210,16 +212,35 @@ def get_utt_obj(text, model, separator):
     # remove any spaces at start and end of segments
     segments = [seg.strip() for seg in segments]
 
-    utt = Utterance(text=text)
-
-    if len(text) == 0:
-        return utt
+    utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
 
     if hasattr(model, 'tokenizer'):
 
         BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
 
         utt.token_ids_with_blanks = [BLANK_ID]
+
+        # check for text being 0 length
+        if len(text) == 0:
+            utt.S = len(utt.token_ids_with_blanks)
+            return utt
+
+        # check for # tokens + token repetitions being > T
+        all_tokens = model.tokenizer.text_to_ids(text)
+        n_token_repetitions = 0
+        for i_tok in range(1, len(all_tokens)):
+            if all_tokens[i_tok] == all_tokens[i_tok - 1]:
+                n_token_repetitions += 1
+
+        if len(all_tokens) + n_token_repetitions > T:
+            utt.S = len(utt.token_ids_with_blanks)
+            logging.info(
+                f"Utterance {utt_id} has too many tokens compared to the audio file duration."
+                " Will not generate output alignment files for this utterance."
+            )
+            return utt
+
+        # build up data structures containing segments/words/tokens
         utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
@@ -303,6 +324,28 @@ def get_utt_obj(text, model, separator):
         SPACE_ID = model.decoder.vocabulary.index(" ")
 
         utt.token_ids_with_blanks = [BLANK_ID]
+
+        # check for text being 0 length
+        if len(text) == 0:
+            utt.S = len(utt.token_ids_with_blanks)
+            return utt
+
+        # check for # tokens + token repetitions being > T
+        all_tokens = get_char_tokens(text, model)
+        n_token_repetitions = 0
+        for i_tok in range(1, len(all_tokens)):
+            if all_tokens[i_tok] == all_tokens[i_tok - 1]:
+                n_token_repetitions += 1
+
+        if len(all_tokens) + n_token_repetitions > T:
+            utt.S = len(utt.token_ids_with_blanks)
+            logging.info(
+                f"Utterance {utt_id} has too many tokens compared to the audio file duration."
+                " Will not generate output alignment files for this utterance."
+            )
+            return utt
+
+        # build up data structures containing segments/words/tokens
         utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
@@ -551,18 +594,32 @@ def get_batch_variables(
             gt_text_for_alignment = pred_text_batch[i_line]
         else:
             gt_text_for_alignment = line["text"]
-        utt_obj = get_utt_obj(gt_text_for_alignment, model, separator)
+        utt_obj = get_utt_obj(
+            gt_text_for_alignment,
+            model,
+            separator,
+            T_list_batch[i_line],
+            audio_filepaths_batch[i_line],
+            _get_utt_id(audio_filepaths_batch[i_line], audio_filepath_parts_in_utt_id),
+        )
 
         # update utt_obj.pred_text or utt_obj.text
         if align_using_pred_text:
             utt_obj.pred_text = pred_text_batch[i_line]
+            if len(utt_obj.pred_text) == 0:
+                logging.info(
+                    f"'pred_text' of utterance {utt_obj.utt_id} is empty - we will not generate"
+                    " any output alignment files for this utterance"
+                )
             if "text" in line:
-                utt_obj.text = line["text"]
+                utt_obj.text = line["text"]  # keep the text as we will save it in the output manifest
         else:
             utt_obj.text = line["text"]
-
-        utt_obj.audio_filepath = audio_filepaths_batch[i_line]
-        utt_obj.utt_id = _get_utt_id(utt_obj.audio_filepath, audio_filepath_parts_in_utt_id)
+            if len(utt_obj.text) == 0:
+                logging.info(
+                    f"'text' of utterance {utt_obj.utt_id} is empty - we will not generate"
+                    " any output alignment files for this utterance"
+                )
 
         y_list_batch.append(utt_obj.token_ids_with_blanks)
         U_list_batch.append(utt_obj.S)

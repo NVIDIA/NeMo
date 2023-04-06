@@ -115,7 +115,10 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         T_b = int(T_batch[b])
         U_b = int(U_batch[b])
 
-        current_u = int(torch.argmax(v_matrix[b, T_b - 1, U_b - 2 : U_b])) + U_b - 2
+        if U_b == 1:  # i.e. we put only a blank token in the reference text because the reference text is empty
+            current_u = 0  # set initial u to 0 and let the rest of the code block run as usual
+        else:
+            current_u = int(torch.argmax(v_matrix[b, T_b - 1, U_b - 2 : U_b])) + U_b - 2
         alignment_b = [current_u]
         for t in range(T_b - 1, 0, -1):
             current_u = current_u - int(backpointers_rel[b, t, current_u])

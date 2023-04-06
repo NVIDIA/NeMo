@@ -28,6 +28,11 @@ def make_ctm_files(
     Function to save CTM files for all the utterances in the incoming batch.
     """
 
+    # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
+    # in the case of the ground truth text being empty or the number of tokens being too large vs audio duration
+    if not utt_obj.segments_and_tokens:
+        return utt_obj
+
     # get audio file duration if we will need it later
     if minimum_timestamp_duration > 0:
         with sf.SoundFile(manifest_line["audio_filepath"]) as f:
