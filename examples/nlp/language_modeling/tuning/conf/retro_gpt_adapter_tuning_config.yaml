@@ -2,10 +2,10 @@ defaults:
   - .@model: megatron_model_base_config
 
 name: test_retro
-restore_from_path: "/dataset/retro/retro_1100m_final"
+restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
 
 trainer:
-  devices: 2
+  devices: 4
   num_nodes: 1
   accelerator: gpu
   precision: 16
@@ -13,7 +13,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 200 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 500
   limit_val_batches: null
@@ -45,8 +45,8 @@ exp_manager:
 
 model:
   # model parallelism 
-  micro_batch_size: 4
-  tensor_model_parallel_size: 2
+  micro_batch_size: 2
+  tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
   # model architecture
@@ -64,7 +64,7 @@ model:
   dec_num_layers: 6    # total number of decoder layers
   enc_cross_attention: [3]    # layer numbers for cross attention in encoder
   dec_cross_attention: [3, 5]    # layer numbers for chunked cross attention in decoder
-  add_position_embedding: False   # whether use the absolute position encoding
+  add_position_embedding: True   # whether use the absolute position encoding
 
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
@@ -74,7 +74,7 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  restore_from_path: "/dataset/retro/retro_1100m_final"
+  restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
   eval: False
 
 
@@ -96,7 +96,8 @@ model:
 
   data:
     train_ds:
-      file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
+      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
@@ -104,7 +105,8 @@ model:
       seed: 1234
       neighbors: 4  # number of retrieved neighbors
     val_ds:
-      file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
+      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
@@ -112,7 +114,8 @@ model:
       seed: 1234
       neighbors: 4  # number of retrieved neighbors
     test_ds:
-      file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
+      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 128  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 

@@ -235,14 +235,15 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 for adapter_key in self.adapter_name_keys:
                     adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
-                        state_adapter_key = '.'.join(["frozen_model", name, "adapter_layer", adapter_key])
-                        temp_stat_dict = {
-                            "layer_norm.weight": state_dict[state_adapter_key + '.layer_norm.weight'],
-                            "layer_norm.bias": state_dict[state_adapter_key + '.layer_norm.bias'],
-                            "linear_in.weight": state_dict[state_adapter_key + '.linear_in.weight'],
-                            "linear_out.weight": state_dict[state_adapter_key + '.linear_out.weight']
-                        }
-                        adapter_module.load_state_dict(temp_stat_dict, strict)
+                        # state_adapter_key = '.'.join(["frozen_model", name, "adapter_layer", adapter_key])
+                        # temp_state_dict = {
+                        #     "layer_norm.weight": state_dict[state_adapter_key + '.layer_norm.weight'],
+                        #     "layer_norm.bias": state_dict[state_adapter_key + '.layer_norm.bias'],
+                        #     "linear_in.weight": state_dict[state_adapter_key + '.linear_in.weight'],
+                        #     "linear_out.weight": state_dict[state_adapter_key + '.linear_out.weight']
+                        # }
+                        temp_state_dict = state_dict[name + ":" + adapter_key]
+                        adapter_module.load_state_dict(temp_state_dict, strict)
                         # adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 

@@ -95,7 +95,9 @@ def main(cfg) -> None:
     frozen_model_cfg.optim = cfg.model.optim
     frozen_model_cfg.restore_from_path = cfg.model.restore_from_path
     frozen_model_cfg.eval = cfg.model.eval
-    frozen_model_cfg.pop("shape_file")
+    frozen_model_cfg.add_position_embedding = cfg.model.add_position_embedding
+    if "shape_file" in frozen_model_cfg:
+        frozen_model_cfg.pop("shape_file")
     # frozen_model_cfg.tensor_model_parallel_size = 4
 
     model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
