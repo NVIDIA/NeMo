@@ -345,7 +345,7 @@ class NLPDDPStrategy(DDPStrategy):
         # check if filepath is a distributed checkpoint
         if ckpt_to_dir(filepath).is_dir():
             if self.is_global_zero:
-                shutil.rmtree(self._ckpt_to_dir(filepath))
+                shutil.rmtree(ckpt_to_dir(filepath))
 
         else:
             app_state = AppState()
