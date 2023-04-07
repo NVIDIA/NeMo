@@ -99,9 +99,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # This means we can only use pipeline parallelism without the interleaved schedule.
         if isinstance(self.trainer.accelerator, CPUAccelerator):
             logging.warning("Using CPUAccelerator, model will be built on CPU.")
-            self.enc_dec_model = nlp_overrides.build_model_cpu(
+            self.enc_dec_model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
+                on_cpu=True,
                 model_type=ModelType.encoder_and_decoder,
             )[0]
         else:

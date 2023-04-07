@@ -49,7 +49,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, build_model_cpu
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -110,9 +110,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
-            self.model = build_model_cpu(
+            self.model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
+                on_cpu=True,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
