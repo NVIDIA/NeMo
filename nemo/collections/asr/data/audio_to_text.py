@@ -170,6 +170,7 @@ class ASRManifestProcessor:
 
         return t, tl
 
+
 def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size: int, global_rank: int):
     valid_shard_strategies = ['scatter', 'replicate']
     if shard_strategy not in valid_shard_strategies:
@@ -193,9 +194,7 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
         sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths))
 
     # Expand store paths into WebDataset URLs
-    sharded_filepaths = [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in sharded_filepaths
-    ]
+    sharded_filepaths = [datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in sharded_filepaths]
 
     # Check for distributed and partition shards accordingly
     if world_size > 1:
@@ -343,6 +342,7 @@ def cache_datastore_manifests(
                 'initialized, please update data config to use `defer_setup = True`.'
             )
 
+
 def shard_manifests_if_needed(
     manifest_filepaths: Union[str, List[str]],
     shard_strategy: str,
@@ -359,7 +359,7 @@ def shard_manifests_if_needed(
             logging.warning(
                 'Manifest sharding was requested but torch.distributed is not initialized '
                 'Did you intend to set the defer_setup flag?'
-                )
+            )
             return manifest_filepaths
 
         manifest_filepaths = expand_sharded_filepaths(
@@ -370,6 +370,7 @@ def shard_manifests_if_needed(
         )
 
     return manifest_filepaths
+
 
 class _AudioTextDataset(Dataset):
     """
@@ -807,7 +808,7 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         # Shard manifests if necessary and possible
         manifest_filepath = shard_manifests_if_needed(
-            shard_manifests=shard_manifests, 
+            shard_manifests=shard_manifests,
             shard_strategy=shard_strategy,
             manifest_filepaths=manifest_filepath,
             world_size=world_size,
@@ -964,7 +965,6 @@ class _TarredAudioToTextDataset(IterableDataset):
 
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
-
 
     def __iter__(self):
         return self._dataset.__iter__()
