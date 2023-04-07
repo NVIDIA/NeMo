@@ -1252,6 +1252,9 @@ class RNNTDecodingConfig:
     # compute language IDs
     compute_langs: bool = False
 
+    # return only encoder embeddings:
+    return_encoder_embeddings: bool = False
+
     # token representing word seperator
     word_seperator: str = " "
 
