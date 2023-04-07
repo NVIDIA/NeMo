@@ -240,7 +240,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             **self._build_train_valid_test_datasets_kwargs,
         )
 
-        # print(self.tokenizer.ids_to_text(self._train_ds.datasets[0][60]["text_enc"]))
+        logging.info("---->", self.tokenizer.ids_to_text(self._train_ds.datasets[0][60]["text_enc"]))
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         logging.info(f'Length of test dataset: {len(self._test_ds)}')
