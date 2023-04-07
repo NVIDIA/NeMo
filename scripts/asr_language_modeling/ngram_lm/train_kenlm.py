@@ -64,7 +64,7 @@ def main():
         required=True,
         nargs="+",
         type=str,
-        help="Path to the training files or whitespace separated files. Files can be a text file, JSON manifest or .json.gz",
+        help="Path to the training files, or whitespace separated files, or folder with files. Files can be a text file, JSON manifest or .json.gz",
     )
 
     parser.add_argument(
@@ -83,10 +83,10 @@ def main():
         required=False,
         nargs="+",
         type=str,
-        help="Whitespace separated digits. Example: 0 0 1",
+        help="Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation ",
     )
     parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
-    parser.add_argument("--cache_path", required=False, type=str, default=None, help="Cache path")
+    parser.add_argument("--cache_path", required=False, type=str, default=None, help="Cache path to save tokenized files")
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
