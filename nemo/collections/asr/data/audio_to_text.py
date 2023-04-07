@@ -344,8 +344,8 @@ def cache_datastore_manifests(
             )
 
 def shard_manifests(
-    shard_manifests: bool = False,
     manifest_filepaths: Union[str, List[str]],
+    shard_manifests: bool = False,
 ):
     if shard_manifests:
         if not torch.distributed.is_available():
