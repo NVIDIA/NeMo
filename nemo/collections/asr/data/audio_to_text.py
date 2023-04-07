@@ -971,12 +971,14 @@ class _TarredAudioToTextDataset(IterableDataset):
 
     def _compute_len(self):
         if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
-            self.len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
+            my_len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
             torch.distributed.all_reduce(self.len)
-            self.len = self.len.int()
-            logging.debug(f'sharded - all reduced manifest len {self.len}')
+            my_len = self.len.int()
+            logging.debug(f'sharded - all reduced manifest len {my_len}')
         else:
-            self.len = len(self.manifest_processor.collection)
+            my_len = len(self.manifest_processor.collection)
+
+        return my_len
 
     def __len__(self):
         return self.len
