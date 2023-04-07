@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
+    PromptEncoderAdapterConfig
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -341,6 +342,46 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
                         raise ValueError(f"Adapter Key {adapter_key} is unknown.")
                     if model_utils.import_class_by_path(cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=cfg)
+
+        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
+
+    @classmethod
+    def list_available_models(cls):
+        pass
+
+
+class MegatronPTuningAdapterLearningModel(MegatronGPTBaseAdapterModel):
+    """
+    TODO: 
+    """
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer)
+        self.adapter_name_keys = [AdapterName.PTUNING_ADAPTER]
+        for _, layer in self.frozen_model.named_modules():
+            if hasattr(layer, 'activations_checkpoint_method'):
+                layer.activations_checkpoint_method = (
+                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                )
+
+        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+
+        adapter_cfg = PromptEncoderAdapterConfig(
+            cfg.prompt_encoder_adapter.virtual_tokens,
+            cfg.prompt_encoder_adapter.bottleneck_dim,
+            cfg.prompt_encoder_adapter.embedding_dim, 
+            cfg.prompt_encoder_adapter.init_std, 
+            self.frozen_model_cfg.hidden_size,
+            )
+
+        self.frozen_model.freeze()
+        for _, module in self.frozen_model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=adapter_key, cfg=adapter_cfg,
+                        )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
