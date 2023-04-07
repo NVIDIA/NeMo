@@ -18,7 +18,10 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel,MegatronPTuningAdapterLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import (
+    MegatronGPTAdapterLearningModel,
+    MegatronPTuningAdapterLearningModel,
+)
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
