@@ -17,6 +17,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
 try:
     from megatron.core import parallel_state
     from megatron.core.enums import ModelType
@@ -24,6 +26,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelType = ApexGuardDefaults()
 
     HAVE_MEGATRON_CORE = False
 
