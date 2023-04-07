@@ -347,6 +347,8 @@ def shard_manifests_if_needed(
     manifest_filepaths: Union[str, List[str]],
     shard_strategy: str,
     shard_manifests: bool,
+    global_rank: int,
+    world_size: int,
 ):
     if shard_manifests:
         if not torch.distributed.is_available():
@@ -807,7 +809,9 @@ class _TarredAudioToTextDataset(IterableDataset):
         manifest_filepath = shard_manifests_if_needed(
             shard_manifests=shard_manifests, 
             shard_strategy=shard_strategy,
-            manifest_filepaths=manifest_filepath
+            manifest_filepaths=manifest_filepath,
+            world_size=world_size,
+            global_rank=global_rank,
         )
 
         self.manifest_processor = ASRManifestProcessor(
