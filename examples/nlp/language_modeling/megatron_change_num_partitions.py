@@ -479,7 +479,7 @@ def split_partition(
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--model_file", type=str, required=True, help="Path to source .nemo file")
+    parser.add_argument("--model_file", type=str, default=None, required=False, help="Path to source .nemo file")
     parser.add_argument("--target_file", type=str, required=True, help="Path to write target .nemo file")
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=-1, required=False, help="TP size of source model"
@@ -558,6 +558,9 @@ def main():
     pipeline_model_parallel_split_rank = args.target_pipeline_model_parallel_split_rank
     cls = model_utils.import_class_by_path(args.model_class)
 
+    if args.model_file is None and args.model_extracted_dir is None:
+        raise ValueError("Cannot pass model_file and model_extracted_dir as None at the same time.")
+
     trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
 
     if tp_size < 0 or pp_size < 0:
@@ -620,8 +623,13 @@ def main():
                     logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
                     save_restore_connector.model_extracted_dir = args.model_extracted_dir
 
+                if args.model_file is not None:
+                    model_filepath = args.model_file
+                else:
+                    model_filepath = args.model_extracted_dir
+
                 model = cls.restore_from(
-                    restore_path=args.model_file,
+                    restore_path=model_filepath,
                     trainer=trainer,
                     map_location=torch.device("cpu"),
                     save_restore_connector=save_restore_connector,
@@ -690,7 +698,24 @@ def main():
     else:
         # If input model has TP = 1 and PP = 1
         app_state.model_parallel_size = 1
-        model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
+
+        save_restore_connector = NLPSaveRestoreConnector()
+
+        if args.model_extracted_dir is not None:
+            logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+            save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
+        if args.model_file is not None:
+            model_filepath = args.model_file
+        else:
+            model_filepath = args.model_extracted_dir
+
+        model = cls.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+        )
         model.to(dtype=dtype)
 
     # If target model has TP > 1 or PP > 1
