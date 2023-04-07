@@ -502,7 +502,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         """ Format the input example according to the template """
         for field in prompt_template_fields:
             if field in doc.keys():
-                if not self.for_train and field == "answer":
+                if not self.for_train and field == "answer": # during inference, do not use text in answer field
                     input_example = input_example.replace('{' + field + '}', "")
                 field_text = doc[field]
                 input_example = input_example.replace('{' + field + '}', field_text)
