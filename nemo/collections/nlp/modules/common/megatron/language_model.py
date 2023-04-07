@@ -669,7 +669,19 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         if self.pre_process and encoder_input is None:
 
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
-
+            if self.is_adapter_available():
+                _sq, _bs, _hs = encoder_input.size()
+                ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
+                if ptuning_adapter:
+                    strategy = ptuning_adapter.adapter_strategy
+                    virtual_embeddings = self.forward_single_enabled_adapter_(
+                        _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
+                    )
+                    _v = ptuning_adapter.virtual_tokens
+                    encoder_input = encoder_input[
+                        _v:, :, :
+                    ]  # the first _v tokens are pads so that they can be swapped out with virtual embeddings.
+                    encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         else:
             pass
 
@@ -694,19 +706,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         else:
             rotary_pos_emb = None
-        if self.is_adapter_available():
-            _sq, _bs, _hs = encoder_input.size()
-            ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
-            if ptuning_adapter:
-                strategy = ptuning_adapter.adapter_strategy
-                virtual_embeddings = self.forward_single_enabled_adapter_(
-                    _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
-                )
-                _v = ptuning_adapter.virtual_tokens
-                encoder_input = encoder_input[
-                    _v:, :, :
-                ]  # the first _v tokens are pads so that they can be swapped out with virtual embeddings.
-                encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
+        
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
