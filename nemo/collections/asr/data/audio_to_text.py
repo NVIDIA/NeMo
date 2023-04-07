@@ -768,6 +768,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         shard_strategy: str = "scatter",
+        shard_manifests: bool = False,
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
@@ -775,12 +776,13 @@ class _TarredAudioToTextDataset(IterableDataset):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
-        manifest_filepath = expand_sharded_filepaths(
-            sharded_filepaths=manifest_filepath,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
-        )
+        if shard_manifests:
+            manifest_filepath = expand_sharded_filepaths(
+                sharded_filepaths=manifest_filepath,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -793,6 +795,13 @@ class _TarredAudioToTextDataset(IterableDataset):
             pad_id=pad_id,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
+
+        if shard_manifests:
+            self.len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32)
+            torch.distributed.all_reduce(self.len, op=ReduceOp.SUM)
+            self.len = self.len.int()
+        else:
+            self.len = len(self.manifest_processor.collection)
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -935,7 +944,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def __len__(self):
-        return len(self.manifest_processor.collection)
+        return self.len
 
 
 class TarredAudioToCharDataset(_TarredAudioToTextDataset):
