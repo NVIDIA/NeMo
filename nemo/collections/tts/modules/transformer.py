@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import List, Optional
-from omegaconf import DictConfig
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.tts.modules.submodules import LinearNorm
@@ -51,6 +51,7 @@ class PositionalEmbedding(nn.Module):
         else:
             return pos_emb[None, :, :]
 
+
 class _LayerNorm(nn.Module):
     def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
         super(_LayerNorm, self).__init__()
@@ -58,11 +59,11 @@ class _LayerNorm(nn.Module):
         self.eps = eps
         self.spk_emb_dim = spk_emb_dim
         self.condition = condition
-        
-        # TODO, old model don't have the weight and bias  
+
+        # TODO, old model don't have the weight and bias
         if condition:
             self.weight = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            self.bias = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)        
+            self.bias = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
             nn.init.constant_(self.weight.weight, 0.0)
             nn.init.constant_(self.bias.weight, 0.0)
             if bias:
@@ -73,7 +74,7 @@ class _LayerNorm(nn.Module):
             self.bias = nn.Parameter(torch.empty((self.normalized_shape,)))
 
     def forward(self, inp, conditioning=None):
-        
+
         # Normalize along channel for one time
         if conditioning is not None and self.condition:
             inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), eps=self.eps)
@@ -82,10 +83,13 @@ class _LayerNorm(nn.Module):
             inp *= scale
             inp += bias
         else:
-            inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps)
-        
+            inp = F.layer_norm(
+                inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps
+            )
+
         return inp
-    
+
+
 class PositionwiseConvFF(nn.Module):
     def __init__(self, d_model, d_inner, kernel_size, dropout, condition_lnorm=False, pre_lnorm=False):
         super(PositionwiseConvFF, self).__init__()
@@ -104,8 +108,8 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        
-        self.layer_norm = _LayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)    
+
+        self.layer_norm = _LayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -199,28 +203,41 @@ class MultiHeadAttn(nn.Module):
         return output
 
 
-class TransformerLayer(nn.Module,  adapter_mixins.AdapterModuleMixin):
+class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, condition_lnorm, **kwargs):
         super(TransformerLayer, self).__init__()
 
         self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_lnorm=condition_lnorm, **kwargs)
-        self.pos_ff = PositionwiseConvFF(d_model, d_inner, kernel_size, dropout, condition_lnorm=condition_lnorm, pre_lnorm=kwargs.get('pre_lnorm'))
+        self.pos_ff = PositionwiseConvFF(
+            d_model, d_inner, kernel_size, dropout, condition_lnorm=condition_lnorm, pre_lnorm=kwargs.get('pre_lnorm')
+        )
 
     def forward(self, dec_inp, mask=None, conditioning=None):
         output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2), conditioning=conditioning)
         output *= mask
         output = self.pos_ff(output, conditioning)
         output *= mask
-        
+
         if self.is_adapter_available():
             output = self.forward_enabled_adapters(output)
 
         return output
-    
+
 
 class FFTransformerDecoder(NeuralModule):
     def __init__(
-        self, n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb=0.0, pre_lnorm=False, condition_lnorm=False
+        self,
+        n_layer,
+        n_head,
+        d_model,
+        d_head,
+        d_inner,
+        kernel_size,
+        dropout,
+        dropatt,
+        dropemb=0.0,
+        pre_lnorm=False,
+        condition_lnorm=False,
     ):
         super(FFTransformerDecoder, self).__init__()
         self.d_model = d_model
@@ -234,7 +251,15 @@ class FFTransformerDecoder(NeuralModule):
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
-                    n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt=dropatt, condition_lnorm=condition_lnorm, pre_lnorm=pre_lnorm
+                    n_head,
+                    d_model,
+                    d_head,
+                    d_inner,
+                    kernel_size,
+                    dropout,
+                    dropatt=dropatt,
+                    condition_lnorm=condition_lnorm,
+                    pre_lnorm=pre_lnorm,
                 )
             )
 
@@ -261,10 +286,10 @@ class FFTransformerDecoder(NeuralModule):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
         inp += pos_emb
-        
+
         if conditioning is not None:
             inp += conditioning
-            
+
         out = self.drop(inp)
 
         for layer in self.layers:
@@ -272,7 +297,7 @@ class FFTransformerDecoder(NeuralModule):
 
         # out = self.drop(out)
         return out, mask
-    
+
 
 class FFTransformerEncoder(FFTransformerDecoder):
     def __init__(
@@ -293,7 +318,17 @@ class FFTransformerEncoder(FFTransformerDecoder):
         condition_lnorm=False,
     ):
         super(FFTransformerEncoder, self).__init__(
-            n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb, pre_lnorm, condition_lnorm,
+            n_layer,
+            n_head,
+            d_model,
+            d_head,
+            d_inner,
+            kernel_size,
+            dropout,
+            dropatt,
+            dropemb,
+            pre_lnorm,
+            condition_lnorm,
         )
 
         self.padding_idx = padding_idx
@@ -358,6 +393,7 @@ class FFTransformer(nn.Module):
         out = self.dense(out).transpose(1, 2)
         return out
 
+
 class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
 
     # Higher level forwarding
@@ -400,4 +436,3 @@ if adapter_mixins.get_registered_adapter(FFTransformerEncoder) is None:
 
 if adapter_mixins.get_registered_adapter(FFTransformerDecoder) is None:
     adapter_mixins.register_adapter(base_class=FFTransformerDecoder, adapter_class=FFTransformerDecoderAdapter)
-    

@@ -66,13 +66,15 @@ class P_voiced(TTSDataType):
 class LMTokens(TTSDataType):
     name = "lm_tokens"
 
+
 class GSTRefAudio(TTSDataType, WithLens):
     name = "gst_ref_audio"
 
 
 class SpeakerEmbedding(TTSDataType):
     name = "speaker_embedding"
-    
+
+
 MAIN_DATA_TYPES = [Audio, Text]
 VALID_SUPPLEMENTARY_DATA_TYPES = [
     LogMel,

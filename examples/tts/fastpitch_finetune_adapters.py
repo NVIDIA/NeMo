@@ -85,8 +85,7 @@ def main(cfg):
     # Initialize FastPitchModel
     model = FastPitchModel(cfg=update_model_config_to_support_adapter(cfg.model), trainer=trainer)
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
-    
-    
+
     # Extract adapter parameters
     with open_dict(cfg.model.adapter):
         # get bool variable to determine if weighted speaker embeddings should be used or not
@@ -100,7 +99,7 @@ def main(cfg):
         # Name of the adapter checkpoint which will be saved after training
         adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
         weight_speaker_state_dict_name = cfg.model.adapter.pop("weight_speaker_state_dict_name", None)
-        
+
         # augment adapter name with module name, if not provided by user
         if adapter_module_name is not None and ':' not in adapter_name:
             adapter_name = f'{adapter_module_name}:{adapter_name}'
@@ -110,21 +109,21 @@ def main(cfg):
 
     # Freeze model
     model.freeze()
-    
+
     # Add weighted speaker embedding module in speaker representation
     if add_weight_speaker and model.fastpitch.speaker_emb is not None:
         old_emb = model.fastpitch.speaker_emb
         new_emb = WeightedSpeakerEmbedding(pretrained_embedding=old_emb, speaker_list=add_weight_speaker_list)
         model.fastpitch.speaker_emb = new_emb
         model.fastpitch.speaker_emb.embedding_weight.requires_grad = True
-        
+
     ############ Current experiment - unfreeze gst and titanet embedding
     # for name, param in model.fastpitch.speaker_encoder.gst_module.style_attention.named_parameters():
     # for name, param in model.fastpitch.speaker_encoder.gst_module.named_parameters():
     # for name, param in model.fastpitch.speaker_encoder.sv_projection_module.named_parameters():
     #     param.requires_grad = True
     ############ Current experiment - unfreeze gst and titanet embedding
-    
+
     # Setup adapters
     if adapter_global_cfg is not None:
         add_global_adapter_cfg(model, adapter_global_cfg)
@@ -135,14 +134,14 @@ def main(cfg):
     # enable adapters
     model.set_enabled_adapters(enabled=False)
     model.set_enabled_adapters(adapter_name, enabled=True)
-    
+
     # Set model to training mode.
     model = model.train()
     # Then, Unfreeze just the adapter weights that were enabled above (no part of model)
     model.unfreeze_enabled_adapters()
     # summarize the model
     model.summarize()
-    
+
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
@@ -157,7 +156,10 @@ def main(cfg):
 
         # Save the adapter modules in a seperate file
         model.save_adapters(os.path.join(state_path, adapter_state_dict_name))
-        torch.save(model.state_dict()['fastpitch.speaker_emb.embedding_weight'], os.path.join(state_path, weight_speaker_state_dict_name))
+        torch.save(
+            model.state_dict()['fastpitch.speaker_emb.embedding_weight'],
+            os.path.join(state_path, weight_speaker_state_dict_name),
+        )
 
 
 if __name__ == '__main__':

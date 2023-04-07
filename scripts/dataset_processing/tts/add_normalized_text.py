@@ -13,6 +13,7 @@ sys.path.append(f"{BASE_DIR}")
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 
+
 def get_normalizer():
     with tempfile.TemporaryDirectory() as data_dir:
         # data_dir = BASE_DIR / "data" / "normalizer"
@@ -56,7 +57,7 @@ def main():
 
     for record, text_normalized in zip(records, texts_normalized):
         record[text_normalized_key] = text_normalized
-    
+
     write_manifest(args.dst, records)
 
 

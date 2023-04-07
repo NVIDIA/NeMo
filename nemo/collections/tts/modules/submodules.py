@@ -12,20 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
 from collections import OrderedDict
+from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
+
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
-from nemo.core.neural_types.elements import (
-    EncodedRepresentation,
-    MelSpectrogramType,
-    Index,
-    TokenDurationType
-)
+from nemo.core.neural_types.elements import EncodedRepresentation, Index, MelSpectrogramType, TokenDurationType
 from nemo.core.neural_types.neural_type import NeuralType
 
 
@@ -185,10 +181,10 @@ class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
             ret = self.conv(signal)
             if self.norm is not None:
                 ret = self.norm(ret)
-                
+
         if self.is_adapter_available():
-            ret = self.forward_enabled_adapters(ret.transpose(1,2)).transpose(1, 2)
-            
+            ret = self.forward_enabled_adapters(ret.transpose(1, 2)).transpose(1, 2)
+
         return ret
 
 
@@ -424,6 +420,7 @@ class WaveNet(torch.nn.Module):
 
         return self.end(output)
 
+
 class WeightedSpeakerEmbedding(torch.nn.Module):
     def __init__(self, pretrained_embedding, speaker_list=[]):
         super().__init__()
@@ -446,22 +443,29 @@ class GlobalStyleToken(NeuralModule):
     """
     Global Style Token based Speaker Embedding
     """
-    def __init__(self, 
-                 cnn_filters=[32, 32, 64, 64, 128, 128], 
-                 dropout=0.2, 
-                 gru_hidden=128,
-                 gst_size=128, 
-                 n_style_token=10, 
-                 n_style_attn_head=4):
-        super(GlobalStyleToken, self).__init__()    
-        self.reference_encoder = ReferenceEncoderUtteranceLevel(cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gru_hidden)
-        self.style_attention = StyleAttention(gru_hidden=gru_hidden, gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head)
+
+    def __init__(
+        self,
+        cnn_filters=[32, 32, 64, 64, 128, 128],
+        dropout=0.2,
+        gru_hidden=128,
+        gst_size=128,
+        n_style_token=10,
+        n_style_attn_head=4,
+    ):
+        super(GlobalStyleToken, self).__init__()
+        self.reference_encoder = ReferenceEncoderUtteranceLevel(
+            cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gru_hidden
+        )
+        self.style_attention = StyleAttention(
+            gru_hidden=gru_hidden, gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head
+        )
 
     @property
     def input_types(self):
         return {
-            "inp":NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "inp_mask":NeuralType(('B', 'T_spec', 1), TokenDurationType()),
+            "inp": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "inp_mask": NeuralType(('B', 'T_spec', 1), TokenDurationType()),
         }
 
     @property
@@ -498,21 +502,14 @@ class ReferenceEncoderUtteranceLevel(NeuralModule):
                             ),
                         ),
                         ("relu_{}".format(i + 1), torch.nn.ReLU()),
-                        (
-                            "layer_norm_{}".format(i + 1),
-                            torch.nn.LayerNorm(self.filter_size[i + 1]),
-                        ),
+                        ("layer_norm_{}".format(i + 1), torch.nn.LayerNorm(self.filter_size[i + 1]),),
                         ("dropout_{}".format(i + 1), torch.nn.Dropout(self.dropout)),
                     )
                 ]
             )
         )
 
-        self.gru = torch.nn.GRU(
-            input_size=cnn_filters[-1] * 2,
-            hidden_size=gru_hidden,
-            batch_first=True,
-        )
+        self.gru = torch.nn.GRU(input_size=cnn_filters[-1] * 2, hidden_size=gru_hidden, batch_first=True,)
 
     @property
     def input_types(self):
@@ -528,7 +525,7 @@ class ReferenceEncoderUtteranceLevel(NeuralModule):
         }
 
     def forward(self, inputs, inputs_masks):
-        inputs = inputs.transpose(1,2)
+        inputs = inputs.transpose(1, 2)
 
         inputs = inputs * inputs_masks
         out = inputs.unsqueeze(3)
@@ -613,13 +610,13 @@ class SVEmbeddingLinearProjectionNetwork(torch.nn.Module):
         # return self.act_fn(self.bn1(x)).unsqueeze(1)
 
 
-
 class SpeakerEncoder(torch.nn.Module):
     """
     class SpeakerEncoder represents speakers representation. This module can combine GST (global style token)
     based speaker embeddings, speaker embeddings from speaker verificaiton models and lookup table speaker
     embeddings.
     """
+
     def __init__(self, gst_module=None, sv_projection_module=None, lookup_emb_projection_module=None):
         """
         Constructor.
@@ -627,7 +624,7 @@ class SpeakerEncoder(torch.nn.Module):
             - gst_module: Neural module to get GST based speaker embedding
             - sv_projection_module: Neural module to get Speaker Verification based speaker embedding
             - lookup_emb_projection_module: Neural module to project lookup speaker embedding
-        """ 
+        """
         super(SpeakerEncoder, self).__init__()
         self.gst_module = gst_module
         self.sv_projection_module = sv_projection_module
@@ -646,13 +643,14 @@ class SpeakerEncoder(torch.nn.Module):
                 .to(gst_ref_spec.device)
                 .expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max())
                 < gst_ref_spec_lens.unsqueeze(1)
-             ).unsqueeze(2)
+            ).unsqueeze(2)
             x += self.gst_module(gst_ref_spec, ref_spec_mask).unsqueeze(1)
 
-        # Project speaker embedding from Speaker Verification based 
+        # Project speaker embedding from Speaker Verification based
         if self.sv_projection_module is not None and speaker_embedding is not None:
             x += self.sv_projection_module(speaker_embedding)
         return x
+
 
 class Conv2d(torch.nn.Module):
     """

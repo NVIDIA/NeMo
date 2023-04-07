@@ -43,14 +43,14 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from typing import List, Optional
-from omegaconf import DictConfig
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.tts.modules.transformer import _LayerNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
-from nemo.core.classes import NeuralModule, typecheck, adapter_mixins
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
@@ -95,10 +95,10 @@ class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
         out = torch.nn.functional.relu(self.conv(signal))
         out = self.norm(out.transpose(1, 2), conditioning).transpose(1, 2)
         out = self.dropout(out)
-        
+
         if self.is_adapter_available():
             out = self.forward_enabled_adapters(out.transpose(1, 2)).transpose(1, 2)
-            
+
         return out
 
 
@@ -112,14 +112,17 @@ class TemporalPredictor(NeuralModule):
         for i in range(n_layers):
             self.layers.append(
                 ConvReLUNorm(
-                    input_size if i == 0 else filter_size, filter_size, kernel_size=kernel_size, dropout=dropout, 
-                    speaker_size = input_size, 
-                    condition_lnorm = condition_lnorm
+                    input_size if i == 0 else filter_size,
+                    filter_size,
+                    kernel_size=kernel_size,
+                    dropout=dropout,
+                    speaker_size=input_size,
+                    condition_lnorm=condition_lnorm,
                 )
-            )        
+            )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
         self.filter_size = filter_size
-        
+
     @property
     def input_types(self):
         return {
@@ -133,20 +136,21 @@ class TemporalPredictor(NeuralModule):
         return {
             "out": NeuralType(('B', 'T'), EncodedRepresentation()),
         }
-    
+
     def forward(self, enc, enc_mask, conditioning=None):
         if conditioning is not None:
             enc = enc + conditioning
-            
+
         out = enc * enc_mask
-        out = out.transpose(1,2)
-        
+        out = out.transpose(1, 2)
+
         for layer in self.layers:
             out = layer(out, conditioning=conditioning)
-        
-        out = out.transpose(1,2)
+
+        out = out.transpose(1, 2)
         out = self.fc(out) * enc_mask
         return out.squeeze(-1)
+
 
 class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMixin):
 
@@ -174,14 +178,15 @@ class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMi
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.filter_size)
         return cfg
-    
+
+
 """
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(TemporalPredictor) is None:
     adapter_mixins.register_adapter(base_class=TemporalPredictor, adapter_class=TemporalPredictorAdapter)
-    
-    
+
+
 class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
     def __init__(
         self,
@@ -217,7 +222,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.speaker_emb_condition_prosody = speaker_emb_condition_prosody
         self.speaker_emb_condition_decoder = speaker_emb_condition_decoder
         self.speaker_emb_condition_aligner = speaker_emb_condition_aligner
-    
+
         # TODO: combine self.speaker_emb with self.speaker_encoder
         if n_speakers > 1:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
@@ -311,18 +316,18 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             spk_emb = None
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
-            
+
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
-                spk_emb=spk_emb, 
+                spk_emb=spk_emb,
                 gst_ref_spec=gst_ref_spec,
                 gst_ref_spec_lens=gst_ref_spec_lens,
                 speaker_embedding=speaker_embedding,
             )
-            
+
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-        
+
         # Predict duration
         if self.speaker_emb_condition_prosody:
             log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
@@ -348,7 +353,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb)
         else:
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-            
+
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
@@ -432,7 +437,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
         else:
             log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-        
+
         durs_predicted = torch.clamp(
             torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
         )
@@ -440,7 +445,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb) + pitch
         else:
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
-            
+
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
