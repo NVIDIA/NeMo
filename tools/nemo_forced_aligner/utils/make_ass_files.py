@@ -43,8 +43,90 @@ def make_ass_files(
     if not utt_obj.segments_and_tokens:
         return utt_obj
 
+    if ass_file_config.resegment_text_to_fill_space:
+        utt_obj = resegment_utt_obj(utt_obj, ass_file_config)
+
     utt_obj = make_word_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
     utt_obj = make_token_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
+
+    return utt_obj
+
+
+def _get_word_n_chars(word):
+    n_chars = 0
+    for token in word.tokens:
+        if token.text != BLANK_TOKEN:
+            n_chars += len(token.text)
+    return n_chars
+
+
+def _get_segment_n_chars(segment):
+    n_chars = 0
+    for word_or_token in segment.words_and_tokens:
+        if word_or_token.text == SPACE_TOKEN:
+            n_chars += 1
+        elif word_or_token.text != BLANK_TOKEN:
+            n_chars += len(word_or_token.text)
+    return n_chars
+
+
+def resegment_utt_obj(utt_obj, ass_file_config):
+
+    # get list of just all words and tokens
+    all_words_and_tokens = []
+    for segment_or_token in utt_obj.segments_and_tokens:
+        if type(segment_or_token) is Segment:
+            all_words_and_tokens.extend(segment_or_token.words_and_tokens)
+        else:
+            all_words_and_tokens.append(segment_or_token)
+
+    # figure out how many chars will fit into one 'slide' and thus should be the max
+    # size of a segment
+    approx_chars_per_line = (PLAYERRESX - MARGINL - MARGINR) / (
+        ass_file_config.fontsize * 0.6
+    )  # assume chars 0.6 as wide as they are tall
+    approx_lines_per_segment = (PLAYERRESY - ass_file_config.marginv) / (
+        ass_file_config.fontsize * 1.15
+    )  # assume line spacing is 1.15
+    if approx_lines_per_segment > ass_file_config.max_lines_per_segment:
+        approx_lines_per_segment = ass_file_config.max_lines_per_segment
+
+    max_chars_per_segment = int(approx_chars_per_line * approx_lines_per_segment)
+    print('max chars per segment', max_chars_per_segment)
+
+    # currently this breaks the convention of tokens at the end/beginning
+    # of segments being listed as separate tokens in segment.word_and_tokens
+    # TODO: change code so we follow this convention
+    all_words_and_tokens_pointer = 0
+    new_segments_and_tokens = [Segment()]
+
+    while all_words_and_tokens_pointer < len(all_words_and_tokens):
+        word_or_token = all_words_and_tokens[all_words_and_tokens_pointer]
+        if type(word_or_token) is Word:
+
+            # if this is going to be the first word in the segment, we definitely want
+            # to add it to the segment
+            if not new_segments_and_tokens[-1].words_and_tokens:
+                new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
+
+            else:
+                # if not the first word, check what the new length of the segment will be
+                # if short enough - add this word to this segment;
+                # if too long - add to a new segment
+                this_word_n_chars = _get_word_n_chars(word_or_token)
+                segment_so_far_n_chars = _get_segment_n_chars(new_segments_and_tokens[-1])
+                if this_word_n_chars + segment_so_far_n_chars < max_chars_per_segment:
+                    new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
+                else:
+                    new_segments_and_tokens.append(Segment())
+                    new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
+
+        else:  # i.e. word_or_token is a token
+            new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
+
+        all_words_and_tokens_pointer += 1
+
+    utt_obj.segments_and_tokens = new_segments_and_tokens
 
     return utt_obj
 

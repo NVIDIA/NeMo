@@ -94,6 +94,8 @@ class CTMFileConfig:
 class ASSFileConfig:
     fontsize: int = 20
     marginv: int = 20
+    resegment_text_to_fill_space: bool = False
+    max_lines_per_segment: int = 2
 
 
 @dataclass
