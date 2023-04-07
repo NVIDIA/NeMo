@@ -34,7 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
-    PromptEncoderAdapterConfig
+    PromptEncoderAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -369,10 +369,10 @@ class MegatronPTuningAdapterLearningModel(MegatronGPTBaseAdapterModel):
         adapter_cfg = PromptEncoderAdapterConfig(
             cfg.prompt_encoder_adapter.virtual_tokens,
             cfg.prompt_encoder_adapter.bottleneck_dim,
-            cfg.prompt_encoder_adapter.embedding_dim, 
-            cfg.prompt_encoder_adapter.init_std, 
+            cfg.prompt_encoder_adapter.embedding_dim,
+            cfg.prompt_encoder_adapter.init_std,
             self.frozen_model_cfg.hidden_size,
-            )
+        )
 
         self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():

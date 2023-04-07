@@ -163,12 +163,7 @@ class GPTPromptLearningDataset(Dataset):
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
                 input_ids = self._truncate_input(
-                    truncation_field,
-                    input_ids,
-                    taskname,
-                    doc,
-                    prompt_template,
-                    prompt_template_fields,
+                    truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields,
                 )
 
             # Skip example if the final length doesn't fit length requirements even after truncation
@@ -225,7 +220,6 @@ class GPTPromptLearningDataset(Dataset):
             placeholder_start = len(prompt_template) - answer_placeholder_len
             assert prompt_template[placeholder_start:] == answer_placeholder, "Answer field must be at prompt end"
 
-
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
         for field in prompt_template_fields:
@@ -241,7 +235,7 @@ class GPTPromptLearningDataset(Dataset):
         return input_example.strip(" ")
 
     def _truncate_input(
-        self, truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields, 
+        self, truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields,
     ):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
