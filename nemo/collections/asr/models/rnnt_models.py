@@ -212,7 +212,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         self,
         paths2audio_files: List[str],
         batch_size: int = 4,
-        return_encoder_embiddings: bool = False,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
@@ -229,7 +228,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Recommended length per file is between 5 and 25 seconds. \
         But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
-            return_encoder_embiddings: (bool) pass True to get encoder embiddings instead of transcripts.
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
@@ -244,9 +242,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
-        if return_hypotheses and return_encoder_embiddings:
+        if return_hypotheses and self.cfg.decoding.return_encoder_embeddings:
             raise ValueError(
-                "Either `return_hypotheses` or `return_encoder_embiddings` can be True at any given time."
+                "Either `return_hypotheses` or `self.cfg.decoding.return_encoder_embeddings` can be True at any given time."
             )
         # We will store transcriptions here
         hypotheses = []
@@ -295,7 +293,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    if return_encoder_embiddings:
+                    if self.cfg.decoding.return_encoder_embeddings:
                         # dump encoder embeddings per file
                         for idx in range(encoded.shape[0]):
                             encoded_no_pad = encoded[idx, :, :encoded_len[idx]]
