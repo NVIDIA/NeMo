@@ -249,14 +249,18 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             batch_size, _ = discrete_token_ids.size()
             virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
             num_vt = self.prompt_encoder.total_virtual_tokens
-            assert(discrete_token_ids[:, :num_vt] == self.pad_token_id).all(), "Some inputs that the virtual embeddings will override non-pad tokens."
+            assert (
+                discrete_token_ids[:, :num_vt] == self.pad_token_id
+            ).all(), "Some inputs that the virtual embeddings will override non-pad tokens."
             discrete_token_embeds = discrete_token_embeds[:, num_vt:, :]  # throw away first num_vt representations
-            discrete_token_embeds = torch.cat([virtual_token_embeds, discrete_token_embeds], dim=1)  # add virtual token embeds on the left
+            discrete_token_embeds = torch.cat(
+                [virtual_token_embeds, discrete_token_embeds], dim=1
+            )  # add virtual token embeds on the left
         else:
             raise ValueError("invalid VirtualPromptSource.")
 
         return discrete_token_embeds
-    
+
     def forward(
         self,
         input_ids,

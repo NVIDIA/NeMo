@@ -149,7 +149,9 @@ class GPTPromptLearningDataset(Dataset):
             )
 
             # Format the input example according to the template
-            input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()  # Ignores virtual prompt positions in template...
+            input_example = input_example.replace(
+                "<|VIRTUAL_PROMPT_0|>", ""
+            ).strip()  # Ignores virtual prompt positions in template...
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
@@ -158,7 +160,9 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
-            pad = [self.pad_token_id] * total_virtual_tokens  # Pad tokens are placed and will be replaced by virtual embeddings.
+            pad = [
+                self.pad_token_id
+            ] * total_virtual_tokens  # Pad tokens are placed and will be replaced by virtual embeddings.
             input_ids = pad + input_ids
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
