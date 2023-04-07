@@ -1,3 +1,26 @@
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+This script uses multi-processing to add normalized text into manifest files.
+
+$ python <nemo_root_path>/scripts/dataset_processing/tts/add_normalized_text.py \
+    --src=<data_root_path>/fastpitch_manifest.json \
+    --dst=<data_root_path>/fastpitch_manifest.json \
+    --src-key=text \
+    --dst-key=normalized_text
+"""
 import argparse
 import multiprocessing
 import sys
@@ -5,14 +28,13 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
 
+from tqdm import tqdm
+
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from tqdm.auto import tqdm
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 
 BASE_DIR = Path(__file__).parent.parent.parent
 sys.path.append(f"{BASE_DIR}")
-
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
-
 
 def get_normalizer():
     with tempfile.TemporaryDirectory() as data_dir:

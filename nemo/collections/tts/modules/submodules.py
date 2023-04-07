@@ -13,14 +13,14 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import List, Optional, Tuple
+from typing import Tuple
 
 import torch
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
 
-from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
+from nemo.core.classes import NeuralModule, adapter_mixins
 from nemo.core.neural_types.elements import EncodedRepresentation, Index, MelSpectrogramType, TokenDurationType
 from nemo.core.neural_types.neural_type import NeuralType
 

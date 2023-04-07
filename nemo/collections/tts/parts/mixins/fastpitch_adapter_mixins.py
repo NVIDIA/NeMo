@@ -89,9 +89,6 @@ class FastPitchAdapterModelMixin(AdapterModelPTMixin):
         else:
             module_names = [module_name]
 
-        # Update the model.cfg with information about the new adapter from cfg
-        global_config = self._get_global_cfg()
-
         with open_dict(self.cfg):
             for module_name in module_names:
                 # Check if encoder adapters should be added
