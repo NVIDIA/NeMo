@@ -46,7 +46,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.enums import ModelType
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
         get_micro_batch_size,
@@ -315,7 +314,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             from the dataloader to produce a list of microbatches.
             Batch should be a list of microbatches and those microbatches should on CPU.
             Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
@@ -400,7 +399,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
             No need to call it here.
         """
         return
@@ -705,7 +704,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def _process_global_batch_without_megatron_batch_sampler(self, global_batch, tokenizer=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
+        """ Prepares the global batch for megatron-core fwd/bwd functions.
             Global batch is a list of micro batches.
         """
         tokenizer = self.tokenizer if tokenizer is None else tokenizer

@@ -43,12 +43,12 @@ from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
@@ -143,7 +143,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             'enc_inputs': processed_inputs,
         }
 
-    def validation_step(self, batch, batch_idx, inference=False):
+    def validation_step(self, dataloader_iter, batch_idx, inference=False):
+        batch = next(dataloader_iter)
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training

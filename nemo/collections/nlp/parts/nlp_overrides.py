@@ -252,6 +252,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # raise ImportError(
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
+        if not HAVE_MEGATRON_CORE:
+            logging.warning(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__()
 
     def save_to(self, model, save_path: str):
@@ -395,11 +399,11 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
         step wrapped in autocast.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
     """
 
     def __init__(
@@ -680,6 +684,8 @@ class GlobalBatchDataFetcher(DataFetcher):
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not HAVE_MEGATRON_CORE:
+            logging.warning("Megatron-core was not found. Using model parallel or megatron models will error out..")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
 

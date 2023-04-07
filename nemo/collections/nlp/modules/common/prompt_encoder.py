@@ -25,9 +25,6 @@ from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
 
-# fake missing classes with None attributes
-ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
-
 try:
     from megatron.core import tensor_parallel
 

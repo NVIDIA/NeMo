@@ -36,7 +36,6 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     build_position_ids,
     get_params_for_weight_decay_optimization,
@@ -60,18 +59,8 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.enums import ModelType
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    ModelType = ApexGuardDefaults()
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import parallel_state
+    from megatron.core.enums import ModelType
 
     HAVE_MEGATRON_CORE = True
 

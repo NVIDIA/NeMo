@@ -257,7 +257,7 @@ class Float16Module(MegatronModule):
     def __init__(self, module, precision):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__()
         self.precision = precision

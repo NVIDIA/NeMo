@@ -42,6 +42,7 @@ def build_model(
     wrap_with_ddp: bool = True,
     virtual_pipeline_model_parallel_size: Optional[int] = None,
     model_type: ModelType = ModelType.encoder_or_decoder,
+    on_cpu: bool = False,
     *args: Any,
     **kwargs: Any,
 ) -> List[torch.nn.Module]:
@@ -60,6 +61,9 @@ def build_model(
         a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
         the list has multiple models, otherwise one.
     """
+    if model_type is None:
+        model_type = ModelType.encoder_or_decoder
+
     if (
         parallel_state.get_pipeline_model_parallel_world_size() > 1
         and virtual_pipeline_model_parallel_size is not None
@@ -92,7 +96,6 @@ def build_model(
             post_process = parallel_state.is_pipeline_last_stage()
             # `add_encoder` & `add_decoder` logic.
             add_encoder, add_decoder = True, True
-            # TODO @akhattar: add this getter to core
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
                 if split_rank is None:
@@ -135,8 +138,9 @@ def build_model(
         print(msg, flush=True)
 
     # GPU allocation.
-    for model_module in model:
-        model_module.cuda(torch.cuda.current_device())
+    if not on_cpu:
+        for model_module in model:
+            model_module.cuda(torch.cuda.current_device())
 
     if wrap_with_ddp:
         i = torch.cuda.current_device()

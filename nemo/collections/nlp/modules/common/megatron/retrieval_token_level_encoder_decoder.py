@@ -29,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 try:
     from apex.transformer.enums import ModelType
-    from megatron.core import tensor_parallel
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -37,6 +36,14 @@ except (ImportError, ModuleNotFoundError):
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
+
+try:
+    from megatron.core import tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = True
 
 
 __all__ = ["MegatronRetrievalTokenLevelEncoderDecoderModule"]

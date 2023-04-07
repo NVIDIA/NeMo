@@ -432,9 +432,9 @@ class MockGPTDataset(Dataset):
     def __init__(
         self, cfg, tokenizer, name, num_samples, seq_length, seed,
     ):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         super().__init__()

@@ -14,7 +14,7 @@
 
 import torch
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 
 
 def _str_to_dtype(dtype):

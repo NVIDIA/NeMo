@@ -173,7 +173,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
@@ -230,7 +230,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
             No need to call it here.
         """
         return

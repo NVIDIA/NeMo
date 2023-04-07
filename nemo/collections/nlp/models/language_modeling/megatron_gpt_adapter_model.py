@@ -182,7 +182,8 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
             input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
             output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
@@ -196,9 +197,10 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
 
         return fwd_output_and_loss_func
 
-    def training_step(self, batch, batch_idx):
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+    def training_step(self, dataloader_iter, batch_idx):
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
+        batch = next(dataloader_iter)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
 

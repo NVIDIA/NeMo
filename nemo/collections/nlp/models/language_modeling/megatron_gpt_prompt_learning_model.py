@@ -330,7 +330,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return loss_mean
 
     def training_step(self, dataloader_iter, batch_idx):
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
@@ -354,7 +354,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
             No need to call it here.
         """
         return
@@ -640,6 +640,38 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only for now.
+        """
+
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def generate(
         self,

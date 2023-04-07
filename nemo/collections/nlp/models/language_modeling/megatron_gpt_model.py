@@ -327,7 +327,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             in the micro-batch fwd function.
         """
 
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
         if self.with_distributed_adam:
@@ -431,7 +431,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
             No need to call it here.
         """
         return
@@ -616,7 +616,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
