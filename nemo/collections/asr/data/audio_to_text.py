@@ -963,12 +963,6 @@ class _TarredAudioToTextDataset(IterableDataset):
     def __iter__(self):
         return self._dataset.__iter__()
 
-        if not torch.distributed.is_available():
-            logging.warning("Not running in torch.distributed mode. Manifest sharding not available")
-            return manifest_filepath
-
-        if not torch.distributed.is_initialized():
-
     def _compute_len(self):
         if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
             self.len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
