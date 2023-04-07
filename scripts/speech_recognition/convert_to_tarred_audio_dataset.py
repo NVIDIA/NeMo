@@ -330,7 +330,7 @@ class ASRTarredDatasetBuilder:
         if config.shard_manifests:
             for manifest in new_entries_list:
                 shard_id = manifest[0]['shard_id']
-                new_manifest_shard_path = os.path.join(target_dir, f'tam_{shard_id}.json')
+                new_manifest_shard_path = os.path.join(target_dir, f'manifest_{shard_id}.json')
                 with open(new_manifest_shard_path, 'w') as m2:
                     for entry in manifest:
                         json.dump(entry, m2)
