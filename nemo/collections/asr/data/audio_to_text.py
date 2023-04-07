@@ -343,30 +343,31 @@ def cache_datastore_manifests(
                 'initialized, please update data config to use `defer_setup = True`.'
             )
 
-def shard_manifests(
+def shard_manifests_if_needed(
     manifest_filepaths: Union[str, List[str]],
-    shard_manifests: bool = False,
+    shard_strategy: str,
+    shard_manifests: bool,
 ):
     if shard_manifests:
         if not torch.distributed.is_available():
             logging.warning("Not running in torch.distributed mode. Manifest sharding not available")
-            return manifest_filepath
+            return manifest_filepaths
 
         if not torch.distributed.is_initialized():
             logging.warning(
                 'Manifest sharding was requested but torch.distributed is not initialized '
                 'Did you intend to set the defer_setup flag?'
                 )
-            return manifest_filepath
+            return manifest_filepaths
 
-        manifest_filepath = expand_sharded_filepaths(
-            sharded_filepaths=manifest_filepath,
+        manifest_filepaths = expand_sharded_filepaths(
+            sharded_filepaths=manifest_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
             global_rank=global_rank,
         )
 
-    return manifest_filepath
+    return manifest_filepaths
 
 class _AudioTextDataset(Dataset):
     """
@@ -803,8 +804,9 @@ class _TarredAudioToTextDataset(IterableDataset):
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
         # Shard manifests if necessary and possible
-        manifest_filepath = shard_manifests(
+        manifest_filepath = shard_manifests_if_needed(
             shard_manifests=shard_manifests, 
+            shard_strategy=shard_strategy,
             manifest_filepaths=manifest_filepath
         )
 
