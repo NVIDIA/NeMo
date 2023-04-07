@@ -343,6 +343,30 @@ def cache_datastore_manifests(
                 'initialized, please update data config to use `defer_setup = True`.'
             )
 
+def shard_manifests(
+    shard_manifests: bool = False,
+    manifest_filepaths: Union[str, List[str]],
+):
+    if shard_manifests:
+        if not torch.distributed.is_available():
+            logging.warning("Not running in torch.distributed mode. Manifest sharding not available")
+            return manifest_filepath
+
+        if not torch.distributed.is_initialized():
+            logging.warning(
+                'Manifest sharding was requested but torch.distributed is not initialized '
+                'Did you intend to set the defer_setup flag?'
+                )
+            return manifest_filepath
+
+        manifest_filepath = expand_sharded_filepaths(
+            sharded_filepaths=manifest_filepath,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
+
+    return manifest_filepath
 
 class _AudioTextDataset(Dataset):
     """
@@ -773,16 +797,16 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
+        self.shard_manifests = shard_manifests
+
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
-        if shard_manifests:
-            manifest_filepath = expand_sharded_filepaths(
-                sharded_filepaths=manifest_filepath,
-                shard_strategy=shard_strategy,
-                world_size=world_size,
-                global_rank=global_rank,
-            )
+        # Shard manifests if necessary and possible
+        manifest_filepath = shard_manifests(
+            shard_manifests=shard_manifests, 
+            manifest_filepaths=manifest_filepath
+        )
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -796,12 +820,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
 
-        if shard_manifests:
-            self.len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32)
-            torch.distributed.all_reduce(self.len, op=ReduceOp.SUM)
-            self.len = self.len.int()
-        else:
-            self.len = len(self.manifest_processor.collection)
+        self.len = self._compute_len()
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -940,8 +959,25 @@ class _TarredAudioToTextDataset(IterableDataset):
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
 
+
     def __iter__(self):
         return self._dataset.__iter__()
+
+        if not torch.distributed.is_available():
+            logging.warning("Not running in torch.distributed mode. Manifest sharding not available")
+            return manifest_filepath
+
+        if not torch.distributed.is_initialized():
+
+    def _compute_len(self):
+        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
+            self.len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
+            logging.debug(f'worker {global_rank} of {world_size}, manifest len {self.len}')
+            torch.distributed.all_reduce(self.len)
+            self.len = self.len.int()
+            logging.debug(f'worker {global_rank} of {world_size}, allreduced manifest len {self.len}')
+        else:
+            self.len = len(self.manifest_processor.collection)
 
     def __len__(self):
         return self.len
@@ -1083,7 +1119,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
-            shard_manifests: bool = False,
+            shard_manifests=shard_manifests,
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
@@ -1237,7 +1273,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
-            shard_manifests: bool = False,
+            shard_manifests=shard_manifests,
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
