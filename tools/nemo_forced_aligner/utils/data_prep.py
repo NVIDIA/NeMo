@@ -317,9 +317,9 @@ def get_batch_tensors_and_boundary_info(
                 hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
         else:
             with torch.no_grad():
-                hypotheses = model.transcribe_simulate_cache_aware_streaming(audio_filepaths_batch,
-                                                                             return_hypotheses=True,
-                                                                             batch_size=B)
+                hypotheses = model.transcribe_simulate_cache_aware_streaming(
+                    audio_filepaths_batch, return_hypotheses=True, batch_size=B
+                )
         for hypothesis in hypotheses:
             log_probs_list_batch.append(hypothesis.y_sequence)
             T_list_batch.append(hypothesis.y_sequence.shape[0])
