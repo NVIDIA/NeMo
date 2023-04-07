@@ -399,12 +399,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
-    def get_iterator_k_split(self, batch, k):
-        assert batch[0].shape[0] % k == 0, "Issue with batch size configuration!"
-        split_batch = [torch.tensor_split(item, k, dim=0) for item in batch]
-        microbatches = [[elem[i] for elem in split_batch] for i in range(k)]
-        return itertools.chain(microbatches)
-
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
 
