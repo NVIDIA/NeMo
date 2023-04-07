@@ -139,7 +139,6 @@ def decoding_step(
     cfg.decoding.ngram_lm_model = cfg.kenlm_model_file
     cfg.decoding.hat_subtract_ilm = cfg.hat_subtract_ilm
 
-
     # Update model's decoding strategy config
     model.cfg.decoding.strategy = cfg.decoding_strategy
     model.cfg.decoding.beam = cfg.decoding
@@ -172,7 +171,7 @@ def decoding_step(
             packed_batch = torch.zeros(len(probs_batch), probs_batch[0].shape[0], max(probs_lens), device='cpu')
 
             for prob_index in range(len(probs_batch)):
-                packed_batch[prob_index, :, :probs_lens[prob_index]] = torch.tensor(
+                packed_batch[prob_index, :, : probs_lens[prob_index]] = torch.tensor(
                     probs_batch[prob_index].unsqueeze(0), device=packed_batch.device, dtype=packed_batch.dtype
                 )
             best_hyp_batch, beams_batch = model.decoding.rnnt_decoder_predictions_tensor(
@@ -224,10 +223,10 @@ def decoding_step(
     else:
         logging.info(
             f"WER/CER with {cfg.decoding_strategy} decoding = {wer_dist_first / words_count:.2%}/{cer_dist_first / chars_count:.2%}"
-            )
+        )
     logging.info(
         f"Oracle WER/CER in candidates with perfect LM= {wer_dist_best / words_count:.2%}/{cer_dist_best / chars_count:.2%}"
-        )
+    )
     logging.info(f"=================================================================================")
 
     return wer_dist_first / words_count, cer_dist_first / chars_count
@@ -241,7 +240,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
     valid_decoding_strategis = ["greedy_batch", "beam", "tsd", "alsd", "maes"]
     if cfg.decoding_strategy not in valid_decoding_strategis:
         raise ValueError(
-            f"Given decoding_strategy={cfg.decoding_strategy} is invalid. Available options are :\n" f"{valid_decoding_strategis}"
+            f"Given decoding_strategy={cfg.decoding_strategy} is invalid. Available options are :\n"
+            f"{valid_decoding_strategis}"
         )
 
     if cfg.nemo_model_file.endswith('.nemo'):
@@ -324,13 +324,13 @@ def main(cfg: EvalBeamSearchNGramConfig):
     if cfg.decoding_strategy == "greedy_batch":
         asr_model = asr_model.to('cpu')
         candidate_wer, candidate_cer = decoding_step(
-                asr_model,
-                cfg,
-                all_probs=all_probs,
-                target_transcripts=target_transcripts,
-                beam_batch_size=cfg.beam_batch_size,
-                progress_bar=True,
-            )
+            asr_model,
+            cfg,
+            all_probs=all_probs,
+            target_transcripts=target_transcripts,
+            beam_batch_size=cfg.beam_batch_size,
+            progress_bar=True,
+        )
         logging.info(f"Greedy batch WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
 
     asr_model = asr_model.to('cpu')
@@ -344,7 +344,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             'beam_alpha': cfg.beam_alpha,
             'maes_prefix_alpha': cfg.maes_prefix_alpha,
             'maes_expansion_gamma': cfg.maes_expansion_gamma,
-            'hat_ilm_weight': cfg.hat_ilm_weight
+            'hat_ilm_weight': cfg.hat_ilm_weight,
         }
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
@@ -353,7 +353,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
         best_wer_alpha, best_cer_alpha = None, None
         best_wer, best_cer = 1e6, 1e6
 
-        logging.info(f"==============================Starting the {cfg.decoding_strategy} decoding===============================")
+        logging.info(
+            f"==============================Starting the {cfg.decoding_strategy} decoding==============================="
+        )
         logging.info(f"Grid search size: {len(hp_grid)}")
         logging.info(f"It may take some time...")
         logging.info(f"==============================================================================================")
