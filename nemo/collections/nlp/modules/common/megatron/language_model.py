@@ -706,7 +706,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         else:
             rotary_pos_emb = None
-        
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
