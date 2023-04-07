@@ -28,13 +28,14 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
 
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 
 BASE_DIR = Path(__file__).parent.parent.parent
 sys.path.append(f"{BASE_DIR}")
+
 
 def get_normalizer():
     with tempfile.TemporaryDirectory() as data_dir:
