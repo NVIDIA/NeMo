@@ -374,7 +374,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 preds_output_file = os.path.join(cfg.preds_output_folder, f"{results_file}.tsv")
             else:
                 preds_output_file = None
-            
+
             cfg.decoding.beam_size = hp["beam_width"]
             cfg.decoding.ngram_lm_alpha = hp["beam_alpha"]
             cfg.decoding.maes_prefix_alpha = hp["maes_prefix_alpha"]
