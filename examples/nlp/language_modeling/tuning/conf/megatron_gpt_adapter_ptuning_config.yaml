@@ -121,7 +121,7 @@ model:
     answer_only_loss: True
     answer_field: "completion"
 
-  prompt_encoder_adaptert:
+  prompt_encoder_adapter:
     virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
     bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
     embedding_dim: 1024  # the size of the prompt encoder embeddings

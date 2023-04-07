@@ -158,7 +158,7 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
-            pad = [self.tokenizer.pad_id] * total_virtual_tokens
+            pad = [self.pad_token_id] * total_virtual_tokens
             input_ids = pad + input_ids
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
@@ -205,11 +205,6 @@ class GPTPromptLearningDataset(Dataset):
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
-
-        # Make sure number of virtual prompt locations match the number of virtual prompt splits
-        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
-            virtual_token_splits
-        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
         keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
