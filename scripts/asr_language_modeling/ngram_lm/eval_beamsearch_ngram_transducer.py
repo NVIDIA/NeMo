@@ -100,7 +100,7 @@ class EvalBeamSearchNGramConfig:
     use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
 
     # The decoding scheme to be used for evaluation
-    decoding_strategy: str = "greedy_batch" # ["greedy_batch", "maes"]
+    decoding_strategy: str = "greedy_batch" # ["greedy_batch", "beam", "tsd", "alsd", "maes"]
 
     # Beam Search hyperparameters
     beam_width: List[int] = field(default_factory=lambda: [128])  # The width or list of the widths for the beam search decoding
@@ -125,30 +125,19 @@ def decoding_step(
     all_probs: List[torch.Tensor],
     target_transcripts: List[str],
     preds_output_file: str = None,
-    lm_path: str = None,
-    beam_alpha: float = 0.2,
-    beam_width: int = 128,
-    maes_prefix_alpha: int = 2,
-    maes_expansion_gamma: float = 2.3,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
-    hat_ilm_weight: float = 0.0,
 ):
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
     # Reset config
     model.change_decoding_strategy(None)
 
-    hat_ilm_weight = hat_ilm_weight * cfg.hat_subtract_ilm
+    cfg.decoding.hat_ilm_weight = cfg.decoding.hat_ilm_weight * cfg.hat_subtract_ilm
     # Override the beam search config with current search candidate configuration
-    cfg.decoding.beam_size = beam_width
-    cfg.decoding.ngram_lm_alpha = beam_alpha
-    cfg.decoding.maes_prefix_alpha = maes_prefix_alpha
-    cfg.decoding.maes_expansion_gamma = maes_expansion_gamma
     cfg.decoding.return_best_hypothesis = False
     cfg.decoding.ngram_lm_model = cfg.kenlm_model_file
     cfg.decoding.hat_subtract_ilm = cfg.hat_subtract_ilm
-    cfg.decoding.hat_ilm_weight = hat_ilm_weight
 
 
     # Update model's decoding strategy config
@@ -171,7 +160,7 @@ def decoding_step(
         if cfg.decoding_strategy == "greedy_batch":
             description = "Greedy_batch decoding.."
         else:
-            description = f"{cfg.decoding_strategy} decoding with bw={beam_width}, ba={beam_alpha}, ma={maes_prefix_alpha}, mg={maes_expansion_gamma}, hat_ilmw={hat_ilm_weight}"
+            description = f"{cfg.decoding_strategy} decoding with bw={cfg.decoding.beam_size}, ba={cfg.decoding.ngram_lm_alpha}, ma={cfg.decoding.maes_prefix_alpha}, mg={cfg.decoding.maes_expansion_gamma}, hat_ilmw={cfg.decoding.hat_ilm_weight}"
         it = tqdm(range(int(np.ceil(len(all_probs) / beam_batch_size))), desc=description, ncols=120)
     else:
         it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
@@ -228,7 +217,7 @@ def decoding_step(
         out_file.close()
         logging.info(f"Stored the predictions of {cfg.decoding_strategy} decoding at '{preds_output_file}'.")
 
-    if lm_path:
+    if cfg.decoding.ngram_lm_model:
         logging.info(
             f"WER/CER with {cfg.decoding_strategy} decoding and N-gram model = {wer_dist_first / words_count:.2%}/{cer_dist_first / chars_count:.2%}"
         )
@@ -249,7 +238,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
-    valid_decoding_strategis = ["greedy_batch", "maes"]
+    valid_decoding_strategis = ["greedy_batch", "beam", "tsd", "alsd", "maes"]
     if cfg.decoding_strategy not in valid_decoding_strategis:
         raise ValueError(
             f"Given decoding_strategy={cfg.decoding_strategy} is invalid. Available options are :\n" f"{valid_decoding_strategis}"
@@ -265,14 +254,20 @@ def main(cfg: EvalBeamSearchNGramConfig):
             cfg.nemo_model_file, map_location=torch.device(cfg.device)
         )
 
-    if cfg.decoding_strategy == "maes" and cfg.kenlm_model_file:
+    if cfg.kenlm_model_file:
         if not os.path.exists(cfg.kenlm_model_file):
             raise FileNotFoundError(f"Could not find the KenLM model file '{cfg.kenlm_model_file}'.")
+        if cfg.decoding_strategy != "maes":
+            raise ValueError(f"Decoding with kenlm model is supported only for maes decoding algorithm.")
         lm_path = cfg.kenlm_model_file
     else:
         lm_path = None
+        cfg.beam_alpha = [0.0]
     if cfg.hat_subtract_ilm:
         assert lm_path, "kenlm must be set for hat internal lm subtraction"
+
+    if cfg.decoding_strategy != "maes":
+        cfg.maes_prefix_alpha, cfg.maes_expansion_gamma, cfg.hat_ilm_weight = [0], [0], [0]
 
     target_transcripts = []
     manifest_dir = Path(cfg.input_manifest).parent
@@ -316,7 +311,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
         with autocast():
             with torch.no_grad():
-                all_logits, _ = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, return_encoder_embiddings=True)
+                asr_model.change_decoding_strategy(asr_model.cfg.decoding)
+                asr_model.cfg.decoding.return_encoder_embeddings = True
+                all_logits, _ = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size)
 
         all_probs = all_logits
         if cfg.probs_cache_file:
@@ -339,7 +336,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
     asr_model = asr_model.to('cpu')
 
     # 'greedy_batch' decoding_strategy would skip the beam search decoding
-    if cfg.decoding_strategy in ["maes"]:
+    if cfg.decoding_strategy in ["beam", "tsd", "alsd", "maes"]:
         if cfg.beam_width is None or cfg.beam_alpha is None:
             raise ValueError("beam_width and beam_alpha are needed to perform beam search decoding.")
         params = {
@@ -365,13 +362,22 @@ def main(cfg: EvalBeamSearchNGramConfig):
             os.mkdir(cfg.preds_output_folder)
         for hp in hp_grid:
             if cfg.preds_output_folder:
-                if cfg.hat_subtract_ilm:
-                    results_file = f"preds_out_bw{hp['beam_width']}_ba{hp['beam_alpha']}_ma{hp['maes_prefix_alpha']}_mg{hp['maes_expansion_gamma']}_hat_ilmw{hp['hat_ilm_weight']}.tsv"
-                else:
-                    results_file = f"preds_out_bw{hp['beam_width']}_ba{hp['beam_alpha']}_ma{hp['maes_prefix_alpha']}_mg{hp['maes_expansion_gamma']}.tsv"
-                preds_output_file = os.path.join(cfg.preds_output_folder, results_file)
+                results_file = f"preds_out_{cfg.decoding_strategy}_bw{hp['beam_width']}"
+                if cfg.decoding_strategy == "maes":
+                    results_file = f"{results_file}_ma{hp['maes_prefix_alpha']}_mg{hp['maes_expansion_gamma']}"
+                    if cfg.kenlm_model_file:
+                        results_file = f"{results_file}_ba{hp['beam_alpha']}"
+                        if cfg.hat_subtract_ilm:
+                            results_file = f"{results_file}_hat_ilmw{hp['hat_ilm_weight']}"
+                preds_output_file = os.path.join(cfg.preds_output_folder, f"{results_file}.tsv")
             else:
                 preds_output_file = None
+            
+            cfg.decoding.beam_size = hp["beam_width"]
+            cfg.decoding.ngram_lm_alpha = hp["beam_alpha"]
+            cfg.decoding.maes_prefix_alpha = hp["maes_prefix_alpha"]
+            cfg.decoding.maes_expansion_gamma = hp["maes_expansion_gamma"]
+            cfg.decoding.hat_ilm_weight = hp["hat_ilm_weight"]
 
             candidate_wer, candidate_cer = decoding_step(
                 asr_model,
@@ -379,12 +385,6 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 all_probs=all_probs,
                 target_transcripts=target_transcripts,
                 preds_output_file=preds_output_file,
-                lm_path=lm_path,
-                beam_width=hp["beam_width"],
-                beam_alpha=hp["beam_alpha"],
-                maes_prefix_alpha=hp["maes_prefix_alpha"],
-                maes_expansion_gamma=hp["maes_expansion_gamma"],
-                hat_ilm_weight=hp["hat_ilm_weight"],
                 beam_batch_size=cfg.beam_batch_size,
                 progress_bar=True,
             )
