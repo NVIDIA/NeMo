@@ -40,7 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import average_losses_ac
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
-from nemo.utils import logging, model_utils
+from nemo.utils import AppState, logging, model_utils
 
 
 class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
@@ -185,13 +185,13 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         """
         self.frozen_model.freeze()  # Freeze the entire model
         opt_params = []
-        for _, module in self.frozen_model.named_modules():
+        for module_name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
 
-        self._optimizer_param_groups = [{'params': opt_params}]
+        self._optimizer_param_groups = ({'params': opt_params},)
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 
     def get_forward_output_and_loss_func(self):
@@ -374,17 +374,38 @@ class MegatronPTuningAdapterLearningModel(MegatronGPTBaseAdapterModel):
             self.frozen_model_cfg.hidden_size,
         )
 
+        app_state = AppState()
         self.frozen_model.freeze()
-        for _, module in self.frozen_model.named_modules():
+        for module_name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
                     if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
                             name=adapter_key, cfg=adapter_cfg,
                         )
+                        print(f"added adapter {adapter_key} to {module_name}")
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
+    
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        state_dict_ = {}
+        if self.first_stage_of_pipeline():
+            state_dict_ = super().state_dict(destination, prefix, keep_vars)
 
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self.first_stage_of_pipeline():
+            super().load_state_dict(state_dict, strict)
+
+    def setup_optimizer_param_groups(self):
+        if self.first_stage_of_pipeline():
+            super().setup_optimizer_param_groups()
+        else:
+            self.frozen_model.freeze()  # Freeze the entire model
+            self._optimizer_param_groups = ({'params': []},)
+        logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
+    
     @classmethod
     def list_available_models(cls):
         pass
