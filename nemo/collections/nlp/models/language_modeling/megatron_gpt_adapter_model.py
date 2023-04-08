@@ -185,7 +185,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         """
         self.frozen_model.freeze()  # Freeze the entire model
         opt_params = []
-        for module_name, module in self.frozen_model.named_modules():
+        for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
@@ -220,7 +220,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
@@ -229,9 +229,6 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
-        # Need to make sure the frozen model param learning rate stays 0.0
-        # so forceing lr to be 0.0 for gpt layers before param update
         return loss_mean
 
 
