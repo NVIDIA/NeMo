@@ -153,7 +153,6 @@ class TemporalPredictor(NeuralModule):
 
 
 class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMixin):
-
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)

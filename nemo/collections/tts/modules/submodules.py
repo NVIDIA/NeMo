@@ -455,7 +455,7 @@ class GlobalStyleToken(NeuralModule):
         n_style_attn_head=4,
     ):
         super(GlobalStyleToken, self).__init__()
-        self.reference_encoder = ReferenceEncoderUtteranceLevel(
+        self.reference_encoder = ReferenceEncoder(
             cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gru_hidden
         )
         self.style_attention = StyleAttention(
@@ -481,9 +481,12 @@ class GlobalStyleToken(NeuralModule):
         return gst
 
 
-class ReferenceEncoderUtteranceLevel(NeuralModule):
+class ReferenceEncoder(NeuralModule):
+    """
+    Encode mel-spectrograms to an utterance level feature
+    """
     def __init__(self, cnn_filters=[32, 32, 64, 64, 128, 128], dropout=0.2, gru_hidden=128):
-        super(ReferenceEncoderUtteranceLevel, self).__init__()
+        super(ReferenceEncoder, self).__init__()
         self.filter_size = [1] + cnn_filters
         self.dropout = dropout
         self.conv = torch.nn.Sequential(
@@ -492,16 +495,20 @@ class ReferenceEncoderUtteranceLevel(NeuralModule):
                     module
                     for i in range(len(cnn_filters))
                     for module in (
+                        ("transpose_bchw_{}".format(i + 1), Transpose([0, 3, 1, 2])),
                         (
                             "conv2d_{}".format(i + 1),
-                            Conv2d(
+                            torch.nn.Conv2d(
                                 in_channels=int(self.filter_size[i]),
                                 out_channels=int(self.filter_size[i + 1]),
                                 kernel_size=(3, 3),
                                 stride=(2, 2),
                                 padding=(1, 1),
-                            ),
+                                dilation=(1, 1),
+                                bias=True,
+                            )
                         ),
+                        ("transpose_bhwc_{}".format(i + 1), Transpose([0, 2, 3, 1])),
                         ("relu_{}".format(i + 1), torch.nn.ReLU()),
                         ("layer_norm_{}".format(i + 1), torch.nn.LayerNorm(self.filter_size[i + 1]),),
                         ("dropout_{}".format(i + 1), torch.nn.Dropout(self.dropout)),
@@ -647,54 +654,16 @@ class SpeakerEncoder(torch.nn.Module):
             x += self.sv_projection_module(speaker_embedding)
         return x
 
-
-class Conv2d(torch.nn.Module):
-    """
-    Convolution 2D Module
-    """
-
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_size=(1, 1),
-        stride=(1, 1),
-        padding=(0, 0),
-        dilation=(1, 1),
-        bias=True,
-        w_init="linear",
-    ):
-        """
-        :param in_channels: dimension of input
-        :param out_channels: dimension of output
-        :param kernel_size: size of kernel
-        :param stride: size of stride
-        :param padding: size of padding
-        :param dilation: dilation rate
-        :param bias: boolean. if True, bias is included.
-        :param w_init: str. weight inits with xavier initialization.
-        """
-        super(Conv2d, self).__init__()
-
-        self.conv = torch.nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            bias=bias,
-        )
-
+    
+class Transpose(nn.Module):
+    def __init__(self, order):
+        super(Transpose, self).__init__()
+        self.order = order
+    
     def forward(self, x):
-        x = x.contiguous().transpose(1, 3)
-        x = x.contiguous().transpose(2, 3)
-        x = self.conv(x)
-        x = x.contiguous().transpose(2, 3)
-        x = x.contiguous().transpose(1, 3)
-        return x
-
-
+        y = x.contiguous().permute(*self.order)
+        return y
+    
 class ConditionalLayerNorm(nn.Module):
     def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
         super(ConditionalLayerNorm, self).__init__()

@@ -19,7 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
@@ -107,11 +107,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         self._parser = None
         self._tb_logger = None
-        self._wdb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bin_loss_warmup_epochs = cfg.get("bin_loss_warmup_epochs", 100)
-
+        self.log_train_images = False
+        
         loss_scale = 0.1 if self.learn_alignment else 1.0
         dur_loss_scale = loss_scale
         pitch_loss_scale = loss_scale
@@ -234,34 +234,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         if self._tb_logger is None:
             if self.logger is None and self.logger.experiment is None:
                 return None
-
-            tb_logger = None
-            if isinstance(self.logger, TensorBoardLogger):
-                tb_logger = self.logger.experiment
-            else:
-                for logger in self.trainer.loggers:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            tb_logger = self.logger.experiment
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             self._tb_logger = tb_logger
         return self._tb_logger
-
-    @property
-    def wdb_logger(self):
-        if self._wdb_logger is None:
-            if self.logger is None and self.logger.experiment is None:
-                return None
-
-            wdb_logger = None
-            if isinstance(self.logger, WandbLogger):
-                wdb_logger = self.logger
-            else:
-                for logger in self.trainer.loggers:
-                    if isinstance(logger, WandbLogger):
-                        wdb_logger = logger
-                        break
-            self._wdb_logger = wdb_logger
-        return self._wdb_logger
 
     @property
     def parser(self):
@@ -470,43 +449,31 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.log("t_ctc_loss", ctc_loss)
             self.log("t_bin_loss", bin_loss)
 
-        return (
-            {"loss": loss}
-            if batch_idx != 0
-            else {
-                "loss": loss,
-                "mel_target": mels[0].data.cpu().float().numpy(),
-                "mel_predict": mels_pred[0].data.cpu().float().numpy(),
-                "attn_hard": attn_hard[0].data.cpu().float().numpy().squeeze().T if self.learn_alignment else None,
-                "attn_soft": attn_soft[0].data.cpu().float().numpy().squeeze().T if self.learn_alignment else None,
-            }
-        )
+        # Log images to tensorboard
+        if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
+            self.log_train_images = False
 
-    def training_epoch_end(self, outputs):
-        output = outputs[0]
+            self.tb_logger.add_image(
+                "train_mel_target",
+                plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = mels_pred[0].data.cpu().float().numpy()
+            self.tb_logger.add_image(
+                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            if self.learn_alignment:
+                attn = attn_hard[0].data.cpu().float().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+                )
+                soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+                )
 
-        mel_target = plot_spectrogram_to_numpy(output["mel_target"])
-        mel_predict = plot_spectrogram_to_numpy(output["mel_predict"])
-
-        if self.tb_logger is not None:
-            self.tb_logger.add_image("train_mel_target", mel_target, self.global_step, dataformats="HWC")
-            self.tb_logger.add_image("train_mel_predict", mel_predict, self.global_step, dataformats="HWC")
-
-        if self.wdb_logger is not None:
-            self.wdb_logger.log_image(key="train_mel_target", images=[mel_target])
-            self.wdb_logger.log_image(key="train_mel_predict", images=[mel_predict])
-
-        if self.learn_alignment:
-            attn = plot_alignment_to_numpy(output["attn_hard"])
-            attn_soft = plot_alignment_to_numpy(output["attn_soft"])
-
-            if self.tb_logger is not None:
-                self.tb_logger.add_image("train_attn", attn, self.global_step, dataformats="HWC")
-                self.tb_logger.add_image("train_attn_soft", attn_soft, self.global_step, dataformats="HWC")
-
-            if self.wdb_logger is not None:
-                self.wdb_logger.log_image(key="train_attn", images=[attn])
-                self.wdb_logger.log_image(key="train_attn_soft", images=[attn_soft])
+        return loss
 
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy, reference_audio, reference_audio_len, speaker_embedding = (
@@ -591,16 +558,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
-        mel_target = plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy())
-        mel_predict = plot_spectrogram_to_numpy(spec_predict[0].data.cpu().float().numpy())
-
-        if self.tb_logger is not None:
-            self.tb_logger.add_image("val_mel_target", mel_target, self.global_step, dataformats="HWC")
-            self.tb_logger.add_image("val_mel_predict", mel_predict, self.global_step, dataformats="HWC")
-
-        if self.wdb_logger is not None:
-            self.wdb_logger.log_image(key="val_mel_target", images=[mel_target])
-            self.wdb_logger.log_image(key="val_mel_predict", images=[mel_predict])
+        if isinstance(self.logger, TensorBoardLogger):
+            self.tb_logger.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = spec_predict[0].data.cpu().float().numpy()
+            self.tb_logger.add_image(
+                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
