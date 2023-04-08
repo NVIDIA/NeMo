@@ -383,7 +383,7 @@ class MegatronPTuningAdapterLearningModel(MegatronGPTBaseAdapterModel):
                         print(f"added adapter {adapter_key} to {module_name}")
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
-    
+
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         state_dict_ = {}
         if self.first_stage_of_pipeline():
@@ -402,7 +402,7 @@ class MegatronPTuningAdapterLearningModel(MegatronGPTBaseAdapterModel):
             self.frozen_model.freeze()  # Freeze the entire model
             self._optimizer_param_groups = ({'params': []},)
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
-    
+
     @classmethod
     def list_available_models(cls):
         pass
