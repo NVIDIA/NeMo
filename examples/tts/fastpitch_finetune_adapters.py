@@ -117,13 +117,6 @@ def main(cfg):
         model.fastpitch.speaker_emb = new_emb
         model.fastpitch.speaker_emb.embedding_weight.requires_grad = True
 
-    ############ Current experiment - unfreeze gst and titanet embedding
-    # for name, param in model.fastpitch.speaker_encoder.gst_module.style_attention.named_parameters():
-    # for name, param in model.fastpitch.speaker_encoder.gst_module.named_parameters():
-    # for name, param in model.fastpitch.speaker_encoder.sv_projection_module.named_parameters():
-    #     param.requires_grad = True
-    ############ Current experiment - unfreeze gst and titanet embedding
-
     # Setup adapters
     if adapter_global_cfg is not None:
         add_global_adapter_cfg(model, adapter_global_cfg)

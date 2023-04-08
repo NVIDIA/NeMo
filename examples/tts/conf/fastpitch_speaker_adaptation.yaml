@@ -1,4 +1,4 @@
-# This config contains the default values for training Mixer-TTS-X model on LJSpeech dataset.
+# This config contains the default values for training FastPitch speaker adaptation
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
@@ -7,15 +7,16 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "align_prior_matrix", "pitch"]
+sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
 
-# Stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
+# these frame-wise values depend on pitch_fmin and pitch_fmax, you can get values
+# by running `scripts/dataset_processing/tts/extract_sup_data.py`
+pitch_mean: ???  # e.g. 212.35873413085938 for LJSpeech
+pitch_std:  ???  # e.g.  68.52806091308594 for LJSpeech
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 44100
@@ -26,8 +27,6 @@ n_fft: 2048
 lowfreq: 0
 highfreq: 8000
 window: hann
-
-lm_model: albert
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
@@ -206,10 +205,6 @@ model:
     log_zero_guard_value: 1e-05
     mag_power: 1.0
 
-  alignment_module:
-    _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
-    n_text_channels: ${model.symbols_embedding_dim}
-
   input_fft: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
     n_layer: 6
@@ -237,6 +232,10 @@ model:
     dropemb: 0.0
     condition_lnorm: ${model.speaker_emb_condition_layernm}
 
+  alignment_module:
+    _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
+    n_text_channels: ${model.symbols_embedding_dim}
+    
   duration_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
     input_size: ${model.symbols_embedding_dim}

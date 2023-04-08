@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import LinearNorm
+from nemo.collections.tts.modules.submodules import LinearNorm, ConditionalLayerNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
@@ -52,46 +52,8 @@ class PositionalEmbedding(nn.Module):
             return pos_emb[None, :, :]
 
 
-class _LayerNorm(nn.Module):
-    def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
-        super(_LayerNorm, self).__init__()
-        self.normalized_shape = normalized_shape
-        self.eps = eps
-        self.spk_emb_dim = spk_emb_dim
-        self.condition = condition
-
-        # TODO, old model don't have the weight and bias
-        if condition:
-            self.weight = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            self.bias = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            nn.init.constant_(self.weight.weight, 0.0)
-            nn.init.constant_(self.bias.weight, 0.0)
-            if bias:
-                nn.init.constant_(self.weight.bias, 1.0)
-                nn.init.constant_(self.bias.bias, 0.0)
-        else:
-            self.weight = nn.Parameter(torch.empty((self.normalized_shape,)))
-            self.bias = nn.Parameter(torch.empty((self.normalized_shape,)))
-
-    def forward(self, inp, conditioning=None):
-
-        # Normalize along channel for one time
-        if conditioning is not None and self.condition:
-            inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), eps=self.eps)
-            scale = self.weight(conditioning)
-            bias = self.bias(conditioning)
-            inp *= scale
-            inp += bias
-        else:
-            inp = F.layer_norm(
-                inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps
-            )
-
-        return inp
-
-
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_inner, kernel_size, dropout, condition_lnorm=False, pre_lnorm=False):
+    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False, condition_lnorm=False):
         super(PositionwiseConvFF, self).__init__()
 
         self.d_model = d_model
@@ -109,7 +71,7 @@ class PositionwiseConvFF(nn.Module):
             nn.Dropout(dropout),
         )
 
-        self.layer_norm = _LayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -137,7 +99,7 @@ class PositionwiseConvFF(nn.Module):
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, condition_lnorm=False, pre_lnorm=False):
+    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False, condition_lnorm=False):
         super(MultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -150,7 +112,7 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = _LayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
 
     def forward(self, inp, attn_mask=None, conditioning=None):
         return self._forward(inp, attn_mask, conditioning)
@@ -209,7 +171,7 @@ class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
 
         self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_lnorm=condition_lnorm, **kwargs)
         self.pos_ff = PositionwiseConvFF(
-            d_model, d_inner, kernel_size, dropout, condition_lnorm=condition_lnorm, pre_lnorm=kwargs.get('pre_lnorm')
+            d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_lnorm=condition_lnorm,
         )
 
     def forward(self, dec_inp, mask=None, conditioning=None):
@@ -258,8 +220,8 @@ class FFTransformerDecoder(NeuralModule):
                     kernel_size,
                     dropout,
                     dropatt=dropatt,
-                    condition_lnorm=condition_lnorm,
                     pre_lnorm=pre_lnorm,
+                    condition_lnorm=condition_lnorm,
                 )
             )
 

@@ -16,6 +16,7 @@ from collections import OrderedDict
 from typing import Tuple
 
 import torch
+import torch.nn as nn
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
@@ -570,7 +571,7 @@ class StyleAttention(NeuralModule):
             "style_emb": NeuralType(('B', 'D'), EncodedRepresentation()),
         }
 
-    def forward(self, inputs, token_id=None):
+    def forward(self, inputs):
         bs = inputs.size(0)
         q = self.q_linear(inputs.unsqueeze(1))
         k = self.k_linear(self.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1))
@@ -586,9 +587,6 @@ class StyleAttention(NeuralModule):
 
         scores = torch.bmm(q, k) / self.temperature
         scores = self.softmax(scores)
-        if token_id is not None:
-            scores = torch.zeros_like(scores)
-            scores[:, :, token_id] = 1
 
         style_emb = torch.bmm(scores, v).squeeze(1)
         style_emb = style_emb.contiguous().view(self.n_head, bs, self.token_size)
@@ -601,13 +599,11 @@ class SVEmbeddingLinearProjectionNetwork(torch.nn.Module):
     def __init__(self, speaker_embedding_dim, symbols_embedding_dim):
         super(SVEmbeddingLinearProjectionNetwork, self).__init__()
         self.speaker_proj = torch.nn.Linear(speaker_embedding_dim, symbols_embedding_dim)
-        self.bn1 = torch.nn.BatchNorm1d(num_features=symbols_embedding_dim)
         self.act_fn = torch.nn.ReLU()
 
     def forward(self, sv_embedding):
         x = self.speaker_proj(sv_embedding)
         return x.unsqueeze(1)
-        # return self.act_fn(self.bn1(x)).unsqueeze(1)
 
 
 class SpeakerEncoder(torch.nn.Module):
@@ -630,21 +626,21 @@ class SpeakerEncoder(torch.nn.Module):
         self.sv_projection_module = sv_projection_module
         self.lookup_emb_projection_module = lookup_emb_projection_module
 
-    def forward(self, spk_emb, gst_ref_spec=None, gst_ref_spec_lens=None, speaker_embedding=None):
+    def forward(self, spk_emb, reference_spec=None, reference_spec_lens=None, speaker_embedding=None):
         x = spk_emb
         # Project lookup speaker embedding
         if self.lookup_emb_projection_module is not None:
             x += self.lookup_emb_projection_module(spk_emb)
 
         # Get GST based speaker embedding
-        if self.gst_module is not None and gst_ref_spec is not None and gst_ref_spec_lens is not None:
+        if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
             ref_spec_mask = (
-                torch.arange(gst_ref_spec_lens.max())
-                .to(gst_ref_spec.device)
-                .expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max())
-                < gst_ref_spec_lens.unsqueeze(1)
+                torch.arange(reference_spec_lens.max())
+                .to(reference_spec.device)
+                .expand(reference_spec_lens.shape[0], reference_spec_lens.max())
+                < reference_spec_lens.unsqueeze(1)
             ).unsqueeze(2)
-            x += self.gst_module(gst_ref_spec, ref_spec_mask).unsqueeze(1)
+            x += self.gst_module(reference_spec, ref_spec_mask).unsqueeze(1)
 
         # Project speaker embedding from Speaker Verification based
         if self.sv_projection_module is not None and speaker_embedding is not None:
@@ -697,3 +693,40 @@ class Conv2d(torch.nn.Module):
         x = x.contiguous().transpose(2, 3)
         x = x.contiguous().transpose(1, 3)
         return x
+
+
+class ConditionalLayerNorm(nn.Module):
+    def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
+        super(ConditionalLayerNorm, self).__init__()
+        self.normalized_shape = normalized_shape
+        self.eps = eps
+        self.spk_emb_dim = spk_emb_dim
+        self.condition = condition
+
+        if condition:
+            self.weight = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            self.bias = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            nn.init.constant_(self.weight.weight, 0.0)
+            nn.init.constant_(self.bias.weight, 0.0)
+            if bias:
+                nn.init.constant_(self.weight.bias, 1.0)
+                nn.init.constant_(self.bias.bias, 0.0)
+        else:
+            self.weight = nn.Parameter(torch.empty((self.normalized_shape,)))
+            self.bias = nn.Parameter(torch.empty((self.normalized_shape,)))
+
+    def forward(self, inp, conditioning=None):
+
+        # Normalize along channel for one time
+        if conditioning is not None and self.condition:
+            inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), eps=self.eps)
+            scale = self.weight(conditioning)
+            bias = self.bias(conditioning)
+            inp *= scale
+            inp += bias
+        else:
+            inp = F.layer_norm(
+                inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps
+            )
+
+        return inp

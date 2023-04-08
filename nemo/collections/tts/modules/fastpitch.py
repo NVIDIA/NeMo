@@ -48,7 +48,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.transformer import _LayerNorm
+from nemo.collections.tts.modules.submodules import ConditionalLayerNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
@@ -85,10 +85,10 @@ def average_features(pitch, durs):
 
 
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, speaker_size=384, condition_lnorm=False):
+    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, spk_emb_dim=384, condition_lnorm=False):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = _LayerNorm(out_channels, spk_emb_dim=speaker_size, condition=condition_lnorm)
+        self.norm = ConditionalLayerNorm(out_channels, spk_emb_dim=spk_emb_dim, condition=condition_lnorm)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal, conditioning=None):
@@ -116,7 +116,7 @@ class TemporalPredictor(NeuralModule):
                     filter_size,
                     kernel_size=kernel_size,
                     dropout=dropout,
-                    speaker_size=input_size,
+                    spk_emb_dim=input_size,
                     condition_lnorm=condition_lnorm,
                 )
             )
@@ -266,8 +266,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "gst_ref_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "gst_ref_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
+            "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
             "speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
 
@@ -302,8 +302,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
-        gst_ref_spec=None,
-        gst_ref_spec_lens=None,
+        reference_spec=None,
+        reference_spec_lens=None,
         speaker_embedding=None,
     ):
 
@@ -320,40 +320,33 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
                 spk_emb=spk_emb,
-                gst_ref_spec=gst_ref_spec,
-                gst_ref_spec_lens=gst_ref_spec_lens,
+                reference_spec=reference_spec,
+                reference_spec_lens=reference_spec_lens,
                 speaker_embedding=speaker_embedding,
             )
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-
+        
+        # Condition
+        prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
+        aligner_condition = spk_emb if self.speaker_emb_condition_aligner else None
+        decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
+        
         # Predict duration
-        if self.speaker_emb_condition_prosody:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        else:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
-            if self.speaker_emb_condition_aligner and not isinstance(spk_emb, int):
-                attn_soft, attn_logprob = self.aligner(
-                    spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=spk_emb
-                )
-            else:
-                attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior)
+            attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=aligner_condition)
             attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        if self.speaker_emb_condition_prosody:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        else:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=prosody_condition)
+        
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
@@ -402,10 +395,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             )
 
         # Output FFT
-        if self.speaker_emb_condition_decoder:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
-        else:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=decoder_condition)
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect,
@@ -431,20 +421,17 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-
+        
+        # Condition
+        prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
+        decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
+        
         # Predict duration and pitch
-        if self.speaker_emb_condition_prosody:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        else:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(
             torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
         )
-        if self.speaker_emb_condition_prosody:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb) + pitch
-        else:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=prosody_condition) + pitch
 
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
@@ -466,10 +453,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
-        if self.speaker_emb_condition_decoder:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
-        else:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=decoder_condition)
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect.to(torch.float),
