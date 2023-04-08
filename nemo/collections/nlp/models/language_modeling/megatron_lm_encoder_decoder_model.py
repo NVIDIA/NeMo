@@ -372,7 +372,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
@@ -674,8 +674,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         return averaged_loss
 
@@ -691,7 +691,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):

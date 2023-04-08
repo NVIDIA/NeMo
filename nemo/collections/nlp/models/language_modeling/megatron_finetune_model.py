@@ -414,7 +414,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
             metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            self.log(loss_log_key, loss)
+            self.log(loss_log_key, loss, batch_size=1)
             metric_object = (
                 self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             )
@@ -424,17 +424,17 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 # GLUE case:
                 if len(metric) == 1 and 'acc' in metric:
                     metric = metric['acc']
-                    self.log(metric_log_key, metric)
+                    self.log(metric_log_key, metric, batch_size=1)
                     logging.info(f"{mode} {metric_name}: {metric}")
                 # XNLI case where the metric dictionary contains the language and the computed metric as values.
                 else:
                     for k, v in metric.items():
                         if k != 'acc' and 'total' not in k:
-                            self.log(metric_log_key + f'_{k}', v)
+                            self.log(metric_log_key + f'_{k}', v, batch_size=1)
                             logging.info(f"{mode} {metric_name} lang {k} : {v}")
                     metric = metric['acc']
             else:
-                self.log(metric_log_key, metric)
+                self.log(metric_log_key, metric, batch_size=1)
                 logging.info(f"{metric_log_key}: {metric}")
             metric_object.reset()
 
@@ -507,11 +507,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
 
         if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric)
+            self.log("validation_loss", averaged_loss, batch_size=1)
+            self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
         elif mode == 'test':
-            self.log("test_loss", averaged_loss)
-            self.log(f"test_{self.test_metric_name}", averaged_metric)
+            self.log("test_loss", averaged_loss, batch_size=1)
+            self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
 
         return averaged_loss, averaged_metric
 

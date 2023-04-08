@@ -268,7 +268,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
         if self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
@@ -292,14 +292,15 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, batch_size=1)
             lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('lr', lr, batch_size=1)
+            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
                 'consumed_samples',
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
                 prog_bar=True,
+                batch_size=1,
             )
             self._reduced_loss_buffer = []
         return lm_loss
@@ -369,10 +370,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if len(outputs) == 0:
             return
         averaged_loss = torch.stack(outputs).mean()
-        self.log('val_loss', averaged_loss, prog_bar=True)
+        self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
@@ -380,9 +381,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def test_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
-        self.log('test_loss', averaged_loss, prog_bar=True)
+        self.log('test_loss', averaged_loss, prog_bar=True, batch_size=1)
         logging.info(f'test_loss: {averaged_loss} ')
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
         return averaged_loss
 
     def build_train_valid_test_datasets(self):

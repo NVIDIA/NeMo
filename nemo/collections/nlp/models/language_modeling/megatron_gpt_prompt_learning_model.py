@@ -462,7 +462,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 val_metric = torch.tensor(0.0).cuda()
                 metric_name = ''
 
-            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True)
+            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size

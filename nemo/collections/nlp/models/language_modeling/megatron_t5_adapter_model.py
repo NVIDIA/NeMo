@@ -284,13 +284,13 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             # we can only log on one rank if it is rank zero so we broadcast from last rank
             torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
             logging.info(f'Validation loss: {averaged_loss}')
 
         else:
             averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
             logging.info(f'Validation loss: {averaged_loss}')
-            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if self.cfg.get('report_validation_accuracy', False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
@@ -325,7 +325,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             else:
                 val_acc = torch.tensor(0.0).cuda()
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size

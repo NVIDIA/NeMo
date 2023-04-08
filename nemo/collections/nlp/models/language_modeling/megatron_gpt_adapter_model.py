@@ -212,12 +212,12 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         # Need to make sure the frozen model param learning rate stays 0.0
         # so forceing lr to be 0.0 for gpt layers before param update
