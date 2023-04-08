@@ -343,6 +343,16 @@ def cache_datastore_manifests(
                 'initialized, please update data config to use `defer_setup = True`.'
             )
 
+"""Optionally expand / shard the list of manifests
+    This is made to use the same notation as the sharded audio files
+
+    Args:
+        manifest_filepaths: list of manifest files (the sharded notation)
+        shard_strategy: scatter or replicate (scatter by default)
+        shard_manifests: bool, if False, no sharding / manifest filepath expansion will be attempted
+        global_rank: int, the rank of this worker
+        world_size: int, total number of workers
+"""
 def shard_manifests_if_needed(
     manifest_filepaths: Union[str, List[str]],
     shard_strategy: str,
@@ -774,6 +784,7 @@ class _TarredAudioToTextDataset(IterableDataset):
                     occasions (when the number of shards is not divisible with ``world_size``), will not sample
                     the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
                     or test datasets.
+        shard_manifests (bool): Whether or not to try / shard manifests. Defaults to False.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -974,7 +985,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             my_len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
             torch.distributed.all_reduce(my_len)
             my_len = my_len.int()
-            logging.debug(f'sharded - all reduced manifest len {my_len}')
+            logging.info(f'Sharded manifests: Total length: {my_len}')
         else:
             my_len = len(self.manifest_processor.collection)
 
