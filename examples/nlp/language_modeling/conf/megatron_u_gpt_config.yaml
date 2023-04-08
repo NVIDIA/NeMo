@@ -103,7 +103,6 @@ model:
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
 
-
   # Miscellaneous
   seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from

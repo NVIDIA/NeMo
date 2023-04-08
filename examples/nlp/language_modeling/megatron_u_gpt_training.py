@@ -178,9 +178,11 @@ def main(cfg) -> None:
             save_restore_connector=save_restore_connector,
         )
         model = load_from_nemo(MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
-    else:
+    elif cfg.model.pretrained_checkpoint.checkpoint_dir:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+    else:
+        model = MegatronUGPTModel(cfg.model, trainer)
     trainer.fit(model)
 
 
