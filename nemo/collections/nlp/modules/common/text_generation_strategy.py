@@ -252,7 +252,7 @@ class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         # Get the attention mask and postition ids.
         if self.model.cfg.get('attn_mask_type', 'causal') == 'padding':
             for i, l in enumerate(context_lengths):
-                self.attention_mask[i][:, :l - 1] = 1.0
+                self.attention_mask[i][:, : l - 1] = 1.0
 
         self.attention_mask = self.attention_mask.unsqueeze(1) < 0.5
         position_ids = torch.arange(tokens.size(1), dtype=torch.long, device=tokens.device)
