@@ -463,22 +463,27 @@ def create_extreme_masked_lm_predictions(
         pvals = np.array([1.0 / (max_ngram_size - min_ngram_size + 1)] * (max_ngram_size - min_ngram_size + 1))
 
     ngram_indexes = []
+    skip_mask_idxs = []
     if skip_masking_id is not None:
         skip_mask_idx = None
         for idx in range(len(tokens)):
             if tokens[idx] == skip_masking_id:
-                skip_mask_idx = idx
-                break
+                skip_mask_idxs.append(idx)
     else:
-        skip_mask_idx = None
-
+        skip_mask_idxs = None
     cand_indexes = [[i] for i in range(len(tokens))]
     for idx in range(len(cand_indexes)):
         ngram_index = {}
         for n in ngrams:
             # Skip this ngram if it contains the index of token that should not be masked.
             # TODO: (sandeepsub) Generalize this to be a list of tokens that cannot be masked.
-            if skip_mask_idx is not None and skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+            should_skip = False
+            if skip_mask_idxs is not None:
+                for skip_mask_idx in skip_mask_idxs:
+                    if skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+                        should_skip = True
+                        break
+            if should_skip:
                 continue
             ngram_index[n] = cand_indexes[idx : idx + n]
         ngram_indexes.append(ngram_index)
