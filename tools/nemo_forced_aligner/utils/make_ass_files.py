@@ -92,13 +92,17 @@ def resegment_utt_obj(utt_obj, ass_file_config):
         approx_lines_per_segment = ass_file_config.max_lines_per_segment
 
     max_chars_per_segment = int(approx_chars_per_line * approx_lines_per_segment)
-    print('max chars per segment', max_chars_per_segment)
 
-    # currently this breaks the convention of tokens at the end/beginning
-    # of segments being listed as separate tokens in segment.word_and_tokens
-    # TODO: change code so we follow this convention
+    new_segments_and_tokens = []
     all_words_and_tokens_pointer = 0
-    new_segments_and_tokens = [Segment()]
+    for word_or_token in all_words_and_tokens:
+        if type(word_or_token) is Token:
+            new_segments_and_tokens.append(word_or_token)
+            all_words_and_tokens_pointer += 1
+        else:
+            break
+
+    new_segments_and_tokens.append(Segment())
 
     while all_words_and_tokens_pointer < len(all_words_and_tokens):
         word_or_token = all_words_and_tokens[all_words_and_tokens_pointer]
@@ -122,6 +126,9 @@ def resegment_utt_obj(utt_obj, ass_file_config):
                     new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
 
         else:  # i.e. word_or_token is a token
+            # currently this breaks the convention of tokens at the end/beginning
+            # of segments being listed as separate tokens in segment.word_and_tokens
+            # TODO: change code so we follow this convention
             new_segments_and_tokens[-1].words_and_tokens.append(word_or_token)
 
         all_words_and_tokens_pointer += 1
