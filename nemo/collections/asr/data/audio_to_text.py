@@ -342,6 +342,7 @@ def cache_datastore_manifests(
                 'initialized, please update data config to use `defer_setup = True`.'
             )
 
+
 """Optionally expand / shard the list of manifests
     This is made to use the same notation as the sharded audio files
 
@@ -352,6 +353,8 @@ def cache_datastore_manifests(
         global_rank: int, the rank of this worker
         world_size: int, total number of workers
 """
+
+
 def shard_manifests_if_needed(
     manifest_filepaths: Union[str, List[str]],
     shard_strategy: str,
