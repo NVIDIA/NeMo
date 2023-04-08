@@ -46,11 +46,11 @@ from nemo.collections.tts.torch.tts_data_types import (
     AlignPriorMatrix,
     Durations,
     Energy,
-    ReferenceAudio,
     LMTokens,
     LogMel,
     P_voiced,
     Pitch,
+    ReferenceAudio,
     SpeakerEmbedding,
     SpeakerID,
     TTSDataType,
@@ -455,7 +455,7 @@ class TTSDataset(Dataset):
         if pitch_stats_path is not None:
             with open(Path(pitch_stats_path), 'r', encoding="utf-8") as pitch_f:
                 self.pitch_stats = json.load(pitch_f)
-    
+
     # Add pretrained speaker embeddings (e.g. speaker-verification embeddings)
     # The embedding order should be the same as manifest order
     def add_speaker_embedding(self, **kwargs):
@@ -492,7 +492,7 @@ class TTSDataset(Dataset):
 
     def add_speaker_id(self, **kwargs):
         pass
-    
+
     # Add a mapping for each speaker to their manifest indexes
     def add_reference_audio(self, **kwargs):
         if SpeakerID not in self.sup_data_types_set:
@@ -796,7 +796,9 @@ class TTSDataset(Dataset):
         max_durations_len = max([len(i) for i in durations_list]) if Durations in self.sup_data_types_set else None
         max_pitches_len = max(pitches_lengths).item() if Pitch in self.sup_data_types_set else None
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
-        max_reference_audio_len = max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None
+        max_reference_audio_len = (
+            max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None
+        )
 
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
@@ -823,20 +825,7 @@ class TTSDataset(Dataset):
             audios_shifted,
             reference_audios,
             speaker_embs,
-        ) = (
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
-            []
-        )
+        ) = ([], [], [], [], [], [], [], [], [], [], [], [])
 
         for i, sample_tuple in enumerate(batch):
             (
@@ -923,7 +912,9 @@ class TTSDataset(Dataset):
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
             "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
             "reference_audio": torch.stack(reference_audios) if ReferenceAudio in self.sup_data_types_set else None,
-            "reference_audio_lens": torch.stack(reference_audio_lengths) if ReferenceAudio in self.sup_data_types_set else None,
+            "reference_audio_lens": torch.stack(reference_audio_lengths)
+            if ReferenceAudio in self.sup_data_types_set
+            else None,
             "speaker_embedding": torch.stack(speaker_embs) if SpeakerEmbedding in self.sup_data_types_set else None,
         }
 

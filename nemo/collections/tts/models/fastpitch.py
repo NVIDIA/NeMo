@@ -111,7 +111,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         self.bin_loss_warmup_epochs = cfg.get("bin_loss_warmup_epochs", 100)
         self.log_train_images = False
-        
+
         loss_scale = 0.1 if self.learn_alignment else 1.0
         dur_loss_scale = loss_scale
         pitch_loss_scale = loss_scale
@@ -393,7 +393,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
         reference_spec, reference_spec_len = None, None
         if reference_audio is not None:
-            reference_spec, reference_spec_len = self.preprocessor(input_signal=reference_audio, length=reference_audio_len)
+            reference_spec, reference_spec_len = self.preprocessor(
+                input_signal=reference_audio, length=reference_audio_len
+            )
 
         (
             mels_pred,
@@ -505,7 +507,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
         reference_spec, reference_spec_len = None, None
         if reference_audio is not None:
-            reference_spec, reference_spec_len = self.preprocessor(input_signal=reference_audio, length=reference_audio_len)
+            reference_spec, reference_spec_len = self.preprocessor(
+                input_signal=reference_audio, length=reference_audio_len
+            )
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
         (mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch, energy_pred, energy_tgt,) = self(

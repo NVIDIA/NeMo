@@ -326,12 +326,12 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-        
+
         # Condition
         prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
         aligner_condition = spk_emb if self.speaker_emb_condition_aligner else None
         decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
-        
+
         # Predict duration
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
@@ -339,13 +339,15 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
-            attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=aligner_condition)
+            attn_soft, attn_logprob = self.aligner(
+                spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=aligner_condition
+            )
             attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=prosody_condition)
-        
+
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
@@ -420,11 +422,11 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-        
+
         # Condition
         prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
         decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
-        
+
         # Predict duration and pitch
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(

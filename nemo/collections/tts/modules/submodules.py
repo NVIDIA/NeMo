@@ -485,6 +485,7 @@ class ReferenceEncoder(NeuralModule):
     """
     Encode mel-spectrograms to an utterance level feature
     """
+
     def __init__(self, cnn_filters=[32, 32, 64, 64, 128, 128], dropout=0.2, gru_hidden=128):
         super(ReferenceEncoder, self).__init__()
         self.filter_size = [1] + cnn_filters
@@ -506,7 +507,7 @@ class ReferenceEncoder(NeuralModule):
                                 padding=(1, 1),
                                 dilation=(1, 1),
                                 bias=True,
-                            )
+                            ),
                         ),
                         ("transpose_bhwc_{}".format(i + 1), Transpose([0, 2, 3, 1])),
                         ("relu_{}".format(i + 1), torch.nn.ReLU()),
@@ -654,16 +655,17 @@ class SpeakerEncoder(torch.nn.Module):
             x += self.sv_projection_module(speaker_embedding)
         return x
 
-    
+
 class Transpose(nn.Module):
     def __init__(self, order):
         super(Transpose, self).__init__()
         self.order = order
-    
+
     def forward(self, x):
         y = x.contiguous().permute(*self.order)
         return y
-    
+
+
 class ConditionalLayerNorm(nn.Module):
     def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
         super(ConditionalLayerNorm, self).__init__()
