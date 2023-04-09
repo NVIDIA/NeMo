@@ -42,6 +42,10 @@ exp_manager:
 model:
   # GPT checkpoint to start from
   restore_from_path: null # manually set the `.nemo` file to start from.
+  pretrained_checkpoint:
+    checkpoint_dir: null # Path to a folder that contains a .ckpt file
+    checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+    hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
