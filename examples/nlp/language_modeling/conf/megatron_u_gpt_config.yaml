@@ -95,7 +95,7 @@ model:
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer
-    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+    sentencepiece_legacy: True # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
     num_sentinel_tokens: 2000
 
   # Mixed precision
