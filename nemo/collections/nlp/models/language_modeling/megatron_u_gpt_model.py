@@ -87,6 +87,7 @@ class MegatronUGPTModel(MegatronGPTModel):
         # Resize the model embedding layer.
         num_added_tokens = len(self.tokenizer.vocab) - self.model.word_embeddings_weight().size(0)
         if num_added_tokens > 0:
+            logging.info(f"Resizing the model's embedding layer by adding {num_added_tokens} tokens.")
             with torch.no_grad():
                 mean = self.model.word_embeddings_weight().mean().item()
                 std = self.model.word_embeddings_weight().std().item()
@@ -115,7 +116,7 @@ class MegatronUGPTModel(MegatronGPTModel):
             else:
                 num_added_tokens = len(self.tokenizer.vocab) - self.model.language_model.output_layer.weight.size(0)
                 output_layer_weight = self.model.language_model.output_layer.weight
-
+            logging.info(f"Resizing the model's output layer by adding {num_added_tokens} tokens.")
             if num_added_tokens > 0:
                 with torch.no_grad():
                     mean = output_layer_weight.mean().item()
