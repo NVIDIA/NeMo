@@ -78,6 +78,7 @@ class MegatronUGPTModel(MegatronGPTModel):
         for i in range(self.cfg.tokenizer.get('num_sentinel_tokens', 0)):
             token = f"<extra_id_{i}>"
             token_ids = self.tokenizer.tokens_to_ids(token)
+            assert isinstance(token_ids, list), token_ids
             if len(token_ids) == 1:
                 sentinel_tokens.append(token_ids[0])
 
