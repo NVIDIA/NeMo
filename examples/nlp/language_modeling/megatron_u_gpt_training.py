@@ -182,6 +182,9 @@ def main(cfg) -> None:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronUGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
+        # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+        with open_dict(cfg):
+            cfg.model.precision = cfg.trainer.precision
         model = MegatronUGPTModel(cfg.model, trainer)
     trainer.fit(model)
 

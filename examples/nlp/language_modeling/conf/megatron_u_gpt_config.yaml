@@ -96,6 +96,7 @@ model:
     merge_file: null
     delimiter: null # only used for tabular tokenizer
     sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+    num_sentinel_tokens: 2000
 
   # Mixed precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -114,6 +115,7 @@ model:
   bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  get_attention_mask_from_fusion: False # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
 
   # Miscellaneous
   seed: 1234
