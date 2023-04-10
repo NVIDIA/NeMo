@@ -311,8 +311,8 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
             self._optimizer._try_start_bucket_param_sync(params)
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar

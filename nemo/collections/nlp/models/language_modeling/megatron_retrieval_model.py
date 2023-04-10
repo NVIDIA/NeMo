@@ -305,43 +305,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             self._reduced_loss_buffer = []
         return lm_loss
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
-
-        # TODO: Replace with newer override for scheduler.step() instead of
-        # search for plugins for fp16 GradScalar
-        if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
-        ):
-            precision_plugin = self.trainer.precision_plugin
-
-            if (
-                hasattr(precision_plugin, 'scaler')
-                and precision_plugin.scaler is not None
-                and isinstance(precision_plugin.scaler, GradScaler)
-            ):
-                grad_scaler = precision_plugin.scaler
-
-                # If the grad scaler skipped its optimizer step due to infs/nans,
-                # decrement the step of all schedulers.
-                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    scheduler_cfgs = self.trainer.lr_scheduler_configs
-
-                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
-                        return
-
-                    for scheduler_cfg in scheduler_cfgs:
-                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
-                        # as well as update the optimizer lr in all param groups
-                        scheduler_cfg.scheduler.last_epoch -= 2
-                        scheduler_cfg.scheduler.step()
-
-                    # Increase the max step count by 1
-
-                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
-                    # accumulated gradient updates.
-                    grad_scaler.optimizer_update_skipped = None
-
     def validation_step(self, batch, batch_idx):
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
