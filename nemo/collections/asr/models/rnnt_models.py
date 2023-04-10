@@ -31,13 +31,13 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDec
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
