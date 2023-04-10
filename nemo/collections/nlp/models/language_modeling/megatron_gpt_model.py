@@ -809,7 +809,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             batch_sampler=batch_sampler,
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
-            persistent_workers=True,
+            persistent_workers=False,
         )
 
     def setup(self, stage=None):

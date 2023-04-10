@@ -96,7 +96,7 @@ class T5Dataset(Dataset):
             # Build index mappings.
             assert documents is not None
             assert np.min(documents) >= 0
-            assert np.max(documents) < indexed_dataset.sizes.shape[0], (np.max(documents), indexed_dataset.sizes)
+            assert np.max(documents) < indexed_dataset.sizes.shape[0], (np.max(documents), indexed_dataset.sizes.shape)
 
             self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
                 name=self.name,
