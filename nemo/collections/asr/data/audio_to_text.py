@@ -16,6 +16,7 @@ import json
 import math
 import multiprocessing
 import os
+from collections.abc import Iterable as IterableABC
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
@@ -424,7 +425,7 @@ class _AudioTextDataset(Dataset):
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
 
-    def __getitem__(self, index):
+    def process_sample(self, index):
         sample = self.manifest_processor.collection[index]
         offset = sample.offset
 
@@ -449,6 +450,12 @@ class _AudioTextDataset(Dataset):
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         return output
+
+    def __getitem__(self, index):
+        if isinstance(index, IterableABC):
+            return [self.process_sample(_index) for _index in index]
+        else:
+            return self.process_sample(index)
 
     def __len__(self):
         return len(self.manifest_processor.collection)
