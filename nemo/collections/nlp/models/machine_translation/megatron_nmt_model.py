@@ -51,7 +51,11 @@ from nemo.core.classes import Exportable
 from nemo.utils import AppState, logging, timers
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
     HAVE_APEX = True
 
@@ -61,6 +65,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -296,7 +301,34 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
-        reduced_loss = super().validation_step(itertools.chain([batch]), batch_idx, dataloader_idx)
+        encoder_seq_length = batch['text_enc'].size(1)
+        decoder_seq_length = batch['text_dec'].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+
+        fwd_bwd_func = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_func(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=itertools.chain([batch]),
+            model=[self.enc_dec_model],
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            num_microbatches=get_num_microbatches(),
+            decoder_seq_length=decoder_seq_length,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+        )
+
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            reduced_loss = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            reduced_loss = []
+
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
         predicted_tokens_ids, _ = self.decode(
