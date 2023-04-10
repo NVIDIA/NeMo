@@ -78,7 +78,7 @@ class TorchFileFeaturizer(Featurizer):
             audio_dir: base directory where audio is stored.
 
         Returns:
-            List of feature arrays or tensors
+            List of feature tensors with same length as self.feature_names.
         """
 
     def setup(self, feature_dir: Path) -> None:
@@ -241,8 +241,8 @@ class PitchFeaturizer(TorchFileFeaturizer):
             audio_dir: base directory where audio is store
 
         Returns:
-            Three element list [[T_spec], [T_spec], [T_spec]] with pitch float array, voiced mask boolean array,
-                and voiced probability float array.
+            List [[T_spec], [T_spec], [T_spec]] with optional pitch float tensor, voiced mask boolean tensor,
+                and voiced probability float tensor.
         """
         audio_path, _ = get_audio_paths_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
         audio, _ = librosa.load(path=audio_path, sr=self.sample_rate)
