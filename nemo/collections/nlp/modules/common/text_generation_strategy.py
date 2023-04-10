@@ -61,7 +61,7 @@ class TextGenerationStrategy:
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
+            dtype=self.model.autocast_dtype,
         )
 
         return output_tensor
