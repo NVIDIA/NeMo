@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "align_prior_matrix", "pitch" ]
+sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id", "reference_audio", "speaker_embedding"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -18,7 +18,7 @@ pitch_fmax: 2093.004522404789
 pitch_mean: ???  # e.g. 212.35873413085938 for LJSpeech
 pitch_std:  ???  # e.g.  68.52806091308594 for LJSpeech
 
-# Default values for dataset with sample_rate=22050
+# Default values for dataset with sample_rate=44100
 sample_rate: 44100
 n_mel_channels: 80
 n_window_size: 2048
