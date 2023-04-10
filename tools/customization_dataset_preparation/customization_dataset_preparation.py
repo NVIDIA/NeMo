@@ -120,7 +120,6 @@ def recommend_hyperparameters(df, model=None):
     # every token is around 4 chars + 100 for extra capacity
     max_seq_length = max_char_length // 4 + 100
 
-    
     if len(df) <= 100:
         encoder_hidden_size = 1024
     elif len(df) <= 1000:
@@ -144,7 +143,7 @@ def recommend_hyperparameters(df, model=None):
         'lr': lr,
         'epochs': 10,
         'max_seq_length': max_seq_length,
-        'encoder_hidden_size': encoder_hidden_size
+        'encoder_hidden_size': encoder_hidden_size,
     }
 
 
