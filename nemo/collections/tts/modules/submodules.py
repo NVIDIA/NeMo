@@ -16,7 +16,6 @@ from collections import OrderedDict
 from typing import Tuple
 
 import torch
-import torch.nn as nn
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
@@ -656,7 +655,7 @@ class SpeakerEncoder(torch.nn.Module):
         return x
 
 
-class Transpose(nn.Module):
+class Transpose(torch.nn.Module):
     def __init__(self, order):
         super(Transpose, self).__init__()
         self.order = order
@@ -666,7 +665,7 @@ class Transpose(nn.Module):
         return y
 
 
-class ConditionalLayerNorm(nn.Module):
+class ConditionalLayerNorm(torch.nn.Module):
     def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
         super(ConditionalLayerNorm, self).__init__()
         self.normalized_shape = normalized_shape
@@ -675,16 +674,16 @@ class ConditionalLayerNorm(nn.Module):
         self.condition = condition
 
         if condition:
-            self.weight = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            self.bias = nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            nn.init.constant_(self.weight.weight, 0.0)
-            nn.init.constant_(self.bias.weight, 0.0)
+            self.weight = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            self.bias = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            torch.nn.init.constant_(self.weight.weight, 0.0)
+            torch.nn.init.constant_(self.bias.weight, 0.0)
             if bias:
-                nn.init.constant_(self.weight.bias, 1.0)
-                nn.init.constant_(self.bias.bias, 0.0)
+                torch.nn.init.constant_(self.weight.bias, 1.0)
+                torch.nn.init.constant_(self.bias.bias, 0.0)
         else:
-            self.weight = nn.Parameter(torch.empty((self.normalized_shape,)))
-            self.bias = nn.Parameter(torch.empty((self.normalized_shape,)))
+            self.weight = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
+            self.bias = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
 
     def forward(self, inp, conditioning=None):
 

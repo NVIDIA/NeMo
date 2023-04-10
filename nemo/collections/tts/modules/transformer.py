@@ -357,8 +357,8 @@ class FFTransformer(nn.Module):
 
 
 class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
-
-    # Higher level forwarding
+    """ Inherit from FFTransformerDecoder and add support for adapter"""
+    
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)
         for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -387,12 +387,11 @@ class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterMo
 class FFTransformerEncoderAdapter(
     FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin
 ):
+    """ Inherit from FFTransformerEncoder and add support for adapter"""
     pass
 
 
-"""
-Register any additional information
-"""
+"""Register any additional information"""
 if adapter_mixins.get_registered_adapter(FFTransformerEncoder) is None:
     adapter_mixins.register_adapter(base_class=FFTransformerEncoder, adapter_class=FFTransformerEncoderAdapter)
 
