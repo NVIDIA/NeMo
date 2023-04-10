@@ -83,7 +83,8 @@ class GPTSFTDataset(Dataset):
         self.truncation_field = truncation_field
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
-        self.prompt_template = prompt_template
+        # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+        self.prompt_template = prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
