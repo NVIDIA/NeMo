@@ -260,7 +260,8 @@ def main(cfg) -> None:
             if cfg.web_server:
                 loop = asyncio.new_event_loop()
                 thread = threading.Thread(
-                    target=get_chatbot_demo,
+     #               target=get_chatbot_demo,
+                    target=get_demo,
                     daemon=True,
                     args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
                 )

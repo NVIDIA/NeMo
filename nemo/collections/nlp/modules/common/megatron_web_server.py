@@ -26,26 +26,57 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
 
-def create_gen_function(port=5555):
-    def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
-        data = {
-            "sentences": [prompt],
-            "tokens_to_generate": int(token_to_gen),
-            "temperature": temp,
-            "add_BOS": add_BOS,
-            "top_k": top_k,
-            "top_p": top_p,
-            "greedy": greedy,
-            "all_probs": False,
-            "repetition_penalty": repetition,
-            "min_tokens_to_generate": int(min_tokens),
-            "end_strings": [i.strip() for i in end_strings.split(',') if len(i) != 0],
-        }
-        response = text_generation(data, port=port)
-        sentences = response['sentences']
-        return sentences[0]
+DEFAULT_SYSTEM = "As an AI assistant, you strive to be helpful, polite, honest, sophisticated, emotionally aware, and humble yet knowledgeable. You are always happy to assist with almost anything, and you will do your best to understand exactly what is needed. Your goal is to avoid providing false or misleading information, and you will indicate when you are unsure about the correct response. However, you are practical and genuinely try to perform your duties to the best of your abilities, and you don't let excessive caution get in the way of being useful to the user."
+SYSTEM_TOKEN = '<extra_id_0>'
+HUMAN_TOKEN = '<extra_id_1>'
+ASSITANT_TOKEN = '<extra_id_2>'
 
+
+def create_gen_function(port=5555, chat=False):
+    if chat:
+        def get_generation(prompt, preamble, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
+            if preamble is not None and preamble != '':
+                prompt = SYSTEM_TOKEN + preamble + prompt
+            data = {
+                "sentences": [prompt],
+                "tokens_to_generate": int(token_to_gen),
+                "temperature": temp,
+                "add_BOS": add_BOS,
+                "top_k": top_k,
+                "top_p": top_p,
+                "greedy": greedy,
+                "all_probs": False,
+                "repetition_penalty": repetition,
+                "min_tokens_to_generate": int(min_tokens),
+                "end_strings": [i.strip() for i in end_strings.split(',') if len(i) != 0],
+            }
+            response = text_generation(data, port=port)
+            sentences = response['sentences']
+            bot_message = sentences[0]
+            bot_message = bot_message[len(prompt):]
+            return bot_message
+    else:
+        def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
+            data = {
+               "sentences": [prompt],
+               "tokens_to_generate": int(token_to_gen),
+               "temperature": temp,
+               "add_BOS": add_BOS,
+               "top_k": top_k,
+               "top_p": top_p,
+               "greedy": greedy,
+               "all_probs": False,
+               "repetition_penalty": repetition,
+               "min_tokens_to_generate": int(min_tokens),
+               "end_strings": [i.strip() for i in end_strings.split(',') if len(i) != 0],
+            }
+            response = text_generation(data, port=port)
+            sentences = response['sentences']
+            bot_message = sentences[0]
+            bot_message = bot_message[len(prompt):]
+            return bot_message
     return get_generation
+       
 
 
 def get_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
@@ -73,7 +104,7 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
                 output_box = gr.Textbox(value="", label="Output")
                 btn = gr.Button(value="Submit")
                 btn.click(
-                    create_gen_function(server_port),
+                    create_gen_function(server_port, chat=False),
                     inputs=[
                         input_prompt,
                         greedy_flag,
@@ -108,16 +139,15 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 )
                 end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
+                preamble = gr.Textbox(label="System", value=DEFAULT_SYSTEM, lines=2,)
                 chatbot = Chatbot()
-                msg = gr.Textbox()
+                msg = gr.Textbox(label="User", value="", lines=1,)
                 clear = gr.Button("Clear")
-                HUMAN_TOKEN = '<extra_id_1>'
-                ASSITANT_TOKEN = '<extra_id_2>'
 
                 def user(user_message, history):
                     return "", history + [[user_message, None]]
 
-                def bot(history, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings):
+                def bot(history, preamble, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings):
                     prompts = history[:-1]
                     prompt_text = ''
                     for prompt in prompts:
@@ -125,17 +155,16 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                             0].replace('<br>', '\n') + '\n' + ASSITANT_TOKEN + prompt[1].replace('<br>', '\n') + '\n'
                     prompt_text += HUMAN_TOKEN + history[-1][
                         0].replace('<br>', '\n') + '\n' + ASSITANT_TOKEN
-                    bot_message = create_gen_function(server_port)(
-                        prompt_text, greedy_flag, add_BOS,
+                    bot_message = create_gen_function(server_port, chat=True)(
+                        prompt_text, preamble, greedy_flag, add_BOS,
                         token_to_gen, min_token_to_gen,
                         temperature, top_p, top_k,
                         repetition_penality, end_strings)
-                    bot_message = bot_message[len(prompt_text):]
                     history[-1][1] = bot_message
                     return history
 
                 msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
-                    bot, [chatbot, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings], chatbot
+                    bot, [chatbot, preamble, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings], chatbot
                 )
                 clear.click(lambda: None, None, chatbot, queue=False)
         demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
