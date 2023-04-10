@@ -280,8 +280,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
-    def eval_step(self, batch, batch_idx, dataloader_idx=0):
+    def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        batch = next(dataloader_iter)
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
         batch = self.process_global_batch_for_text_translation_datasets(batch)
 
@@ -295,7 +296,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
-        reduced_loss = super().validation_step(batch, batch_idx, dataloader_idx)
+        reduced_loss = super().validation_step(itertools.chain([batch]), batch_idx, dataloader_idx)
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
         predicted_tokens_ids, _ = self.decode(
@@ -354,12 +355,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return results
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, dataloader_idx)
+        return self.eval_step(dataloader_iter, batch_idx, dataloader_idx)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
         rank = parallel_state.get_data_parallel_rank()

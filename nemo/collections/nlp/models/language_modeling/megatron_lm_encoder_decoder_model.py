@@ -636,7 +636,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """

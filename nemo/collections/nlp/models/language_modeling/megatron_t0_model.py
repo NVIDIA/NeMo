@@ -153,8 +153,8 @@ class MegatronT0Model(MegatronT5FinetuneModel):
         else:
             return datasets
 
-    def training_step(self, batch, batch_idx):
-        return super(MegatronT5FinetuneModel, self).training_step(batch, batch_idx)
+    def training_step(self, dataloader_iter, batch_idx):
+        return super(MegatronT5FinetuneModel, self).training_step(dataloader_iter, batch_idx)
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch):
