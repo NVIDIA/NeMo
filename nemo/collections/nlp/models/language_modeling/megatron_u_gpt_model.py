@@ -45,7 +45,6 @@ class MegatronUGPTModel(MegatronGPTModel):
         self._add_special_tokens_to_tokenizer()
 
     def _add_special_tokens_to_tokenizer(self):
-        import ipdb; ipdb.set_trace()
         MegatronT5Model.add_special_tokens_to_tokenizer(
             tokenizer=self.tokenizer,
             tokenizer_cfg=self.cfg.tokenizer,
@@ -66,7 +65,6 @@ class MegatronUGPTModel(MegatronGPTModel):
         Sentinel tokens include tokenizer.additional_special_token_ids and IDs already present in the tokenizer like <extra_id_0>, ... ,<extra_id_999>
         Sentinel tokens also exclude UL2 tokens if they are present in the tokenizer.
         """
-        import ipdb; ipdb.set_trace()
         sentinel_tokens = []
         # The additional_special_token_ids already exclude bos, eos, pad etc.
         for token_id in self.tokenizer.additional_special_tokens_ids:
