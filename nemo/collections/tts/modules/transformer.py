@@ -358,7 +358,7 @@ class FFTransformer(nn.Module):
 
 class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
     """ Inherit from FFTransformerDecoder and add support for adapter"""
-    
+
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)
         for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -388,6 +388,7 @@ class FFTransformerEncoderAdapter(
     FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin
 ):
     """ Inherit from FFTransformerEncoder and add support for adapter"""
+
     pass
 
 

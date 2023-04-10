@@ -121,7 +121,7 @@ class TemporalPredictor(NeuralModule):
                 )
             )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
-        
+
         # Use for adapter input dimension
         self.filter_size = filter_size
 
@@ -156,7 +156,7 @@ class TemporalPredictor(NeuralModule):
 
 class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMixin):
     """ Inherit from TemporalPredictor and add support for adapter"""
-    
+
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)
         for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
