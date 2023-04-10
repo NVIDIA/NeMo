@@ -26,6 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.xpos_relative_position import 
 from nemo.collections.nlp.modules.common.megatron.sandwich_relative_position import sandwich_pos_bias
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
 from nemo.core import adapter_mixins
+from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import kerple_log_forward
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -826,13 +827,16 @@ class CoreAttention(MegatronModule):
             attention_scores += sandwich_bias
 
         if relative_position_bias is not None:
-            attention_scores += relative_position_bias[
-                :,
-                self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
-                + self.num_attention_heads_per_partition,
-                : attention_scores.size(2),
-                : attention_scores.size(3),
-            ]
+            if self.position_embedding_type.lower() == 'alibi':
+                attention_scores += relative_position_bias[
+                    :,
+                    self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
+                    + self.num_attention_heads_per_partition,
+                    : attention_scores.size(2),
+                    : attention_scores.size(3),
+                ]
+            elif self.position_embedding_type.lower() == 'kerple':
+                attention_scores = kerple_log_forward(attention_scores, relative_position_bias)
 
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
