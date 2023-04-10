@@ -788,7 +788,7 @@ class CoreAttention(MegatronModule):
                 query_layer = rearrange(query_layer, 's b h d -> (b h) s d')
                 key_layer = rearrange(key_layer, 's b h d -> (b h) s d')
                 key_layer = self.xpos(key_layer, offset=0, downscale=True)
-                query_layer = self.xpos(query_layer, offset=sq-1, downscale=False)
+                query_layer = self.xpos(query_layer, offset=0, downscale=False) # TODO: investigate the effect of offset here
                 # permute back to the expected shape below
                 key_layer = key_layer.permute(1, 0, 2)
                 query_layer = query_layer.permute(1, 0, 2)
