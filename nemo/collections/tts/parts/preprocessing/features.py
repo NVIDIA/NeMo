@@ -39,19 +39,6 @@ class Featurizer(ABC):
         """
 
     @abstractmethod
-    def compute_feature(self, manifest_entry: dict, audio_dir: Path) -> List[Union[np.ndarray, torch.tensor]]:
-        """
-        Compute feature value for the given manifest entry.
-
-        Args:
-            manifest_entry: Manifest entry dictionary.
-            audio_dir: base directory where audio is stored.
-
-        Returns:
-            List of feature arrays or tensors
-        """
-
-    @abstractmethod
     def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
         """
         Save feature value to disk for given manifest entry.
@@ -77,7 +64,48 @@ class Featurizer(ABC):
         """
 
 
-class MelSpectrogramFeaturizer(Featurizer):
+class TorchFileFeaturizer(Featurizer):
+    def __init__(self, feature_names: List[str]) -> None:
+        self.feature_names = feature_names
+
+    @abstractmethod
+    def compute_features(self, manifest_entry: dict, audio_dir: Path) -> List[torch.tensor]:
+        """
+        Compute feature value for the given manifest entry.
+
+        Args:
+            manifest_entry: Manifest entry dictionary.
+            audio_dir: base directory where audio is stored.
+
+        Returns:
+            List of feature arrays or tensors
+        """
+
+    def setup(self, feature_dir: Path) -> None:
+        for feature_name in self.feature_names:
+            feature_path = feature_dir / feature_name
+            feature_path.mkdir(exist_ok=True, parents=True)
+
+    def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
+        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        feature_tensors = self.compute_features(manifest_entry=manifest_entry, audio_dir=audio_dir)
+
+        for feature_name, feature_tensor in zip(self.feature_names, feature_tensors):
+            feature = feature_dir / feature_name / feature_filename
+            torch.save(feature_tensor, feature)
+
+    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> List[torch.tensor]:
+        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        output_tensors = []
+        for feature_name in self.feature_names:
+            feature_path = feature_dir / feature_name / feature_filename
+            feature_tensor = torch.load(feature_path)
+            output_tensors.append(feature_tensor)
+
+        return output_tensors
+
+
+class MelSpectrogramFeaturizer(TorchFileFeaturizer):
     def __init__(
         self,
         feature_name: str = "mel_spec",
@@ -92,7 +120,7 @@ class MelSpectrogramFeaturizer(Featurizer):
         log_zero_guard_value: float = 1.0,
         mel_norm: Optional[Union[str, int]] = None,
     ) -> None:
-        self.feature_name = feature_name
+        super().__init__(feature_names=[feature_name])
         self.sample_rate = sample_rate
         self.win_length = win_length
         self.hop_length = hop_length
@@ -114,11 +142,7 @@ class MelSpectrogramFeaturizer(Featurizer):
             mel_norm=mel_norm,
         )
 
-    def setup(self, feature_dir: Path) -> None:
-        spec_dir = feature_dir / self.feature_name
-        spec_dir.mkdir(exist_ok=True, parents=True)
-
-    def compute_feature(self, manifest_entry: dict, audio_dir: Path) -> List[torch.tensor]:
+    def compute_features(self, manifest_entry: dict, audio_dir: Path) -> List[torch.tensor]:
         """
         Computes mel spectrogram for the input manifest entry.
 
@@ -145,31 +169,13 @@ class MelSpectrogramFeaturizer(Featurizer):
 
         return [spec_tensor]
 
-    def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
-        spec_tensor = self.compute_feature(manifest_entry=manifest_entry, audio_dir=audio_dir)[0]
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
 
-        spec_path = feature_dir / self.feature_name / feature_filename
-        torch.save(spec_tensor, spec_path)
-
-    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> List[torch.tensor]:
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
-        spec_path = feature_dir / self.feature_name / feature_filename
-        spec_tensor = torch.load(spec_path)
-
-        return [spec_tensor]
-
-
-class EnergyFeaturizer(Featurizer):
-    def __init__(self, spec_featurizer: MelSpectrogramFeaturizer, feature_name: str = "energy",) -> None:
-        self.feature_name = feature_name
+class EnergyFeaturizer(TorchFileFeaturizer):
+    def __init__(self, spec_featurizer: MelSpectrogramFeaturizer, feature_name: str = "energy") -> None:
+        super().__init__(feature_names=[feature_name])
         self.spec_featurizer = spec_featurizer
 
-    def setup(self, feature_dir: Path) -> None:
-        energy_dir = feature_dir / self.feature_name
-        energy_dir.mkdir(exist_ok=True, parents=True)
-
-    def compute_feature(self, manifest_entry: dict, audio_dir: Path) -> List[torch.tensor]:
+    def compute_features(self, manifest_entry: dict, audio_dir: Path) -> List[torch.tensor]:
         """
         Computes energy for the input manifest entry.
 
@@ -181,56 +187,52 @@ class EnergyFeaturizer(Featurizer):
             Single element list with [T_spec] float tensor containing energy features.
         """
         # [1, T_audio]
-        spec = self.spec_featurizer.compute_feature(manifest_entry=manifest_entry, audio_dir=audio_dir)[0]
+        spec = self.spec_featurizer.compute_features(manifest_entry=manifest_entry, audio_dir=audio_dir)[0]
         # [T_audio]
         energy = torch.linalg.norm(spec, axis=0)
 
         return [energy]
 
-    def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
-        energy_tensor = self.compute_feature(manifest_entry=manifest_entry, audio_dir=audio_dir)[0]
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
 
-        energy_path = feature_dir / self.feature_name / feature_filename
-        torch.save(energy_tensor, energy_path)
-
-    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> List[torch.tensor]:
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
-        energy_path = feature_dir / self.feature_name / feature_filename
-        energy_tensor = torch.load(energy_path)
-
-        return [energy_tensor]
-
-
-class PitchFeaturizer(Featurizer):
+class PitchFeaturizer(TorchFileFeaturizer):
     def __init__(
         self,
-        pitch_feature_name: str = "pitch",
-        voiced_feature_name: str = "voiced_mask",
+        pitch_feature_name: Optional[str] = "pitch",
+        voiced_mask_feature_name: Optional[str] = "voiced_mask",
+        voiced_prob_feature_name: Optional[str] = None,
         sample_rate: int = 22050,
         win_length: int = 1024,
         hop_length: int = 256,
         pitch_fmin: int = librosa.note_to_hz('C2'),
         pitch_fmax: int = librosa.note_to_hz('C7'),
     ) -> None:
-        self.pitch_feature_name = pitch_feature_name
-        self.voiced_feature_name = voiced_feature_name
+        feature_names = []
+        if pitch_feature_name:
+            self.include_pitch = True
+            feature_names.append(pitch_feature_name)
+        else:
+            self.include_pitch = False
+
+        if voiced_mask_feature_name:
+            self.include_voiced_mask = True
+            feature_names.append(voiced_mask_feature_name)
+        else:
+            self.include_voiced_mask = False
+
+        if voiced_prob_feature_name:
+            self.include_voiced_prob = True
+            feature_names.append(voiced_prob_feature_name)
+        else:
+            self.include_voiced_prob = False
+
+        super().__init__(feature_names=feature_names)
         self.sample_rate = sample_rate
         self.win_length = win_length
         self.hop_length = hop_length
         self.pitch_fmin = pitch_fmin
         self.pitch_fmax = pitch_fmax
 
-    def setup(self, feature_dir: Path) -> None:
-        if self.pitch_feature_name:
-            pitch_dir = feature_dir / self.pitch_feature_name
-            pitch_dir.mkdir(exist_ok=True, parents=True)
-
-        if self.voiced_feature_name:
-            voiced_dir = feature_dir / self.voiced_feature_name
-            voiced_dir.mkdir(exist_ok=True, parents=True)
-
-    def compute_feature(self, manifest_entry: dict, audio_dir: Path) -> List[np.ndarray]:
+    def compute_features(self, manifest_entry: dict, audio_dir: Path) -> List[torch.Tensor]:
         """
         Computes pitch and optional voiced mask for the input manifest entry.
 
@@ -245,7 +247,7 @@ class PitchFeaturizer(Featurizer):
         audio_path, _ = get_audio_paths_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
         audio, _ = librosa.load(path=audio_path, sr=self.sample_rate)
 
-        pitch, voiced, voiced_prob = librosa.pyin(
+        pitch, voiced_mask, voiced_prob = librosa.pyin(
             audio,
             fmin=self.pitch_fmin,
             fmax=self.pitch_fmax,
@@ -254,35 +256,17 @@ class PitchFeaturizer(Featurizer):
             sr=self.sample_rate,
             fill_na=0.0,
         )
-        return [pitch, voiced, voiced_prob]
-
-    def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
-        pitch, voiced, _ = self.compute_feature(manifest_entry=manifest_entry, audio_dir=audio_dir)
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
-
-        if self.pitch_feature_name:
-            pitch_path = feature_dir / self.pitch_feature_name / feature_filename
+        output_tensors = []
+        if self.include_pitch:
             pitch_tensor = torch.tensor(pitch, dtype=torch.float32)
-            torch.save(pitch_tensor, pitch_path)
+            output_tensors.append(pitch_tensor)
 
-        if self.voiced_feature_name:
-            voiced_path = feature_dir / self.voiced_feature_name / feature_filename
-            voiced_tensor = torch.tensor(voiced, dtype=torch.bool)
-            torch.save(voiced_tensor, voiced_path)
+        if self.include_voiced_mask:
+            voiced_mask_tensor = torch.tensor(voiced_mask, dtype=torch.bool)
+            output_tensors.append(voiced_mask_tensor)
 
-    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> List[torch.tensor]:
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        if self.include_voiced_prob:
+            voiced_prob_tensor = torch.tensor(voiced_prob, dtype=torch.float32)
+            output_tensors.append(voiced_prob_tensor)
 
-        output_features = []
-
-        if self.pitch_feature_name:
-            pitch_path = feature_dir / self.pitch_feature_name / feature_filename
-            pitch = torch.load(pitch_path)
-            output_features.append(pitch)
-
-        if self.voiced_feature_name:
-            voiced_path = feature_dir / self.voiced_feature_name / feature_filename
-            voiced = torch.load(voiced_path)
-            output_features.append(voiced)
-
-        return output_features
+        return output_tensors

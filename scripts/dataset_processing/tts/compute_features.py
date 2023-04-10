@@ -25,7 +25,6 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/compute_features.py \
 """
 
 import argparse
-import os
 from pathlib import Path
 
 from hydra.utils import instantiate
@@ -67,10 +66,10 @@ def main():
     feature_dir = args.feature_dir
     num_workers = args.num_workers
 
-    if not os.path.exists(manifest_path):
+    if not manifest_path.exists():
         raise ValueError(f"Manifest {manifest_path} does not exist.")
 
-    if not os.path.exists(audio_dir):
+    if not audio_dir.exists():
         raise ValueError(f"Audio directory {audio_dir} does not exist.")
 
     feature_config = OmegaConf.load(feature_config_path)

@@ -30,13 +30,15 @@ from nemo.collections.tts.parts.preprocessing.features import (
 
 
 class TestTTSFeatures:
-    audio_filename = "test.wav"
-    spec_dim = 80
-    hop_len = 100
-    audio_len = 10000
-    sample_rate = 20000
-    spec_len = 1 + (audio_len // hop_len)
-    manifest_entry = {"audio_filepath": audio_filename}
+    @classmethod
+    def setup_class(cls):
+        cls.audio_filename = "test.wav"
+        cls.spec_dim = 80
+        cls.hop_len = 100
+        cls.audio_len = 10000
+        cls.sample_rate = 20000
+        cls.spec_len = 1 + (cls.audio_len // cls.hop_len)
+        cls.manifest_entry = {"audio_filepath": cls.audio_filename}
 
     @contextlib.contextmanager
     def _create_test_dir(self):
@@ -58,7 +60,7 @@ class TestTTSFeatures:
         )
 
         with self._create_test_dir() as test_dir:
-            spec = mel_featurizer.compute_feature(manifest_entry=self.manifest_entry, audio_dir=test_dir)[0]
+            spec = mel_featurizer.compute_features(manifest_entry=self.manifest_entry, audio_dir=test_dir)[0]
 
         assert len(spec.shape) == 2
         assert spec.dtype == torch.float32
@@ -88,24 +90,26 @@ class TestTTSFeatures:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_compute_pitch(self):
-        pitch_featurizer = PitchFeaturizer(hop_length=self.hop_len, sample_rate=self.sample_rate)
+        pitch_featurizer = PitchFeaturizer(
+            voiced_prob_feature_name="voiced_prob", hop_length=self.hop_len, sample_rate=self.sample_rate
+        )
 
         with self._create_test_dir() as test_dir:
-            pitch, voiced, voiced_prob = pitch_featurizer.compute_feature(
+            pitch, voiced, voiced_prob = pitch_featurizer.compute_features(
                 manifest_entry=self.manifest_entry, audio_dir=test_dir
             )
 
         assert len(pitch.shape) == 1
         assert pitch.shape[0] == self.spec_len
-        assert pitch.dtype == float
+        assert pitch.dtype == torch.float32
 
         assert len(voiced.shape) == 1
         assert voiced.shape[0] == self.spec_len
-        assert voiced.dtype == bool
+        assert voiced.dtype == torch.bool
 
         assert len(voiced_prob.shape) == 1
         assert voiced_prob.shape[0] == self.spec_len
-        assert voiced_prob.dtype == float
+        assert voiced_prob.dtype == torch.float32
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -137,7 +141,7 @@ class TestTTSFeatures:
         energy_featurizer = EnergyFeaturizer(spec_featurizer=mel_featurizer)
 
         with self._create_test_dir() as test_dir:
-            energy = energy_featurizer.compute_feature(manifest_entry=self.manifest_entry, audio_dir=test_dir)[0]
+            energy = energy_featurizer.compute_features(manifest_entry=self.manifest_entry, audio_dir=test_dir)[0]
 
         assert len(energy.shape) == 1
         assert energy.dtype == torch.float32
