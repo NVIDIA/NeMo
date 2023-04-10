@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
     ALiBiRelativePositionEmbedding,
 )
+from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import get_kerple_log_params
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -526,7 +527,7 @@ class TransformerLanguageModel(MegatronModule):
             self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
 
         elif position_embedding_type == 'alibi':
-            # TODO: If this is used for encoder-decoder model, implement proper logic and following
+            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
             # addition for decoder. Currently it is only used for decoder model only. 
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
@@ -535,6 +536,12 @@ class TransformerLanguageModel(MegatronModule):
                 layer_type=LayerType.encoder,
                 num_attention_heads_alibi=None,
                 max_seq_len=max_position_embeddings,
+            )
+
+        elif position_embedding_type == 'kerple':
+            self.encoder_relative_position_embedding = get_kerple_log_params(
+                num_attention_heads=num_attention_heads,
+                precision=precision
             )
 
         # Transformer.
@@ -699,6 +706,8 @@ class TransformerLanguageModel(MegatronModule):
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
+        elif self.position_embedding_type == 'kerple':
+            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding
             
         # encoder.
         if enc_hidden_states is None:
