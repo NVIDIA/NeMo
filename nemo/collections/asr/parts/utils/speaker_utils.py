@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gc
 import json
 import math
 import os
@@ -497,8 +496,6 @@ def perform_clustering(
         del uniq_embs_and_timestamps
         if cuda:
             torch.cuda.empty_cache()
-        else:
-            gc.collect()
 
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
