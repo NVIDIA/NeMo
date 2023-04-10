@@ -610,7 +610,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         for streaming_buffer in data_loader:
             streaming_buffer_iter = iter(streaming_buffer)
             batch_size = len(streaming_buffer.streams_length)
-            cache_last_channel, cache_last_time, cache_last_channel_len = self.encoder.get_initial_cache_state(batch_size=batch_size)
+            cache_last_channel, cache_last_time, cache_last_channel_len = self.encoder.get_initial_cache_state(
+                batch_size=batch_size
+            )
             previous_hypotheses = None
             pred_out_stream = None
             encoded_len = None
