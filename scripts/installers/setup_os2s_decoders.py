@@ -1,4 +1,10 @@
-"""Script to build and install decoder package."""
+"""Script to build and install decoder package.
+
+It is used by scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh to install
+KenLM and OpenSeq2Seq decoder.
+
+You can set the order of KenLM model by changing -DKENLM_MAX_ORDER=10 argument.
+"""
 from __future__ import absolute_import, division, print_function
 
 import argparse
