@@ -144,6 +144,7 @@ def get_decoder_model(
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
+            position_embedding_type=position_embedding_type
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
