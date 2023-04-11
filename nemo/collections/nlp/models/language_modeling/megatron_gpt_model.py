@@ -892,7 +892,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds'):
+        if hasattr(self, '_test_ds') and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
