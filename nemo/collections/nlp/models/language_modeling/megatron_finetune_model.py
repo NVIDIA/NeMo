@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import itertools
+import json
 from typing import Dict, List
 
 import torch
@@ -281,7 +281,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if isinstance(batch, dict):
             # convert to list if not already converted.
             batch = self._process_batch(batch)
-    
+
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]

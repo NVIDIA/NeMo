@@ -45,11 +45,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.megatron_export import DecEmb, EncEmb, TokensHeadEmb
+from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.utils import AppState, logging, timers
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -285,7 +285,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
-    
+
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.

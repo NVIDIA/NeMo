@@ -357,7 +357,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self._optimizer.zero_grad()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
-        
+
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
