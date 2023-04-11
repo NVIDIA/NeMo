@@ -110,8 +110,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             )
 
         self.fast_glu_activation = activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
         )
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
@@ -125,7 +125,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
-            async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+            async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
@@ -141,7 +141,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 

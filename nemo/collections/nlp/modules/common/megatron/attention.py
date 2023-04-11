@@ -125,8 +125,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
         )
 
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
         )
 
         # Strided linear layer.
@@ -139,7 +139,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
@@ -151,7 +151,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -162,7 +162,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
