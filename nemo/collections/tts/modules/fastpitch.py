@@ -268,7 +268,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
+            "reference_speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
 
     @property
@@ -304,25 +304,25 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         input_lens=None,
         reference_spec=None,
         reference_spec_lens=None,
-        speaker_embedding=None,
+        reference_speaker_embedding=None,
     ):
 
         if not self.learn_alignment and self.training:
             assert durs is not None
             assert pitch is not None
-
+        
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = None
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
-
+        
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
                 spk_emb=spk_emb,
                 reference_spec=reference_spec,
                 reference_spec_lens=reference_spec_lens,
-                speaker_embedding=speaker_embedding,
+                reference_speaker_embedding=reference_speaker_embedding,
             )
 
         # Input FFT

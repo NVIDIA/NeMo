@@ -59,7 +59,7 @@ def main():
     
     global records, embs, embedding_path, base_data_dir
     
-    embedding_path = os.path.join(args.feature_dir, 'speaker_embedding')
+    embedding_path = os.path.join(args.feature_dir, 'reference_speaker_embedding')
     os.makedirs(embedding_path, exist_ok=True)
     
     records = read_manifest(args.manifest_path)

@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id", "reference_audio", "speaker_embedding"]
+sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id", "reference_audio", "reference_speaker_embedding"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -258,6 +258,7 @@ model:
     _target_: nemo.collections.tts.modules.submodules.SpeakerEncoder
     gst_module:
       _target_: nemo.collections.tts.modules.submodules.GlobalStyleToken
+      n_mels: ${model.n_mel_channels}
       cnn_filters: [32, 32, 64, 64, 128, 128] 
       dropout: 0.2 
       gru_hidden: ${model.symbols_embedding_dim}
