@@ -159,15 +159,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
-        # Save activations checkpointing and sequence parallelism parameters to be able to restore them later.
-        self.original_checkpointing_granularity = self.model.language_model.encoder.activations_checkpoint_granularity
-        self.original_checkpointing_num_layers = self.model.language_model.encoder.activations_checkpoint_num_layers
-        self.original_checkpointing_method = self.model.language_model.encoder.activations_checkpoint_method
-        self.original_activations_checkpoint_layers_per_pipeline = (
-            self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline
-        )
-        self.original_sequence_parallel = self.model.language_model.encoder.sequence_parallel
-
     @property
     def model(self):
         if isinstance(self._model, list):
@@ -1091,6 +1082,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def _reset_activation_checkpointing_args(self):
+        # Store values to restore them later.
+        self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
+        self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
+        self.last_activations_checkpoint_num_layers = self.cfg.activations_checkpoint_num_layers
+        self.last_activations_checkpoint_layers_per_pipeline = self.cfg.activations_checkpoint_layers_per_pipeline
+        
         # Reset config values. Needed for calling generate.
         self.cfg.activations_checkpoint_granularity = None
         self.cfg.activations_checkpoint_method = None
@@ -1105,20 +1102,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def _restore_activation_checkpointing_args(self):
         # Restore config values.
-        self.cfg.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        self.cfg.activations_checkpoint_method = self.original_checkpointing_method
-        self.cfg.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        self.cfg.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
+        self.cfg.activations_checkpoint_granularity = self.last_checkpointing_granularity
+        self.cfg.activations_checkpoint_method = self.last_checkpointing_method
+        self.cfg.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+        self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
 
         # Restore model parameters.
-        self.model.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        self.model.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
-        self.model.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
-            self.original_activations_checkpoint_layers_per_pipeline
-        )
+        self.model.language_model.encoder.activations_checkpoint_granularity = self.last_checkpointing_granularity
+        self.model.language_model.encoder.activations_checkpoint_method = self.last_checkpointing_method
+        self.model.language_model.encoder.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
 
     def _reset_sequence_parallelism_args(self):
+        # Store values to restore them later.
+        self.last_sequence_parallel = self.cfg.sequence_parallel
+        
         # Reset config values. Needed for calling generate.
         self.cfg.sequence_parallel = None
 
@@ -1127,7 +1125,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def _restore_sequence_parallelism_args(self):
         # Restore config values.
-        self.cfg.sequence_parallel = self.original_sequence_parallel
+        self.cfg.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
-        self.model.language_model.encoder.sequence_parallel = self.original_sequence_parallel
+        self.model.language_model.encoder.sequence_parallel = self.last_sequence_parallel
