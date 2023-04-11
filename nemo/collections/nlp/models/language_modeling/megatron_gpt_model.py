@@ -180,7 +180,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return self._model.module
         else:
             return self._model
-    
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -1100,7 +1100,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_method = None
         self.cfg.activations_checkpoint_num_layers = None
         self.cfg.activations_checkpoint_layers_per_pipeline = None
-        
+
         # Reset model parameters.
         self.model.language_model.encoder.activations_checkpoint_granularity = None
         self.model.language_model.encoder.activations_checkpoint_method = None
@@ -1113,23 +1113,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_method = self.original_checkpointing_method
         self.cfg.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
         self.cfg.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
- 
+
         # Restore model parameters.
         self.model.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
         self.model.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
         self.model.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
+        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+            self.original_activations_checkpoint_layers_per_pipeline
+        )
 
     def _reset_sequence_parallelism_args(self):
         # Reset config values. Needed for calling generate.
         self.cfg.sequence_parallel = None
-        
+
         # Reset model parameters.
         self.model.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
         # Restore config values.
         self.cfg.sequence_parallel = self.original_sequence_parallel
-        
+
         # Restore model parameters.
         self.model.language_model.encoder.sequence_parallel = self.original_sequence_parallel
