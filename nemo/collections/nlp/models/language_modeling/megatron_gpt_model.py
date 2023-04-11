@@ -1040,7 +1040,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            self.model.load_state_dict(checkpoint['model'], strict=False)
+            self.model.load_state_dict(checkpoint['model'], strict=True)
 
     @property
     def sharded_state_dict(self) -> Dict[str, Any]:
