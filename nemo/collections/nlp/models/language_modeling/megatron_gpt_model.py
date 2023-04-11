@@ -279,7 +279,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
-                if getattr(param, 'sequence_parallel_enabled', False):
+                if getattr(param, 'sequence_parallel', False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_o2
                     param._disable_overlap_grad_sync = True
 
@@ -447,10 +447,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            if getattr(self, 'transformer_engine', False):
-                sequence_parallel_param = getattr(param, 'sequence_parallel', False)
-            else:
-                sequence_parallel_param = getattr(param, 'sequence_parallel_enabled', False)
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
             if sequence_parallel_param:
                 if self.megatron_amp_o2:
                     grad = param.main_grad
