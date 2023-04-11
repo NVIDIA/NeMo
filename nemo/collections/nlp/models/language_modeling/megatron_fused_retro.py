@@ -105,7 +105,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = False
             frozen_model_cfg.optim.name = "fused_adam"
-            frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+            frozen_model_cfg.micro_batch_size = cfg.micro_batch_size
             # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
             frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
@@ -385,16 +385,15 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         num_neighbors=2,
         retrieved_doc_len = 128 
     ):
-
         task_template = {
             "car": {
-                "prompt_template": '{prompt} {completion}',
-                "prompt_template_fields": "prompt",
+                "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
+                "prompt_template_fields": ["question", "answer"],
                 "total_virtual_tokens": 0,
                 "virtual_token_splits": [],
-                "truncate_field": None,
+                "truncate_field": "question",
                 "answer_only_loss": True,
-                "answer_field": "completion"
+                "answer_field": "answer"
         }}
        
         dataset = RetroPromptLearningDataset(

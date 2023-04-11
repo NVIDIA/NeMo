@@ -672,10 +672,10 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
         #     tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
     def post_generation_process(self, output):
-        # sentences = output['sentences']
-        # modified = []
-        # for sentence in sentences:
-        #     sentence = 'Answer:' + sentence.split(' \nAnswer:')[1]
-        #     modified.append(sentence)
-        # output['sentences'] = modified
+        sentences = output['sentences']
+        modified = []
+        for sentence in sentences:
+            sentence = 'Answer:' + sentence.split(' \nAnswer:')[1]
+            modified.append(sentence)
+        output['sentences'] = modified
         return output

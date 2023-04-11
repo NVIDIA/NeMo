@@ -32,6 +32,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
     build_mock_train_valid_test_datasets,
     build_train_valid_test_datasets,
 )
+from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -40,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shap
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.retro_prompt_learning_dataset import RetroPromptLearningDataset
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
@@ -593,6 +595,53 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             return
         if self._train_dl is not None and self._validation_dl is not None:
             return
+
+        # self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl",
+        #     batch_size=8,
+        #     max_seq_length=2048 - 30,
+        #     min_seq_length=1,
+        #     add_bos=True,
+        #     add_eos=False,
+        #     for_train=False,
+        #     tokens_to_generate=30,
+        #     drop_last=False,
+        #     shuffle=False,
+        #     num_workers=8,
+        #     num_neighbors=8+1,
+        #     retrieved_doc_len=128
+        # )
+        # self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl",
+        #     batch_size=8,
+        #     max_seq_length=2048 - 30,
+        #     min_seq_length=1,
+        #     add_bos=True,
+        #     add_eos=False,
+        #     for_train=False,
+        #     tokens_to_generate=30,
+        #     drop_last=False,
+        #     shuffle=False,
+        #     num_workers=8,
+        #     num_neighbors=8+1,
+        #     retrieved_doc_len=128
+        # )
+        # self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl",
+        #     batch_size=8,
+        #     max_seq_length=2048 - 30,
+        #     min_seq_length=1,
+        #     add_bos=True,
+        #     add_eos=False,
+        #     for_train=False,
+        #     tokens_to_generate=30,
+        #     drop_last=False,
+        #     shuffle=False,
+        #     num_workers=8,
+        #     num_neighbors=8+1,
+        #     retrieved_doc_len=128
+        # )
+
         self.build_train_valid_test_datasets()
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
@@ -726,6 +775,93 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def list_available_models(self):
         pass
 
+    def build_virtual_prompt_dataset(
+        self,
+        data,
+        batch_size,
+        max_seq_length=2048,
+        min_seq_length=1,
+        add_bos=False,
+        add_eos=False,
+        for_train=True,
+        drop_last=False,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        tokens_to_generate=None,
+        get_dataset_only=False,
+        cache_data_path=None,
+        load_cache=False,
+        num_neighbors=2,
+        retrieved_doc_len = 128 
+    ):
+        task_template = {
+            "car": {
+                "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
+                "prompt_template_fields": ["question", "answer"],
+                "total_virtual_tokens": 0,
+                "virtual_token_splits": [],
+                "truncate_field": "question",
+                "answer_only_loss": True,
+                "answer_field": "answer"
+        }}
+       
+        dataset = RetroPromptLearningDataset(
+            data=data,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
+            task_templates=task_template,
+            pseudo_tokens=[],
+            pad_token_id=self.model.tokenizer.eos_id,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            for_train=for_train,
+            tokens_to_generate=tokens_to_generate,
+            cache_data_path=cache_data_path,  # the cache file
+            load_cache=load_cache, # whether to load from the cache if it is available
+            seed=1234,
+            neighbors=num_neighbors,
+            megatron_lm_compatible=False,
+            retrieved_doc_len = retrieved_doc_len
+        )
+
+        if get_dataset_only:
+            return dataset
+
+        # Make distributed dataloader
+        rank = parallel_state.get_data_parallel_rank()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+        )
+
+        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+
+        if for_train:
+            if self.cfg.get("sequence_parallel", False):
+                collate_fn = partial(
+                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+                )
+            else:
+                collate_fn = partial(dataset.collate_fn, tp_workers=0)
+        else:
+            collate_fn = dataset.inference_collate_fn
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            batch_size=batch_size // data_parallel_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
+        )
+
+        return dataset, dataloader
+
 
 def build_all_datasets(
     cfg, tokenizer, train_valid_test_num_samples,
@@ -742,7 +878,7 @@ def build_all_datasets(
         cfg.train_ds.get('seq_length'),
         cfg.train_ds.get('add_bos'),
         cfg.train_ds.get('add_eos'),
-        train_valid_test_num_samples[0],
+        None, # train_valid_test_num_samples[0],
         cfg.train_ds.get('seed'),
         cfg.train_ds.get('neighbors'),
     )
@@ -754,7 +890,7 @@ def build_all_datasets(
         cfg.val_ds.get('seq_length'),
         cfg.val_ds.get('add_bos'),
         cfg.val_ds.get('add_eos'),
-        train_valid_test_num_samples[1],
+        None, # train_valid_test_num_samples[1],
         cfg.val_ds.get('seed'),
         cfg.val_ds.get('neighbors'),
     )
@@ -766,7 +902,7 @@ def build_all_datasets(
         cfg.test_ds.get('seq_length'),
         cfg.test_ds.get('add_bos'),
         cfg.test_ds.get('add_eos'),
-        train_valid_test_num_samples[2],
+        None, # train_valid_test_num_samples[2],
         cfg.test_ds.get('seed'),
         cfg.test_ds.get('neighbors'),
     )

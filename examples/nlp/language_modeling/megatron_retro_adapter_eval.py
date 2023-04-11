@@ -21,11 +21,24 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalAdapterModel
+from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
 
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
 from nemo.core.config import hydra_runner
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 mp.set_start_method("spawn", force=True)
 
@@ -113,14 +126,7 @@ def main(cfg) -> None:
         strict=False,
     )
 
-
-    # # Have to turn off activations_checkpoint_method for inference
-    # try:
-    #     model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
-    # except AttributeError:
-    #     pass
-
-    # Check whether the DDP is initialized
+        # Check whether the DDP is initialized
     if parallel_state.is_unitialized():
 
         def placeholder():
@@ -129,6 +135,31 @@ def main(cfg) -> None:
         if model.trainer.strategy.launcher is not None:
             model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
+
+    global_batch_size = trainer.world_size * cfg.micro_batch_size // cfg.tensor_model_parallel_size
+    test_iters = int(trainer.limit_test_batches)
+
+    test_ds = RetroQAFineTuneDataset(
+        cfg.test_ds.get('file_name'),
+        model.tokenizer,
+        cfg.test_ds.get('answer_only_loss'),
+        model.tokenizer.pad_id,
+        cfg.test_ds.get('seq_length'),
+        cfg.test_ds.get('add_bos'),
+        cfg.test_ds.get('add_eos'),
+        test_iters * global_batch_size,
+        cfg.test_ds.get('seed'),
+        cfg.test_ds.get('neighbors'),
+    )
+    test_dl = model.build_pretraining_data_loader(test_ds, 0)
+
+    # # Have to turn off activations_checkpoint_method for inference
+    # try:
+    #     model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
+    # except AttributeError:
+    #     pass
+
+
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -169,6 +200,13 @@ def main(cfg) -> None:
     model.set_inference_config(config, retrieval_service)
 
     # model.set_inference_config(config)
+
+    # response = model.generate(
+    #     inputs=OmegaConf.to_container(cfg.prompts),
+    #     length_params=length_params,
+    #     sampling_params=sampling_params,
+    #     strategy=model.inference_strategy,
+    # )
     response = trainer.predict(model, dataloader)
 
     print("***************************")

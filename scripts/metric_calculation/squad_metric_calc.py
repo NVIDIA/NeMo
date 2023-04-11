@@ -128,7 +128,7 @@ def main():
         if args.split_string is not None:
             pred_answer = pred_answer.split(args.split_string)[-1].strip()
 
-        true_answers = truth["answer"]
+        true_answers = truth["completion"]
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
 
