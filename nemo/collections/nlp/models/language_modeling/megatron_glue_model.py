@@ -82,11 +82,3 @@ class MegatronT5GLUEModel(MegatronT5FinetuneModel):
         self._train_ds = self._build_dataset(self.cfg.data.train_ds, check_implict_grad_acc=False)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Finished building GLUE/XNLI datasets.')
-
-    @property
-    def max_decoder_seq_length(self) -> int:
-        return self._train_ds.max_seq_length_decoder
-
-    @property
-    def max_encoder_seq_length(self) -> int:
-        return self._train_ds.max_seq_length

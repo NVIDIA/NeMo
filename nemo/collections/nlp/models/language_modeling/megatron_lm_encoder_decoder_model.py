@@ -405,7 +405,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     @property
     def max_decoder_seq_length(self) -> int:
-        return self._cfg.data.seq_length_dec
+        seq_len = self._cfg.data.get('seq_length_dec', None)
+        if seq_len is None:
+            seq_len = self.cfg.seq_length
+        return seq_len
 
     @property
     def max_encoder_seq_length(self) -> int:
