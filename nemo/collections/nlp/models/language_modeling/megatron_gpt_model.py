@@ -172,6 +172,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.original_sequence_parallel = base_module.language_model.encoder.sequence_parallel
 
+    @property
+    def model(self):
+        if isinstance(self._model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self._model]
+        elif isinstance(self._model, Float16Module):
+            return self._model.module
+        else:
+            return self._model
+    
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -1086,40 +1095,41 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def _reset_activation_checkpointing_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-
-        base_module.language_model.encoder.activations_checkpoint_granularity = None
-        base_module.language_model.encoder.activations_checkpoint_method = None
-        base_module.language_model.encoder.activations_checkpoint_num_layers = None
-        base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
+        # Reset config values. Needed for calling generate.
+        self.cfg.activations_checkpoint_granularity = None
+        self.cfg.activations_checkpoint_method = None
+        self.cfg.activations_checkpoint_num_layers = None
+        self.cfg.activations_checkpoint_layers_per_pipeline = None
+        
+        # Reset model parameters.
+        self.model.language_model.encoder.activations_checkpoint_granularity = None
+        self.model.language_model.encoder.activations_checkpoint_method = None
+        self.model.language_model.encoder.activations_checkpoint_num_layers = None
+        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-        base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
-        base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-        base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
-            self.original_activations_checkpoint_layers_per_pipeline
-        )
+        # Restore config values.
+        self.cfg.activations_checkpoint_granularity = self.original_checkpointing_granularity
+        self.cfg.activations_checkpoint_method = self.original_checkpointing_method
+        self.cfg.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
+        self.cfg.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
+ 
+        # Restore model parameters.
+        self.model.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
+        self.model.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
+        self.model.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
+        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = self.original_activations_checkpoint_layers_per_pipeline
 
     def _reset_sequence_parallelism_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-
-        base_module.language_model.encoder.sequence_parallel = None
+        # Reset config values. Needed for calling generate.
+        self.cfg.sequence_parallel = None
+        
+        # Reset model parameters.
+        self.model.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-
-        base_module.language_model.encoder.sequence_parallel = self.original_sequence_parallel
+        # Restore config values.
+        self.cfg.sequence_parallel = self.original_sequence_parallel
+        
+        # Restore model parameters.
+        self.model.language_model.encoder.sequence_parallel = self.original_sequence_parallel
