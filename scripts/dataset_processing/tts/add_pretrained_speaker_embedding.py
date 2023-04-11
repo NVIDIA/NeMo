@@ -21,25 +21,27 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/add_pretrained_speaker_
     --feature_dir=<data_root_path>/supplementary_dir \
     --model=titanet_large
 """
-import os
 import argparse
 import multiprocessing
+import os
 import sys
 import tempfile
-import torch
 from pathlib import Path
 from typing import Any, Dict, List
 
-import nemo.collections.asr as nemo_asr
+import torch
 from tqdm import tqdm
 
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
+
 
 def get_pretrained_speaker_verification_model(model):
     model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model)
     model.eval().cuda()
     return model
+
 
 def save_embedding(index):
     record, emb = records[index], embs[index]
@@ -47,7 +49,8 @@ def save_embedding(index):
     rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
     save_path = os.path.join(embedding_path, f'{rel_audio_path_as_text_id}.pt')
     if not os.path.exists(save_path):
-        torch.save(emb, save_path)  
+        torch.save(emb, save_path)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -56,26 +59,25 @@ def main():
     parser.add_argument("--model", type=str, default="titanet_large")
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
-    
+
     global records, embs, embedding_path, base_data_dir
-    
+
     embedding_path = os.path.join(args.feature_dir, 'reference_speaker_embedding')
     os.makedirs(embedding_path, exist_ok=True)
-    
+
     records = read_manifest(args.manifest_path)
     base_data_dir = get_base_dir([record["audio_filepath"] for record in records])
-    for r in records: r['label'] = r['speaker']
-    
+    for r in records:
+        r['label'] = r['speaker']
+
     model = get_pretrained_speaker_verification_model(args.model)
     with tempfile.NamedTemporaryFile() as temp:
         write_manifest(temp.name, records)
-        embs, *_ = model.batch_inference(manifest_filepath=temp.name,
-                                         batch_size=args.batch_size, 
-                                         device='cuda')
+        embs, *_ = model.batch_inference(manifest_filepath=temp.name, batch_size=args.batch_size, device='cuda')
         embs = torch.from_numpy(embs)
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
         _ = list(tqdm(p.imap(save_embedding, range(len(records))), total=len(records)))
-    
+
 
 if __name__ == "__main__":
     main()

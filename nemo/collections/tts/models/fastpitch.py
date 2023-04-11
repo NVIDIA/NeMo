@@ -286,8 +286,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
-   
+
     """reference_* are used for multi-speaker FastPitch training"""
+
     @typecheck(
         input_types={
             "text": NeuralType(('B', 'T_text'), TokenIndex()),

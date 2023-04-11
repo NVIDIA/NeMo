@@ -310,13 +310,13 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         if not self.learn_alignment and self.training:
             assert durs is not None
             assert pitch is not None
-        
+
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = None
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
-        
+
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
                 spk_emb=spk_emb,

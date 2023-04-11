@@ -21,7 +21,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 from nemo.core.classes import NeuralModule, adapter_mixins
-from nemo.core.neural_types.elements import EncodedRepresentation, Index, MelSpectrogramType, LengthsType
+from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 
 
@@ -489,27 +489,30 @@ class ReferenceEncoder(NeuralModule):
     def __init__(self, n_mels=80, cnn_filters=[32, 32, 64, 64, 128, 128], dropout=0.2, gru_hidden=128):
         super(ReferenceEncoder, self).__init__()
         self.filter_size = [1] + cnn_filters
-        self.convs = torch.nn.ModuleList([
-            torch.nn.Conv2d(
-                in_channels=int(self.filter_size[i]),
-                out_channels=int(self.filter_size[i + 1]),
-                kernel_size=(3, 3),
-                stride=(2, 2),
-                padding=(1, 1),
-                bias=True) for i in range(len(cnn_filters))
-        ])
-        
-        self.lns = torch.nn.ModuleList([
-            torch.nn.LayerNorm(self.filter_size[i + 1])
-            for i in range(len(cnn_filters))
-        ])
-        
+        self.convs = torch.nn.ModuleList(
+            [
+                torch.nn.Conv2d(
+                    in_channels=int(self.filter_size[i]),
+                    out_channels=int(self.filter_size[i + 1]),
+                    kernel_size=(3, 3),
+                    stride=(2, 2),
+                    padding=(1, 1),
+                    bias=True,
+                )
+                for i in range(len(cnn_filters))
+            ]
+        )
+
+        self.lns = torch.nn.ModuleList([torch.nn.LayerNorm(self.filter_size[i + 1]) for i in range(len(cnn_filters))])
+
         self.bhwc2bchw = lambda tensor: tensor.contiguous().permute(0, 3, 1, 2)
         self.bchw2bhwc = lambda tensor: tensor.contiguous().permute(0, 2, 3, 1)
         self.relu = torch.nn.ReLU()
         self.dropout = torch.nn.Dropout(dropout)
         post_conv_height = self.calculate_post_conv_lengths(n_mels, n_convs=len(cnn_filters))
-        self.gru = torch.nn.GRU(input_size=cnn_filters[-1] * post_conv_height, hidden_size=gru_hidden, batch_first=True,)
+        self.gru = torch.nn.GRU(
+            input_size=cnn_filters[-1] * post_conv_height, hidden_size=gru_hidden, batch_first=True,
+        )
 
     @property
     def input_types(self):
@@ -523,13 +526,12 @@ class ReferenceEncoder(NeuralModule):
         return {
             "out": NeuralType(('B', 'D'), EncodedRepresentation()),
         }
-    
 
-    def forward(self, inputs, inputs_lengths):        
+    def forward(self, inputs, inputs_lengths):
         # BMW -> BWMC (M: mels)
         x = inputs.transpose(1, 2).unsqueeze(3)
         x_lens = inputs_lengths
-        
+
         for conv, ln in zip(self.convs, self.lns):
             x_masks = self.lengths_to_masks(x_lens).unsqueeze(3)
             x = x * x_masks
@@ -540,33 +542,32 @@ class ReferenceEncoder(NeuralModule):
             x = self.dropout(x)
             x = ln(x)
             x_lens = self.calculate_post_conv_lengths(x_lens)
-            
+
         x_masks = self.lengths_to_masks(x_lens).unsqueeze(3)
         x = x * x_masks
-        
+
         x = x.contiguous().view(x.shape[0], x.shape[1], -1)
         self.gru.flatten_parameters()
         _, x = self.gru(x)
 
         return x.squeeze(0)
-    
+
     @staticmethod
     def calculate_post_conv_lengths(lengths, n_convs=1, kernel_size=3, stride=2, pad=1):
         """Batch lengths after n convolution with fixed kernel/stride/pad."""
         for _ in range(n_convs):
             lengths = (lengths - kernel_size + 2 * pad) // stride + 1
         return lengths
-    
+
     @staticmethod
     def lengths_to_masks(lengths):
         """Batch of lengths to batch of masks"""
         masks = (
-            torch.arange(lengths.max())
-            .to(lengths.device)
-            .expand(lengths.shape[0], lengths.max())
+            torch.arange(lengths.max()).to(lengths.device).expand(lengths.shape[0], lengths.max())
             < lengths.unsqueeze(1)
         ).unsqueeze(2)
         return masks
+
 
 class StyleAttention(NeuralModule):
     def __init__(self, gru_hidden=128, gst_size=128, n_style_token=10, n_style_attn_head=4):
@@ -657,7 +658,7 @@ class SpeakerEncoder(torch.nn.Module):
 
     def forward(self, spk_emb, reference_spec=None, reference_spec_lens=None, reference_speaker_embedding=None):
         x = spk_emb
-        
+
         # Project lookup speaker embedding
         if self.lookup_emb_projection_module is not None:
             x += self.lookup_emb_projection_module(spk_emb)
@@ -669,7 +670,7 @@ class SpeakerEncoder(torch.nn.Module):
         # Project speaker embedding from Speaker Verification based
         if self.sv_projection_module is not None and reference_speaker_embedding is not None:
             x += self.sv_projection_module(reference_speaker_embedding)
-            
+
         return x
 
 
