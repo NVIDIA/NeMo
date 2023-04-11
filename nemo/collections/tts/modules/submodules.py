@@ -449,17 +449,16 @@ class GlobalStyleToken(NeuralModule):
         n_mels=80,
         cnn_filters=[32, 32, 64, 64, 128, 128],
         dropout=0.2,
-        gru_hidden=128,
         gst_size=128,
         n_style_token=10,
         n_style_attn_head=4,
     ):
         super(GlobalStyleToken, self).__init__()
         self.reference_encoder = ReferenceEncoder(
-            n_mels=n_mels, cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gru_hidden
+            n_mels=n_mels, cnn_filters=list(cnn_filters), dropout=dropout, gru_hidden=gst_size
         )
         self.style_attention = StyleAttention(
-            gru_hidden=gru_hidden, gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head
+            gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head
         )
 
     @property
@@ -570,23 +569,20 @@ class ReferenceEncoder(NeuralModule):
 
 
 class StyleAttention(NeuralModule):
-    def __init__(self, gru_hidden=128, gst_size=128, n_style_token=10, n_style_attn_head=4):
+    def __init__(self, gst_size=128, n_style_token=10, n_style_attn_head=4):
         super(StyleAttention, self).__init__()
-        self.input_size = gru_hidden
-        self.output_size = gst_size
-        self.n_token = n_style_token
-        self.n_head = n_style_attn_head
-        self.token_size = self.output_size // self.n_head
-
-        self.tokens = torch.nn.Parameter(torch.FloatTensor(self.n_token, self.token_size))
-
-        self.q_linear = torch.nn.Linear(self.input_size, self.output_size)
-        self.k_linear = torch.nn.Linear(self.token_size, self.output_size)
-        self.v_linear = torch.nn.Linear(self.token_size, self.output_size)
-
-        self.tanh = torch.nn.Tanh()
-        self.softmax = torch.nn.Softmax(dim=2)
-        self.temperature = (self.output_size // self.n_head) ** 0.5
+        
+        token_size = gst_size // n_style_attn_head
+        self.tokens = torch.nn.Parameter(torch.FloatTensor(n_style_token, token_size))
+        self.mha = torch.nn.MultiheadAttention(
+            embed_dim=gst_size, 
+            num_heads=n_style_attn_head, 
+            dropout=0.0, 
+            bias=True, 
+            kdim=token_size, 
+            vdim=token_size, 
+            batch_first=True
+        )
         torch.nn.init.normal_(self.tokens)
 
     @property
@@ -604,25 +600,16 @@ class StyleAttention(NeuralModule):
 
     def forward(self, inputs):
         bs = inputs.size(0)
-        q = self.q_linear(inputs.unsqueeze(1))
-        k = self.k_linear(self.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1))
-        v = self.v_linear(self.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1))
-
-        q = q.view(bs, q.shape[1], self.n_head, self.token_size)
-        k = k.view(bs, k.shape[1], self.n_head, self.token_size)
-        v = v.view(bs, v.shape[1], self.n_head, self.token_size)
-
-        q = q.permute(2, 0, 1, 3).contiguous().view(-1, q.shape[1], q.shape[3])
-        k = k.permute(2, 0, 3, 1).contiguous().view(-1, k.shape[3], k.shape[1])
-        v = v.permute(2, 0, 1, 3).contiguous().view(-1, v.shape[1], v.shape[3])
-
-        scores = torch.bmm(q, k) / self.temperature
-        scores = self.softmax(scores)
-
-        style_emb = torch.bmm(scores, v).squeeze(1)
-        style_emb = style_emb.contiguous().view(self.n_head, bs, self.token_size)
-        style_emb = style_emb.permute(1, 0, 2).contiguous().view(bs, -1)
-
+        query = inputs.unsqueeze(1)
+        key   = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
+        value = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
+        
+        style_emb, _ = self.mha(
+            query=query,
+            key=key,
+            value=value,
+        )
+        style_emb = style_emb.squeeze(1)
         return style_emb
 
 

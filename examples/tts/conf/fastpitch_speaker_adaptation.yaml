@@ -261,7 +261,6 @@ model:
       n_mels: ${model.n_mel_channels}
       cnn_filters: [32, 32, 64, 64, 128, 128] 
       dropout: 0.2 
-      gru_hidden: ${model.symbols_embedding_dim}
       gst_size: ${model.symbols_embedding_dim}
       n_style_token: 10
       n_style_attn_head: 4
