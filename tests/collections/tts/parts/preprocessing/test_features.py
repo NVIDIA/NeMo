@@ -30,15 +30,14 @@ from nemo.collections.tts.parts.preprocessing.features import (
 
 
 class TestTTSFeatures:
-    @classmethod
-    def setup_class(cls):
-        cls.audio_filename = "test.wav"
-        cls.spec_dim = 80
-        cls.hop_len = 100
-        cls.audio_len = 10000
-        cls.sample_rate = 20000
-        cls.spec_len = 1 + (cls.audio_len // cls.hop_len)
-        cls.manifest_entry = {"audio_filepath": cls.audio_filename}
+    def setup_class(self):
+        self.audio_filename = "test.wav"
+        self.spec_dim = 80
+        self.hop_len = 100
+        self.audio_len = 10000
+        self.sample_rate = 20000
+        self.spec_len = 1 + (self.audio_len // self.hop_len)
+        self.manifest_entry = {"audio_filepath": self.audio_filename}
 
     @contextlib.contextmanager
     def _create_test_dir(self):
