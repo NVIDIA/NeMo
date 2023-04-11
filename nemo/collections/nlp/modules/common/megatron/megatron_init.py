@@ -46,7 +46,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    # TODO @akhattar: add this to megatron core
     from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
 
     HAVE_INTERLEAVED = True

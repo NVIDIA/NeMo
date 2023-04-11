@@ -912,7 +912,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if not parallel_state.model_parallel_is_initialized():
+        if parallel_state.is_unitialized():
 
             def dummy():
                 return
