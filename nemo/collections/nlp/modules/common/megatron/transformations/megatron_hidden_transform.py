@@ -19,6 +19,7 @@ import torch
 
 __all__ = ["MegatronGaussianHiddenTransform"]
 
+
 class MegatronHiddenTransform(object):
     """Base class to apply hidden state transformations"""
 
@@ -29,15 +30,16 @@ class MegatronHiddenTransform(object):
         """Apply your own transformations on the hiddens"""
         pass
 
+
 class MegatronGaussianHiddenTransform(MegatronHiddenTransform):
-    #TODO: add docstring
+    # TODO: add docstring
     def transform(self, hiddens):
-        #import pudb; pudb.set_trace()
+        # import pudb; pudb.set_trace()
         self.hiddens = hiddens
         e = torch.randn(hiddens.shape).cuda()
         z_mean = self._hiddens_mean()
         z_logvar = self._hiddens_logvar()
-        z = torch.exp(e*(z_logvar*0.5)) + z_mean
+        z = torch.exp(e * (z_logvar * 0.5)) + z_mean
         return {"hiddens": z, "z_mean": z_mean, "z_logvar": z_logvar}
 
     def _hiddens_mean(self):
@@ -45,5 +47,3 @@ class MegatronGaussianHiddenTransform(MegatronHiddenTransform):
 
     def _hiddens_logvar(self):
         return torch.log(torch.var(self.hiddens))
-
-   
