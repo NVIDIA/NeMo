@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List, Optional
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
