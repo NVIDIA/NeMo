@@ -35,9 +35,10 @@ import os
 import sys
 
 import torch
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core import ModelPT
 from nemo.utils import logging, model_utils
 
@@ -58,6 +59,9 @@ def main():
         default=[],
         help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
     )
+    parser.add_argument(
+        '--class_path', type=str, default='', help='A path to class "module.submodule.class" (if given)',
+    )
     args = parser.parse_args()
 
     logging.info(
@@ -71,7 +75,7 @@ def main():
 
     device = torch.device("cpu")
 
-    trainer = Trainer(plugins=NLPDDPPlugin(), devices=1, num_nodes=1, precision=16, accelerator='gpu')
+    trainer = Trainer(strategy=NLPDDPStrategy(), devices=1, num_nodes=1, precision=16, accelerator='gpu')
     # loop over all folders with .nemo files (or .nemo files)
     for model_fname_i, model_fname in enumerate(args.model_fname_list):
         if not model_fname.endswith(".nemo"):
@@ -97,7 +101,15 @@ def main():
             save_restore_connector=NLPSaveRestoreConnector(),
             trainer=trainer,
         )
-        classpath = model_cfg.target  # original class path
+        if args.class_path:
+            classpath = args.class_path
+        else:
+            classpath = model_cfg.target  # original class path
+
+        OmegaConf.set_struct(model_cfg, True)
+        with open_dict(model_cfg):
+            if model_cfg.get('megatron_amp_O2', False):
+                model_cfg.megatron_amp_O2 = False
         imported_class = model_utils.import_class_by_path(classpath)
         logging.info(f"Loading model {model_fname}")
         nemo_model = imported_class.restore_from(
@@ -105,6 +117,7 @@ def main():
             map_location=device,
             save_restore_connector=NLPSaveRestoreConnector(),
             trainer=trainer,
+            override_config_path=model_cfg,
         )
 
         # search for all checkpoints (ignore -last.ckpt)

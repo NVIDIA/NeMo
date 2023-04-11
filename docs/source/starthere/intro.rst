@@ -10,7 +10,7 @@ Introduction
 
 `NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_, part of the NVIDIA AI platform, is a toolkit for building new state-of-the-art
 conversational AI models. NeMo has separate collections for Automatic Speech Recognition (ASR),
-Natural Language Processing (NLP), and Text-to-Speech (TTS) models. Each collection consists of
+Natural Language Processing (NLP), and Text-to-Speech (TTS) synthesis models. Each collection consists of
 prebuilt modules that include everything needed to train on your data.
 Every module can easily be customized, extended, and composed to create new conversational AI
 model architectures.
@@ -75,7 +75,7 @@ Below we is the code snippet of Audio Translator application.
     # Spectrogram generator which takes text as an input and produces spectrogram
     spectrogram_generator = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en_fastpitch").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
-    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_hifigan").cuda()
+    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_en_hifigan").cuda()
     # Transcribe an audio file
     # IMPORTANT: The audio must be mono with 16Khz sampling rate
     # Get example from: https://nemo-public.s3.us-east-2.amazonaws.com/mcv-samples-ru/common_voice_ru_19034087.wav

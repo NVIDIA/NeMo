@@ -15,7 +15,11 @@
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+    ALiBiRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
     MegatronTransformerEncoderDecoderModule,
@@ -34,7 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy i
 from nemo.collections.nlp.modules.common.megatron.transformations import MegatronGaussianHiddenTransform 
 from nemo.collections.nlp.modules.common.megatron.transformations import MegatronMIMHiddenLoss 
 try:
-    from apex.transformer import tensor_parallel, parallel_state
+    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
@@ -55,13 +59,16 @@ class MegatronTokenLevelHead(MegatronModule):
         parallel_output: wether output logits being distributed or not.
     """
 
-    def __init__(self, mpu_vocab_size, parallel_output):
+    def __init__(self, mpu_vocab_size, parallel_output, bias=True):
         super(MegatronTokenLevelHead, self).__init__()
 
-        self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
-        self.bias.model_parallel = True
-        self.bias.partition_dim = 0
-        self.bias.stride = 1
+        if bias:
+            self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
+            self.bias.model_parallel = True
+            self.bias.partition_dim = 0
+            self.bias.stride = 1
+        else:
+            self.bias = None
         self.parallel_output = parallel_output
 
     def forward(self, hidden_states, word_embeddings_weight):
@@ -105,6 +112,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         share_decoder_tokens_head_embeddings=True,
         hidden_transforms=None,
         loss_transforms=None
+        tokens_head_bias=True,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -122,6 +130,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.hidden_transforms = hidden_transforms
         self.loss_transforms = loss_transforms
+        self.tokens_head_bias = tokens_head_bias
+
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
         encoder, decoder = None, None
@@ -138,15 +148,31 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
                 self._encoder_embedding_key = "encoder_embedding"
-                if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
-                    self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
-                        init_method=init_method_normal(embedding_init_method_std),
-                        num_attention_heads=encoder_cfg.num_attention_heads,
-                        relative_position_num_buckets=encoder_cfg.relative_attention_num_buckets,
-                        relative_position_max_distance=encoder_cfg.relative_attention_max_distance,
-                        bidirectional=True,
-                    )
-                    self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+            if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+                self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
+                    init_method=init_method_normal(embedding_init_method_std),
+                    num_attention_heads=encoder_cfg.num_attention_heads,
+                    relative_position_num_buckets=encoder_cfg.relative_attention_num_buckets,
+                    relative_position_max_distance=encoder_cfg.relative_attention_max_distance,
+                    bidirectional=True,
+                    layer_type=LayerType.encoder,
+                )
+                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+                # Pipeline model parallel rank 0 will have the actual RPE weights. We zero it out on all other ranks and then sync them on setup.
+                if parallel_state.get_pipeline_model_parallel_rank() != 0:
+                    self.encoder_relative_position_embeddings_weight().data.fill_(0)
+                    self.encoder_relative_position_embeddings_weight().shared = True
+            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
+                self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                    bidirectional=True,
+                    num_attention_heads=encoder_cfg.num_attention_heads,
+                    layer_type=LayerType.encoder,
+                    num_attention_heads_alibi=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+            else:
+                self.encoder_relative_position_embedding = None
 
             encoder = get_encoder_model(
                 arch=encoder_cfg.arch,
@@ -167,10 +193,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=encoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=encoder_cfg.get('attention_dropout', 0.1),
+                ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=encoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=encoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=encoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=encoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=encoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=encoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=encoder_cfg.get('bias_dropout_add_fusion', True),
@@ -186,6 +214,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 headscale=encoder_cfg.get('headscale', False),
                 parent_model_type=ModelType.encoder_and_decoder,
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
+                megatron_legacy=encoder_cfg.get('megatron_legacy', False),
+                normalize_attention_scores=encoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=encoder_cfg.get('moe_frequency', 1),
+                moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
             )
 
         if add_decoder:
@@ -212,27 +245,54 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         self.decoder_embedding.zero_parameters()
 
                 self._decoder_embedding_key = "decoder_embedding"
-                # TODO (sandeepsub): When implementing RPE for PP > 2, this should not be inside `pre_process`. It should exist on all ranks and be synchronized manually.
-                if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
-                    self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
+
+            if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+                self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
+                    init_method=init_method_normal(embedding_init_method_std),
+                    num_attention_heads=decoder_cfg.num_attention_heads,
+                    relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
+                    relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
+                    bidirectional=False,
+                    layer_type=LayerType.decoder,
+                )
+                self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+                # Pipeline model parallel rank == split_rank will have the actual RPE weights. We zero it out on all other ranks and then sync them on setup.
+                if (
+                    parallel_state.get_pipeline_model_parallel_rank()
+                    != parallel_state.get_pipeline_model_parallel_split_rank()
+                ):
+                    self.decoder_relative_position_embeddings_weight().data.fill_(0)
+                    self.decoder_relative_position_embeddings_weight().shared = True
+
+                if not self.decoder_cfg.relative_position_bias_self_attention_only:
+                    self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=decoder_cfg.num_attention_heads,
                         relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
                         relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
-                        bidirectional=False,
+                        bidirectional=True,
+                        layer_type=LayerType.decoder,
                     )
-                    self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
-                    if not self.decoder_cfg.relative_position_bias_self_attention_only:
-                        self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
-                            init_method=init_method_normal(embedding_init_method_std),
-                            num_attention_heads=decoder_cfg.num_attention_heads,
-                            relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
-                            relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
-                            bidirectional=True,
-                        )
-                        self._decoder_cross_attention_relative_position_embedding_key = (
-                            "decoder_cross_attention_relative_position_embedding"
-                        )
+                    self._decoder_cross_attention_relative_position_embedding_key = (
+                        "decoder_cross_attention_relative_position_embedding"
+                    )
+                    if (
+                        parallel_state.get_pipeline_model_parallel_rank()
+                        != parallel_state.get_pipeline_model_parallel_split_rank()
+                    ):
+                        self.decoder_cross_attention_relative_position_embeddings_weight().data.fill_(0)
+                        self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
+                self.decoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                    bidirectional=False,
+                    num_attention_heads=decoder_cfg.num_attention_heads,
+                    layer_type=LayerType.decoder,
+                    num_attention_heads_alibi=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+            else:
+                self.decoder_relative_position_embedding = None
 
             decoder = get_decoder_model(
                 arch=decoder_cfg.arch,
@@ -253,10 +313,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
+                ffn_dropout=decoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=decoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=decoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=decoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=decoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=decoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=decoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=decoder_cfg.get('bias_dropout_add_fusion', True),
@@ -271,6 +333,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 transformer_block_type=decoder_cfg.get('transformer_block_type', 'pre_ln'),
                 headscale=decoder_cfg.get('headscale', False),
                 parent_model_type=ModelType.encoder_and_decoder,
+                megatron_legacy=decoder_cfg.get('megatron_legacy', False),
+                normalize_attention_scores=decoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=decoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=decoder_cfg.get('moe_frequency', 1),
+                moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
@@ -288,12 +355,14 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
-                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
+                self.tokens_head = MegatronTokenLevelHead(
+                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
+                )
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
                     output_size=vocab_size,
-                    bias=False,
+                    bias=tokens_head_bias,
                     gather_output=not self.parallel_output,
                     init_method=init_method_normal(decoder_cfg.init_method_std),
                     use_cpu_initialization=use_cpu_initialization,
@@ -376,9 +445,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask=None,
         token_type_ids=None,
         labels=None,
-        enc_output=None,
+        enc_output=None,  # Result of running the entire encoder
         enc_output_attn_mask=None,
-        enc_input=None,
+        enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
     ):
 
@@ -393,26 +462,43 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             decoder_cross_attention_relative_position_bias,
         ) = (None, None, None)
 
-        enc_output_provided = enc_output is not None
+        if enc_input is not None and enc_output is not None:
+            raise ValueError(
+                """Both enc_input and enc_output are not None.
+                You should only be passing one of them.
+                enc_input is the result of the encoder embedding layer
+                enc_output is the result of running the entire transformer encoder."""
+            )
 
-        if enc_input is not None:
+        # In order of precedence, we use enc_output, enc_input, and then enc_input_ids to determine the encoder sequence length.
+        if enc_output is not None:
+            # If enc_output is provided in `batch_for_pipeline`, we need to transpose it from [B x S x H] -> [S x B x H].
+            enc_output = enc_output.transpose(0, 1)
+            enc_seq_length = enc_output.size(0)
+        elif enc_input is not None:
             # If enc_input is provided, we need to transpose it from [B x S x H] -> [S x B x H].
             enc_input = enc_input.transpose(0, 1)
-        elif (enc_input is None) and (enc_input_ids is not None):
+            enc_seq_length = enc_input.size(0)
+        # Only need to run encoder embedding and position ids if enc_input or enc_output is not provided.
+        elif enc_input_ids is not None:
+            enc_seq_length = enc_input_ids.size(1)
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
-                if self.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                if self.encoder_relative_position_embedding is None:
                     enc_position_ids = build_position_ids(enc_input_ids)
                 else:
                     enc_position_ids = None
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
-
-                if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
-                    encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
-                        query_seq_length=enc_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
-                    )
             else:
                 enc_input = None
+        else:
+            # This should only happen with PP > 1 for enc-dec prompt learning models
+            enc_seq_length = enc_attn_mask.size(1)
+
+        if self.add_encoder and self.encoder_relative_position_embedding is not None:
+            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            )
 
         if output_enc_hidden_only:
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
@@ -453,27 +539,27 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_output_attn_mask = enc_attn_mask
 
             if self.pre_process and self.add_decoder:
-                dec_position_ids = build_position_ids(dec_input_ids)
+                # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
+                if self.decoder_relative_position_embedding is None:
+                    dec_position_ids = build_position_ids(dec_input_ids)
+                else:
+                    dec_position_ids = None
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
-
-                if self.decoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
-                    decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
-                        query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
-                    )
-                    if not self.decoder_cfg.relative_position_bias_self_attention_only:
-                        decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
-                            query_seq_length=dec_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
-                        )
-                    else:
-                        decoder_cross_attention_relative_position_bias = None
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
             
 
-            # If enc_output is provided in `batch_for_pipeline`, we need to transpose it from [B x S x H] -> [S x B x H].
-            if enc_output_provided:
-                enc_output = enc_output.transpose(0, 1)
+            if self.add_decoder and self.decoder_relative_position_embedding is not None:
+                decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
+                    query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
+                )
+                if not self.decoder_cfg.relative_position_bias_self_attention_only:
+                    decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
+                        query_seq_length=dec_input_ids.size(1), key_seq_length=enc_seq_length,
+                    )
+                else:
+                    decoder_cross_attention_relative_position_bias = None
 
             output = self.enc_dec_model(
                 enc_input=enc_input,

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from typing import Optional
+import math
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -30,21 +30,38 @@ from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
+from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shapes
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    build_position_ids,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate,
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+    megatron_gpt_generate,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.enums import ModelType
     from apex.transformer import parallel_state
+    from apex.transformer.enums import ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -55,7 +72,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronRetrievalModel"]
 
 
-class MegatronRetrievalModel(MegatronBaseModel):
+class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     """
     Megatron Retrieval enhanced language model
     """
@@ -70,23 +87,65 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         if self.megatron_amp_o2:
 
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
+            if not self.with_distributed_adam:
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=self.cfg.precision)
 
         # self.setup_optimizer_param_groups()
-        if self.cfg.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        if self.cfg.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.cfg.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.cfg.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
-        # self.grad_clip_pl_default = True
+
+        if hasattr(self.cfg, "shape_file"):
+            set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+
+            # here manually initialize all the named parameters with the muTranfer normal initializer
+            for name, tensor in self.named_parameters():
+                if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
+                    # initialize all the output dense matrix weight
+                    # match the megatron lm model
+                    std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
+                    normal_(tensor, 0, std)
+                elif name.endswith('layernorm.weight'):
+                    # initialize all the layer norm weight
+                    if tensor.std() != 0 and tensor.mean() != 1:
+                        raise ValueError(f'need to check {name} init')
+                    normal_(tensor, 1, 0)
+                elif name.endswith('.weight'):
+                    # initialize all the other dense matrix weight
+                    normal_(tensor, 0, self.cfg.init_method_std)
+                else:
+                    if tensor.std() != 0 and tensor.mean() != 0:
+                        raise ValueError(f'need to check {name} init')
+
+            # here manually overwrite the norm factor
+            # note, has to turn off the model.apply_query_key_layer_scaling
+            assert not self.cfg.apply_query_key_layer_scaling
+            for name, layer in self.named_modules():
+                if (
+                    name.endswith('.self_attention')
+                    or name.endswith('.inter_attention')
+                    or name.endswith('.cross_attention')
+                    or name.endswith('.core_attention')
+                ):
+                    if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
+                        layer.norm_factor = (
+                            layer.hidden_size_per_attention_head / 8.0
+                        )  # divide 8 to make it consist with ADLR setting
+                else:
+                    if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
+                        logging.error(
+                            f'module {name} has norm factor but its name is not ending with attention, need to double check'
+                        )
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
@@ -153,6 +212,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
                 'add_position_embedding', False
             ),  # whether use the absolute postion encoding
             tokenizer=self.tokenizer,
+            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
+            version=self.cfg.get('version', 1),
         )
         return model
 
@@ -165,6 +227,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
         token_type_ids=None,
         labels=None,
         input_emb=None,
+        position_ids=None,
     ):
         output_tensor = self.model(
             input_ids=input_ids,
@@ -174,13 +237,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
             token_type_ids=token_type_ids,
             labels=labels,
             input_emb=input_emb,
+            position_ids=position_ids,
         )
         return output_tensor
-
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
 
     def training_step(self, batch, batch_idx):
         input_tokens_id = batch['tokens']
@@ -189,8 +248,18 @@ class MegatronRetrievalModel(MegatronBaseModel):
         retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-
-        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        if self.cfg.get('add_position_embedding', False):
+            input_position_ids = build_position_ids(input_tokens_id)
+        else:
+            input_position_ids = None
+        loss = self(
+            input_tokens_id,
+            input_attn_mask,
+            retrieved_ids,
+            retrieved_attn_mask,
+            labels=labels,
+            position_ids=input_position_ids,
+        )
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
@@ -200,13 +269,16 @@ class MegatronRetrievalModel(MegatronBaseModel):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
-        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
-        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
-        # we cannot start weight update until all async grad AR works are done.
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-            torch.cuda.synchronize()
 
-        if self.megatron_amp_o2:
+        if self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
+        elif self.megatron_amp_o2:
+            # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+            # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+            # we cannot start weight update until all async grad AR works are done.
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+                torch.cuda.synchronize()
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
@@ -252,16 +324,16 @@ class MegatronRetrievalModel(MegatronBaseModel):
                 # If the grad scaler skipped its optimizer step due to infs/nans,
                 # decrement the step of all schedulers.
                 if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    schedulers = self.trainer.lr_schedulers
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
 
-                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
                         return
 
-                    for scheduler in schedulers:
+                    for scheduler_cfg in scheduler_cfgs:
                         # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                         # as well as update the optimizer lr in all param groups
-                        scheduler['scheduler'].last_epoch -= 2
-                        scheduler['scheduler'].step()
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
 
                     # Increase the max step count by 1
 
@@ -276,32 +348,41 @@ class MegatronRetrievalModel(MegatronBaseModel):
         retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
+        if self.cfg.get('add_position_embedding', False):
+            input_position_ids = build_position_ids(input_tokens_id)
+        else:
+            input_position_ids = None
+        loss = self(
+            input_tokens_id,
+            input_attn_mask,
+            retrieved_ids,
+            retrieved_attn_mask,
+            labels=labels,
+            position_ids=input_position_ids,
+        )
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
+        if len(outputs) == 0:
             return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
         self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
-        self.log(
-            'consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-        )
+        averaged_loss = torch.stack(outputs).mean()
+        self.log('test_loss', averaged_loss, prog_bar=True)
+        logging.info(f'test_loss: {averaged_loss} ')
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
         return averaged_loss
 
     def build_train_valid_test_datasets(self):
@@ -387,13 +468,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -407,6 +482,102 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
+
+    def set_inference_config(self, inference_config, retrieval_config):
+        self._inference_config = inference_config
+        self.inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        inference_config = self._inference_config
+        if inference_config is None:
+            return None
+        else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['greedy'] = True
+                response = generate(self, **inference_config, strategy=self.inference_strategy)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                return compute_prob_response
+            else:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                return generate(self, **inference_config, strategy=self.inference_strategy)
+
+    def generate(
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+        **args,
+    ) -> OutputType:
+
+        # check whether the DDP is initialized
+        if parallel_state.is_unitialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+        # set the default sampling params if it is None.
+        # default do greedy sampling
+        if sampling_params is None:
+            sampling_params = get_default_sampling_params()
+
+        # set the default length params if it is None.
+        # default do greedy sampling
+        if length_params is None:
+            length_params = get_default_length_params()
+
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **args)
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only.
+        """
+
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                retrieved,
+                retrieved_mask,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+                neighbors,
+                position_ids,
+            ) = batch
+
+            if len(retrieved.shape) == 1:
+                retrieved = None
+                retrieved_mask = None
+            else:
+                retrieved = retrieved.cuda()
+                retrieved_mask = retrieved_mask.cuda()
+
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            extra_arg['neighbors'] = neighbors[0].item()
+            extra_arg['position_ids'] = position_ids
+
+            output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):

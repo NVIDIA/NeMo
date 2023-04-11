@@ -1,6 +1,8 @@
+Jinja2<3.1
 latexcodec
-sphinx>=3.0
+numpy
+Sphinx>=4.0,<6,!=5.0.0
 sphinx-book-theme
+sphinx-copybutton
 sphinxcontrib-bibtex
 wrapt
-numpy

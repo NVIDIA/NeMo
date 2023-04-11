@@ -3,6 +3,11 @@
 Text (Inverse) Normalization
 ============================
 
+.. warning::
+
+    *TN/ITN transitioned from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
+
+
 The `nemo_text_processing` Python package is based on WFST grammars :cite:`textprocessing-norm-mohri2005weighted` and supports:
 
 1. Text Normalization (TN) converts text from written form into its verbalized form. It is used as a preprocessing step before Text to Speech (TTS). For example,
@@ -11,7 +16,7 @@ The `nemo_text_processing` Python package is based on WFST grammars :cite:`textp
 
      "123" -> "one hundred twenty three"
 
-NeMo has both a fast version which is deterministic :cite:`textprocessing-norm-zhang2021nemo` which has more language support and a context-aware version :cite:`textprocessing-norm-bakhturina2022shallow`.
+`nemo_text_processing` has both a fast version which is deterministic :cite:`textprocessing-norm-zhang2021nemo` which has more language support and a context-aware version :cite:`textprocessing-norm-bakhturina2022shallow`.
 In case of ambiguous input, e.g. 
 
 .. code-block:: bash
@@ -47,21 +52,38 @@ Audio-based TN can be used to normalize ASR training data.
 Installation
 ------------
 
-`nemo_text_processing` is automatically installed with `NeMo <https://github.com/NVIDIA/NeMo>`_.
+If you have already installed `nemo_text_processing <https://github.com/NVIDIA/NeMo-text-processing>`_, it should have `pynini` python library. Otherwise install explicitly:
+
+.. code-block:: shell-session
+
+    pip install pynini==2.1.5
+
+or if this fails on missing OpenFst headers:
+
+.. code-block:: shell-session
+
+    conda install -c conda-forge pynini=2.1.5
+
 
 Quick Start Guide
 -----------------
 
-
-Text Normalization 
+Text Normalization
 ^^^^^^^^^^^^^^^^^^
 
 The standard text normalization based on WFST  :cite:`textprocessing-norm-zhang2021nemo` is not context-aware. It is fast and can be run like this:
 
 .. code-block:: bash
 
-    cd NeMo/nemo_text_processing/text_normalization/
+    cd NeMo-text-processing/nemo_text_processing/text_normalization/
     python normalize.py --text="123" --language=en
+
+if you want to normalize a string. To normalize a text file split into sentences, run the following:
+
+.. code-block:: bash
+
+    cd NeMo-text-processing/nemo_text_processing/text_normalization/
+    python normalize.py --input_file=INPUT_FILE_PATH --output_file=OUTPUT_FILE_PATH --language=en
 
 The context-aware version :cite:`textprocessing-norm-bakhturina2022shallow` is a shallow fusion of non-deterministic WFST and pretrained masked language model.
 
@@ -73,8 +95,9 @@ The context-aware version :cite:`textprocessing-norm-bakhturina2022shallow` is a
 
 .. code-block:: bash
 
-    cd NeMo/nemo_text_processing/
+    cd NeMo-text-processing/nemo_text_processing/
     python wfst_lm_rescoring.py
+
 
 
 
@@ -83,13 +106,13 @@ Inverse Text Normalization
 
 .. code-block:: bash
 
-    cd NeMo/nemo_text_processing/inverse_text_normalization/
+    cd NeMo-text-processing/nemo_text_processing/inverse_text_normalization/
     python inverse_normalize.py --text="one hundred twenty three" --language=en
 
 
 Arguments:
 
-* ``text`` - Input text.
+* ``text`` - Input text. Should not exceed 500 words.
 * ``input_file`` - Input file with lines of input text. Only one of ``text`` or ``input_file`` is accepted.
 * ``output_file`` - Output file to save normalizations. Needed if ``input_file`` is specified.
 * ``language`` - language id.
@@ -101,12 +124,16 @@ Arguments:
 
 
 
+.. warning::
+   The maximum length of a single string to be (de-)normalized should not exceed 500 words. To avoid this, please split your string into sentences shorter than this limit and pass it as ``--input_file`` instead.
+
+
 Audio-based TN 
 ^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
-    cd NeMo/nemo_text_processing/text_normalization/
+    cd NeMo-text-processing/nemo_text_processing/text_normalization/
     python normalize_with_audio.py --text="123" --language="en" --n_tagged=10 --cache_dir="cache_dir" --audio_data="example.wav" --model="stt_en_conformer_ctc_large" 
 
 Additional Arguments:
@@ -119,7 +146,7 @@ Additional Arguments:
 
 .. note::
 
-    More details can be found in `NeMo/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_.
+    More details can be found in `NeMo-text-processing/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb <https://github.com/NVIDIA/NeMo-text-processing/blob/main/tutorials/Text_(Inverse)_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo-text-processing/blob/main/tutorials/Text_(Inverse)_Normalization.ipynb>`_.
 
 Language Support Matrix
 ------------------------
@@ -131,30 +158,29 @@ Language Support Matrix
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Spanish          | es       | x        | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
+| French           | fr       |          | x        |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
 | German           | de       | x        | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
-| French           | fr       |          | x        |                    |                      |
+| Arabic           | ar       | x        | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Russian          | ru       |          | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
+| Swedish          | sv       | x        |          |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
 | Vietnamese       | vi       |          | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
-| Portugese        | pt       |          | x        |                    |                      |
+| Portuguese       | pt       |          | x        |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
+| Chinese          | zh       | x        |          |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 
-Grammar customization
----------------------
 
-.. note::
+See :doc:`Grammar customization <wfst_customization>` for grammar customization details.
 
-    In-depth walk through `NeMo/tutorials/text_processing/WFST_tutorial.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_.
+See :doc:`Text Processing Deployment <wfst_text_processing_deployment>` for deployment in C++ details.
 
-
-Deploy to C++
------------------
-See :doc:`Text Procesing Deployment <wfst_text_processing_deployment>` for details.
-
-
+WFST TN/ITN resources could be found in :doc:`here <wfst_resources>`.
 
 References
 ----------

@@ -16,19 +16,18 @@ import json
 import os
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
 
-from nemo.collections.tts.torch.data import TTSDataset
-from nemo.collections.tts.torch.g2ps import EnglishG2p
-from nemo.collections.tts.torch.helpers import get_base_dir
-from nemo.collections.tts.torch.tts_tokenizers import EnglishPhonemesTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer
+from nemo.collections.tts.data.dataset import TTSDataset
+from nemo.collections.tts.g2p.models.en_us_arpabet import EnglishG2p
+from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 
 
 class TestTTSDataset:
     @pytest.mark.unit
-    @pytest.mark.torch_tts
+    @pytest.mark.run_only_on('CPU')
     def test_dataset(self, test_data_dir):
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
         sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
@@ -53,7 +52,7 @@ class TestTTSDataset:
         data, _, _, _, _, _ = next(iter(dataloader))
 
     @pytest.mark.unit
-    @pytest.mark.torch_tts
+    @pytest.mark.run_only_on('CPU')
     def test_raise_exception_on_not_supported_sup_data_types(self, test_data_dir):
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
         sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
@@ -75,7 +74,7 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.torch_tts
+    @pytest.mark.run_only_on('CPU')
     def test_raise_exception_on_not_supported_window(self, test_data_dir):
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
         sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
@@ -98,7 +97,7 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.torch_tts
+    @pytest.mark.run_only_on('CPU')
     @pytest.mark.parametrize("sup_data_type", ["voiced_mask", "p_voiced"])
     def test_raise_exception_on_missing_pitch_sup_data_type_if_use_voiced(self, test_data_dir, sup_data_type):
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
@@ -122,7 +121,7 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.torch_tts
+    @pytest.mark.run_only_on('CPU')
     @pytest.mark.parametrize(
         "sup_data_types, output_indices",
         [

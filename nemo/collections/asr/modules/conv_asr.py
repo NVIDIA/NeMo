@@ -13,7 +13,7 @@
 # limitations under the License.
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import List, Optional, Set, Union
 
 import torch
 import torch.distributed
@@ -38,7 +38,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
@@ -53,7 +53,7 @@ from nemo.utils import logging
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
-class ConvASREncoder(NeuralModule, Exportable):
+class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
 
@@ -135,7 +135,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         residual_panes = []
         encoder_layers = []
         self.dense_residual = False
-        for lcfg in jasper:
+        for layer_idx, lcfg in enumerate(jasper):
             dense_res = []
             if lcfg.get('residual_dense', False):
                 residual_panes.append(feat_in)
@@ -179,6 +179,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     stride_last=stride_last,
                     future_context=future_context,
                     quantize=quantize,
+                    layer_idx=layer_idx,
                 )
             )
             feat_in = lcfg['filters']
@@ -440,6 +441,9 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
             torch.nn.Conv1d(self._feat_in, self._num_classes, kernel_size=1, bias=True)
         )
         self.apply(lambda x: init_weights(x, mode=init_mode))
+
+        accepted_adapters = [adapter_utils.LINEAR_ADAPTER_CLASSPATH]
+        self.set_accepted_adapter_types(accepted_adapters)
 
     @typecheck()
     def forward(self, encoder_output):
@@ -763,7 +767,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         num_classes (int): Number of unique speakers in dataset
         emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
                 Defaults to [1024,1024]
-        pool_mode (str) : Pooling stratergy type. options are 'xvector','tap', 'attention'
+        pool_mode (str) : Pooling strategy type. options are 'xvector','tap', 'attention'
                 Defaults to 'xvector (mean and variance)'
                 tap (temporal average pooling: just mean)
                 attention (attention based pooling)
@@ -885,6 +889,8 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
     def add_adapter(self, name: str, cfg: dict):
         for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
             cfg = self._update_adapter_cfg_input_dim(jasper_block, cfg)
+
+            jasper_block.set_accepted_adapter_types(self.get_accepted_adapter_types())
             jasper_block.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
@@ -905,6 +911,16 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
     def _update_adapter_cfg_input_dim(self, block: JasperBlock, cfg):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=block.planes)
         return cfg
+
+    def get_accepted_adapter_types(self,) -> Set[type]:
+        types = super().get_accepted_adapter_types()
+
+        if len(types) == 0:
+            self.set_accepted_adapter_types(
+                [adapter_utils.LINEAR_ADAPTER_CLASSPATH,]
+            )
+            types = self.get_accepted_adapter_types()
+        return types
 
 
 @dataclass
@@ -934,7 +950,7 @@ class JasperEncoderConfig:
 @dataclass
 class ConvASREncoderConfig:
     _target_: str = 'nemo.collections.asr.modules.ConvASREncoder'
-    jasper: Optional[JasperEncoderConfig] = field(default_factory=list)
+    jasper: Optional[List[JasperEncoderConfig]] = field(default_factory=list)
     activation: str = MISSING
     feat_in: int = MISSING
     normalization_mode: str = "batch"

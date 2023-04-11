@@ -17,7 +17,7 @@ import os
 from typing import List, Optional, Union
 
 from attr import asdict
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -35,7 +35,18 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
 )
 from nemo.utils import AppState, logging
 
-__all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
+__all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
+
+
+def pad_batch(batch, pad_id, max_len):
+    context_lengths = []
+    max_context_length = max([len(tokens) for tokens in batch])
+    for tokens in batch:
+        context_length = len(tokens)
+        if context_length < max_context_length + max_len:
+            tokens.extend([pad_id] * (max_context_length + max_len - context_length))
+        context_lengths.append(context_length)
+    return batch, context_lengths
 
 
 def get_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
@@ -150,7 +161,8 @@ def get_transformer(
     config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
-    pre_ln_final_layer_norm=True,
+    pre_ln_final_layer_norm: bool = True,
+    padding_idx: int = 0,
 ) -> Union[EncoderModule, DecoderModule]:
     """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
        First choose the library to get the transformer from. This can be huggingface,
@@ -191,6 +203,7 @@ def get_transformer(
             config_dict=config_dict,
             encoder=encoder,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            padding_idx=padding_idx,
         )
 
         if checkpoint_file is not None:

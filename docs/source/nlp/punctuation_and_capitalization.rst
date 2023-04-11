@@ -3,14 +3,6 @@
 Punctuation and Capitalization Model
 ====================================
 
-Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words.
-There are two issues with non-punctuated ASR output:
-
-- it could be difficult to read and understand
-- models for some downstream tasks, such as named entity recognition, machine translation, or text-to-speech, are
-  usually trained on punctuated datasets and using raw ASR output as the input to these models could deteriorate their
-  performance
-
 Quick Start Guide
 -----------------
 
@@ -185,7 +177,7 @@ discarded during tarred dataset creation.
 
 Beside `.tar` files with batches, the
 `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
-<https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+<https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
 script will create metadata JSON file, and 2 `.csv` files with punctuation and
 capitalization label vocabularies. To use tarred dataset you will need to pass path to a metadata file of your dataset
 in a config parameter :code:`model.train_ds.tar_metadata_file` and set a config parameter
@@ -328,7 +320,7 @@ model.
      - ``null``
      - A configuration of optimizer, learning rate scheduler, and L2 regularization. Cannot be omitted in `.yaml`
        config if training is performed. For more information see :ref:`Optimization <optimization-label>` and
-       `primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_ tutorial.
+       `primer <https://github.com/NVIDIA/NeMo/tree/stable/tutorials/00_NeMo_Primer.ipynb>`_ tutorial.
 
 .. _class-labels-config-label:
 
@@ -582,7 +574,7 @@ For convenience, items of data config are described in 4 tables:
        is a path to metadata file of tarred dataset. A tarred metadata file and
        other parts of tarred dataset are usually created by the script
        `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
-       <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+       <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
    * - **tar_shuffle_n**
      - int
      - ``1``

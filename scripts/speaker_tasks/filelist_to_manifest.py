@@ -12,6 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script converts a filelist file where each line contains
+<absolute path of wav file> to a manifest json file.
+Optionally post processes the manifest file to create dev and train split for speaker embedding
+training, also optionally segment an audio file in to segments of random DURATIONS and create those
+wav files in CWD.
+
+Args:
+--filelist: path to file containing list of audio files
+--manifest(optional): if you already have manifest file, but would like to process it for creating
+    segments and splitting then use manifest ignoring filelist
+--id: index of speaker label in filename present in filelist file that is separated by '/'
+--out: output manifest file name
+--split: if you would want to split the  manifest file for training purposes
+    you may not need this for test set. output file names is <out>_<train/dev>.json, defaults to False
+--create_segments: if you would want to segment each manifest line to segments of [1,2,3,4] sec or less
+    you may not need this for test set, defaults to False
+--min_spkrs_count: min number of samples per speaker to consider and ignore otherwise, defaults to 0 (all speakers)
+"""
+
 import argparse
 import json
 import os
@@ -23,30 +43,11 @@ import soundfile as sf
 import sox
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm.contrib.concurrent import process_map
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
 random.seed(42)
 
-"""
-This scipt converts a filelist file where each line contains  
-<absolute path of wav file> to a manifest json file. 
-Optionally post processes the manifest file to create dev and train split for speaker embedding 
-training, also optionally segment an audio file in to segments of random DURATIONS and create those
-wav files in CWD. 
-
-Args: 
---filelist: path to file containing list of audio files
---manifest(optional): if you already have manifest file, but would like to process it for creating 
-    segments and splitting then use manifest ignoring filelist
---id: index of speaker label in filename present in filelist file that is separated by '/'
---out: output manifest file name
---split: if you would want to split the  manifest file for training purposes
-    you may not need this for test set. output file names is <out>_<train/dev>.json, defaults to False
---create_segments: if you would want to segment each manifest line to segments of [1,2,3,4] sec or less
-    you may not need this for test set, defaults to False
---min_spkrs_count: min number of samples per speaker to consider and ignore otherwise, defaults to 0 (all speakers)
-"""
-
-DURATIONS = sorted([1, 2, 3, 4], reverse=True)
+DURATIONS = sorted([3], reverse=True)
 MIN_ENERGY = 0.01
 CWD = os.getcwd()
 
@@ -143,15 +144,6 @@ def read_file(filelist, id=-1):
             meta = {"audio_filepath": line, "offset": 0, "duration": None, "label": speaker}
             json_lines.append(meta)
     return json_lines
-
-
-def read_manifest(manifest):
-    data = []
-    with open(manifest, 'r', encoding='utf-8') as f:
-        for line in f:
-            item = json.loads(line)
-            data.append(item)
-    return data
 
 
 def get_duration(json_line):

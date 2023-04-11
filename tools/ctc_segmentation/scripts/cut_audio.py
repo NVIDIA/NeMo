@@ -39,6 +39,12 @@ parser.add_argument(
     default=0.05,
 )
 parser.add_argument("--sample_rate", type=int, help="Sample rate, Hz", default=16000)
+parser.add_argument(
+    "--max_duration",
+    type=int,
+    help="Maximum audio duration (seconds). Samples that are longer will be dropped",
+    default=60,
+)
 
 
 def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
@@ -60,6 +66,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
     segments = []
     ref_text_processed = []
     ref_text_no_preprocessing = []
+    ref_text_normalized = []
     with open(alignment_file, "r") as f:
         for line in f:
             line = line.split("|")
@@ -69,6 +76,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                 continue
             ref_text_processed.append(line[1].strip())
             ref_text_no_preprocessing.append(line[2].strip())
+            ref_text_normalized.append(line[3].strip())
             line = line[0].split()
             segments.append((float(line[0]) + args.offset / 1000, float(line[1]) + args.offset / 1000, float(line[2])))
 
@@ -83,9 +91,12 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
         for i, (st, end, score) in enumerate(segments):
             segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
             duration = len(segment) / sampling_rate
+            if duration > args.max_duration:
+                continue
             if duration > 0:
                 text_processed = ref_text_processed[i].strip()
                 text_no_preprocessing = ref_text_no_preprocessing[i].strip()
+                text_normalized = ref_text_normalized[i].strip()
                 if score >= args.threshold:
                     high_score_dur += duration
                     audio_filepath = os.path.join(clips_dir, f"{base_name}_{i:04}.wav")
@@ -98,6 +109,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                         "duration": duration,
                         "text": text_processed,
                         "text_no_preprocessing": text_no_preprocessing,
+                        "text_normalized": text_normalized,
                         "score": round(score, 2),
                         "start_abs": float(np.mean(np.abs(segment[:num_samples]))),
                         "end_abs": float(np.mean(np.abs(segment[-num_samples:]))),
@@ -138,7 +150,7 @@ if __name__ == "__main__":
     print("Splitting audio files into segments...")
 
     if os.path.isdir(args.alignment):
-        alignment_files = glob(f"{args.alignment}/*.txt")
+        alignment_files = glob(f"{args.alignment}/*_segments.txt")
     else:
         alignment_files = [args.alignment]
 

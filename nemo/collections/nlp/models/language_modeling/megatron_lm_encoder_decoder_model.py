@@ -15,12 +15,12 @@
 import copy
 import functools
 import inspect
-import re
 from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -37,22 +37,26 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    compute_beam_search_len_penalty,
+    get_sampling_token_fn,
+)
+from nemo.collections.nlp.parts import nlp_overrides
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import ModelType
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.utils import (
-        get_num_microbatches,
         _reconfigure_microbatch_calculator,
         get_micro_batch_size,
+        get_num_microbatches,
     )
 
     HAVE_APEX = True
@@ -71,10 +75,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
-            raise ValueError(
-                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
-            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -93,11 +93,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
-        self.enc_dec_model = build_model(
-            model_provider_func=self.model_provider_func,
-            wrap_with_ddp=False,
-            model_type=ModelType.encoder_and_decoder,
-        )[0]
+        if isinstance(self.trainer.accelerator, CPUAccelerator):
+            logging.warning("Using CPUAccelerator, model will be built on CPU.")
+            self.enc_dec_model = nlp_overrides.build_model_cpu(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                model_type=ModelType.encoder_and_decoder,
+            )[0]
+        else:
+            self.enc_dec_model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                model_type=ModelType.encoder_and_decoder,
+            )[0]
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
         # self.setup_optimizer_param_groups()
@@ -106,18 +114,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if self.megatron_amp_o2:
 
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.enc_dec_model.cuda(torch.cuda.current_device())
+            if not self.with_distributed_adam:
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
 
-        if self.cfg.precision == 32:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
-            self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        if self.cfg.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
+        elif int(self.cfg.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.cfg.precision) == 16:
+            self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -126,6 +135,58 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
+
+    def configure_optimizers(self):
+
+        if self.with_distributed_adam:
+
+            # Identify params that require grad reductions between
+            # pipeline stages
+            # See: allreduce_word_and_position_embeddings
+            model_parallel_params = []
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+                parallel_state.is_rank_in_embedding_group()
+            ):
+                if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
+                    'share_decoder_tokens_head_embeddings', True
+                ):
+                    model_parallel_params.append(self.enc_dec_model.word_embeddings_weight())
+            if (
+                parallel_state.is_rank_in_position_embedding_group()
+                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                and self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+                and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
+            ):
+                if self.cfg.get('share_token_embeddings', True):
+                    model_parallel_params.append(self.enc_dec_model.position_embeddings_weight())
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 2
+                and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+            ):
+                if (
+                    self.cfg.encoder.get('position_embedding_type') == 'relative'
+                    and parallel_state.is_rank_in_encoder_relative_position_embedding_group()
+                    and parallel_state.get_pipeline_model_parallel_split_rank() > 1
+                ):
+                    model_parallel_params.append(self.enc_dec_model.encoder_relative_position_embeddings_weight())
+                if (
+                    self.cfg.decoder.get('position_embedding_type') == 'relative'
+                    and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
+                ):
+                    model_parallel_params.append(self.enc_dec_model.decoder_relative_position_embeddings_weight())
+                    if not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                        model_parallel_params.append(
+                            self.enc_dec_model.decoder_cross_attention_relative_position_embeddings_weight()
+                        )
+
+            # Disable async grad reductions for params that are
+            # synchronized for pipeline parallelism
+            for param in model_parallel_params:
+                param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                param._disable_overlap_grad_sync = True
+
+        return super().configure_optimizers()
 
     def _handle_bias_activation_fusion_args(self, cfg):
         # For oldest models, we don't have the option to turn on/off bias activation fusion. It is always on.
@@ -161,6 +222,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             cfg.encoder = encoder_cfg
             cfg.decoder = decoder_cfg
+
+            # NOTE: For old models there are two scenarios:
+            # 1. If we share decoder embeddings with the output layer, we would always set tokens_head_bias=True
+            # 2. If we do not share decoder embeddings with the output layer, we would always set tokens_head_bias=False
+            cfg.tokens_head_bias = (
+                True if cfg.get('share_decoder_tokens_head_embeddings', True) else False
+            )  # For models before separate encoder/decoder configs, tokens_head_bias was always True.
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
@@ -213,6 +281,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
             hidden_transforms=hidden_transforms,
             loss_transforms=loss_transforms
+            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
         )
         return model
 
@@ -261,6 +330,30 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         decoder_seq_length = batch_for_pipeline[1].size(1)
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
+        # handle asynchronous grad reduction
+        custom_sync_context_handler = None
+        custom_grad_sync_func = None
+        if self.with_distributed_adam:
+            if self.megatron_amp_o2:
+                # copy grads to main grad
+                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
+            else:
+                # keep grad tensors around
+                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
+            custom_grad_sync_func = self.reduce_overlap_gradients
+        else:
+            if (
+                self.megatron_amp_o2
+                and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                and not self.cfg.get('sequence_parallel', False)
+            ):
+                custom_sync_context_handler = self._optimizer.no_sync
+            else:
+                # TODO: enable async grad all reduce with O1/autocast
+                # mixed precision training, with pipeline parallelism,
+                # or with sequence parallelism
+                custom_sync_context_handler = None
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -270,15 +363,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                custom_sync_context_handler=custom_sync_context_handler,
+                custom_grad_sync_func=custom_grad_sync_func,
             )
         else:
-            # no pipeline parallelism so we reduce grads asynchronously
-            if self.megatron_amp_o2:
-                custom_sync_context_handler = self._optimizer.no_sync
-            else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -287,6 +377,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 custom_sync_context_handler=custom_sync_context_handler,
             )
@@ -300,7 +391,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        if self.megatron_amp_o2:
+        if self.with_distributed_adam:
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
+        elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
@@ -379,14 +475,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def allreduce_word_and_position_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-        # All-reduce word_embeddings' grad across first and last stages to ensure
-        # that word_embeddings parameters stay in sync.
-        # This should only run for models that support pipelined model parallelism
-        # (BERT and GPT-2).
+        # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings parameters stay in sync.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.enc_dec_model.share_token_embeddings:
+            if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
+                'share_decoder_tokens_head_embeddings', True
+            ):
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
@@ -394,20 +489,74 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 else:
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            else:
+                raise ValueError(
+                    f"Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet."
+                )
 
-                # All reduce position embeddings for T5.
-                if (
-                    parallel_state.is_rank_in_position_embedding_group()
-                    and parallel_state.get_pipeline_model_parallel_world_size() > 1
-                    and parallel_state.get_pipeline_model_parallel_split_rank() is not None
-                    and self.cfg.get('position_embedding_type') == 'learned_absolute'
-                ):
-                    position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+        # All-reduce position embeddings for T5.
+        if (
+            parallel_state.is_rank_in_position_embedding_group()
+            and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+            and self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+            and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
+        ):
+            if self.cfg.get('share_token_embeddings', True):
+                position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+
+        # All-reduce relative position embeddings for T5.
+        if (
+            parallel_state.get_pipeline_model_parallel_world_size()
+            > 2  # This > 2 and not > 1 since with PP=2 encoder RPE can live only on one rank.
+            and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+        ):
+            # For split rank = 1, we have only one encoder rank and so we don't need to allreduce.
+            if (
+                self.cfg.encoder.get('position_embedding_type') == 'relative'
+                and parallel_state.is_rank_in_encoder_relative_position_embedding_group()
+                and parallel_state.get_pipeline_model_parallel_split_rank() > 1
+            ):
+                position_embeddings_weight = self.enc_dec_model.encoder_relative_position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_encoder_relative_position_embedding_group()
+                )
+
+            # For split rank == pipeline_world_size - 1, we have only one decoder rank and so we don't need to allreduce.
+            if (
+                self.cfg.decoder.get('position_embedding_type') == 'relative'
+                and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
+            ):
+                position_embeddings_weight = self.enc_dec_model.decoder_relative_position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                )
+
+                # If the model also has separate RPE weights for decoder cross-attention, allreduce those as well.
+                if not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    position_embeddings_weight = (
+                        self.enc_dec_model.decoder_cross_attention_relative_position_embeddings_weight()
+                    )
                     if self.megatron_amp_o2:
                         grad = position_embeddings_weight.main_grad
                     else:
                         grad = position_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+                    torch.distributed.all_reduce(
+                        grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                    )
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -441,7 +590,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
-        args_name = inspect.getfullargspec(self.enc_dec_model.forward)[0][1:]
+        module = self.enc_dec_model.forward if not self.megatron_amp_o2 else self.enc_dec_model.module.forward
+        args_name = inspect.getfullargspec(module)[0][1:]
         kwargs_to_arg_idx = {k: v for k, v in zip(args_name, range(len(args_name)))}
 
         return kwargs_to_arg_idx
@@ -494,7 +644,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output_dict = model(*args)
+            output_dict = {k: v.contiguous() for k, v in model(*args).items()}
 
             def id_func(output_tensor):
                 return output_tensor, {output_name: output_tensor}
@@ -535,6 +685,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
@@ -546,6 +697,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
@@ -559,7 +711,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return logits_tensor
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
@@ -578,6 +730,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
@@ -589,6 +742,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
@@ -604,8 +758,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -615,11 +767,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            rank_zero_only=True,
-        )
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
         return averaged_loss
@@ -628,8 +775,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -639,12 +784,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            rank_zero_only=True,
-        )
-
         return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):
@@ -739,6 +878,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         }
 
     def process_global_batch(self, global_batch):
+        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
+        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
+        global_batch['dec_mask'][:, 0] = 1
+
         return [
             global_batch["text_enc"],
             global_batch["text_dec"],
@@ -791,15 +934,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_enc_dec(
+            self.enc_dec_model
+        )
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
+            f'Total number of model parameters: {total_num_parameters:.2e}\n'
+        )
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError, IndexError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -816,9 +970,28 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            assert (
+                self.cfg.share_token_embeddings
+            ), "share_word_embedding must be True when using pipeline model parallel > 1"
+            assert (
+                self.cfg.share_decoder_tokens_head_embeddings
+            ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.cfg.get('position_embedding_type') != 'relative':
+            if (
+                self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+                and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
+            ):
                 self.enc_dec_model.sync_initial_position_embeddings()
+            # Synchronize RPE embeddings across pipeline parallel ranks.
+            else:
+                if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
+                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
+                if self.cfg.decoder.get(
+                    'position_embedding_type', 'learned_absolute'
+                ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -827,30 +1000,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
             )
 
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
-
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
             self._validation_dl = self.build_pretraining_data_loader(
-                self._validation_ds, consumed_samples, num_workers=0
+                self._validation_ds, consumed_samples, num_workers=self._cfg.data.num_workers
             )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=0)
-
-    def compute_consumed_samples(self, steps_since_resume=0):
-        app_state = AppState()
-        consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
-        )
-        return int(consumed_samples)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
@@ -890,8 +1050,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch_per_gpu = tokens_enc.size(0)
             encoder_seq_length = tokens_enc.size(1)
         else:
-            global_batch_per_gpu = encoder_input.size(0)
-            encoder_seq_length = encoder_input.size(1)
+            global_batch_per_gpu = encoder_input.size(1)
+            encoder_seq_length = encoder_input.size(0)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -924,6 +1084,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         forward_step_func = self._get_forward_output_only_func(
             arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
         )
+
+        # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length because while running `.enocde()`, the last hidden states from encoder are passed through as identity through the pipeline. Setting it to anything else will cause hanging due to tensor shape mismatches.
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
                 forward_step_func=forward_step_func,
@@ -931,8 +1093,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
-                decoder_sequence_length=1,
+                decoder_sequence_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             )
         else:
             output_tensor = forward_backward_no_pipelining(
@@ -941,12 +1104,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
-                decoder_sequence_length=1,
+                decoder_sequence_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             )
 
-        # get output tensor of encoder [seq_len, batch, hidden]
-        if parallel_state.is_pipeline_last_stage():
+        if output_tensor:
             output_tensor = output_tensor[0]['hiddens']
         else:
             output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda()
@@ -982,7 +1145,47 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output=None,
         enc_output_attn_mask=None,
         ignore_ids=[],
+        bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+        predicted_tokens_dec=None,
+        sampling_method: str = "greedy-search",
+        sampling_kwargs: dict = {},
     ):
+        """
+        tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
+        enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
+        num_tokens_to_generate - the max number of tokens to generate.
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
+        tokenizer - a tokenizer object.
+        enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
+        enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).
+        ignore_ids - a list of token ids to ignore when sampling.
+        bos_id - the id of the beginning of sentence token. If None, will use tokenizer.bos_id unless explicitly set to something else.
+        predicted_tokens_dec - a tensor of shape [batch_size, seq_len] that contains the tokens that have already been decoded.
+        sampling_method - a sampling method to use in the decoding iterations. Currently supported methods are
+                          "beam-search"/"greedy-search"/"topkp-sampling". The argument specifies the sampling function
+                          that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple
+                          (tensor of log_probs [batch_size], tensor of sampled tokens_ids from logits [batch_size]).
+                          If the beam search is enabled, the sampling function returns tensors [batch_size, beam_size]
+        sampling_kwargs - dict with arguments to be passed to the sampling function. Please refer to the method
+                          get_sampling_token_fn to see which arguments are required for a chosen sampling_method.
+        return:
+                tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
+                If sampling_method == 'beam-size' and keep_only_best_tokens is False the shape of the tensors are
+                [batch_size, beam_size, seq_len + 1], [batch_size, beam_size, seq_len]
+        """
+        # Setting up the sampling strategy
+        sample_token_fn, sampling_kwargs = get_sampling_token_fn(sampling_method, sampling_kwargs)
+        beam_search = sampling_method == 'beam-search'
+        if beam_search:
+            beam_size = sampling_kwargs['beam_size']
+            beam_alpha = sampling_kwargs['beam_alpha']
+            keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']
+            return_scores = sampling_kwargs['return_scores']
+            logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
+            assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
+        else:
+            logging.info(f'Decoding using the {sampling_method} method...')
+
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -1025,13 +1228,21 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
+        bos_id = tokenizer.bos_id if bos_id is None else bos_id
+        # initial prompt can be given
+        if predicted_tokens_dec is None:
+            predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        # collect log probs that were used in the sampling
+        predicted_log_probs = torch.zeros((global_batch_per_gpu, 0), dtype=self.autocast_dtype).to(device)
+
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
         # get encoder hiddens (output)
         if enc_output is None:
             # Encode returns a tensr of shape [batch, seq_len, hidden]
+            # All ranks will call `.encode()`, but only the last rank will have a non-empty output tensor.
             enc_output = self.encode(
                 tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
             )
@@ -1042,6 +1253,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
+            dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
@@ -1076,20 +1288,110 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
-                        dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                        dim=-1, index=torch.tensor(ignore_ids, device=output_tensor.device), value=-float('Inf')
                     )
 
-                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-                predicted_tokens_dec = torch.cat(
-                    [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
-                )
+                log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :])
+                # enforce valid range of token ids
+                token_ids = torch.clamp(token_ids, max=tokenizer.vocab_size - 1)
+
+                if beam_search:
+                    # beam search: beam creation in the first iteration
+                    if i == 0:
+                        # resizing decoder inputs to match tensors augmented with beams
+                        log_probs, token_ids = log_probs.view(-1), token_ids.view(-1)
+                        scores = log_probs.unsqueeze(1).clone()
+
+                        batch_size, src_length, hidden_size = enc_output.size()
+                        enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
+                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
+
+                        # resize tensors that collect predicted tokens and logits per iteration to
+                        # match shape of tensors augmented with the beam size
+                        predicted_tokens_dec = predicted_tokens_dec.repeat(beam_size, 1)
+                        predicted_log_probs = predicted_log_probs.repeat(beam_size, 0)
+
+                        pad_profile = torch.zeros_like(scores).long()
+                        decoder_seq_lengths = torch.zeros_like(scores).fill_(predicted_tokens_dec.size(1) + 1)
+
+                        # reconfigure batch size for apex since the tensor have been augmented with beam size
+                        global_batch_per_gpu = token_ids.shape[0]
+                        tensor_shape[1] = global_batch_per_gpu
+                        _reconfigure_microbatch_calculator(
+                            rank=app_state.global_rank,
+                            rampup_batch_size=None,
+                            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                            micro_batch_size=global_batch_per_gpu,
+                            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                        )
+
+                        # collect all predicted tokens and log_probs
+                        predicted_tokens_dec = torch.cat(
+                            [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
+                        )
+                        predicted_log_probs = torch.cat(
+                            [predicted_log_probs.to(log_probs.device), log_probs.unsqueeze(1)], dim=1
+                        )
+
+                    # beam search: beam selection in the second iteration and on
+                    else:
+                        # mask all finished hypotheses to exclude them from beam
+                        pad_mask = pad_profile.repeat(1, beam_size)
+
+                        # for all prefixes ending with <eos> or <pad> replace generated
+                        # continuations with <pad>
+                        token_ids = tokenizer.pad_id * pad_mask + token_ids * (1 - pad_mask)
+
+                        # force all hypotheses but one generated from already finished
+                        # hypotheses to have extremely low score, so they will not be
+                        # considered during beam re-ranking
+                        pad_mask[:, 1:] = pad_mask[:, 1:] * -10000.0
+                        scores = scores + log_probs * (1 - pad_mask).to(scores.dtype)
+
+                        # choose top-k hypotheses with length penalty applied
+                        len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, beam_alpha)
+                        scores = scores / len_penalties
+                        scores, indices = sample_token_fn(scores.view(-1, beam_size ** 2), dim=1, log_softmax=False)
+                        scores = scores.view(-1, 1) * len_penalties
+
+                        # select predicted sequences which correspond to the chosen hypotheses
+                        predicted_tokens_dec = predicted_tokens_dec.unsqueeze(1).repeat(1, beam_size, 1)
+                        predicted_tokens_dec = torch.cat((predicted_tokens_dec, token_ids.unsqueeze(2)), dim=2)
+                        predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size ** 2, -1)
+                        p_len = predicted_tokens_dec.size(2)
+                        predicted_tokens_dec_ids = indices.unsqueeze(2).repeat(1, 1, p_len)
+                        predicted_tokens_dec = predicted_tokens_dec.gather(1, predicted_tokens_dec_ids).view(-1, p_len)
+
+                        # select logits which correspond to the chosen hypotheses
+                        predicted_log_probs = predicted_log_probs.unsqueeze(1).repeat(1, beam_size, 1)
+                        predicted_log_probs = torch.cat((predicted_log_probs, log_probs.unsqueeze(2)), dim=2)
+                        predicted_log_probs = predicted_log_probs.view(batch_size, beam_size ** 2, -1)
+                        predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(
+                            -1, p_len - 1
+                        )
+
+                        # update decoder_seq_length and pad_profile
+                        not_eos_pad = predicted_tokens_dec.ne(tokenizer.eos_id) & predicted_tokens_dec.ne(
+                            tokenizer.pad_id
+                        )
+                        decoder_seq_lengths = 1 + not_eos_pad.sum(dim=1, keepdim=True).to(scores.dtype)
+                        pad_profile = (~not_eos_pad[:, -1:]).long()
+                else:
+                    # collect all predicted tokens and log_probs
+                    predicted_tokens_dec = torch.cat(
+                        [predicted_tokens_dec.to(token_ids.device), token_ids.unsqueeze(1)], dim=1
+                    )
+                    predicted_log_probs = torch.cat(
+                        [predicted_log_probs.to(log_probs.device), log_probs.unsqueeze(1)], dim=1
+                    )
+
             else:
-                log_probs = torch.zeros(
-                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
-                ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
+                ).cuda()
+                predicted_log_probs = torch.zeros(
+                    (predicted_log_probs.shape[0], predicted_log_probs.shape[1] + 1), dtype=self.autocast_dtype
                 ).cuda()
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -1100,7 +1402,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
                 torch.distributed.broadcast(
-                    log_probs,
+                    predicted_log_probs,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
@@ -1113,7 +1415,32 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return predicted_tokens_dec, log_probs
+
+        if beam_search and beam_size > 1:
+            if keep_only_best_tokens:
+                len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, 0)
+                scores = scores / len_penalties
+                scores = scores.view(-1, beam_size)
+                best_ids = torch.argmax(scores, dim=1, keepdim=True)
+                scores = scores * len_penalties.view(-1, beam_size)
+                scores = scores.gather(1, best_ids)
+                best_tokens = best_ids.repeat(1, predicted_tokens_dec.size(1)).unsqueeze(1)
+                predicted_tokens_dec = (
+                    predicted_tokens_dec.view(batch_size, beam_size, -1).gather(1, best_tokens).squeeze(1)
+                )
+                predicted_log_probs = (
+                    predicted_log_probs.view(batch_size, beam_size, -1).gather(1, best_tokens[:, :, 1:]).squeeze(1)
+                )
+            else:
+                predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size, -1)
+                predicted_log_probs = predicted_log_probs.view(batch_size, beam_size, -1)
+                scores = scores.view(-1, beam_size)
+
+        if beam_search:
+            if return_scores:
+                return predicted_tokens_dec, predicted_log_probs, scores
+
+        return predicted_tokens_dec, predicted_log_probs
 
     def complete(self, request: Dict):
         """
@@ -1150,12 +1477,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['prompt'] = request['prompt'][0]
         response['completion'] = {}
+        bos_id = request['bos_id']
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].cpu().numpy().tolist()))
         enc_mask = tokens_enc != self.tokenizer.pad_id
 
-        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
+        predicted_tokens_ids, log_probs = self.decode(
+            tokens_enc, enc_mask, int(request['tokens_to_generate']), bos_id=bos_id
+        )
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
         log_probs = log_probs.cpu().numpy()[0].tolist()
         if self.tokenizer.eos_id in predicted_tokens_ids:

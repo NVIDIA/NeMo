@@ -41,21 +41,21 @@ autodoc_mock_imports = [
     'torch.optim',
     'torch.utils.data',
     'torch.utils.data.sampler',
-    'torchvision',
-    'torchvision.models',
     'torchtext',
+    'torchvision',
     'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
     'hydra',  # hydra-core in requirements, hydra during import
     'dateutil',  # part of core python
     'transformers.tokenization_bert',  # has ., troublesome for this regex
     'megatron',  # megatron-lm in requirements, megatron in import
-    'sklearn',
+    'sklearn',  # scikit_learn in requirements, sklearn in import
     'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
     'nemo_text_processing.text_normalization',  # Not installed automatically
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
+    'lightning_utilities',  # inherited from PTL
     'apex',
-    'joblib',
+    'joblib',  # inherited from optional code
     'IPython',
     'ipadic',
     'psutil',
@@ -111,7 +111,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    # "sphinx_rtd_theme",
+    "sphinx_copybutton",
 ]
 
 bibtex_bibfiles = [
@@ -119,7 +119,7 @@ bibtex_bibfiles = [
     'nlp/nlp_all.bib',
     'nlp/text_normalization/tn_itn_all.bib',
     'tools/tools_all.bib',
-    'tts_all.bib',
+    'tts/tts_all.bib',
     'text_processing/text_processing_all.bib',
     'core/adapters/adapter_bib.bib',
 ]

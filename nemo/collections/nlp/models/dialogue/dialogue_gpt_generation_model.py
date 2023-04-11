@@ -52,6 +52,7 @@ class DialogueGPTGenerationModel(NLPModel):
         self.setup_tokenizer(cfg.tokenizer)
         self.tokenizer.tokenizer.pad_token = self.tokenizer.tokenizer.eos_token
         self.epoch_number = 0
+        self.prompt_learning = self.cfg.prompt_learning
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
@@ -60,7 +61,6 @@ class DialogueGPTGenerationModel(NLPModel):
             if self.cfg.language_model.lm_checkpoint:
                 self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
-            self.prompt_learning = self.cfg.prompt_learning
             if self.prompt_learning:
                 # removing tokenizer cfg as this triggers tokenizer construction which is not helpful here as we have a separate tokenizer
                 new_cfg = copy.copy(cfg)
@@ -216,7 +216,7 @@ class DialogueGPTGenerationModel(NLPModel):
         return loss
 
     def setup(self, stage=None):
-        super().setup()
+        super().setup(stage)
         if self.cfg.library == "megatron" and self.prompt_learning:
             self.language_model.init_new_prompts()
 
@@ -275,7 +275,6 @@ class DialogueGPTGenerationModel(NLPModel):
             for i in range(input_ids.size(0)):
                 param_dict = {
                     "input_ids": input_ids[i : i + 1, : template_length[i]],
-                    "attention_masks": attn_masks[i : i + 1, : template_length[i]],
                     "max_length": template_length[i] + tokens_to_generate,
                     "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
                 }

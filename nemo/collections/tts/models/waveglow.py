@@ -16,11 +16,11 @@
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
-from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder
+from nemo.collections.tts.parts.utils.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -124,11 +124,10 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             waveglow_log_to_tb_func(
                 tb_logger,
                 outputs[0].values(),
@@ -175,14 +174,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="tts_waveglow_268m",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_268m/versions/1.0.0rc1/files/tts_waveglow_268m.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
-            class_=cls,
-        )
-        list_of_models.append(model)
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_waveglow_88m",
+            pretrained_model_name="tts_en_waveglow_88m",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0/files/tts_waveglow.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
             class_=cls,

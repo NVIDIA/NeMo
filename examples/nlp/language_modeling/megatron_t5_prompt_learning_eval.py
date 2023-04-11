@@ -21,7 +21,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 
@@ -41,7 +41,7 @@ if not torch.cuda.is_available():
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -56,6 +56,7 @@ def main(cfg) -> None:
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
+            app_state.virtual_pipeline_model_parallel_rank,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -114,7 +115,7 @@ def main(cfg) -> None:
     outputs = trainer.predict(model, test_dl)
     with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for batch in outputs:
-            preds = batch["predicted_token_ids"]
+            preds = batch["preds_text"]
             for pred in preds:
                 pred = pred.strip().replace("\n", " ")
                 pred_file.write(pred + "\n")

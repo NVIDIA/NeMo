@@ -16,14 +16,10 @@
 Script for inference ASR models using TensorRT
 """
 
-import collections
 import os
-import time
 from argparse import ArgumentParser
-from pprint import pprint
 
 import numpy as np
-import pycuda.autoinit
 import pycuda.driver as cuda
 import tensorrt as trt
 import torch
@@ -32,6 +28,14 @@ from omegaconf import open_dict
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
+
+# Use autoprimaryctx if available (pycuda >= 2021.1) to
+# prevent issues with other modules that rely on the primary
+# device context.
+try:
+    import pycuda.autoprimaryctx
+except ModuleNotFoundError:
+    import pycuda.autoinit
 
 TRT_LOGGER = trt.Logger()
 

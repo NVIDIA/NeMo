@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import tensor_parallel, parallel_state
+    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
@@ -109,24 +109,49 @@ class GPTModel(MegatronModule):
         pre_process=True,
         post_process=True,
         init_method_std=0.02,
+        use_scaled_init_method=True,
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
+        ffn_dropout=0.0,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_granularity=None,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
+        activations_checkpoint_layers_per_pipeline=None,
+        normalization='layernorm',
         layernorm_epsilon=1e-5,
-        bias_gelu_fusion=True,
+        bias=True,
+        bias_activation_fusion=True,
+        bias_dropout_add_fusion=True,
+        masked_softmax_fusion=True,
+        activation='gelu',
+        headscale=False,
+        transformer_block_type='pre_ln',
+        normalize_attention_scores=True,
+        position_embedding_type='learned_absolute',
+        rotary_percentage=1.0,
+        attention_type='multihead',
+        share_embeddings_and_output_weights=True,
+        gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
+        transformer_engine=False,
+        fp8=False,
+        fp8_e4m3=False,
+        fp8_hybrid=False,
+        fp8_margin=0,
+        fp8_interval=1,
+        fp8_amax_history_len=1,
+        fp8_amax_compute_algo='most_recent',
+        reduce_amax=True,
+        use_emha=False,
     ):
-
-        super(GPTModel, self).__init__()
+        super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -134,6 +159,7 @@ class GPTModel(MegatronModule):
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = sequence_parallel
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
+        self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
         if kv_channels is None:
             assert (
@@ -141,10 +167,17 @@ class GPTModel(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
+        scaled_init_method = (
+            scaled_init_method_normal(init_method_std, num_layers)
+            if use_scaled_init_method
+            else init_method_normal(init_method_std)
+        )
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
+            ffn_dropout=ffn_dropout,
             num_tokentypes=num_tokentypes,
             max_position_embeddings=max_position_embeddings,
             num_layers=num_layers,
@@ -155,7 +188,7 @@ class GPTModel(MegatronModule):
             add_pooler=False,
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
@@ -165,18 +198,42 @@ class GPTModel(MegatronModule):
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
+            normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
-            bias_gelu_fusion=bias_gelu_fusion,
+            rotary_percentage=rotary_percentage,
+            share_embeddings_and_output_weights=share_embeddings_and_output_weights,
+            bias=bias,
+            bias_activation_fusion=bias_activation_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
+            masked_softmax_fusion=masked_softmax_fusion,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+            activation=activation,
+            headscale=headscale,
+            transformer_block_type=transformer_block_type,
+            normalize_attention_scores=normalize_attention_scores,
+            position_embedding_type=position_embedding_type,
+            attention_type=attention_type,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
+            transformer_engine=transformer_engine,
+            fp8=fp8,
+            fp8_e4m3=fp8_e4m3,
+            fp8_hybrid=fp8_hybrid,
+            fp8_margin=fp8_margin,
+            fp8_interval=fp8_interval,
+            fp8_amax_history_len=fp8_amax_history_len,
+            fp8_amax_compute_algo=fp8_amax_compute_algo,
+            reduce_amax=reduce_amax,
+            use_emha=use_emha,
         )
 
-        self.initialize_word_embeddings(
-            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
-        )
+        if self.share_embeddings_and_output_weights:
+            self.initialize_word_embeddings(
+                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+            )
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -195,6 +252,7 @@ class GPTModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        checkpoint_activations_all_layers=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -209,13 +267,16 @@ class GPTModel(MegatronModule):
             encoder_input=encoder_input,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         if self.post_process:
             return post_language_model_processing(
                 lm_output,
                 labels,
-                self.word_embeddings_weight(),
+                self.language_model.output_layer.weight
+                if not self.share_embeddings_and_output_weights
+                else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,

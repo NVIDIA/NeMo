@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # default values for optional arguments
 MIN_SCORE=-2
 CUT_PREFIX=0
@@ -11,6 +25,7 @@ ADDITIONAL_SPLIT_SYMBOLS=":|;"
 USE_NEMO_NORMALIZATION='True'
 NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs but one are used
 SAMPLE_RATE=16000 # Target sample rate (default for ASR data - 16000 Hz)
+MAX_DURATION=20 # Maximum audio segment duration, in seconds. Samples that are longer will be dropped.
 
 for ARG in "$@"
 do
@@ -103,4 +118,5 @@ python $SCRIPTS_DIR/cut_audio.py \
 --alignment=$OUTPUT_DIR/verified_segments \
 --threshold=$MIN_SCORE \
 --offset=$OFFSET \
---sample_rate=$SAMPLE_RATE || exit
+--sample_rate=$SAMPLE_RATE \
+--max_duration=$MAX_DURATION || exit

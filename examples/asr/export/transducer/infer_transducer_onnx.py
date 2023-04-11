@@ -33,6 +33,8 @@ Script to compare the outputs of a NeMo Pytorch based RNNT Model and its ONNX ex
 # Compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
     --nemo_model="<path to a .nemo file>" \
+    OR
+    --pretrained_model="<name of a pretrained model>" \
     --onnx_encoder="<path to onnx encoder file>" \
     --onnx_decoder="<path to onnx decoder-joint file>" \
     --dataset_manifest="<Either pass a manifest file path here>" \
@@ -44,7 +46,9 @@ python infer_transducer_onnx.py \
 # Export and compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
     --nemo_model="<path to a .nemo file>" \
-    --export
+    OR
+    --pretrained_model="<name of a pretrained model>" \
+    --export \
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
     --max_symbold_per_step=5 \
@@ -56,7 +60,10 @@ python infer_transducer_onnx.py \
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument(
-        "--nemo_model", type=str, default=None, required=True, help="Path to .nemo file",
+        "--nemo_model", type=str, default=None, required=False, help="Path to .nemo file",
+    )
+    parser.add_argument(
+        '--pretrained_model', type=str, default=None, required=False, help='Name of a pretrained NeMo file'
     )
     parser.add_argument('--onnx_encoder', type=str, default=None, required=False, help="Path to onnx encoder model")
     parser.add_argument(
@@ -78,10 +85,15 @@ def parse_arguments():
 
 
 def assert_args(args):
-    if args.nemo_model is None:
+    if args.nemo_model is None and args.pretrained_model is None:
         raise ValueError(
-            "`nemo_model` must be passed ! It is required for decoding the RNNT tokens and ensuring predictions "
-            "match between Torch and ONNX."
+            "`nemo_model` or `pretrained_model` must be passed ! It is required for decoding the RNNT tokens "
+            "and ensuring predictions match between Torch and ONNX."
+        )
+
+    if args.nemo_model is not None and args.pretrained_model is not None:
+        raise ValueError(
+            "`nemo_model` and `pretrained_model` cannot both be passed ! Only one can be passed to this script."
         )
 
     if args.export and (args.onnx_encoder is not None or args.onnx_decoder is not None):
@@ -100,8 +112,8 @@ def assert_args(args):
 def export_model_if_required(args, nemo_model):
     if args.export:
         nemo_model.export("temp_rnnt.onnx")
-        args.onnx_encoder = "Encoder-temp_rnnt.onnx"
-        args.onnx_decoder = "Decoder-Joint-temp_rnnt.onnx"
+        args.onnx_encoder = "encoder-temp_rnnt.onnx"
+        args.onnx_decoder = "decoder_joint-temp_rnnt.onnx"
 
 
 def resolve_audio_filepaths(args):
@@ -124,10 +136,19 @@ def resolve_audio_filepaths(args):
 def main():
     args = parse_arguments()
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     # Instantiate pytorch model
-    nemo_model = args.nemo_model
-    nemo_model = ASRModel.restore_from(nemo_model, map_location='cpu')  # type: ASRModel
-    nemo_model.freeze()
+    if args.nemo_model is not None:
+        nemo_model = args.nemo_model
+        nemo_model = ASRModel.restore_from(nemo_model, map_location=device)  # type: ASRModel
+        nemo_model.freeze()
+    elif args.pretrained_model is not None:
+        nemo_model = args.pretrained_model
+        nemo_model = ASRModel.from_pretrained(nemo_model, map_location=device)  # type: ASRModel
+        nemo_model.freeze()
+    else:
+        raise ValueError("Please pass either `nemo_model` or `pretrained_model` !")
 
     if torch.cuda.is_available():
         nemo_model = nemo_model.to('cuda')
@@ -145,7 +166,7 @@ def main():
     # Evaluate Pytorch Model (CPU/GPU)
     actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
 
-    # Evaluate ONNX model (on CPU)
+    # Evaluate ONNX model
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_filepath:
@@ -154,8 +175,6 @@ def main():
 
         config = {'paths2audio_files': audio_filepath, 'batch_size': args.batch_size, 'temp_dir': tmpdir}
 
-        # Push nemo model to CPU
-        nemo_model = nemo_model.to('cpu')
         nemo_model.preprocessor.featurizer.dither = 0.0
         nemo_model.preprocessor.featurizer.pad_to = 0
 
@@ -164,6 +183,8 @@ def main():
         all_hypothesis = []
         for test_batch in tqdm(temporary_datalayer, desc="ONNX Transcribing"):
             input_signal, input_signal_length = test_batch[0], test_batch[1]
+            input_signal = input_signal.to(device)
+            input_signal_length = input_signal_length.to(device)
 
             # Acoustic features
             processed_audio, processed_audio_len = nemo_model.preprocessor(

@@ -20,19 +20,23 @@ import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.wer import AbstractCTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 
 class CTCBPEDecoding(AbstractCTCDecoding):
     """
-    Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs.
+    Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs for subword based
+    models.
 
     Args:
         decoding_cfg: A dict-like object which contains the following key-value pairs.
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
                 -   greedy (for greedy decoding).
+                -   beam (for DeepSpeed KenLM based decoding).
 
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
@@ -48,6 +52,60 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `ctc_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding. When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the temperature should comply the following inequality:
+                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the temperature equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
@@ -55,6 +113,26 @@ class CTCBPEDecoding(AbstractCTCDecoding):
             "greedy":
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
+                preserve_frame_confidence: Same as above, overrides above value.
+
+            "beam":
+                beam_size: int, defining the beam size for beam search. Must be >= 1.
+                    If beam_size == 1, will perform cached greedy search. This might be slightly different
+                    results compared to the greedy search above.
+
+                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                    hypotheses after beam search has concluded. This flag is set by default.
+
+                beam_alpha: float, the strength of the Language model on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                beam_beta: float, the strength of the sequence length penalty on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                kenlm_path: str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
+                    If the path is invalid (file is not found at path), will raise a deferred error at the moment
+                    of calculation of beam search, so that users may update / change the decoding strategy
+                    to point to the correct file.
 
         tokenizer: NeMo tokenizer object, which inherits from TokenizerSpec.
     """
@@ -64,6 +142,34 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         self.tokenizer = tokenizer
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
+
+        # Finalize Beam Search Decoding framework
+        if isinstance(self.decoding, ctc_beam_decoding.AbstractBeamCTCInfer):
+            if hasattr(self.tokenizer.tokenizer, 'get_vocab'):
+                vocab_dict = self.tokenizer.tokenizer.get_vocab()
+                vocab = list(vocab_dict.keys())
+                self.decoding.set_vocabulary(vocab)
+                self.decoding.set_tokenizer(tokenizer)
+            else:
+                logging.warning("Could not resolve the vocabulary of the tokenizer !")
+
+            self.decoding.set_decoding_type('subword')
+
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+        """
+        Implemented by subclass in order to aggregate token confidence to a word-level confidence.
+
+        **Note**: Only supports Sentencepiece based tokenizers!
+
+        Args:
+            hypothesis: Hypothesis
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence, hypothesis.text[0]
+        )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
@@ -165,8 +271,8 @@ class WERBPE(Metric):
             target_lengths: an integer torch.Tensor of shape ``[Batch]``
             predictions_lengths: an integer torch.Tensor of shape ``[Batch]``
         """
-        words = 0.0
-        scores = 0.0
+        words = 0
+        scores = 0
         references = []
         with torch.no_grad():
             targets_cpu_tensor = targets.long().cpu()

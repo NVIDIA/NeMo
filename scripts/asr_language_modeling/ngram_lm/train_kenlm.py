@@ -27,7 +27,8 @@
 #                              --train_file <path to the training text or JSON manifest file \
 #                              --kenlm_bin_path <path to the bin folder of KenLM library> \
 #                              --kenlm_model_file <path to store the binary KenLM model> \
-#                              --ngram_length <order of N-gram model>
+#                              --ngram_length <order of N-gram model> \
+#                              --preserve_arpa
 #
 # After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'.
 # You may find more info on how to use this script at:
@@ -43,15 +44,15 @@ import kenlm_utils
 import torch
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
 use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
-TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
+DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
 the required memory significantly, and the LM and its binary blob format require less storage space.
 """
-TOKEN_OFFSET = 100
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
@@ -80,6 +81,9 @@ def main():
     parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
+    )
+    parser.add_argument(
+        '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
     )
     args = parser.parse_args()
 
@@ -112,7 +116,7 @@ def main():
             path=encoded_train_file,
             chunk_size=CHUNK_SIZE,
             buffer_size=CHUNK_BUFFER_SIZE,
-            token_offset=TOKEN_OFFSET,
+            token_offset=DEFAULT_TOKEN_OFFSET,
         )
         # --discount_fallback is needed for training KenLM for BPE-based models
         discount_arg = "--discount_fallback"
@@ -156,8 +160,10 @@ def main():
 
     os.remove(encoded_train_file)
     logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
-    os.remove(arpa_file)
-    logging.info(f"Deleted the arpa file '{arpa_file}'.")
+
+    if not args.preserve_arpa:
+        os.remove(arpa_file)
+        logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
 if __name__ == '__main__':

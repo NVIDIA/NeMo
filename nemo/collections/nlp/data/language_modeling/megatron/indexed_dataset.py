@@ -73,7 +73,7 @@ def infer_dataset_impl(path):
         return None
 
 
-def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retrieval_db=False):
+def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retrieval_db=False, stride=64):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
     elif impl == 'retmmap':
@@ -83,12 +83,34 @@ def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retri
             pad_id=pad_id,
             retrieval_db=retrieval_db,
             dtype=__best_fitting_dtype(vocab_size),
+            stride=stride,
         )
     else:
         return IndexedDatasetBuilder(out_file)
 
 
-def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
+def make_indexed_dataset_compatibility(ds):
+    """Make any dataset compatible with IndexedDataset for Megatron samples mapping."""
+    if (getattr(ds, 'doc_idx', None) is not None) or (getattr(ds, 'sizes', None) is not None):
+        raise AttributeError("Dataset already has doc_idx or sizes attributes.")
+
+    ds.doc_idx = np.arange(len(ds) + 1, dtype=np.int64)
+    ds.sizes = np.ones(len(ds), dtype=np.int32)
+
+    return ds
+
+
+def deallocate_indexed_dataset_memory(indexed_dataset):
+    """Deallocate memory of an IndexedDataset."""
+    if isinstance(indexed_dataset, MMapIndexedDataset):
+        # for MMapIndexedDataset we cannot release any memory of sizes
+        indexed_dataset._index._doc_idx = None
+    else:
+        indexed_dataset.sizes = None
+        indexed_dataset.doc_idx = None
+
+
+def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}, delay_data_mmap=False):
     # first handle text memap
     if impl == 'text_mmap':
         return TextMemMapDataset(path, **impl_kwargs)
@@ -107,7 +129,7 @@ def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
     elif impl == 'cached' and IndexedDataset.exists(path):
         return IndexedCachedDataset(path)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
-        return MMapIndexedDataset(path, skip_warmup)
+        return MMapIndexedDataset(path, skip_warmup, delay_data_mmap)
     elif impl == 'retmmap':
         return MMapRetrievalIndexedDataset(path, skip_warmup)
     raise ValueError(f"Unknown dataset implementation: {impl}")
@@ -132,7 +154,7 @@ def write_longs(f, a):
     f.write(np.array(a, dtype=np.int64))
 
 
-dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16}
+dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float64, 7: np.double, 8: np.uint16}
 
 
 def code(dtype):
@@ -293,7 +315,7 @@ class IndexedCachedDataset(IndexedDataset):
 
 
 class IndexedDatasetBuilder(object):
-    element_sizes = {np.uint8: 1, np.int8: 1, np.int16: 2, np.int32: 4, np.int64: 8, np.float: 4, np.double: 8}
+    element_sizes = {np.uint8: 1, np.int8: 1, np.int16: 2, np.int32: 4, np.int64: 8, np.float64: 4, np.double: 8}
 
     def __init__(self, out_file, dtype=np.int32):
         self.out_file = open(out_file, 'wb')
@@ -466,25 +488,33 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=False, delay_data_mmap=False):
         super().__init__()
 
         self._path = None
         self._index = None
         self._bin_buffer = None
+        self._delay_data_mmap = delay_data_mmap
+        self._skip_warmup = skip_warmup
 
-        self._do_init(path, skip_warmup)
+        self._do_init(path, skip_warmup, delay_data_mmap)
 
     def __getstate__(self):
         return self._path
 
-    # def __setstate__(self, state):
-    #     self._do_init(state)
+    def __setstate__(self, state):
+        self._do_init(state)
 
-    def _do_init(self, path, skip_warmup):
+    def _do_init(self, path, skip_warmup=True, delay_data_mmap=False):
         self._path = path
         self._index = self.Index(index_file_path(self._path), skip_warmup)
 
+        if not delay_data_mmap:
+            self._create_data_mmap(skip_warmup)
+        else:
+            logging.info("    skip creating data numpy buffer of mmap...")
+
+    def _create_data_mmap(self, skip_warmup):
         if not skip_warmup:
             logging.info("    warming up data mmap file...")
             _warmup_mmap_file(data_file_path(self._path))
@@ -531,6 +561,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         ptr += offset * np.dtype(self._index.dtype).itemsize
         np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=length, offset=ptr)
         return np_array
+
+    def create_data_mmap(self):
+        self._create_data_mmap(self._skip_warmup)
 
     @property
     def sizes(self):

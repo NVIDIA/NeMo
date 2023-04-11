@@ -19,7 +19,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
@@ -30,20 +30,25 @@ from nemo.utils import logging
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
-def repeat_signal(signal, sig_len, required_length):
+def repeat_signal(signal: torch.Tensor, sig_len: int, required_length: int) -> torch.Tensor:
     """repeat signal to make short signal to have required_length
     Args:
-        signal (FloatTensor): input signal
-        sig_len (LongTensor): length of input signal
-        required_length(float) : length of generated signal
+        signal (Tensor): input signal
+        sig_len (int): length of input signal
+        required_length (int): length of generated signal
     Returns:
-        signal (FloatTensor): generated signal of required_length by repeating itself.
+        signal (Tensor): generated signal of required_length by repeating itself.
     """
+    sub: torch.Tensor = torch.tensor([])
     repeat = int(required_length // sig_len)
     rem = int(required_length % sig_len)
-    sub = signal[-rem:] if rem > 0 else torch.tensor([])
-    rep_sig = torch.cat(repeat * [signal])
-    signal = torch.cat((rep_sig, sub))
+    sub: torch.Tensor = torch.tensor([])
+    rep_sig: torch.Tensor = torch.cat(repeat * [signal])
+    if rem > 0:
+        sub = signal[-rem:]
+        signal = torch.cat((rep_sig, sub))
+    else:
+        signal = rep_sig
     return signal
 
 
@@ -163,7 +168,7 @@ def _vad_frame_seq_collate_fn(self, batch):
     """
     slice_length = int(self.featurizer.sample_rate * self.window_length_in_sec)
     _, audio_lengths, _, tokens_lengths = zip(*batch)
-    slice_length = min(slice_length, max(audio_lengths))
+    slice_length = int(min(slice_length, max(audio_lengths)))
     shift = int(self.featurizer.sample_rate * self.shift_length_in_sec)
     has_audio = audio_lengths[0] is not None
 
@@ -214,7 +219,7 @@ target_label_0, "offset": offset_in_sec_0}
         {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
 target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath (str): Dataset parameter. Path to JSON containing data.
+        manifest_filepath (Union[str, List[str]]): Dataset parameter. Path to JSON containing data.
         labels (list): Dataset parameter. List of target classes that can be output by the speaker recognition model.
         featurizer
         min_duration (float): Dataset parameter. All training files which have a duration less than min_duration
@@ -261,20 +266,25 @@ target_label_n, "offset": offset_in_sec_n}
     def __init__(
         self,
         *,
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
         is_regression_task: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         super().__init__()
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = manifest_filepath.split(',')
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
             is_regression_task=is_regression_task,
+            cal_labels_occurrence=cal_labels_occurrence,
         )
 
         self.featurizer = featurizer
@@ -285,9 +295,16 @@ target_label_n, "offset": offset_in_sec_n}
             self.labels = labels if labels else self.collection.uniq_labels
             self.num_classes = len(self.labels) if self.labels is not None else 1
             self.label2id, self.id2label = {}, {}
+            self.id2occurrence, self.labels_occurrence = {}, []
+
             for label_id, label in enumerate(self.labels):
                 self.label2id[label] = label_id
                 self.id2label[label_id] = label
+                if cal_labels_occurrence:
+                    self.id2occurrence[label_id] = self.collection.labels_occurrence[label]
+
+            if cal_labels_occurrence:
+                self.labels_occurrence = [self.id2occurrence[k] for k in sorted(self.id2occurrence)]
 
             for idx in range(len(self.labels[:5])):
                 logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
@@ -332,7 +349,7 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
     {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
         target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath: Path to manifest json as described above. Can
+        manifest_filepath (Union[str, List[str]]): Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
             if None then automatically picks from ASRSpeechLabel collection.
@@ -359,7 +376,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
     {"audio_filepath": "/path/to/audio_wav_n.wav", "duration": time_in_sec_n, "label": \
         target_label_n, "offset": offset_in_sec_n}
     Args:
-        manifest_filepath (str): Path to manifest json as described above. Can
+        manifest_filepath (Union[str, List[str]]): Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
             if None then automatically picks from ASRSpeechLabel collection.
@@ -380,13 +397,16 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal.
             Defaults to False.
-        is_regression_task (bool): Whether the dataset is for a regression task instead of classification
+        is_regression_task (bool): Whether the dataset is for a regression task instead of classification.
+            Defaults to False.
+        cal_labels_occurrence (bool): Wether to calculate occurrence of labels
+            Defaults to False.
     """
 
     def __init__(
         self,
         *,
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         min_duration: Optional[float] = 0.1,
@@ -396,6 +416,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         is_regression_task: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         self.window_length_in_sec = window_length_in_sec
         self.shift_length_in_sec = shift_length_in_sec
@@ -412,6 +433,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             max_duration=max_duration,
             trim=trim,
             is_regression_task=is_regression_task,
+            cal_labels_occurrence=cal_labels_occurrence,
         )
 
     def fixed_seq_collate_fn(self, batch):
@@ -514,6 +536,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         world_size: int = 0,
         is_regression_task: bool = False,
     ):
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
