@@ -160,17 +160,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
         # Save activations checkpointing and sequence parallelism parameters to be able to restore them later.
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-        self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
-        self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
-        self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
-        self.original_activations_checkpoint_layers_per_pipeline = (
-            base_module.language_model.encoder.activations_checkpoint_layers_per_pipeline
-        )
-        self.original_sequence_parallel = base_module.language_model.encoder.sequence_parallel
+        self.original_checkpointing_granularity = self.model.language_model.encoder.activations_checkpoint_granularity
+        self.original_checkpointing_num_layers = self.model.language_model.encoder.activations_checkpoint_num_layers
+        self.original_checkpointing_method = self.model.language_model.encoder.activations_checkpoint_method
+        self.original_activations_checkpoint_layers_per_pipeline = self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline
+        self.original_sequence_parallel = self.model.language_model.encoder.sequence_parallel
 
     @property
     def model(self):
