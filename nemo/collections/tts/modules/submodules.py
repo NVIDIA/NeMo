@@ -571,17 +571,17 @@ class ReferenceEncoder(NeuralModule):
 class StyleAttention(NeuralModule):
     def __init__(self, gst_size=128, n_style_token=10, n_style_attn_head=4):
         super(StyleAttention, self).__init__()
-        
+
         token_size = gst_size // n_style_attn_head
         self.tokens = torch.nn.Parameter(torch.FloatTensor(n_style_token, token_size))
         self.mha = torch.nn.MultiheadAttention(
-            embed_dim=gst_size, 
-            num_heads=n_style_attn_head, 
-            dropout=0.0, 
-            bias=True, 
-            kdim=token_size, 
-            vdim=token_size, 
-            batch_first=True
+            embed_dim=gst_size,
+            num_heads=n_style_attn_head,
+            dropout=0.0,
+            bias=True,
+            kdim=token_size,
+            vdim=token_size,
+            batch_first=True,
         )
         torch.nn.init.normal_(self.tokens)
 
@@ -601,14 +601,10 @@ class StyleAttention(NeuralModule):
     def forward(self, inputs):
         bs = inputs.size(0)
         query = inputs.unsqueeze(1)
-        key   = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
+        key = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
         value = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
-        
-        style_emb, _ = self.mha(
-            query=query,
-            key=key,
-            value=value,
-        )
+
+        style_emb, _ = self.mha(query=query, key=key, value=value,)
         style_emb = style_emb.squeeze(1)
         return style_emb
 
