@@ -27,6 +27,10 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.transformations import (
+    MegatronGaussianHiddenTransform,
+    MegatronMIMHiddenLoss,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -35,8 +39,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-from nemo.collections.nlp.modules.common.megatron.transformations import MegatronGaussianHiddenTransform 
-from nemo.collections.nlp.modules.common.megatron.transformations import MegatronMIMHiddenLoss 
+
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, ModelType

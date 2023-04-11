@@ -13,11 +13,14 @@
 # limitations under the License.
 
 
+import math
 import os
 import sys
+
 import torch
-import math
+
 __all__ = ["MegatronMIMHiddenLoss"]
+
 
 class MegatronHiddenLoss(object):
     """Base class to calculate hidden state loss"""
@@ -29,20 +32,27 @@ class MegatronHiddenLoss(object):
         """Implement your own loss calculations"""
         pass
 
+
 class MegatronMIMHiddenLoss(MegatronHiddenLoss):
-    #TODO: add docstring
+    # TODO: add docstring
     """
     hiddens_dict: accepts a dictionary that contains hiddens, z_mean and z_logvar
     alpha: a factor to multiply the hidden loss with.
     """
+
     def loss(self, hiddens_dict, alpha=1):
-        #import pudb; pudb.set_trace()
+        # import pudb; pudb.set_trace()
         log_p_z = self._log_prob(hiddens_dict["hiddens"], 1, 0)
         log_q_z_given_x = self._log_prob(hiddens_dict["hiddens"], hiddens_dict["z_logvar"], hiddens_dict["z_mean"])
         return alpha * (log_p_z - log_q_z_given_x)
 
     def _log_prob(self, z, z_logvar, z_mean):
-        log_scale = 0.5*z_logvar
+        log_scale = 0.5 * z_logvar
         var = math.exp(z_logvar)
-        k = 1 ##TODO: what is k ? 
-        return -((z - z_mean) ** 2) / (2 * var) - log_scale - k* math.log(math.sqrt(2 * math.pi)) - 1/2 * math.log(z_logvar).sum(dim=-1)
+        k = 1  ##TODO: what is k ?
+        return (
+            -((z - z_mean) ** 2) / (2 * var)
+            - log_scale
+            - k * math.log(math.sqrt(2 * math.pi))
+            - 1 / 2 * math.log(z_logvar).sum(dim=-1)
+        )
