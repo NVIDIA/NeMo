@@ -49,6 +49,7 @@ from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.utils import AppState, logging, timers
+from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -284,6 +285,50 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
+    
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        batch = next(dataloader_iter)
+        if isinstance(batch, dict):
+            # convert to list if not already converted.
+            batch = self._process_batch(batch)
+
+        # Get seq length of batch
+        encoder_seq_length = batch[0].size(1)
+        decoder_seq_length = batch[1].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=data_iter,
+            model=[self.enc_dec_model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            decoder_seq_length=decoder_seq_length,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
 
     def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
@@ -301,33 +346,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
-        encoder_seq_length = batch['text_enc'].size(1)
-        decoder_seq_length = batch['text_dec'].size(1)
-
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
-
-        fwd_bwd_func = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_func(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=itertools.chain([batch]),
-            model=[self.enc_dec_model],
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            num_microbatches=get_num_microbatches(),
-            decoder_seq_length=decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-        )
-
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            reduced_loss = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            reduced_loss = []
+        reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, True)
 
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
@@ -507,18 +526,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
                 else:
-                    self.log(f'{mode}_sacreBLEU', bleu_score)
-                    self.log(f'{mode}_loss', averaged_loss, prog_bar=True)
+                    self.log(f'{mode}_sacreBLEU', bleu_score, batch_size=1)
+                    self.log(f'{mode}_loss', averaged_loss, prog_bar=True, batch_size=1)
             else:
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
                 else:
-                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score)
-                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False)
+                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
+                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
 
         if len(loss_list) > 1:
-            self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
-            self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list))
+            self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
+            self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
@@ -530,8 +549,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         else:
             translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
 
-        self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
-        self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
+        self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True, batch_size=1)
+        self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True, batch_size=1)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):

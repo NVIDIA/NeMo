@@ -308,18 +308,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return output_tensor
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
+            Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # we zero grads here because we also call backward in the megatron fwd/bwd functions
-        self._optimizer.zero_grad()
-
+        # Get seq length of batch
         tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
         fwd_bwd_function = get_forward_backward_func()
@@ -329,7 +323,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_iterator=dataloader_iter,
             model=[self.enc_dec_model],
             num_microbatches=get_num_microbatches(),
-            forward_only=False,
+            forward_only=forward_only,
             tensor_shape=tensor_shape,
             decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
@@ -343,8 +337,27 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
-            loss_mean = torch.tensor(0.0).cuda()
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
 
+        return loss_mean
+
+    def training_step(self, dataloader_iter, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            Batch should be a list of microbatches and those microbatches should on CPU.
+            Microbatches are then moved to GPU during the pipeline.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        """
+        # we zero grads here because we also call backward in the megatron fwd/bwd functions
+        self._optimizer.zero_grad()
+
+        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
@@ -640,30 +653,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
-        fwd_bwd_func = get_forward_backward_func()
-        losses_reduced_per_micro_batch = fwd_bwd_func(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.enc_dec_model],
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            num_microbatches=get_num_microbatches(),
-            decoder_seq_length=self.max_decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-        )
-
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = []
-
-        return loss_mean
+        return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():

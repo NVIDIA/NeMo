@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import itertools
 from typing import Dict, List
 
 import torch
@@ -270,12 +271,17 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
+        batch = next(dataloader_iter)
+        if isinstance(batch, dict):
+            # convert to list if not already converted.
+            batch = self._process_batch(batch)
+    
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
@@ -319,7 +325,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
         # this will be ignored.
-        loss = self.fwd_bwd_step(self._process_batch(batch), batch_idx, forward_only=True)
+        loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
 
         predicted_token_ids, _ = self.decode(
             tokens_enc=batch['text_enc'],
