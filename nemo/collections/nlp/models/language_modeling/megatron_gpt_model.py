@@ -163,7 +163,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.original_checkpointing_granularity = self.model.language_model.encoder.activations_checkpoint_granularity
         self.original_checkpointing_num_layers = self.model.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = self.model.language_model.encoder.activations_checkpoint_method
-        self.original_activations_checkpoint_layers_per_pipeline = self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline
+        self.original_activations_checkpoint_layers_per_pipeline = (
+            self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline
+        )
         self.original_sequence_parallel = self.model.language_model.encoder.sequence_parallel
 
     @property
