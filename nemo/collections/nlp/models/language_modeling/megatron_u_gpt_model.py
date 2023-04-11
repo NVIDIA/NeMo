@@ -65,23 +65,25 @@ class MegatronUGPTModel(MegatronGPTModel):
         Sentinel tokens include tokenizer.additional_special_token_ids and IDs already present in the tokenizer like <extra_id_0>, ... ,<extra_id_999>
         Sentinel tokens also exclude UL2 tokens if they are present in the tokenizer.
         """
-        sentinel_tokens = []
+        sentinel_tokens = set()
         # The additional_special_token_ids already exclude bos, eos, pad etc.
         for token_id in self.tokenizer.additional_special_tokens_ids:
             # Exclude UL2 tokens.
             if self.tokenizer.ids_to_tokens([token_id])[0] in ['<extra_id_r>', '<extra_id_s>', '<extra_id_x>']:
                 continue
             else:
-                sentinel_tokens.append(token_id)
+                sentinel_tokens.add(token_id)
 
         # Try and add <extra_id_xx> tokens that may already be in the tokenizer vocab.
         for i in range(self.cfg.tokenizer.get('num_sentinel_tokens', 0)):
             token = f"<extra_id_{i}>"
             token_ids = self.tokenizer.tokens_to_ids(token)
-            if (isinstance(token_ids, list) and len(token_ids) == 1) or isinstance(token_ids, int):
-                sentinel_tokens.append(token_ids if isinstance(token_ids, int) else token_ids[0])
-
-        return sentinel_tokens
+            if isinstance(token_ids, list) and len(token_ids) > 1:
+                continue
+            token_id = token_ids if isinstance(token_ids, int) else token_ids[0]
+            if token_id not in sentinel_tokens:
+                sentinel_tokens.add(token_id)
+        return sorted(list(sentinel_tokens))
 
     def _resize_model_embeddings(self):
         # Resize the model embedding layer.
