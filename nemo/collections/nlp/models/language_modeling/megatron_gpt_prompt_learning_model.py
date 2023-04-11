@@ -286,12 +286,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into an iterator of microbatches.
             The iterator of microbatches is then piped through the pipeline using Core's fwd/bwd functions.
         """
         # Get seq length of batch
+        batch = next(dataloader_iter)
         _, seq_length = batch[0].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
@@ -326,7 +327,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -362,7 +363,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 

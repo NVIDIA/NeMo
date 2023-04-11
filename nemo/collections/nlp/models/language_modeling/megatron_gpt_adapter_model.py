@@ -17,6 +17,8 @@
 # Adapted by: @adithyare
 
 
+import itertools
+
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -201,7 +203,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging

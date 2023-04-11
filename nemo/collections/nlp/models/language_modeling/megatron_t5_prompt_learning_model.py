@@ -172,12 +172,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
 
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
+        batch = next(dataloader_iter)
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
@@ -267,7 +268,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def training_step(self, dataloader_iter, batch_idx):
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -313,7 +314,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.eval()
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(input_ids.size(0), gbs)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
