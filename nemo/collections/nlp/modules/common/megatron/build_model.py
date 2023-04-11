@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
@@ -119,6 +120,9 @@ def build_model(
                 }
             )
             model = model_provider_func(*cur_args, **cur_kwargs)
+        else:
+            raise ValueError(f"Unrecognized ModelType '{model_type}'")
+
         model.model_type = model_type
 
     if not isinstance(model, list):
@@ -139,7 +143,7 @@ def build_model(
             parallel_state.get_pipeline_model_parallel_rank(),
             _calc_number_of_params(model),
         )
-        print(msg, flush=True)
+        logging.info(msg)
 
     # GPU allocation.
     if not on_cpu:
