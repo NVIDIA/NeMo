@@ -220,7 +220,6 @@ class TTSDataset(Dataset):
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
         self.manifest_filepath = manifest_filepath
-        self.speaker_embeddings = None
         self.lengths = []  # Needed for BucketSampling
 
         data = []
@@ -455,14 +454,7 @@ class TTSDataset(Dataset):
         if pitch_stats_path is not None:
             with open(Path(pitch_stats_path), 'r', encoding="utf-8") as pitch_f:
                 self.pitch_stats = json.load(pitch_f)
-
-    # Add pretrained speaker embeddings (e.g. speaker-verification embeddings)
-    # The embedding order should be the same as manifest order
-    def add_speaker_embedding(self, **kwargs):
-        embedding_path = kwargs.pop("speaker_embedding_path", None)
-        assert embedding_path is not None, "Speaker embedding path is required but got None."
-        self.speaker_embeddings = torch.from_numpy(np.load(embedding_path))
-
+                
     # saving voiced_mask and p_voiced with pitch
     def add_voiced_mask(self, **kwargs):
         self.voiced_mask_folder = kwargs.pop('voiced_mask_folder', None)
@@ -491,16 +483,30 @@ class TTSDataset(Dataset):
         self.energy_folder.mkdir(exist_ok=True, parents=True)
 
     def add_speaker_id(self, **kwargs):
-        pass
+        """Add a mapping for each speaker to their manifest indexes"""
+        self.speaker_to_index_map = defaultdict(set)
+        for i, d in enumerate(self.data):
+            self.speaker_to_index_map[d.get('speaker_id', None)].add(i)
 
-    # Add a mapping for each speaker to their manifest indexes
     def add_reference_audio(self, **kwargs):
-        if SpeakerID not in self.sup_data_types_set:
-            self.speaker_to_index_map = None
-        else:
-            self.speaker_to_index_map = defaultdict(set)
-            for i, d in enumerate(self.data):
-                self.speaker_to_index_map[d.get('speaker_id', None)].add(i)
+        assert SpeakerID in self.sup_data_types, "Please add speaker_id in sup_data_types."
+        
+    # add pretrained speaker embeddings (e.g. speaker-verification embeddings)
+    def add_speaker_embedding(self, **kwargs):
+        assert SpeakerID in self.sup_data_types, "Please add speaker_id in sup_data_types."
+        
+        self.speaker_embedding_folder = kwargs.pop('speaker_embedding_folder', None)
+
+        if self.speaker_embedding_folder is None:
+            self.speaker_embedding_folder = Path(self.sup_data_path) / SpeakerEmbedding.name
+        elif isinstance(self.speaker_embedding_folder, str):
+            self.speaker_embedding_folder = Path(self.speaker_embedding_folder)
+        
+        emb_cnt = len([file for file in os.listdir(self.speaker_embedding_folder) if file.endswith(".pt")])
+        assert emb_cnt >= len(self.data), (
+            f"Found {file_cnt} embedding files fewer than the {len(self.data)} audio files."
+            f"Please extract speaker embeddings first."
+        )
 
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
@@ -541,7 +547,7 @@ class TTSDataset(Dataset):
                 )
         return wav
 
-    # Random sample a reference sample from the same speaker
+    # Random sample a reference index from the same speaker
     def sample_reference_index(self, curr_index, n=1):
         speaker_id = self.data[curr_index]["speaker_id"]
         if len(self.speaker_to_index_map[speaker_id]) > 1:
@@ -728,9 +734,11 @@ class TTSDataset(Dataset):
 
         speaker_emb = None
         if SpeakerEmbedding in self.sup_data_types_set:
-            if self.speaker_embeddings is not None:
+            if self.speaker_to_index_map is not None:
                 reference_index = self.sample_reference_index(index, n=1)[0]
-                speaker_emb = self.speaker_embeddings[reference_index]
+                reference_rel_audio_path = Path(self.data[reference_index]["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+                reference_rel_audio_path_as_text_id = str(reference_rel_audio_path).replace("/", "_")
+                speaker_emb = torch.load(self.speaker_embedding_folder / f"{reference_rel_audio_path_as_text_id}.pt")
 
         return (
             audio,
@@ -912,9 +920,7 @@ class TTSDataset(Dataset):
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
             "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
             "reference_audio": torch.stack(reference_audios) if ReferenceAudio in self.sup_data_types_set else None,
-            "reference_audio_lens": torch.stack(reference_audio_lengths)
-            if ReferenceAudio in self.sup_data_types_set
-            else None,
+            "reference_audio_lens": torch.stack(reference_audio_lengths) if ReferenceAudio in self.sup_data_types_set else None,
             "speaker_embedding": torch.stack(speaker_embs) if SpeakerEmbedding in self.sup_data_types_set else None,
         }
 
