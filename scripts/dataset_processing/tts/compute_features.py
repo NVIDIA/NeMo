@@ -76,11 +76,10 @@ def main():
     feature_config = instantiate(feature_config)
     featurizers = feature_config.featurizers
 
-    entries = read_manifest(manifest_path)
+    entries = read_manifest(manifest_path)[:10]
 
     for feature_name, featurizer in featurizers.items():
         print(f"Computing: {feature_name}")
-        featurizer.setup(feature_dir)
         Parallel(n_jobs=num_workers)(
             delayed(featurizer.save)(manifest_entry=entry, audio_dir=audio_dir, feature_dir=feature_dir,)
             for entry in tqdm(entries)

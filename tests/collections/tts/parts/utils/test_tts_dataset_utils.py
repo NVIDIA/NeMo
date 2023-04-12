@@ -16,12 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    get_abs_rel_paths,
-    get_audio_paths_from_manifest,
-    get_feature_filename,
-    get_feature_filename_from_manifest,
-)
+from nemo.collections.tts.parts.utils.tts_dataset_utils import get_abs_rel_paths, get_audio_filepaths
 
 
 class TestTTSDatasetUtils:
@@ -49,41 +44,12 @@ class TestTTSDatasetUtils:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_get_audio_paths_from_manifest(self):
+    def test_get_audio_paths(self):
         audio_dir = Path("/home/audio")
         audio_rel_path = Path("examples/example.wav")
         manifest_entry = {"audio_filepath": str(audio_rel_path)}
 
-        abs_path, rel_path = get_audio_paths_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        abs_path, rel_path = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
 
         assert abs_path == Path("/home/audio/examples/example.wav")
         assert rel_path == audio_rel_path
-
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_get_feature_filename(self):
-        audio_path = Path("data/audio/example.wav")
-
-        feature_filename = get_feature_filename(audio_path=audio_path)
-
-        assert feature_filename == "data_audio_example.pt"
-
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_get_feature_filename(self):
-        audio_path = Path("data/audio/example.wav")
-
-        feature_filename = get_feature_filename(audio_path=audio_path)
-
-        assert feature_filename == "data_audio_example.pt"
-
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_get_feature_filename_from_manifest(self):
-        audio_dir = Path("/home/audio")
-        audio_rel_path = Path("examples/example.wav")
-        manifest_entry = {"audio_filepath": str(audio_rel_path)}
-
-        feature_filename = get_feature_filename_from_manifest(manifest_entry=manifest_entry, audio_dir=audio_dir)
-
-        assert feature_filename == "examples_example.pt"

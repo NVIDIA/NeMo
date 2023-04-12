@@ -7,6 +7,7 @@ mel_feature:
   sample_rate: ${sample_rate}
   win_length: ${win_length}
   hop_length: ${hop_length}
+  mel_dim: 80
   lowfreq: 0
   highfreq: 8000
 

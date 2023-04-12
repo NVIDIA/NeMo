@@ -45,7 +45,7 @@ def get_abs_rel_paths(input_path: Path, base_path: Path) -> Tuple[Path, Path]:
     return abs_path, rel_path
 
 
-def get_audio_paths_from_manifest(manifest_entry: dict, audio_dir: Path) -> Tuple[Path, Path]:
+def get_audio_filepaths(manifest_entry: dict, audio_dir: Path) -> Tuple[Path, Path]:
     """
     Get the absolute and relative paths of audio from a manifest entry.
 
@@ -57,60 +57,8 @@ def get_audio_paths_from_manifest(manifest_entry: dict, audio_dir: Path) -> Tupl
         The absolute and relative paths of the audio.
     """
     audio_filepath = Path(manifest_entry["audio_filepath"])
-    audio_path, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=audio_dir)
-    return audio_path, audio_path_rel
-
-
-def get_feature_filename(audio_path: Path):
-    """
-    Get the name of a feature file by encoding the input audio path.
-
-    Args:
-        audio_path: (relative) path of audio the feature belongs to.
-
-    Returns:
-        Name of file to store feature in.
-    """
-    audio_prefix = str(audio_path.with_suffix(""))
-    audio_id = audio_prefix.replace(os.sep, "_")
-    filename = f"{audio_id}.pt"
-    return filename
-
-
-def get_feature_filename_from_manifest(manifest_entry: dict, audio_dir: Path):
-    """
-    Get the name of a feature file for the input manifest entry.
-
-    Args:
-        manifest_entry: Manifest entry dictionary.
-        audio_dir: base directory where audio is stored.
-
-    Returns:
-        Name of file to store feature in.
-    """
-    audio_filepath = Path(manifest_entry["audio_filepath"])
-    _, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=audio_dir)
-    filename = get_feature_filename(audio_path_rel)
-    return filename
-
-
-def get_sup_data_file_path(entry: dict, base_audio_path: Path, sup_data_path: Path) -> Path:
-    """
-    Get the absolute path of a supplementary data data type for the input manifest entry.
-
-    Args:
-        entry: Manifest entry dictionary.
-        base_audio_path: base directory where audio is stored.
-        sup_data_path: base directory where supplementary data is stored.
-
-    Returns:
-        Path to the supplementary data file.
-    """
-    audio_path = Path(entry["audio_filepath"])
-    rel_audio_path = audio_path.relative_to(base_audio_path).with_suffix("")
-    filename = get_feature_filename(rel_audio_path)
-    file_path = sup_data_path / filename
-    return file_path
+    audio_filepath_abs, audio_filepath_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=audio_dir)
+    return audio_filepath_abs, audio_filepath_rel
 
 
 def normalize_volume(audio: np.array, volume_level: float) -> np.array:
