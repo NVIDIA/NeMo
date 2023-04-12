@@ -53,14 +53,14 @@ You may train the N-gram model as the following:
 
 .. code-block::
 
-    python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
-                              --train_file <path to the training text or JSON manifest file \
+    python train_kenlm.py --tokenizer_model_file <path to the .model or .nemo file of the model> \
+                              --train_path <path to the training text or JSON manifest files> \
                               --kenlm_bin_path <path to the bin folder of KenLM library> \
                               --kenlm_model_file <path to store the binary KenLM model> \
                               --ngram_length <order of N-gram model> \
                               --preserve_arpa
 
-The train file specified by `--train_file` can be a text file or JSON manifest. If the file's extension is anything
+The train file specified by `--train_path` can be a whitespace separeted list of text file, or JSON manifest, or folder. If the file's extension is anything
 other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
@@ -76,9 +76,9 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | **Argument**     | **Type** | **Default** | **Description**                                                                                 |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| nemo_model_file  | str      | Required    | The path of the `.nemo` file of the ASR model. It is needed to extract the tokenizer.           |
+| tokenizer_model_file | str  | Required    | The path to `.model` file of the SentencePiece tokenizer, or `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer. |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| train_file       | str      | Required    | Path to the training file, it can be a text file or JSON manifest.                              |
+| train_path       | str      | Required    | Path to the training file, or whitespace separated files, or folder with files. It can be a text file or JSON manifest.  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | kenlm_model_file | str      | Required    | The path to store the KenLM binary model file.                                                  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -86,9 +86,19 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| do_lower_case    | bool     | ``False``   | Whether to make the training text all lower case.                                               |
+| ngram_prun       | int      | 0           | Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| cache_path       | str      | None        | Cache path to save tokenized files.                                                             |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| do_lowercase     | bool     | ``False``   | Whether to make the training text all lower case.                                               |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| rm_punctuation   | bool     | ``False``   | Whether to remove punctuation marks (.,?) from text.                                            |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| separate_punctuation | bool | ``False``   | Whether to separate punctuation with the previouse word by space.                               |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.              |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| verbose          | int      | 1           | Verbose level, default is 1                                                                     |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 
 ** Note: Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
