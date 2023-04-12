@@ -99,10 +99,20 @@ def setup_tokenizer(tokenizer_model_file):
     return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
-def iter_files(dest_path, train_path, tokenizer, encoding_level, is_aggregate_tokenizer, do_lowercase, rm_punctuation, separate_punctuation, verbose):
+def iter_files(
+    dest_path,
+    train_path,
+    tokenizer,
+    encoding_level,
+    is_aggregate_tokenizer,
+    do_lowercase,
+    rm_punctuation,
+    separate_punctuation,
+    verbose,
+):
     if isinstance(dest_path, list):
         train_path = zip(dest_path, train_path)
-    else: # dest_path is stdin of KenLM
+    else:  # dest_path is stdin of KenLM
         train_path = [(dest_path, path) for path in train_path]
 
     for dest_path, input_path in train_path:
@@ -116,16 +126,21 @@ def iter_files(dest_path, train_path, tokenizer, encoding_level, is_aggregate_to
         )
         if encoding_level == "subword":
             tokenize_text(
-                data=dataset, tokenizer=tokenizer, path=dest_path, chunk_size=CHUNK_SIZE, buffer_size=CHUNK_BUFFER_SIZE,
+                data=dataset,
+                tokenizer=tokenizer,
+                path=dest_path,
+                chunk_size=CHUNK_SIZE,
+                buffer_size=CHUNK_BUFFER_SIZE,
             )
-        else: # encoding_level == "char"
+        else:  # encoding_level == "char"
             if isinstance(dest_path, str):
                 with open(dest_path, 'w', encoding='utf-8') as f:
                     for line in dataset:
                         f.write(f"{line}\n")
-            else: # write to stdin of KenLM
+            else:  # write to stdin of KenLM
                 for line in dataset:
-                    dest_path.write((line+'\n').encode())
+                    dest_path.write((line + '\n').encode())
+
 
 def read_train_file(
     path,
@@ -214,7 +229,9 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32):
             # Write dataset
             write_dataset(tokenized_data, path)
             current_step += len(tokenized_data)
-            logging.info(f"Finished writing {len(tokenized_data)} chunks to {path}. Current chunk index = {current_step}")
+            logging.info(
+                f"Finished writing {len(tokenized_data)} chunks to {path}. Current chunk index = {current_step}"
+            )
             del tokenized_data
             if end >= dataset_len:
                 break
@@ -227,8 +244,8 @@ def write_dataset(chunks, path):
                 for text in chunks[chunk_idx]:
                     line = ' '.join(text)
                     f.write(f"{line}\n")
-    else: # write to stdin of KenLM
+    else:  # write to stdin of KenLM
         for chunk_idx in range(len(chunks)):
             for text in chunks[chunk_idx]:
                 line = ' '.join(text)
-                path.write((line+'\n').encode())
+                path.write((line + '\n').encode())
