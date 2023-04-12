@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 from nemo.collections.tts.modules.submodules import LinearNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 
@@ -51,7 +51,7 @@ class PositionalEmbedding(nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False):
+    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False, condition_lnorm=False):
         super(PositionwiseConvFF, self).__init__()
 
         self.d_model = d_model
@@ -68,17 +68,17 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        self.layer_norm = nn.LayerNorm(d_model)
+        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
         self.pre_lnorm = pre_lnorm
 
-    def forward(self, inp):
-        return self._forward(inp)
+    def forward(self, inp, conditioning=None):
+        return self._forward(inp, conditioning)
 
-    def _forward(self, inp):
+    def _forward(self, inp, conditioning=None):
         if self.pre_lnorm:
             # layer normalization + positionwise feed-forward
             core_out = inp.transpose(1, 2)
-            core_out = self.CoreNet(self.layer_norm(core_out).to(inp.dtype))
+            core_out = self.CoreNet(self.layer_norm(core_out, conditioning).to(inp.dtype))
             core_out = core_out.transpose(1, 2)
 
             # residual connection
@@ -90,13 +90,13 @@ class PositionwiseConvFF(nn.Module):
             core_out = core_out.transpose(1, 2)
 
             # residual connection + layer normalization
-            output = self.layer_norm(inp + core_out).to(inp.dtype)
+            output = self.layer_norm(inp + core_out, conditioning).to(inp.dtype)
 
         return output
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False):
+    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False, condition_lnorm=False):
         super(MultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -109,17 +109,17 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = nn.LayerNorm(d_model)
+        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
 
-    def forward(self, inp, attn_mask=None):
-        return self._forward(inp, attn_mask)
+    def forward(self, inp, attn_mask=None, conditioning=None):
+        return self._forward(inp, attn_mask, conditioning)
 
-    def _forward(self, inp, attn_mask=None):
+    def _forward(self, inp, attn_mask=None, conditioning=None):
         residual = inp
 
         if self.pre_lnorm:
             # layer normalization
-            inp = self.layer_norm(inp)
+            inp = self.layer_norm(inp, conditioning)
 
         n_head, d_head = self.n_head, self.d_head
 
@@ -157,29 +157,33 @@ class MultiHeadAttn(nn.Module):
             output = residual + attn_out
         else:
             # residual connection + layer normalization
-            output = self.layer_norm(residual + attn_out)
+            output = self.layer_norm(residual + attn_out, conditioning)
 
         return output
 
 
-class TransformerLayer(nn.Module):
-    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, **kwargs):
+class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
+    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, condition_lnorm, **kwargs):
         super(TransformerLayer, self).__init__()
 
         self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, **kwargs)
         self.pos_ff = PositionwiseConvFF(d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'))
 
-    def forward(self, dec_inp, mask=None):
-        output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2))
+    def forward(self, dec_inp, mask=None, conditioning=None):
+        output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2), conditioning=conditioning)
         output *= mask
-        output = self.pos_ff(output)
+        output = self.pos_ff(output, conditioning)
         output *= mask
+
+        if self.is_adapter_available():
+            output = self.forward_enabled_adapters(output)
+
         return output
 
 
 class FFTransformerDecoder(NeuralModule):
     def __init__(
-        self, n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb=0.0, pre_lnorm=False
+        self, n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb=0.0, pre_lnorm=False, condition_lnorm=False,
     ):
         super(FFTransformerDecoder, self).__init__()
         self.d_model = d_model
@@ -193,7 +197,7 @@ class FFTransformerDecoder(NeuralModule):
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
-                    n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt=dropatt, pre_lnorm=pre_lnorm
+                    n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt=dropatt, pre_lnorm=pre_lnorm, condition_lnorm=condition_lnorm
                 )
             )
 
@@ -213,16 +217,21 @@ class FFTransformerDecoder(NeuralModule):
         }
 
     @typecheck()
-    def forward(self, input, seq_lens, conditioning=0):
+    def forward(self, input, seq_lens, conditioning=None):
         return self._forward(input, mask_from_lens(seq_lens).unsqueeze(2), conditioning)
 
     def _forward(self, inp, mask, conditioning):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
-        out = self.drop(inp + pos_emb + conditioning)
+        inp += pos_emb
+
+        if conditioning is not None:
+            inp += conditioning
+
+        out = self.drop(inp)
 
         for layer in self.layers:
-            out = layer(out, mask=mask)
+            out = layer(out, mask=mask, conditioning=conditioning)
 
         # out = self.drop(out)
         return out, mask
@@ -244,9 +253,10 @@ class FFTransformerEncoder(FFTransformerDecoder):
         n_embed=None,
         d_embed=None,
         padding_idx=0,
+        condition_lnorm=False,
     ):
         super(FFTransformerEncoder, self).__init__(
-            n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb, pre_lnorm
+            n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb, pre_lnorm, condition_lnorm
         )
 
         self.padding_idx = padding_idx
@@ -310,3 +320,47 @@ class FFTransformer(nn.Module):
 
         out = self.dense(out).transpose(1, 2)
         return out
+
+
+class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
+    """ Inherit from FFTransformerDecoder and add support for adapter"""
+
+    def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([FFT_layer.is_adapter_available() for FFT_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(FFT_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
+
+
+class FFTransformerEncoderAdapter(
+    FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin
+):
+    """ Inherit from FFTransformerEncoder and add support for adapter"""
+
+    pass
+
+
+"""Register any additional information"""
+if adapter_mixins.get_registered_adapter(FFTransformerEncoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerEncoder, adapter_class=FFTransformerEncoderAdapter)
+
+if adapter_mixins.get_registered_adapter(FFTransformerDecoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerDecoder, adapter_class=FFTransformerDecoderAdapter)

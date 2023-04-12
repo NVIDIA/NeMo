@@ -26,6 +26,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.collections.tts.parts.mixins import FastPitchAdapterModelMixin
 from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
     plot_alignment_to_numpy,
@@ -74,7 +75,7 @@ class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
 
-class FastPitchModel(SpectrogramGenerator, Exportable):
+class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixin):
     """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):

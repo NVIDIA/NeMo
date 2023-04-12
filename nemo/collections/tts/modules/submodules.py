@@ -19,6 +19,7 @@ from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
 
+from nemo.core.classes import adapter_mixins
 
 def masked_instance_norm(
     input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
@@ -122,7 +123,7 @@ class LinearNorm(torch.nn.Module):
         return self.linear_layer(x)
 
 
-class ConvNorm(torch.nn.Module):
+class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     __constants__ = ['use_partial_padding']
     use_partial_padding: bool
 
@@ -176,6 +177,10 @@ class ConvNorm(torch.nn.Module):
             ret = self.conv(signal)
             if self.norm is not None:
                 ret = self.norm(ret)
+                
+        if self.is_adapter_available():
+            ret = self.forward_enabled_adapters(ret.transpose(1, 2)).transpose(1, 2)
+            
         return ret
 
 
@@ -410,3 +415,40 @@ class WaveNet(torch.nn.Module):
                 output = output + res_skip_acts
 
         return self.end(output)
+
+
+class ConditionalLayerNorm(torch.nn.Module):
+    def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
+        super(ConditionalLayerNorm, self).__init__()
+        self.normalized_shape = normalized_shape
+        self.eps = eps
+        self.spk_emb_dim = spk_emb_dim
+        self.condition = condition
+
+        if condition:
+            self.weight = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            self.bias = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            torch.nn.init.constant_(self.weight.weight, 0.0)
+            torch.nn.init.constant_(self.bias.weight, 0.0)
+            if bias:
+                torch.nn.init.constant_(self.weight.bias, 1.0)
+                torch.nn.init.constant_(self.bias.bias, 0.0)
+        else:
+            self.weight = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
+            self.bias = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
+
+    def forward(self, inp, conditioning=None):
+
+        # Normalize along channel
+        if conditioning is not None and self.condition:
+            inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), eps=self.eps)
+            scale = self.weight(conditioning)
+            bias = self.bias(conditioning)
+            inp *= scale
+            inp += bias
+        else:
+            inp = F.layer_norm(
+                inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps
+            )
+
+        return inp

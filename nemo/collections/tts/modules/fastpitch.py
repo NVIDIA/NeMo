@@ -42,10 +42,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from typing import List, Optional
+from omegaconf import DictConfig
+
 import torch
 
+from nemo.collections.asr.parts.utils import adapter_utils
+from nemo.collections.tts.modules.submodules import ConditionalLayerNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
@@ -79,40 +84,53 @@ def average_features(pitch, durs):
     return pitch_avg
 
 
-class ConvReLUNorm(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0):
+class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
+    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, spk_emb_dim=384, condition_lnorm=False):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = torch.nn.LayerNorm(out_channels)
+        self.norm = ConditionalLayerNorm(out_channels, spk_emb_dim=spk_emb_dim, condition=condition_lnorm)
         self.dropout = torch.nn.Dropout(dropout)
 
-    def forward(self, signal):
+    def forward(self, signal, conditioning=None):
         out = torch.nn.functional.relu(self.conv(signal))
-        out = self.norm(out.transpose(1, 2)).transpose(1, 2)
-        return self.dropout(out)
+        out = self.norm(out.transpose(1, 2), conditioning).transpose(1, 2)
+        out = self.dropout(out)
+
+        if self.is_adapter_available():
+            out = self.forward_enabled_adapters(out.transpose(1, 2)).transpose(1, 2)
+
+        return out
 
 
 class TemporalPredictor(NeuralModule):
     """Predicts a single float per each temporal location"""
 
-    def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2):
+    def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2, condition_lnorm=False):
         super(TemporalPredictor, self).__init__()
 
-        self.layers = torch.nn.Sequential(
-            *[
+        self.layers = torch.nn.ModuleList()
+        for i in range(n_layers):
+            self.layers.append(
                 ConvReLUNorm(
-                    input_size if i == 0 else filter_size, filter_size, kernel_size=kernel_size, dropout=dropout
+                    input_size if i == 0 else filter_size,
+                    filter_size,
+                    kernel_size=kernel_size,
+                    dropout=dropout,
+                    spk_emb_dim=input_size,
+                    condition_lnorm=condition_lnorm,
                 )
-                for i in range(n_layers)
-            ]
-        )
+            )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
+
+        # Use for adapter input dimension
+        self.filter_size = filter_size
 
     @property
     def input_types(self):
         return {
             "enc": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
             "enc_mask": NeuralType(('B', 'T', 1), TokenDurationType()),
+            "conditioning": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
         }
 
     @property
@@ -121,14 +139,55 @@ class TemporalPredictor(NeuralModule):
             "out": NeuralType(('B', 'T'), EncodedRepresentation()),
         }
 
-    def forward(self, enc, enc_mask):
+    def forward(self, enc, enc_mask, conditioning=None):
+        if conditioning is not None:
+            enc = enc + conditioning
+
         out = enc * enc_mask
-        out = self.layers(out.transpose(1, 2)).transpose(1, 2)
+        out = out.transpose(1, 2)
+
+        for layer in self.layers:
+            out = layer(out, conditioning=conditioning)
+
+        out = out.transpose(1, 2)
         out = self.fc(out) * enc_mask
         return out.squeeze(-1)
+    
+
+class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMixin):
+    """ Inherit from TemporalPredictor and add support for adapter"""
+
+    def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conv_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([conv_layer.is_adapter_available() for conv_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conv_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(conv_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.filter_size)
+        return cfg
 
 
-class FastPitchModule(NeuralModule):
+"""Register any additional information"""
+if adapter_mixins.get_registered_adapter(TemporalPredictor) is None:
+    adapter_mixins.register_adapter(base_class=TemporalPredictor, adapter_class=TemporalPredictorAdapter)
+
+
+class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
     def __init__(
         self,
         encoder_module: NeuralModule,
@@ -245,33 +304,33 @@ class FastPitchModule(NeuralModule):
 
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
-            spk_emb = 0
+            spk_emb = None
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-        if self.speaker_emb_condition_prosody:
-            prosody_input = enc_out + spk_emb
-        else:
-            prosody_input = enc_out
-        log_durs_predicted = self.duration_predictor(prosody_input, enc_mask)
+
+        # Condition
+        prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
+        aligner_condition = spk_emb if self.speaker_emb_condition_aligner else None
+        decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
+
+        # Predict duration
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
-            if self.speaker_emb_condition_aligner and not isinstance(spk_emb, int):
-                attn_soft, attn_logprob = self.aligner(
-                    spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=spk_emb
-                )
-            else:
-                attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior)
+            attn_soft, attn_logprob = self.aligner(
+                spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=aligner_condition
+            )
             attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        pitch_predicted = self.pitch_predictor(prosody_input, enc_mask)
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
@@ -320,10 +379,7 @@ class FastPitchModule(NeuralModule):
             )
 
         # Output FFT
-        if self.speaker_emb_condition_decoder:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
-        else:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=decoder_condition)
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect,
@@ -349,17 +405,17 @@ class FastPitchModule(NeuralModule):
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
-        if self.speaker_emb_condition_prosody:
-            prosody_input = enc_out + spk_emb
-        else:
-            prosody_input = enc_out
+
+        # Condition
+        prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
+        decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
 
         # Predict duration and pitch
-        log_durs_predicted = self.duration_predictor(prosody_input, enc_mask)
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(
             torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
         )
-        pitch_predicted = self.pitch_predictor(prosody_input, enc_mask) + pitch
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=prosody_condition) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
@@ -380,10 +436,7 @@ class FastPitchModule(NeuralModule):
             volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
-        if self.speaker_emb_condition_decoder:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
-        else:
-            dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=decoder_condition)
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect.to(torch.float),
