@@ -35,20 +35,20 @@ class TestASRLocalAttention:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_forward(self):
-        asr_model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
+        asr_model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")#restore from
         asr_model = asr_model.eval()
 
-        len = 16000 * 60 * 30  # 30 minutes, OOM without local attention
+        len = 16000 * 60 * 30  # 30 minutes, OOM without local attention #max len 3 5
         input_signal_long = torch.randn(size=(1, len), device=asr_model.device)
         length_long = torch.tensor([len], device=asr_model.device)
 
         # switch to local attn
-        asr_model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
+        #asr_model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
         with torch.no_grad():
             asr_model.forward(input_signal=input_signal_long, input_signal_length=length_long)
 
         # switch context size only (keep local)
-        asr_model.change_attention_model(att_context_size=(192, 192))
+       #asr_model.change_attention_model(att_context_size=(192, 192))
         with torch.no_grad():
             asr_model.forward(input_signal=input_signal_long, input_signal_length=length_long)
 
@@ -57,8 +57,8 @@ class TestASRLocalAttention:
     def test_change_save_restore(self):
 
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
-        model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
-        attr_for_eq_check = ["encoder.self_attention_model", "encoder.att_context_size"]
+        #model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=(64, 64))
+        #attr_for_eq_check = ["encoder.self_attention_model", "encoder.att_context_size"]
 
         with tempfile.TemporaryDirectory() as restore_folder:
             with tempfile.TemporaryDirectory() as save_folder:

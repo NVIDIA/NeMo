@@ -1118,6 +1118,17 @@ if comparison_mode:
             dcc.Dropdown(['WER', 'CER'], 'WER', placeholder="Choose metric", id="choose_metric"),
             dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
             html.Hr(),
+                     html.Hr(),
+                     # html.Div(id='filter-query-output'),
+                     # dash_table.DataTable(
+                     #     id='datatable-advanced-filtering',
+                     #     columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data[0]],
+                     #     data=vocabulary_1,
+                     #     editable=False,
+                     #     page_action='native',
+                     #     page_size=5,
+                     #     filter_action="native",
+                     # ),
             dbc.Row(
                 dbc.Col(
                     dash_table.DataTable(
@@ -1166,15 +1177,17 @@ if comparison_mode:
     html.Div([
         dbc.Row(dbc.Col(dcc.Graph(id='utt_graph'), ), ),
         html.Hr(),
+        dcc.Input(id='clicked_aidopath'),
+        html.Hr(id='my-output-1')
     ]),
     html.Div([
         dbc.Row(dbc.Col(html.Audio(id='player', controls=True), ), class_name='mt-3 '),
         dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), class_name='mt-3'),
+
     ]),
-    ], id='unt_lvl', style={'display': 'block'})
-
-
+    ], id='unt_lvl', style={'width': 500, 'display': 'block'})
     ]
+
 
 @app.callback(
    [Output(component_id='wrd_lvl', component_property='style'),
@@ -1187,13 +1200,48 @@ def show_hide_element(visibility_state):
         return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'}
 
 
+store = []
+
 
 @app.callback(
-     Output('utt_graph', 'figure'),
-    [Input('choose_metric', 'value'),
+    [Output('datatable', 'page_current'), Output('my-output-1', 'value')],
+    [Input('utt_graph', 'clickData')],
+)
+def real_select_click(hoverData):
+
+
+    if hoverData is not None:
+        path = str(hoverData['points'][0]['customdata'][-1])
+        for t in range(len(data)):
+            if data[t]['audio_filepath'] == path:
+                ind = t
+                s = t % DATA_PAGE_SIZE
+                logging.error("CODE 1|" + str(s))
+                #sel = [s-1]
+                sel = s
+                pg = math.ceil(ind // DATA_PAGE_SIZE)
+                logging.error("CODE 2| " + str(pg))
+        return pg, sel
+    else:
+        return 1, 1
+
+@app.callback(
+    [Output('datatable', 'selected_rows')],
+    [Input('my-output-1', 'value')],
+)
+def real_select_click(num):
+    s = num
+    return [[s]]
+
+
+
+
+@app.callback(
+     [Output('utt_graph', 'figure'), Output('clicked_aidopath', 'value'),
+    Input('choose_metric', 'value'), Input("datatable-advanced-filtering", "derived_virtual_data"), Input('utt_graph', 'clickData')
      ]
 )
-def calculate_metrics(met,):
+def calculate_metrics(met, data, hoverData):
 
     Ox = name_1
     Oy = name_2
@@ -1205,14 +1253,16 @@ def calculate_metrics(met,):
             gt = line["text"]
             tt_1 = line[Ox]
             tt_2 = line[Oy]
-            wer_tt1, cer_tt1 = metric(gt, tt_1)
-            wer_tt2, cer_tt2 = metric(gt, tt_2)
+            wer_tt1, cer_tt1 = metric(gt, tt_1, met)
+            wer_tt2, cer_tt2 = metric(gt, tt_2, met)
 
             tmp = {'length': len(gt), 'numwords': len(gt.split()), 'wer_' + Ox: wer_tt1, 'wer_' + Oy: wer_tt2,
                    'cer_' + Ox: cer_tt1, 'cer_' + Oy: cer_tt2, }
             line.update(tmp)
             for k, v in line.items():
                 tmp_d[k].append(v)
+
+
     a = pd.DataFrame.from_dict(tmp_d)
 
     if met == "WER":
@@ -1220,6 +1270,7 @@ def calculate_metrics(met,):
     else:
         cerower = 'cer_'
     c = a[a[cerower + Ox] != a[cerower + Oy]]
+    #c = a
     fig = px.scatter(c, x=cerower + Ox, y=cerower + Oy, color='length', width=1000, height=900,
                      hover_data={'text': True, Ox: True, Oy: True,
                                  'wer_' + Ox: True, 'wer_' + Oy: True,
@@ -1228,14 +1279,31 @@ def calculate_metrics(met,):
     fig.add_shape(
         type="line", x0=0, y0=0, x1=200, y1=200, line=dict(color="Red", width=1, dash="dot", )
     )
-    return fig
+    fig.update_layout(clickmode='event+select')
+    fig.update_traces(marker_size=10)
+    path = None
+    #[{'curveNumber': 0, 'pointNumber': 485, 'pointIndex': 485, 'x': 66.67, 'y': 100, 'marker.color': 16, 'bbox': {'x0': 1356.95, 'x1': 1358.95, 'y0': 2093.12, 'y1': 2095.12}, 'customdata': ['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3, '/LibriSpeech/test-other-processed/5764-299665-0095.wav']}]
+    #{'curveNumber': 0, 'pointNumber': 485, 'pointIndex': 485, 'x': 66.67, 'y': 100, 'marker.color': 16, 'bbox': {'x0': 1356.95, 'x1': 1358.95, 'y0': 2093.12, 'y1': 2095.12}, 'customdata': ['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3, '/LibriSpeech/test-other-processed/5764-299665-0095.wav']}
+    #['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3,
+    # '/LibriSpeech/test-other-processed/5764-299665-0095.wav']
+    if hoverData is not None:
+        #path = hoverData['audio_filepath']
+        path = str(hoverData['points'][0]['customdata'][-1])
+        #path = data[1]  #['audio_filepath']#['audio_filepath']
+
+    return fig, path
 
 
-def metric(a, b):
+def metric(a, b, met):
     import torchmetrics
-    wer = torchmetrics.functional.word_error_rate(a, b)
-    cer = torchmetrics.functional.char_error_rate(a, b)
-    return round(float(wer) * 100, 2), round(float(cer) * 100, 2)
+    if met == "WER":
+        wer = torchmetrics.functional.word_error_rate(a, b)
+        cer = -1
+        return round(float(wer) * 100, 2), -1
+    if met == "CER":
+        cer = torchmetrics.functional.char_error_rate(a, b)
+        wer = -1
+        return -1, round(float(cer) * 100, 2)
 
 
 
