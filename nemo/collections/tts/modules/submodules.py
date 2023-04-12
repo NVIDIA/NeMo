@@ -480,7 +480,7 @@ class ReferenceEncoder(NeuralModule):
     Encode mel-spectrograms to an utterance level feature
     """
 
-    def __init__(self, n_mels, cnn_filters, dropout, gru_hidden):
+    def __init__(self, n_mels, cnn_filters, dropout, gru_hidden, kernel_size, stride, padding, bias):
         super(ReferenceEncoder, self).__init__()
         self.filter_size = [1] + list(cnn_filters)
         self.layers = torch.nn.ModuleList(
@@ -488,10 +488,10 @@ class ReferenceEncoder(NeuralModule):
                 Conv2DReLUNorm(
                     in_channels=int(self.filter_size[i]), 
                     out_channels=int(self.filter_size[i + 1]), 
-                    kernel_size=3, 
-                    stride=2, 
-                    padding=1, 
-                    bias=True, 
+                    kernel_size=kernel_size, 
+                    stride=stride, 
+                    padding=padding, 
+                    bias=bias, 
                     dropout=dropout)
                 for i in range(len(cnn_filters))
             ]

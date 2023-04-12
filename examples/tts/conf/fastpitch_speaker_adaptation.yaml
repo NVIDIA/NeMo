@@ -267,6 +267,10 @@ model:
         cnn_filters: [32, 32, 64, 64, 128, 128] 
         dropout: 0.2
         gru_hidden: ${model.symbols_embedding_dim}
+        kernel_size: 3
+        stride: 2
+        padding: 1
+        bias: true
     sv_projection_module:
       _target_: nemo.collections.tts.modules.submodules.SVEmbeddingLinearProjectionNetwork
       speaker_embedding_dim: ${model.speaker_embedding_dim}
