@@ -178,6 +178,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             )
 
             # Format the input example according to the template
+            # input_example = " " + self._insert_text_in_template(input_example, prompt_template_fields, example) + " "
             input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_ids = self.tokenizer.text_to_ids(input_example)
@@ -289,12 +290,6 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 if len(tokens) < self.retrieved_doc_len:
                     tokens = tokens + [self.pad_token_id] * (self.retrieved_doc_len - len(tokens))
                 chunks.append(tokens)
-
-
-
-     
-
-    
 
         # Add BOS/EOS if desired, adds EOS by default
         if self.add_bos:

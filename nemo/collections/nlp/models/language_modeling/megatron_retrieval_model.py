@@ -585,6 +585,54 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
         )
+    
+    def build_prompt_data(self):
+        self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.train_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.train_ds.add_bos,
+            add_eos=True,
+            for_train=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+            num_neighbors=self.cfg.data.train_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
+        )
+
+        self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.val_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.val_ds.add_bos,
+            add_eos=True,
+            for_train=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+            num_neighbors=self.cfg.data.val_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
+        )
+        self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.test_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.test_ds.add_bos,
+            add_eos=True,
+            for_train=False,
+            drop_last=False,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+            num_neighbors=self.cfg.data.test_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
+        )
 
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
@@ -599,53 +647,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             return
         if self._train_dl is not None and self._validation_dl is not None:
             return
-
-        self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
-            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl",
-            batch_size=2,
-            max_seq_length=2048 - 30,
-            min_seq_length=1,
-            add_bos=True,
-            add_eos=True,
-            for_train=True,
-            tokens_to_generate=30,
-            drop_last=False,
-            shuffle=False,
-            num_workers=8,
-            num_neighbors=8+1,
-            retrieved_doc_len=128
-        )
-        self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl",
-            batch_size=2,
-            max_seq_length=2048 - 30,
-            min_seq_length=1,
-            add_bos=True,
-            add_eos=True,
-            for_train=True,
-            tokens_to_generate=30,
-            drop_last=False,
-            shuffle=False,
-            num_workers=8,
-            num_neighbors=8+1,
-            retrieved_doc_len=128
-        )
-        self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
-            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl",
-            batch_size=2,
-            max_seq_length=2048 - 30,
-            min_seq_length=1,
-            add_bos=True,
-            add_eos=True,
-            for_train=False,
-            tokens_to_generate=30,
-            drop_last=False,
-            shuffle=False,
-            num_workers=8,
-            num_neighbors=8+1,
-            retrieved_doc_len=128
-        )
-
+        
+        self.build_prompt_data()
         # self.build_train_valid_test_datasets()
         # self.setup_training_data(self._cfg.data)
         # self.setup_validation_data(self._cfg.data)

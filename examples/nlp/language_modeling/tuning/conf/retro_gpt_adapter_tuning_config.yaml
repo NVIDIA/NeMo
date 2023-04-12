@@ -15,7 +15,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: 5 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 0.1
   limit_val_batches: null
@@ -104,28 +104,28 @@ model:
       # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
-      add_bos: True  # whether to add bos at the beginning 
+      add_bos: False  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 8  # number of retrieved neighbors
+      neighbors: 9  # number of retrieved neighbors
     val_ds:
       file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
-      add_bos: True  # whether to add bos at the beginning 
+      add_bos: False  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 8  # number of retrieved neighbors
+      neighbors: 9  # number of retrieved neighbors
     test_ds:
       file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
-      add_bos: True  # whether to add bos at the beginning 
+      add_bos: False  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 8  # number of retrieved neighbors
+      neighbors: 9  # number of retrieved neighbors
    
     data_prefix: 
       - /workspaces/research/downloaded/converted/piqa/piqa_text_document
@@ -141,7 +141,10 @@ model:
     skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
-    neighbors: 4  # number of retrieved neighbors
+    neighbors: 9  # number of retrieved neighbors
+
+    max_seq_length: 1024
+    retrieved_doc_length: 150
 
   optim:
     name: fused_adam

@@ -365,92 +365,92 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     #         dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
     #     )
 
-    def build_virtual_prompt_dataset(
-        self,
-        data,
-        batch_size,
-        max_seq_length=2048,
-        min_seq_length=1,
-        add_bos=False,
-        add_eos=False,
-        for_train=True,
-        drop_last=False,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-        tokens_to_generate=None,
-        get_dataset_only=False,
-        cache_data_path=None,
-        load_cache=False,
-        num_neighbors=2,
-        retrieved_doc_len = 128 
-    ):
-        task_template = {
-            "car": {
-                "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
-                "prompt_template_fields": ["question", "answer"],
-                "total_virtual_tokens": 0,
-                "virtual_token_splits": [],
-                "truncate_field": "question",
-                "answer_only_loss": True,
-                "answer_field": "answer"
-        }}
+    # def build_virtual_prompt_dataset(
+    #     self,
+    #     data,
+    #     batch_size,
+    #     max_seq_length=2048,
+    #     min_seq_length=1,
+    #     add_bos=False,
+    #     add_eos=False,
+    #     for_train=True,
+    #     drop_last=False,
+    #     shuffle=False,
+    #     num_workers=0,
+    #     pin_memory=False,
+    #     tokens_to_generate=None,
+    #     get_dataset_only=False,
+    #     cache_data_path=None,
+    #     load_cache=False,
+    #     num_neighbors=2,
+    #     retrieved_doc_len = 128 
+    # ):
+    #     task_template = {
+    #         "car": {
+    #             "prompt_template": " \nQuestion: {question} \nAnswer: {answer}",
+    #             "prompt_template_fields": ["question", "answer"],
+    #             "total_virtual_tokens": 0,
+    #             "virtual_token_splits": [],
+    #             "truncate_field": "question",
+    #             "answer_only_loss": True,
+    #             "answer_field": "answer"
+    #     }}
        
-        dataset = RetroPromptLearningDataset(
-            data=data,
-            tokenizer=self.tokenizer,
-            virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
-            task_templates=task_template,
-            pseudo_tokens=[],
-            pad_token_id=self.model.tokenizer.eos_id,
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            add_bos=add_bos,
-            add_eos=add_eos,
-            for_train=for_train,
-            tokens_to_generate=tokens_to_generate,
-            cache_data_path=cache_data_path,  # the cache file
-            load_cache=load_cache, # whether to load from the cache if it is available
-            seed=1234,
-            neighbors=num_neighbors,
-            megatron_lm_compatible=False,
-            retrieved_doc_len = retrieved_doc_len
-        )
+    #     dataset = RetroPromptLearningDataset(
+    #         data=data,
+    #         tokenizer=self.tokenizer,
+    #         virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
+    #         task_templates=task_template,
+    #         pseudo_tokens=[],
+    #         pad_token_id=self.model.tokenizer.eos_id,
+    #         max_seq_length=max_seq_length,
+    #         min_seq_length=min_seq_length,
+    #         add_bos=add_bos,
+    #         add_eos=add_eos,
+    #         for_train=for_train,
+    #         tokens_to_generate=tokens_to_generate,
+    #         cache_data_path=cache_data_path,  # the cache file
+    #         load_cache=load_cache, # whether to load from the cache if it is available
+    #         seed=1234,
+    #         neighbors=num_neighbors,
+    #         megatron_lm_compatible=False,
+    #         retrieved_doc_len = retrieved_doc_len
+    #     )
 
-        if get_dataset_only:
-            return dataset
+    #     if get_dataset_only:
+    #         return dataset
 
-        # Make distributed dataloader
-        rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
-        )
+    #     # Make distributed dataloader
+    #     rank = parallel_state.get_data_parallel_rank()
+    #     data_parallel_size = parallel_state.get_data_parallel_world_size()
+    #     sampler = torch.utils.data.distributed.DistributedSampler(
+    #         dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+    #     )
 
-        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+    #     assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
 
-        if for_train:
-            if self.cfg.get("sequence_parallel", False):
-                collate_fn = partial(
-                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
-                )
-            else:
-                collate_fn = partial(dataset.collate_fn, tp_workers=0)
-        else:
-            collate_fn = dataset.inference_collate_fn
+    #     if for_train:
+    #         if self.cfg.get("sequence_parallel", False):
+    #             collate_fn = partial(
+    #                 dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+    #             )
+    #         else:
+    #             collate_fn = partial(dataset.collate_fn, tp_workers=0)
+    #     else:
+    #         collate_fn = dataset.inference_collate_fn
 
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=collate_fn,
-            sampler=sampler,
-            batch_size=batch_size // data_parallel_size,
-            drop_last=drop_last,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
-        )
+    #     dataloader = torch.utils.data.DataLoader(
+    #         dataset,
+    #         collate_fn=collate_fn,
+    #         sampler=sampler,
+    #         batch_size=batch_size // data_parallel_size,
+    #         drop_last=drop_last,
+    #         num_workers=num_workers,
+    #         pin_memory=pin_memory,
+    #         persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
+    #     )
 
-        return dataset, dataloader
+    #     return dataset, dataloader
 
 
 def build_all_datasets(

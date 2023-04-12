@@ -179,7 +179,7 @@ def main(cfg) -> None:
 
     max_input_length = model.cfg.encoder_seq_length - length_params["max_length"]
 
-    _, dataloader = model.build_virtual_prompt_dataset(
+    _, dataloader = model.model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
         batch_size=cfg.inference.batch_size,
         max_seq_length=max_input_length,
