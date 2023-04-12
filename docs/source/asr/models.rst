@@ -288,7 +288,7 @@ with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/hybrid_t
 .. _Conformer-HAT_model:
 
 Conformer-HAT (Hybrid Autoregressive Transducer)
---------------------------------------
+------------------------------------------------
 Conformer HAT model (do not confuse it with Hybrid-Transducer-CTC) is a modification of Conformer-Transducer model based on `Google paper <https://arxiv.org/abs/2003.07705>`_.
 The main idea is to separate labels and blank score predictions, which allows to estimate the internal LM probabilities during decoding.
 When external LM is available for inference, the internal LM can be subtracted from HAT model prediction in beamsearch decoding to improve external LM efficiency.
