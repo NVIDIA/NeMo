@@ -913,14 +913,6 @@ class TTSDataset(Dataset):
             if ReferenceSpeakerEmbedding in self.sup_data_types_set:
                 reference_speaker_embs.append(reference_speaker_emb)
 
-            if ReferenceAudio in self.sup_data_types_set:
-                reference_audios.append(
-                    general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)
-                )
-
-            if ReferenceSpeakerEmbedding in self.sup_data_types_set:
-                reference_speaker_embs.append(reference_speaker_emb)
-
         data_dict = {
             "audio": torch.stack(audios),
             "audio_lens": torch.stack(audio_lengths),
