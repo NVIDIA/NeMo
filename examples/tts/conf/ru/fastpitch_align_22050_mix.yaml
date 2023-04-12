@@ -52,25 +52,15 @@ model:
   highfreq: ${highfreq}
   window: ${window}
 
-  text_normalizer:
-    _target_: nemo_text_processing.text_normalization.normalize.Normalizer
-    lang: ru
-    input_case: cased
-
-  text_normalizer_call_kwargs:
-    verbose: false
-    punct_pre_process: true
-    punct_post_process: true
-
   text_tokenizer:
-    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.RussianPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.RussianCharsTokenizer
     punct: true
     apostrophe: true
     pad_with_space: true
 
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.data.tts_dataset.TTSDataset
+      _target_: nemo.collections.tts.data.dataset.TTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -104,7 +94,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.data.tts_dataset.TTSDataset
+      _target_: nemo.collections.tts.data.dataset.TTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
