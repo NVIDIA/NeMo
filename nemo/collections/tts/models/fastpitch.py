@@ -149,12 +149,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         """Check use both speaker encoder and reference data"""
         if self._train_dl is not None:
-            if (speaker_encoder is None or speaker_encoder.gst_module is None) \
-                and ReferenceAudio in self._train_dl.dataset.sup_data_types_set:
+            if (
+                speaker_encoder is None or speaker_encoder.gst_module is None
+            ) and ReferenceAudio in self._train_dl.dataset.sup_data_types_set:
                 logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
 
-            if (speaker_encoder is None or speaker_encoder.sv_projection_module is None) \
-                and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set:
+            if (
+                speaker_encoder is None or speaker_encoder.sv_projection_module is None
+            ) and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set:
                 logging.warning(
                     'You may add `sv_projection_module` in speaker_encoder use reference_speaker_embedding.'
                 )
