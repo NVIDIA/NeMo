@@ -109,7 +109,7 @@ def main():
     args = parser.parse_args()
 
     train_path = kenlm_utils.get_train_list(args.train_path)
-    
+
     if isinstance(args.ngram_prun, str):
         args.ngram_prun = [args.ngram_prun]
 
@@ -139,9 +139,7 @@ def main():
         """ DATASET SETUP """
         encoded_train_files = []
         for file_num, train_file in enumerate(train_path):
-            logging.info(
-                f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_path)} ..."
-            )
+            logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_path)} ...")
 
             cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
             encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
@@ -149,18 +147,32 @@ def main():
                 if cached_files[0] != encoded_train_file:
                     os.rename(cached_files[0], encoded_train_file)
                     logging.info("Rename", cached_files[0], "to", encoded_train_file)
-                    
+
             encoded_train_files.append(encoded_train_file)
-        
-        kenlm_utils.iter_files(encoded_train_files, train_path, tokenizer, encoding_level, is_aggregate_tokenizer, 
-                               args.do_lowercase, args.rm_punctuation, args.separate_punctuation, args.verbose)
+
+        kenlm_utils.iter_files(
+            encoded_train_files,
+            train_path,
+            tokenizer,
+            encoding_level,
+            is_aggregate_tokenizer,
+            args.do_lowercase,
+            args.rm_punctuation,
+            args.separate_punctuation,
+            args.verbose,
+        )
 
         first_process_args = ["cat"] + encoded_train_files
         first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
 
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.run(
-            kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr
+            kenlm_args,
+            stdin=first_process.stdout,
+            capture_output=False,
+            text=True,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         first_process.wait()
 
@@ -168,16 +180,25 @@ def main():
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
 
-        kenlm_utils.iter_files(kenlm_p.stdin, train_path, tokenizer, encoding_level, is_aggregate_tokenizer,
-                           args.do_lowercase, args.rm_punctuation, args.separate_punctuation, args.verbose)
-    
+        kenlm_utils.iter_files(
+            kenlm_p.stdin,
+            train_path,
+            tokenizer,
+            encoding_level,
+            is_aggregate_tokenizer,
+            args.do_lowercase,
+            args.rm_punctuation,
+            args.separate_punctuation,
+            args.verbose,
+        )
+
         kenlm_p.communicate()
 
     if kenlm_p.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
-    
+
     """ BINARY BUILD """
-    
+
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, "build_binary"),
         "trie",
