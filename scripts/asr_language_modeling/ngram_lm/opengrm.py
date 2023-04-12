@@ -45,13 +45,14 @@ import os
 import subprocess
 import sys
 
+import kenlm_utils
 import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
-import kenlm_utils
+
 
 def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force):
     mod_a = arpa_a + ".mod"
@@ -145,25 +146,29 @@ def farcompile(
 
         tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(tokenizer_model_file)
 
-        ps = subprocess.Popen(" ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,)
+        ps = subprocess.Popen(
+            " ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,
+        )
 
         kenlm_utils.iter_files(
-                ps.stdin,
-                [text_file],
-                tokenizer,
-                encoding_level,
-                is_aggregate_tokenizer,
-                do_lowercase,
-                rm_punctuation,
-                separate_punctuation,
-                verbose = 0,
-            )
+            ps.stdin,
+            [text_file],
+            tokenizer,
+            encoding_level,
+            is_aggregate_tokenizer,
+            do_lowercase,
+            rm_punctuation,
+            separate_punctuation,
+            verbose=0,
+        )
         stdout, stderr = ps.communicate()
 
         exit_code = ps.returncode
-        
+
         command = " ".join(sh_args)
-        assert exit_code == 0, f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+        assert (
+            exit_code == 0
+        ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
         return stdout, stderr
 
 
