@@ -89,8 +89,6 @@ model:
     adapter_name: "adapter"  # Name of the adapter, used by the script
     adapter_module_name: "encoder+decoder+duration_predictor+pitch_predictor+aligner"  # Name of the adapter module. Combine multiple modules with '+' between module names.
     adapter_state_dict_name: "adapters.pt"  # If the individual adapters must be saved, a file name can be provided here. null disables this.
-    add_weight_speaker: True # If the new speaker is unseen then use weighted mean of existing speaker embeddings as new speaker embedding.
-    weight_speaker_state_dict_name: "wemb.pt"
     
     # Config of the adapter module itself
     _target_: nemo.collections.common.parts.adapter_modules.LinearAdapter
