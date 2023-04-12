@@ -3,6 +3,8 @@ defaults:
 
 name: test_retro
 restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
+# restore_from_path: /dataset/retro/retro_1100m_final.nemo
+
 
 trainer:
   devices: 4
@@ -45,7 +47,7 @@ exp_manager:
 
 model:
   # model parallelism 
-  micro_batch_size: 16
+  micro_batch_size: 2
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
@@ -75,6 +77,8 @@ model:
   grad_allreduce_chunk_size_mb: 125
 
   restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
+  # restore_from_path: /dataset/retro/retro_1100m_final.nemo
+
   eval: False
 
 
@@ -96,51 +100,52 @@ model:
 
   data:
     train_ds:
-      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
+      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 128  # must be multiple of the chunk_size in your dataset
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 4  # number of retrieved neighbors
+      neighbors: 8  # number of retrieved neighbors
     val_ds:
-      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
+      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 128  # must be multiple of the chunk_size in your dataset
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 4  # number of retrieved neighbors
+      neighbors: 8  # number of retrieved neighbors
     test_ds:
-      file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
+      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
-      seq_length: 128  # must be multiple of the chunk_size in your dataset
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: True  # whether to add bos at the beginning 
       add_eos: True  # whether to add eos at the end
       seed: 1234
-      neighbors: 4  # number of retrieved neighbors
-    # data_prefix: 
-    #   - /workspaces/research/downloaded/converted/piqa/piqa_text_document
-    # knn_index: 
-    #   - /workspaces/research/downloaded/converted/piqa/knn_final_piqa.index
-    #   # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
-    #   # - /dataset/pile/pile_index_final.index
-    # retrieval_prefix: /workspaces/research/downloaded/converted/piqa/piqa_text_document # /dataset/retro_mc4_text_document/retro_mc4_text_document
-    # index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    # data_impl: retmmap   # for retro model, this is the only allowed type
-    # splits_string: 700,250,50
-    # seq_length: 2048  # must be multiple of the chunk_size in your dataset
-    # skip_warmup: True
-    # num_workers: 0
-    # dataloader_type: single # cyclic
-    # neighbors: 2  # number of retrieved neighbors
-  
+      neighbors: 8  # number of retrieved neighbors
+   
+    data_prefix: 
+      - /workspaces/research/downloaded/converted/piqa/piqa_text_document
+    knn_index: 
+      - /workspaces/research/downloaded/converted/piqa/knn_final_piqa.index
+      # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+      # - /dataset/pile/pile_index_final.index
+    retrieval_prefix: /workspaces/research/downloaded/converted/piqa/piqa_text_document # /dataset/retro_mc4_text_document/retro_mc4_text_document
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+    data_impl: retmmap   # for retro model, this is the only allowed type
+    splits_string: 100,250,650
+    seq_length: 2048  # must be multiple of the chunk_size in your dataset
+    skip_warmup: True
+    num_workers: 0
+    dataloader_type: single # cyclic
+    neighbors: 4  # number of retrieved neighbors
+
   optim:
     name: fused_adam
-    lr: 1e-3
+    lr: 1e-4
     weight_decay: 0.01 
     betas: 
     - 0.9

@@ -12,13 +12,13 @@ inference:
   batch_size: 1
 
 trainer:
-  devices: 1
+  devices: 4
   num_nodes: 1
   accelerator: gpu
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
-tensor_model_parallel_size: 1
+tensor_model_parallel_size: 4
 micro_batch_size: 1
 pipeline_model_parallel_size: 1
 retro_model_file: null  # GPT nemo file path

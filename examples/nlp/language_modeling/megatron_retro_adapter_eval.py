@@ -139,19 +139,19 @@ def main(cfg) -> None:
     global_batch_size = trainer.world_size * cfg.micro_batch_size // cfg.tensor_model_parallel_size
     test_iters = int(trainer.limit_test_batches)
 
-    test_ds = RetroQAFineTuneDataset(
-        cfg.test_ds.get('file_name'),
-        model.tokenizer,
-        cfg.test_ds.get('answer_only_loss'),
-        model.tokenizer.pad_id,
-        cfg.test_ds.get('seq_length'),
-        cfg.test_ds.get('add_bos'),
-        cfg.test_ds.get('add_eos'),
-        test_iters * global_batch_size,
-        cfg.test_ds.get('seed'),
-        cfg.test_ds.get('neighbors'),
-    )
-    test_dl = model.build_pretraining_data_loader(test_ds, 0)
+    # test_ds = RetroQAFineTuneDataset(
+    #     cfg.test_ds.get('file_name'),
+    #     model.tokenizer,
+    #     cfg.test_ds.get('answer_only_loss'),
+    #     model.tokenizer.pad_id,
+    #     cfg.test_ds.get('seq_length'),
+    #     cfg.test_ds.get('add_bos'),
+    #     cfg.test_ds.get('add_eos'),
+    #     test_iters * global_batch_size,
+    #     cfg.test_ds.get('seed'),
+    #     cfg.test_ds.get('neighbors'),
+    # )
+    # test_dl = model.build_pretraining_data_loader(test_ds, 0)
 
     # # Have to turn off activations_checkpoint_method for inference
     # try:

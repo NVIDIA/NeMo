@@ -314,12 +314,14 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
+        input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
+
+        # input_tokens_id = batch['tokens']
+        # input_attn_mask = batch['tokens_mask']
+        # loss_mask = batch['loss_mask']
+        # retrieved_ids = batch['retrieved_ids']
+        # retrieved_attn_mask = batch['retrieved_emb_mask']
+        # labels = batch['labels']
         if self.cfg.get('add_position_embedding', False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
@@ -414,12 +416,14 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
+
+        input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
+        # input_tokens_id = batch['tokens']
+        # input_attn_mask = batch['tokens_mask']
+        # loss_mask = batch['loss_mask']
+        # retrieved_ids = batch['retrieved_ids']
+        # retrieved_attn_mask = batch['retrieved_emb_mask']
+        # labels = batch['labels']
         if self.cfg.get('add_position_embedding', False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
@@ -596,56 +600,56 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self._train_dl is not None and self._validation_dl is not None:
             return
 
-        # self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
-        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl",
-        #     batch_size=8,
-        #     max_seq_length=2048 - 30,
-        #     min_seq_length=1,
-        #     add_bos=True,
-        #     add_eos=False,
-        #     for_train=False,
-        #     tokens_to_generate=30,
-        #     drop_last=False,
-        #     shuffle=False,
-        #     num_workers=8,
-        #     num_neighbors=8+1,
-        #     retrieved_doc_len=128
-        # )
-        # self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl",
-        #     batch_size=8,
-        #     max_seq_length=2048 - 30,
-        #     min_seq_length=1,
-        #     add_bos=True,
-        #     add_eos=False,
-        #     for_train=False,
-        #     tokens_to_generate=30,
-        #     drop_last=False,
-        #     shuffle=False,
-        #     num_workers=8,
-        #     num_neighbors=8+1,
-        #     retrieved_doc_len=128
-        # )
-        # self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
-        #     data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl",
-        #     batch_size=8,
-        #     max_seq_length=2048 - 30,
-        #     min_seq_length=1,
-        #     add_bos=True,
-        #     add_eos=False,
-        #     for_train=False,
-        #     tokens_to_generate=30,
-        #     drop_last=False,
-        #     shuffle=False,
-        #     num_workers=8,
-        #     num_neighbors=8+1,
-        #     retrieved_doc_len=128
-        # )
+        self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl",
+            batch_size=2,
+            max_seq_length=2048 - 30,
+            min_seq_length=1,
+            add_bos=True,
+            add_eos=True,
+            for_train=True,
+            tokens_to_generate=30,
+            drop_last=False,
+            shuffle=False,
+            num_workers=8,
+            num_neighbors=8+1,
+            retrieved_doc_len=128
+        )
+        self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl",
+            batch_size=2,
+            max_seq_length=2048 - 30,
+            min_seq_length=1,
+            add_bos=True,
+            add_eos=True,
+            for_train=True,
+            tokens_to_generate=30,
+            drop_last=False,
+            shuffle=False,
+            num_workers=8,
+            num_neighbors=8+1,
+            retrieved_doc_len=128
+        )
+        self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+            data="/dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl",
+            batch_size=2,
+            max_seq_length=2048 - 30,
+            min_seq_length=1,
+            add_bos=True,
+            add_eos=True,
+            for_train=False,
+            tokens_to_generate=30,
+            drop_last=False,
+            shuffle=False,
+            num_workers=8,
+            num_neighbors=8+1,
+            retrieved_doc_len=128
+        )
 
-        self.build_train_valid_test_datasets()
-        self.setup_training_data(self._cfg.data)
-        self.setup_validation_data(self._cfg.data)
-        self.setup_test_data(self._cfg.data)
+        # self.build_train_valid_test_datasets()
+        # self.setup_training_data(self._cfg.data)
+        # self.setup_validation_data(self._cfg.data)
+        # self.setup_test_data(self._cfg.data)
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config

@@ -97,6 +97,8 @@ def main(cfg) -> None:
     frozen_model_cfg.eval = cfg.model.eval
     frozen_model_cfg.add_position_embedding = cfg.model.add_position_embedding
     frozen_model_cfg.micro_batch_size = cfg.model.micro_batch_size
+    frozen_model_cfg.precision = trainer.precision
+
     if "shape_file" in frozen_model_cfg:
         frozen_model_cfg.pop("shape_file")
     # frozen_model_cfg.tensor_model_parallel_size = 4

@@ -178,7 +178,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
             )
 
             # Format the input example according to the template
-            # input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
+            input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
@@ -213,19 +213,22 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
             answer_start_idx = len(input_ids)
             if answer_only_loss and self.for_train:
-                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
-            length_before_answer = answer_start_idx 
+                answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
             
-            # padding strategy 1: pad the question so 'answer:' coincides with the end of the first chunk of 64
-            if length_before_answer < self.chunk_size:
-                padding_length = self.chunk_size - length_before_answer
-                input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-                answer_start_idx += padding_length
+            length_before_answer = answer_start_idx
             
-            # padding strategy 2: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk_size
-            # padding_length = (self.chunk_size - len(input_ids) % self.chunk_size) % self.chunk_size
-            # input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-            # answer_start_idx += padding_length
+            # padding strategy 1: consider virtual prompt length and make the length_before_answer be >= chunk size
+            # padding_length = 0
+            # if length_before_answer < self.chunk_size:
+            #     padding_length = self.chunk_size - length_before_answer
+            #     input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+            #     answer_start_idx += padding_length
+            
+            # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
+            # but still padding in the middle between virtual tokens and top1
+            padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+            answer_start_idx += padding_length
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
@@ -266,8 +269,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
         
         # Format the input example according to the template
-        # input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
-        input_example = " " + self._insert_text_in_template(input_example, prompt_template_fields, example) + " "
+        input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
+        input_example = self._insert_text_in_template(input_example, prompt_template_fields, example)
         input_ids = self.tokenizer.text_to_ids(input_example)
 
 
@@ -286,7 +289,13 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 if len(tokens) < self.retrieved_doc_len:
                     tokens = tokens + [self.pad_token_id] * (self.retrieved_doc_len - len(tokens))
                 chunks.append(tokens)
+
+
+
+     
+
     
+
         # Add BOS/EOS if desired, adds EOS by default
         if self.add_bos:
             input_ids = [self.tokenizer.bos_id] + input_ids
@@ -303,18 +312,27 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         answer_start_idx = len(input_ids)
         if answer_only_loss and self.for_train:
             answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, example)
-        length_before_answer = answer_start_idx 
+         
+        length_before_answer = answer_start_idx
         
-        # padding strategy 1: pad the question so 'answer:' coincides with the end of the first chunk of 64
-        if length_before_answer < self.chunk_size:
-            padding_length = self.chunk_size - length_before_answer
-            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-            answer_start_idx += padding_length
+        # padding strategy 1: consider virtual prompt length and make the length_before_answer be >= chunk size
+        # padding_length = 0
+        # if length_before_answer < self.chunk_size:
+        #     padding_length = self.chunk_size - length_before_answer
+        #     input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        #     answer_start_idx += padding_length
         
-        # padding strategy 2: consider virtual prompt length and make the whole sequence has a length of a mutiple of chunk_size
-        # padding_length = (self.chunk_size - len(input_ids) % self.chunk_size) % self.chunk_size
+        # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
+        # but still padding in the middle between virtual tokens and top1
+        # padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
         # input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
         # answer_start_idx += padding_length
+
+        # padding strategy 3: pad at the beginning, make the length_before_answer be a mutiple of chunk_size
+        padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+        input_ids = [self.pad_token_id] * padding_length + input_ids
+        answer_start_idx += padding_length
+
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
@@ -484,7 +502,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         """ Format the input example according to the template """
         for field in prompt_template_fields:
             if field in doc.keys():
-                if not self.for_train and field == "answer":
+                if not self.for_train and field == "answer": # during inference, do not use text in answer field
                     input_example = input_example.replace('{' + field + '}', "")
                 field_text = doc[field]
                 input_example = input_example.replace('{' + field + '}', field_text)
@@ -595,6 +613,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        # input_ids, answer_starts, chunks, num_virtual_tokens = zip(*batch)
+        # pad strategy 3
         input_ids, answer_starts, chunks, num_virtual_tokens = zip(*batch)
         num_virtual_tokens = num_virtual_tokens[0]  # all items in the list of num_virtual_tokens should be the same
         # convert chunks into torch tensors
@@ -634,8 +654,11 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
       
 
         # lob off the space holder for virtual tokens
-        input_ids = input_ids[:, num_virtual_tokens:]
+        # input_ids = input_ids[:, num_virtual_tokens:]
 
+        # pad strategy 3: do not lob off here
+
+        # input_ids: eos padding + vt + real tokens + batch padding
         return input_ids, hidden_mask, loss_mask, chunks, context_mask, labels
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
@@ -688,7 +711,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
         # lob off the space holder for virtual tokens
         
-        input_ids = [ids[num_virtual_tokens:] for ids in input_ids]
+        # input_ids = [ids[num_virtual_tokens:] for ids in input_ids]
         
         return (input_ids, chunks)
 
