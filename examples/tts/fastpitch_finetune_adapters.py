@@ -16,7 +16,6 @@ import os
 from dataclasses import is_dataclass
 
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
