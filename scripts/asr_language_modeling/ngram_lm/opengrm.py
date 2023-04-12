@@ -51,7 +51,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
-
+import kenlm_utils
 
 def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force):
     mod_a = arpa_a + ".mod"
@@ -129,7 +129,6 @@ def make_symbol_list(tokenizer_model_file, symbols, force):
 def farcompile(
     symbols, text_file, test_far, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation, force,
 ):
-    file_path = os.path.split(os.path.realpath(__file__))[0]
     if os.path.isfile(test_far) and not force:
         logging.info("File " + test_far + " exists. Skipping.")
         return
@@ -144,35 +143,27 @@ def farcompile(
             test_far,
         ]
 
-        if os.path.split(text_file)[0][-5:] == "cache":
-            first_process_args = ["cat", text_file]
-        else:
-            pythonpath = "/".join(file_path.split("/")[:-3])
-            first_process_args = [
-                f"PYTHONPATH={pythonpath}:$PYTHONPATH",
-                "python3",
-                os.path.join(file_path, "kenlm_utils.py"),
-                "--tokenizer_model_file",
-                tokenizer_model_file,
-                "--train_path",
-                text_file,
-            ]
-            if rm_punctuation:
-                first_process_args.append("--rm_punctuation")
-            if do_lowercase:
-                first_process_args.append("--do_lowercase")
-            if separate_punctuation:
-                first_process_args.append("--separate_punctuation")
+        tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(tokenizer_model_file)
 
-        sh_args = first_process_args + ["|"] + sh_args
+        ps = subprocess.Popen(" ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,)
 
-        ps = subprocess.Popen(" ".join(sh_args), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+        kenlm_utils.iter_files(
+                ps.stdin,
+                [text_file],
+                tokenizer,
+                encoding_level,
+                is_aggregate_tokenizer,
+                do_lowercase,
+                rm_punctuation,
+                separate_punctuation,
+                verbose = 0,
+            )
         stdout, stderr = ps.communicate()
-        exit_code = ps.wait()
+
+        exit_code = ps.returncode
+        
         command = " ".join(sh_args)
-        assert (
-            exit_code == 0
-        ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+        assert exit_code == 0, f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
         return stdout, stderr
 
 

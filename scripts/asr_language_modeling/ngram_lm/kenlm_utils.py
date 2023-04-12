@@ -20,7 +20,6 @@ Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
 
-import argparse
 import gzip
 import json
 import os
