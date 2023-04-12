@@ -185,6 +185,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         pitch_predictor: NeuralModule,
         energy_predictor: NeuralModule,
         aligner: NeuralModule,
+        speaker_encoder: NeuralModule,
         n_speakers: int,
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
@@ -200,10 +201,12 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.pitch_predictor = pitch_predictor
         self.energy_predictor = energy_predictor
         self.aligner = aligner
+        self.speaker_encoder = speaker_encoder
         self.learn_alignment = aligner is not None
         self.use_duration_predictor = True
         self.binarize = False
 
+        # TODO: combine self.speaker_emb with self.speaker_encoder
         if n_speakers > 1:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
@@ -246,6 +249,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
+            "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "reference_speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
 
     @property
@@ -279,6 +285,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
+        reference_spec=None,
+        reference_spec_lens=None,
+        reference_speaker_embedding=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -290,6 +299,14 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             spk_emb = None
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
+
+        if self.speaker_encoder is not None:
+            spk_emb = self.speaker_encoder(
+                spk_emb=spk_emb,
+                reference_spec=reference_spec,
+                reference_spec_lens=reference_spec_lens,
+                reference_speaker_embedding=reference_speaker_embedding,
+            )
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
@@ -374,13 +391,25 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             energy_tgt,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, energy=None, pace=1.0, volume=None):
+    def infer(self, *, text, pitch=None, speaker=None, energy=None, pace=1.0, volume=None,        
+              reference_spec=None,
+              reference_spec_lens=None,
+              reference_speaker_embedding=None,
+        ):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
+        if self.speaker_encoder is not None:
+            spk_emb = self.speaker_encoder(
+                spk_emb=spk_emb,
+                reference_spec=reference_spec,
+                reference_spec_lens=reference_spec_lens,
+                reference_speaker_embedding=reference_speaker_embedding,
+            )
+    
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 

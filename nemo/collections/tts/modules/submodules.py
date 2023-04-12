@@ -20,6 +20,8 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 from nemo.core.classes import adapter_mixins
+from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
+from nemo.core.neural_types.neural_type import NeuralType
 
 
 SUPPORTED_CONDITION_TYPES = ["add", "concat", "layernorm"]
@@ -507,3 +509,4 @@ class ConditionalInput(torch.nn.Module):
                 inputs = self.concat_proj(inputs)
 
         return inputs
+
