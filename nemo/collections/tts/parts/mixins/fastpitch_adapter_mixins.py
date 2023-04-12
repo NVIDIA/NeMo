@@ -365,4 +365,8 @@ class FastPitchAdapterModelMixin(AdapterModelPTMixin):
         module_names.extend(
             ['encoder', 'decoder', 'duration_predictor', 'pitch_predictor', 'aligner']
         )  # Add support for `encoder` and `decoder` modules
+<<<<<<< HEAD
         return module_names
+=======
+        return module_names
+>>>>>>> Add initial codes

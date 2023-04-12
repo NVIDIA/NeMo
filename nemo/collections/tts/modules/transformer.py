@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -350,3 +350,47 @@ class FFTransformer(nn.Module):
 
         out = self.dense(out).transpose(1, 2)
         return out
+
+
+class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
+    """ Inherit from FFTransformerDecoder and add support for adapter"""
+
+    def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([FFT_layer.is_adapter_available() for FFT_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(FFT_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
+
+
+class FFTransformerEncoderAdapter(
+    FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin
+):
+    """ Inherit from FFTransformerEncoder and add support for adapter"""
+
+    pass
+
+
+"""Register any additional information"""
+if adapter_mixins.get_registered_adapter(FFTransformerEncoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerEncoder, adapter_class=FFTransformerEncoderAdapter)
+
+if adapter_mixins.get_registered_adapter(FFTransformerDecoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerDecoder, adapter_class=FFTransformerDecoderAdapter)
