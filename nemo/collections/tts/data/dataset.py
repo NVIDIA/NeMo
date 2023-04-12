@@ -550,7 +550,7 @@ class TTSDataset(Dataset):
             reference_pool = self.speaker_to_index_map[speaker_id]
         reference_indexes = random.sample(reference_pool, n)
         return reference_indexes
-            
+
     def __getitem__(self, index):
         sample = self.data[index]
 
@@ -802,7 +802,9 @@ class TTSDataset(Dataset):
         max_durations_len = max([len(i) for i in durations_list]) if Durations in self.sup_data_types_set else None
         max_pitches_len = max(pitches_lengths).item() if Pitch in self.sup_data_types_set else None
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
-        max_reference_audio_len = ( max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None)
+        max_reference_audio_len = (
+            max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None
+        )
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
@@ -901,7 +903,7 @@ class TTSDataset(Dataset):
 
             if SpeakerID in self.sup_data_types_set:
                 speaker_ids.append(speaker_id)
-    
+
             if ReferenceAudio in self.sup_data_types_set:
                 reference_audios.append(
                     general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)

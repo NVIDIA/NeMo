@@ -391,11 +391,19 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             energy_tgt,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, energy=None, pace=1.0, volume=None,        
-              reference_spec=None,
-              reference_spec_lens=None,
-              reference_speaker_embedding=None,
-        ):
+    def infer(
+        self,
+        *,
+        text,
+        pitch=None,
+        speaker=None,
+        energy=None,
+        pace=1.0,
+        volume=None,
+        reference_spec=None,
+        reference_spec_lens=None,
+        reference_speaker_embedding=None,
+    ):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -409,7 +417,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
                 reference_spec_lens=reference_spec_lens,
                 reference_speaker_embedding=reference_speaker_embedding,
             )
-    
+
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
