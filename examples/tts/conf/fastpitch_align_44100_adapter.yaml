@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id", "reference_audio", "reference_speaker_embedding"]
+sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id", "reference_audio"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -38,7 +38,6 @@ model:
   n_speakers: 1
   max_token_duration: 75
   symbols_embedding_dim: 384
-  speaker_embedding_dim: 384
   pitch_embedding_kernel_size: 3
     
   pitch_fmin: ${pitch_fmin}
@@ -265,10 +264,6 @@ model:
         stride: 2
         padding: 1
         bias: true
-    sv_projection_module:
-      _target_: nemo.collections.tts.modules.submodules.SVEmbeddingLinearProjectionNetwork
-      speaker_embedding_dim: ${model.speaker_embedding_dim}
-      symbols_embedding_dim: ${model.symbols_embedding_dim}
 
   optim:
     name: adamw

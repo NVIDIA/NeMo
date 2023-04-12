@@ -51,7 +51,6 @@ from nemo.collections.tts.torch.tts_data_types import (
     P_voiced,
     Pitch,
     ReferenceAudio,
-    ReferenceSpeakerEmbedding,
     SpeakerID,
     TTSDataType,
     Voiced_mask,
@@ -491,17 +490,6 @@ class TTSDataset(Dataset):
     def add_reference_audio(self, **kwargs):
         assert SpeakerID in self.sup_data_types, "Please add speaker_id in sup_data_types."
 
-    # add pretrained speaker embeddings (e.g. speaker-verification embeddings)
-    def add_reference_speaker_embedding(self, **kwargs):
-        assert SpeakerID in self.sup_data_types, "Please add speaker_id in sup_data_types."
-
-        self.reference_speaker_embedding_folder = kwargs.pop('reference_speaker_embedding_folder', None)
-
-        if self.reference_speaker_embedding_folder is None:
-            self.reference_speaker_embedding_folder = Path(self.sup_data_path) / ReferenceSpeakerEmbedding.name
-        elif isinstance(self.reference_speaker_embedding_folder, str):
-            self.reference_speaker_embedding_folder = Path(self.reference_speaker_embedding_folder)
-
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -726,18 +714,6 @@ class TTSDataset(Dataset):
                 )
                 reference_audio_length = torch.tensor(reference_audio.shape[0]).long()
 
-        reference_speaker_emb = None
-        if ReferenceSpeakerEmbedding in self.sup_data_types_set:
-            if self.speaker_to_index_map is not None:
-                reference_index = self.sample_reference_index(index, n=1)[0]
-                reference_rel_audio_path = (
-                    Path(self.data[reference_index]["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
-                )
-                reference_rel_audio_path_as_text_id = str(reference_rel_audio_path).replace("/", "_")
-                embedding_file = self.reference_speaker_embedding_folder / f"{reference_rel_audio_path_as_text_id}.pt"
-                assert os.path.exists(embedding_file), f"Speaker embedding file is `{embedding_file}` not found."
-                reference_speaker_emb = torch.load(embedding_file)
-
         return (
             audio,
             audio_length,
@@ -757,7 +733,6 @@ class TTSDataset(Dataset):
             audio_shifted,
             reference_audio,
             reference_audio_length,
-            reference_speaker_emb,
         )
 
     def __len__(self):
@@ -793,7 +768,6 @@ class TTSDataset(Dataset):
             _,
             _,
             reference_audio_lengths,
-            _,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -830,9 +804,7 @@ class TTSDataset(Dataset):
             p_voiceds,
             audios_shifted,
             reference_audios,
-            reference_speaker_embs,
         ) = (
-            [],
             [],
             [],
             [],
@@ -866,7 +838,6 @@ class TTSDataset(Dataset):
                 audio_shifted,
                 reference_audio,
                 reference_audios_length,
-                reference_speaker_emb,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -910,9 +881,6 @@ class TTSDataset(Dataset):
                     general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)
                 )
 
-            if ReferenceSpeakerEmbedding in self.sup_data_types_set:
-                reference_speaker_embs.append(reference_speaker_emb)
-
         data_dict = {
             "audio": torch.stack(audios),
             "audio_lens": torch.stack(audio_lengths),
@@ -933,9 +901,6 @@ class TTSDataset(Dataset):
             "reference_audio": torch.stack(reference_audios) if ReferenceAudio in self.sup_data_types_set else None,
             "reference_audio_lens": torch.stack(reference_audio_lengths)
             if ReferenceAudio in self.sup_data_types_set
-            else None,
-            "reference_speaker_embedding": torch.stack(reference_speaker_embs)
-            if ReferenceSpeakerEmbedding in self.sup_data_types_set
             else None,
         }
 

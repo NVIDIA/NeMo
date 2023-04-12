@@ -251,7 +251,6 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "reference_speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
 
     @property
@@ -287,7 +286,6 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         input_lens=None,
         reference_spec=None,
         reference_spec_lens=None,
-        reference_speaker_embedding=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -305,7 +303,6 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
                 spk_emb=spk_emb,
                 reference_spec=reference_spec,
                 reference_spec_lens=reference_spec_lens,
-                reference_speaker_embedding=reference_speaker_embedding,
             )
 
         # Input FFT
@@ -402,7 +399,6 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         volume=None,
         reference_spec=None,
         reference_spec_lens=None,
-        reference_speaker_embedding=None,
     ):
 
         if self.speaker_emb is None or speaker is None:
@@ -415,7 +411,6 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
                 spk_emb=spk_emb,
                 reference_spec=reference_spec,
                 reference_spec_lens=reference_spec_lens,
-                reference_speaker_embedding=reference_speaker_embedding,
             )
 
         # Input FFT

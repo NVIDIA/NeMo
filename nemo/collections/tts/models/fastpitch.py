@@ -34,7 +34,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     process_batch,
     sample_tts_input,
 )
-from nemo.collections.tts.torch.tts_data_types import ReferenceAudio, ReferenceSpeakerEmbedding
+from nemo.collections.tts.torch.tts_data_types import ReferenceAudio
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -165,24 +165,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             ) and ReferenceAudio in self._train_dl.dataset.sup_data_types_set:
                 logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
 
-            if (
-                speaker_encoder is None or speaker_encoder.sv_projection_module is None
-            ) and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set:
-                logging.warning(
-                    'You may add `sv_projection_module` in speaker_encoder use reference_speaker_embedding.'
-                )
-
             assert not (
                 speaker_encoder is not None
                 and speaker_encoder.gst_module is not None
                 and ReferenceAudio not in self._train_dl.dataset.sup_data_types_set
             ), f'You should add `reference_audio` in sup_data_types.'
-
-            assert not (
-                speaker_encoder is not None
-                and speaker_encoder.sv_projection_module is not None
-                and ReferenceSpeakerEmbedding not in self._train_dl.dataset.sup_data_types_set
-            ), f'You should add `reference_speaker_embedding` in sup_data_types.'
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -337,7 +324,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             # reference_* data is used for multi-speaker FastPitch training
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "reference_speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
     )
     def forward(
@@ -355,7 +341,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         input_lens=None,
         reference_spec=None,
         reference_spec_lens=None,
-        reference_speaker_embedding=None,
     ):
         return self.fastpitch(
             text=text,
@@ -370,7 +355,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             input_lens=input_lens,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
-            reference_speaker_embedding=reference_speaker_embedding,
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
@@ -381,7 +365,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         pace: float = 1.0,
         reference_spec: Optional['torch.tensor'] = None,
         reference_spec_lens: Optional[int] = None,
-        reference_speaker_embedding: Optional['torch.tensor'] = None,
     ) -> torch.tensor:
         if self.training:
             logging.warning("generate_spectrogram() is meant to be called in eval mode.")
@@ -395,13 +378,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             pace=pace,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
-            reference_speaker_embedding=reference_speaker_embedding,
         )
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speaker, energy, reference_audio, reference_audio_len, reference_speaker_embedding = (
-            None,
+        attn_prior, durs, speaker, energy, reference_audio, reference_audio_len = (
             None,
             None,
             None,
@@ -422,7 +403,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             reference_audio = batch_dict.get("reference_audio", None)
             reference_audio_len = batch_dict.get("reference_audio_lens", None)
-            reference_speaker_embedding = batch_dict.get("reference_speaker_embedding", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -456,7 +436,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             spec=mels if self.learn_alignment else None,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_len,
-            reference_speaker_embedding=reference_speaker_embedding,
             attn_prior=attn_prior,
             mel_lens=spec_len,
             input_lens=text_lens,
@@ -514,8 +493,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return loss
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, durs, speaker, energy, reference_audio, reference_audio_len, reference_speaker_embedding = (
-            None,
+        attn_prior, durs, speaker, energy, reference_audio, reference_audio_len = (
             None,
             None,
             None,
@@ -536,7 +514,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             reference_audio = batch_dict.get("reference_audio", None)
             reference_audio_len = batch_dict.get("reference_audio_lens", None)
-            reference_speaker_embedding = batch_dict.get("reference_speaker_embedding", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -558,7 +535,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             spec=mels if self.learn_alignment else None,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_len,
-            reference_speaker_embedding=reference_speaker_embedding,
             attn_prior=attn_prior,
             mel_lens=mel_lens,
             input_lens=text_lens,
@@ -588,13 +564,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         mel_loss = collect("mel_loss")
         dur_loss = collect("dur_loss")
         pitch_loss = collect("pitch_loss")
-        self.log("val_loss", val_loss)
-        self.log("val_mel_loss", mel_loss)
-        self.log("val_dur_loss", dur_loss)
-        self.log("val_pitch_loss", pitch_loss)
+        self.log("val_loss", val_loss, sync_dist=True)
+        self.log("val_mel_loss", mel_loss, sync_dist=True)
+        self.log("val_dur_loss", dur_loss, sync_dist=True)
+        self.log("val_pitch_loss", pitch_loss, sync_dist=True)
         if outputs[0]["energy_loss"] is not None:
             energy_loss = collect("energy_loss")
-            self.log("val_energy_loss", energy_loss)
+            self.log("val_energy_loss", energy_loss, sync_dist=True)
 
         _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
