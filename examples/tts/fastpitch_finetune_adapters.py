@@ -87,17 +87,12 @@ def main(cfg):
 
     # Extract adapter parameters
     with open_dict(cfg.model.adapter):
-        # get bool variable to determine if weighted speaker embeddings should be used or not
-        add_weight_speaker = cfg.model.adapter.pop("add_weight_speaker", False)
-        # variable to determine which speaker embeddings should used to get weighted mean speaker
-        add_weight_speaker_list = cfg.model.adapter.pop("add_weight_speaker_list", [])
         # Extract the name of the adapter (must be given for training)
         adapter_name = cfg.model.adapter.pop("adapter_name", "adapter")
         # Extract the name of the modules where adapters need to be added (must be given for training)
         adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
         # Name of the adapter checkpoint which will be saved after training
         adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
-        weight_speaker_state_dict_name = cfg.model.adapter.pop("weight_speaker_state_dict_name", None)
 
         # augment adapter name with module name, if not provided by user
         if adapter_module_name is not None and ':' not in adapter_name:
