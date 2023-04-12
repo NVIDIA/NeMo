@@ -805,6 +805,7 @@ class TTSDataset(Dataset):
         max_reference_audio_len = (
             max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None
         )
+
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
@@ -903,6 +904,14 @@ class TTSDataset(Dataset):
 
             if SpeakerID in self.sup_data_types_set:
                 speaker_ids.append(speaker_id)
+    
+            if ReferenceAudio in self.sup_data_types_set:
+                reference_audios.append(
+                    general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)
+                )
+
+            if ReferenceSpeakerEmbedding in self.sup_data_types_set:
+                reference_speaker_embs.append(reference_speaker_emb)
 
             if ReferenceAudio in self.sup_data_types_set:
                 reference_audios.append(

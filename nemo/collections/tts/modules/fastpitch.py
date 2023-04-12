@@ -404,7 +404,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         reference_spec_lens=None,
         reference_speaker_embedding=None,
     ):
-        # Calculate speaker embedding
+
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
         else:
