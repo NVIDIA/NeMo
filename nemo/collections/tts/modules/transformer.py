@@ -16,6 +16,7 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import DictConfig
 
 from nemo.collections.tts.modules.submodules import ConditionalInput, ConditionalLayerNorm, LinearNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
