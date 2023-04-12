@@ -700,6 +700,7 @@ class FrameBatchASR:
         )
 
         self.asr_model = asr_model
+        self.decoder = asr_model.decoder
 
         self.batch_size = batch_size
         self.all_logits = []
@@ -716,6 +717,7 @@ class FrameBatchASR:
         self.frame_buffers = []
         self.reset()
         cfg = copy.deepcopy(asr_model._cfg)
+        self.cfg = cfg
         self.frame_len = frame_len
         OmegaConf.set_struct(cfg.preprocessor, False)
 
@@ -725,6 +727,7 @@ class FrameBatchASR:
         cfg.preprocessor.normalize = "None"
         self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(asr_model.device)
+        self.preprocessor = self.raw_preprocessor
 
     def reset(self):
         """
@@ -750,17 +753,17 @@ class FrameBatchASR:
         self.frame_bufferer.set_frame_reader(frame_reader)
 
     @torch.no_grad()
-    def infer_logits(self):
+    def infer_logits(self, keep_logits=False):
         frame_buffers = self.frame_bufferer.get_buffers_batch()
 
         while len(frame_buffers) > 0:
             self.frame_buffers += frame_buffers[:]
             self.data_layer.set_signal(frame_buffers[:])
-            self._get_batch_preds()
+            self._get_batch_preds(keep_logits)
             frame_buffers = self.frame_bufferer.get_buffers_batch()
 
     @torch.no_grad()
-    def _get_batch_preds(self):
+    def _get_batch_preds(self, keep_logits=False):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
 
@@ -772,19 +775,32 @@ class FrameBatchASR:
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
-            del log_probs
+            if keep_logits:
+                log_probs = torch.unbind(log_probs)
+                for log_prob in log_probs:
+                    self.all_logits.append(log_prob.cpu())
+            else:
+                del log_probs
             del encoded_len
             del predictions
 
-    def transcribe(
-        self, tokens_per_chunk: int, delay: int,
-    ):
-        self.infer_logits()
+    def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits=False):
+        self.infer_logits(keep_logits)
         self.unmerged = []
         for pred in self.all_preds:
             decoded = pred.tolist()
             self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
-        return self.greedy_merge(self.unmerged)
+        hypothesis = self.greedy_merge(self.unmerged)
+        if not keep_logits:
+            return hypothesis
+
+        all_logits = []
+        for log_prob in self.all_logits:
+            T = log_prob.shape[0]
+            log_prob = log_prob[T - 1 - delay : T - 1 - delay + tokens_per_chunk, :]
+            all_logits.append(log_prob)
+        all_logits = torch.concat(all_logits, 0)
+        return hypothesis, all_logits
 
     def greedy_merge(self, preds):
         decoded_prediction = []
@@ -1351,10 +1367,9 @@ class CacheAwareStreamingAudioBuffer:
                 )
 
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
+                shift_size = self.streaming_cfg.shift_size[0]
                 if self.pad_and_drop_preencoded:
                     shift_size = self.streaming_cfg.shift_size[1]
-                else:
-                    shift_size = self.streaming_cfg.shift_size[0]
             else:
                 shift_size = (
                     self.streaming_cfg.shift_size[1]
@@ -1379,18 +1394,14 @@ class CacheAwareStreamingAudioBuffer:
             # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
             zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+                cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
                 if self.pad_and_drop_preencoded:
-                    cache_pre_encode = torch.zeros(
-                        (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[1]),
-                        device=audio_chunk.device,
-                        dtype=audio_chunk.dtype,
-                    )
-                else:
-                    cache_pre_encode = torch.zeros(
-                        (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[0]),
-                        device=audio_chunk.device,
-                        dtype=audio_chunk.dtype,
-                    )
+                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[1]
+                cache_pre_encode = torch.zeros(
+                    (audio_chunk.size(0), self.input_features, cache_pre_encode_num_frames),
+                    device=audio_chunk.device,
+                    dtype=audio_chunk.dtype,
+                )
             else:
                 if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
