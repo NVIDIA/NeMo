@@ -42,6 +42,7 @@ SUPPORTED_MODELS = {
     'EncDecRNNTBPEModel': 'subword',
     'EncDecRNNTModel': 'char',
     'EncDecHybridRNNTCTCBPEModel': 'subword',
+    'EncDecHybridRNNTCTCModel': 'char',
 }
 
 
