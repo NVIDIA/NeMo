@@ -147,7 +147,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         if isinstance(self.decoding, ctc_beam_decoding.AbstractBeamCTCInfer):
             if hasattr(self.tokenizer.tokenizer, 'get_vocab'):
                 vocab_dict = self.tokenizer.tokenizer.get_vocab()
-                if type(vocab_dict) == list:
+                if isinstance(vocab_dict, list):
                     vocab = vocab_dict
                 else:
                     vocab = list(vocab_dict.keys())
