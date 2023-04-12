@@ -76,7 +76,7 @@ def main():
     feature_config = instantiate(feature_config)
     featurizers = feature_config.featurizers
 
-    entries = read_manifest(manifest_path)[:10]
+    entries = read_manifest(manifest_path)
 
     for feature_name, featurizer in featurizers.items():
         print(f"Computing: {feature_name}")
