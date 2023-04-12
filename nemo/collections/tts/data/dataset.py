@@ -904,7 +904,7 @@ class TTSDataset(Dataset):
 
             if SpeakerID in self.sup_data_types_set:
                 speaker_ids.append(speaker_id)
-    
+
             if ReferenceAudio in self.sup_data_types_set:
                 reference_audios.append(
                     general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)
