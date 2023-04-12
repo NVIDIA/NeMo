@@ -24,7 +24,7 @@
 # to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
 # USAGE: python train_kenlm.py --tokenizer_model_file <path to the .nemo file of the model> \
-#                              --train_path <path to the training text or JSON manifest file \
+#                              --train_path <path to the training text or JSON manifest file> \
 #                              --kenlm_bin_path <path to the bin folder of KenLM library> \
 #                              --kenlm_model_file <path to store the binary KenLM model> \
 #                              --ngram_length <order of N-gram model>
@@ -85,26 +85,26 @@ def main():
         type=str,
         help="Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation ",
     )
-    parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
+    parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM.")
     parser.add_argument(
-        "--cache_path", required=False, type=str, default=None, help="Cache path to save tokenized files"
+        "--cache_path", required=False, type=str, default=None, help="Cache path to save tokenized files."
     )
     parser.add_argument(
-        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
+        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text."
     )
 
     parser.add_argument(
         '--preserve_arpa', required=False, action='store_true', help='Whether to preserve the intermediate ARPA file.'
     )
     parser.add_argument(
-        "--rm_punctuation", action='store_true', help="Whether to remove punctuation marks from text",
+        "--rm_punctuation", action='store_true', help="Whether to remove punctuation marks from text.",
     )
     parser.add_argument(
         "--separate_punctuation",
         action='store_true',
-        help="Whether to separate punctuation with the previouse word by space ",
+        help="Whether to separate punctuation with the previouse word by space.",
     )
-    parser.add_argument("--verbose", type=int, default=0, help="Verbose level from 0. Default is 1 ")
+    parser.add_argument("--verbose", type=int, default=1, help="Verbose level, default is 1.")
 
     args = parser.parse_args()
 
