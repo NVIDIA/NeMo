@@ -258,12 +258,15 @@ model:
     _target_: nemo.collections.tts.modules.submodules.SpeakerEncoder
     gst_module:
       _target_: nemo.collections.tts.modules.submodules.GlobalStyleToken
-      n_mels: ${model.n_mel_channels}
-      cnn_filters: [32, 32, 64, 64, 128, 128] 
-      dropout: 0.2 
       gst_size: ${model.symbols_embedding_dim}
       n_style_token: 10
       n_style_attn_head: 4
+      reference_encoder:
+        _target_: nemo.collections.tts.modules.submodules.ReferenceEncoder
+        n_mels: ${model.n_mel_channels}
+        cnn_filters: [32, 32, 64, 64, 128, 128] 
+        dropout: 0.2
+        gru_hidden: ${model.symbols_embedding_dim}
     sv_projection_module:
       _target_: nemo.collections.tts.modules.submodules.SVEmbeddingLinearProjectionNetwork
       speaker_embedding_dim: ${model.speaker_embedding_dim}

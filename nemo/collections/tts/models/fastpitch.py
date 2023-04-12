@@ -22,6 +22,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
+from nemo.collections.tts.torch.tts_data_types import ReferenceAudio, ReferenceSpeakerEmbedding
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -145,7 +146,23 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         speaker_encoder = instantiate(self._cfg.get("speaker_encoder", None))
         energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
         energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
+        
+        """Check use speaker encoder and reference data"""
+        if self._train_dl is not None:
+            if not (speaker_encoder is not None \
+                    and speaker_encoder.gst_module is not None \
+                    and ReferenceAudio in self._train_dl.dataset.sup_data_types_set):
+                logging.warning(f'You should add '
+                                '`gst_module` in `speaker_encoder`'
+                                'and `reference_audio` in `sup_data_types`.')
 
+            if not (speaker_encoder is not None \
+                    and speaker_encoder.sv_projection_module is not None \
+                    and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set):
+                logging.warning(f'You should add '
+                                '`sv_projection_module` in `speaker_encoder`'
+                                 'and `reference_speaker_embedding` in `sup_data_types`.')
+        
         self.fastpitch = FastPitchModule(
             input_fft,
             output_fft,
@@ -288,7 +305,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return x
 
     """reference_* are used for multi-speaker FastPitch training"""
-
     @typecheck(
         input_types={
             "text": NeuralType(('B', 'T_text'), TokenIndex()),
@@ -301,6 +317,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            # reference_* data is used for multi-speaker FastPitch training
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
             "reference_speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),

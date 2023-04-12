@@ -24,10 +24,8 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/add_pretrained_speaker_
 import argparse
 import multiprocessing
 import os
-import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
 
 import torch
 from tqdm import tqdm

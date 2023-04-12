@@ -502,12 +502,6 @@ class TTSDataset(Dataset):
         elif isinstance(self.reference_speaker_embedding_folder, str):
             self.reference_speaker_embedding_folder = Path(self.reference_speaker_embedding_folder)
 
-        emb_cnt = len([file for file in os.listdir(self.reference_speaker_embedding_folder) if file.endswith(".pt")])
-        assert emb_cnt >= len(self.data), (
-            f"Found {file_cnt} embedding files fewer than the {len(self.data)} audio files."
-            f"Please extract speaker embeddings first."
-        )
-
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -740,9 +734,9 @@ class TTSDataset(Dataset):
                     Path(self.data[reference_index]["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
                 )
                 reference_rel_audio_path_as_text_id = str(reference_rel_audio_path).replace("/", "_")
-                reference_speaker_emb = torch.load(
-                    self.reference_speaker_embedding_folder / f"{reference_rel_audio_path_as_text_id}.pt"
-                )
+                embedding_file = self.reference_speaker_embedding_folder / f"{reference_rel_audio_path_as_text_id}.pt"
+                assert os.path.exists(embedding_file), f"Speaker embedding file is `{embedding_file}` not found."
+                reference_speaker_emb = torch.load(embedding_file)
 
         return (
             audio,
