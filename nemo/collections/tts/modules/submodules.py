@@ -444,11 +444,7 @@ class GlobalStyleToken(NeuralModule):
     """
 
     def __init__(
-        self,
-        reference_encoder,
-        gst_size=128,
-        n_style_token=10,
-        n_style_attn_head=4,
+        self, reference_encoder, gst_size=128, n_style_token=10, n_style_attn_head=4,
     ):
         super(GlobalStyleToken, self).__init__()
         self.reference_encoder = reference_encoder
@@ -486,13 +482,14 @@ class ReferenceEncoder(NeuralModule):
         self.layers = torch.nn.ModuleList(
             [
                 Conv2DReLUNorm(
-                    in_channels=int(self.filter_size[i]), 
-                    out_channels=int(self.filter_size[i + 1]), 
-                    kernel_size=kernel_size, 
-                    stride=stride, 
-                    padding=padding, 
-                    bias=bias, 
-                    dropout=dropout)
+                    in_channels=int(self.filter_size[i]),
+                    out_channels=int(self.filter_size[i + 1]),
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                    bias=bias,
+                    dropout=dropout,
+                )
                 for i in range(len(cnn_filters))
             ]
         )
@@ -519,13 +516,13 @@ class ReferenceEncoder(NeuralModule):
         x = inputs.transpose(1, 2).unsqueeze(3)
         x_lens = inputs_lengths
         x_masks = self.lengths_to_masks(x_lens).unsqueeze(2).unsqueeze(3)
-        
+
         for layer in self.layers:
             x = x * x_masks
             x = layer(x)
             x_lens = self.calculate_post_conv_lengths(x_lens)
             x_masks = self.lengths_to_masks(x_lens).unsqueeze(2).unsqueeze(3)
-            
+
         x = x * x_masks
         x = x.contiguous().view(x.shape[0], x.shape[1], -1)
         self.gru.flatten_parameters()
@@ -544,17 +541,18 @@ class ReferenceEncoder(NeuralModule):
     def lengths_to_masks(lengths):
         """Batch of lengths to batch of masks"""
         # B -> BxT
-        masks = (
-            torch.arange(lengths.max()).to(lengths.device).expand(lengths.shape[0], lengths.max())
-            < lengths.unsqueeze(1)
-        )
+        masks = torch.arange(lengths.max()).to(lengths.device).expand(
+            lengths.shape[0], lengths.max()
+        ) < lengths.unsqueeze(1)
         return masks
 
 
 class Conv2DReLUNorm(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=True, dropout=0.0):
         super(Conv2DReLUNorm, self).__init__()
-        self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+        self.conv = torch.nn.Conv2d(
+            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias
+        )
         self.norm = torch.nn.LayerNorm(out_channels)
         self.dropout = torch.nn.Dropout(dropout)
 
@@ -645,19 +643,19 @@ class SpeakerEncoder(torch.nn.Module):
 
         # Project lookup speaker embedding
         if self.lookup_emb_projection_module is not None:
-            out = self.lookup_emb_projection_module(spk_emb) 
+            out = self.lookup_emb_projection_module(spk_emb)
             x = out if x is None else x + out
-            
+
         # Get GST based speaker embedding
         if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
-            out = self.gst_module(reference_spec, reference_spec_lens).unsqueeze(1) 
+            out = self.gst_module(reference_spec, reference_spec_lens).unsqueeze(1)
             x = out if x is None else x + out
-            
+
         # Project speaker embedding from Speaker Verification based
         if self.sv_projection_module is not None and reference_speaker_embedding is not None:
             out = self.sv_projection_module(reference_speaker_embedding)
             x = out if x is None else x + out
-            
+
         return x
 
 
