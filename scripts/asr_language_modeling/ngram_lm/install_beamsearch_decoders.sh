@@ -15,6 +15,10 @@
 
 # Use this script to install KenLM, OpenSeq2Seq decoder, Flashlight decoder
 NEMO_PATH=/workspace/nemo  # Path to NeMo folder: /workspace/nemo if you use NeMo/Dockerfile
+if [ "$#" -eq 1 ]
+then
+  NEMO_PATH=$1
+fi
 KENLM_MAX_ORDER=10 # Maximum order of KenLM model, also specified in the setup_os2s_decoders.py
 
 cd $NEMO_PATH
