@@ -99,21 +99,33 @@ def setup_tokenizer(tokenizer_model_file):
     return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
-def iter_files(train_path, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation):
-    tokenizer, encoding_level, is_aggregate_tokenizer = setup_tokenizer(tokenizer_model_file)
-    for fname in train_path:
+def iter_files(dest_path, train_path, tokenizer, encoding_level, is_aggregate_tokenizer, do_lowercase, rm_punctuation, separate_punctuation, verbose):
+    if isinstance(dest_path, list):
+        train_path = zip(dest_path, train_path)
+    else: # dest_path is stdin of KenLM
+        train_path = [(dest_path, path) for path in train_path]
+
+    for dest_path, input_path in train_path:
         dataset = read_train_file(
-            fname,
+            input_path,
             do_lowercase,
             rm_punctuation,
             separate_punctuation,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            verbose=0,
+            verbose=verbose,
         )
-        tokenize_text(
-            data=dataset, tokenizer=tokenizer, path='', chunk_size=CHUNK_SIZE, buffer_size=CHUNK_BUFFER_SIZE,
-        )
-
+        if encoding_level == "subword":
+            tokenize_text(
+                data=dataset, tokenizer=tokenizer, path=dest_path, chunk_size=CHUNK_SIZE, buffer_size=CHUNK_BUFFER_SIZE,
+            )
+        else: # encoding_level == "char"
+            if isinstance(dest_path, str):
+                with open(dest_path, 'w', encoding='utf-8') as f:
+                    for line in dataset:
+                        f.write(f"{line}\n")
+            else: # write to stdin of KenLM
+                for line in dataset:
+                    dest_path.write((line+'\n').encode())
 
 def read_train_file(
     path,
@@ -186,7 +198,7 @@ def tokenize_str(texts, tokenizer):
 def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32):
     dataset_len = len(data)
     current_step = 0
-    if path and os.path.exists(path):
+    if isinstance(path, str) and os.path.exists(path):
         os.remove(path)
 
     with Parallel(n_jobs=-2, verbose=0) as parallel:
@@ -202,60 +214,21 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32):
             # Write dataset
             write_dataset(tokenized_data, path)
             current_step += len(tokenized_data)
-            if path:
-                print(f"Finished writing {len(tokenized_data)} chunks to {path}. Current chunk index = {current_step}")
+            logging.info(f"Finished writing {len(tokenized_data)} chunks to {path}. Current chunk index = {current_step}")
             del tokenized_data
             if end >= dataset_len:
                 break
 
 
 def write_dataset(chunks, path):
-    if path:
-        basedir = os.path.dirname(path)
-        if not os.path.exists(basedir):
-            os.makedirs(basedir, exist_ok=True)
+    if isinstance(path, str):
         with open(path, 'a+', encoding='utf-8') as f:
             for chunk_idx in tqdm(range(len(chunks)), desc='Chunk ', total=len(chunks), unit=' chunks'):
                 for text in chunks[chunk_idx]:
                     line = ' '.join(text)
                     f.write(f"{line}\n")
-    else:
+    else: # write to stdin of KenLM
         for chunk_idx in range(len(chunks)):
             for text in chunks[chunk_idx]:
                 line = ' '.join(text)
-                print(f"{line}\n")
-
-
-def _parse_args():
-    parser = argparse.ArgumentParser(description="Avg pytorch weights")
-    parser.add_argument(
-        "--train_path",
-        required=True,
-        nargs="+",
-        type=str,
-        help="Path to the training file or whitespace separated files. it can be a text file, JSON manifest or .json.gz",
-    )
-    parser.add_argument(
-        "--tokenizer_model_file",
-        required=True,
-        type=str,
-        help="The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model",
-    )
-    parser.add_argument(
-        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
-    )
-    parser.add_argument(
-        "--rm_punctuation", action='store_true', help="Whether to remove punctuation marks from text",
-    )
-    parser.add_argument(
-        "--separate_punctuation",
-        action='store_true',
-        help="Whether to separate punctuation with the previouse word by space when --clean_text and --punctuation_to_preserveis is used",
-    )
-
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    logging.setLevel(logging.ERROR)
-    iter_files(**vars(_parse_args()))
+                path.write((line+'\n').encode())

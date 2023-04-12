@@ -108,76 +108,18 @@ def main():
 
     args = parser.parse_args()
 
-    args.train_path = kenlm_utils.get_train_list(args.train_path)
-
-    if type(args.ngram_prun) == str:
+    train_path = kenlm_utils.get_train_list(args.train_path)
+    
+    if isinstance(args.ngram_prun, str):
         args.ngram_prun = [args.ngram_prun]
 
     tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
-    encoded_train_files = []
-
-    if args.cache_path:
-        """ DATASET SETUP """
-
-        for file_num, train_file in enumerate(args.train_path):
-            logging.info(
-                f"Encoding the train file '{train_file}' number {file_num+1} out of {len(args.train_path)} ..."
-            )
-
-            cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
-            encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
-            if cached_files:
-                if cached_files[0] != encoded_train_file:
-                    os.rename(cached_files[0], encoded_train_file)
-                    logging.info("Rename", cached_files[0], "to", encoded_train_file)
-            else:
-                dataset = kenlm_utils.read_train_file(
-                    train_file,
-                    do_lowercase=args.do_lowercase,
-                    rm_punctuation=args.rm_punctuation,
-                    separate_punctuation=args.separate_punctuation,
-                    is_aggregate_tokenizer=is_aggregate_tokenizer,
-                    verbose=args.verbose,
-                )
-
-                if encoding_level == "subword":
-                    kenlm_utils.tokenize_text(
-                        data=dataset,
-                        tokenizer=tokenizer,
-                        path=encoded_train_file,
-                        chunk_size=CHUNK_SIZE,
-                        buffer_size=CHUNK_BUFFER_SIZE,
-                    )
-                else:
-                    with open(encoded_train_file, 'w', encoding='utf-8') as f:
-                        for line in dataset:
-                            f.write(f"{line}\n")
-
-            encoded_train_files.append(encoded_train_file)
-
-        first_process_args = ["cat"] + encoded_train_files
-
-    else:
-        first_process_args = [
-            "python3",
-            os.path.join(file_path, "kenlm_utils.py"),
-            "--tokenizer_model_file",
-            args.tokenizer_model_file,
-            "--train_path",
-        ] + args.train_path
-        if args.rm_punctuation:
-            first_process_args.append("--rm_punctuation")
-        if args.do_lowercase:
-            first_process_args.append("--do_lowercase")
-        if args.separate_punctuation:
-            first_process_args.append("--separate_punctuation")
-
-    first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
 
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
     else:
         discount_arg = ""
+
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
@@ -190,21 +132,59 @@ def main():
         "--prune",
     ] + args.ngram_prun
 
-    ret = subprocess.run(
-        kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr
-    )
-    first_process.wait()
-    logging.setLevel(logging.INFO)
-    if ret.returncode != 0:
+    if args.cache_path:
+        if not os.path.exists(args.cache_path):
+            os.makedirs(args.cache_path, exist_ok=True)
+
+        """ DATASET SETUP """
+        encoded_train_files = []
+        for file_num, train_file in enumerate(train_path):
+            logging.info(
+                f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_path)} ..."
+            )
+
+            cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
+            encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
+            if cached_files:
+                if cached_files[0] != encoded_train_file:
+                    os.rename(cached_files[0], encoded_train_file)
+                    logging.info("Rename", cached_files[0], "to", encoded_train_file)
+                    
+            encoded_train_files.append(encoded_train_file)
+        
+        kenlm_utils.iter_files(encoded_train_files, train_path, tokenizer, encoding_level, is_aggregate_tokenizer, 
+                               args.do_lowercase, args.rm_punctuation, args.separate_punctuation, args.verbose)
+
+        first_process_args = ["cat"] + encoded_train_files
+        first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
+
+        logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
+        kenlm_p = subprocess.run(
+            kenlm_args, stdin=first_process.stdout, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr
+        )
+        first_process.wait()
+
+    else:
+        logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
+        kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
+
+        kenlm_utils.iter_files(kenlm_p.stdin, train_path, tokenizer, encoding_level, is_aggregate_tokenizer,
+                           args.do_lowercase, args.rm_punctuation, args.separate_punctuation, args.verbose)
+    
+        kenlm_p.communicate()
+
+    if kenlm_p.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
+    
     """ BINARY BUILD """
-    logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
+    
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, "build_binary"),
         "trie",
         arpa_file,
         args.kenlm_model_file,
     ]
+    logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
     ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     if ret.returncode != 0:
