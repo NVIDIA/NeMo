@@ -71,7 +71,7 @@ def _get_sup_data_filepath(manifest_entry: dict, audio_dir: Path, sup_data_dir: 
     """
     Get the absolute path of a supplementary data type for the input manifest entry.
 
-    Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" --> "<sup_data_dir>/speaker1_audio1.pt"
+    Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" becomes "<sup_data_dir>/speaker1_audio1.pt"
 
     Args:
         manifest_entry: Manifest entry dictionary.

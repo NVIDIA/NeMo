@@ -15,7 +15,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import librosa
 import numpy as np
@@ -40,7 +40,7 @@ class Featurizer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> List[Tensor]:
+    def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
         """
         Read saved feature value for given manifest entry.
 
@@ -50,7 +50,7 @@ class Featurizer(ABC):
             feature_dir: base directory where features were stored by save().
 
         Returns:
-            List of feature tensors
+            Dictionary of feature names to Tensors
         """
         raise NotImplementedError
 
@@ -59,7 +59,7 @@ def _get_feature_filepath(manifest_entry: dict, audio_dir: Path, feature_dir: Pa
     """
     Get the absolute path for the feature file corresponding to the input manifest entry
 
-    Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" -->
+    Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" becomes
         feature_filepath "<feature_dir>/<feature_name>/speaker1/audio1.pt"
     """
     _, audio_filepath_rel = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
