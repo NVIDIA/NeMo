@@ -22,6 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common import (
     PromptEncoder,
@@ -122,6 +123,16 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.prompt_encoder = None
+
+        # define validation metric
+        if self.cfg.get('report_validation_metric', False):
+            validation_metric = self.cfg.get('validation_metric', 'accuracy')
+            if validation_metric == 'accuracy':
+                self.validation_metric = AccuracyScore()
+            elif validation_metric == 'bleu':
+                self.validation_metric = BLEUScore()
+            elif validation_metric == 'rouge':
+                self.validation_metric = ROUGEScores()
 
     def load_task_templates(self, task_templates):
         """
@@ -301,7 +312,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-                self.init_prompt_encoder()
+                if self.prompt_encoder is None:
+                    self.init_prompt_encoder()
             self.freeze_existing_word_embeddings()
 
         self.setup_training_data()

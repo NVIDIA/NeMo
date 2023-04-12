@@ -100,6 +100,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
+        augmentor: DictConfig = None,
+        verbose: bool = True,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -115,6 +117,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            verbose: (bool) whether to display tqdm progress bar
 
         Returns:
             Returns a tuple of 2 items -
@@ -129,6 +133,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 partial_hypothesis=partial_hypothesis,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
+                augmentor=augmentor,
             )
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
@@ -175,8 +180,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     'channel_selector': channel_selector,
                 }
 
+                if augmentor:
+                    config['augmentor'] = augmentor
+
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=not verbose):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )

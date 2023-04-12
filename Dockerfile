@@ -26,6 +26,8 @@ FROM ${BASE_IMAGE} as nemo-deps
 ARG REQUIRE_TORCHAUDIO=false
 # k2: not required by default
 ARG REQUIRE_K2=false
+# ais cli: not required by default, install only if required
+ARG REQUIRE_AIS_CLI=false
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
@@ -102,13 +104,6 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
   python -c "import nemo.collections.tts as nemo_tts" && \
   python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
-# install pinned numba version
-# RUN conda install -c conda-forge numba==0.54.1
-
-# Pinned to numba==0.53.1 to avoid bug in training with num_workers > 0
-# The bug still exists with PTL 1.8.4, this is just a temporary workaround.
-RUN pip install numba==0.53.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
@@ -121,7 +116,12 @@ COPY tutorials /workspace/nemo/tutorials
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
   chmod +x start-jupyter.sh
 
-# Prepare AIS CLI
-ARG AIS_VERSION=v1.3.15
-ARG AIS_BIN=https://github.com/NVIDIA/aistore/releases/download/${AIS_VERSION}/ais-linux-amd64.tar.gz
-RUN curl -LO ${AIS_BIN} && tar -xzvf ais-linux-amd64.tar.gz && mv ./ais /usr/local/bin/. && rm ais-linux-amd64.tar.gz
+# If required, install AIS CLI
+RUN if [ "${REQUIRE_AIS_CLI}" = true ]; then \
+  INSTALL_MSG=$(/bin/bash scripts/installers/install_ais_cli_latest.sh); INSTALL_CODE=$?; \
+  echo ${INSTALL_MSG}; \
+  if [ ${INSTALL_CODE} -ne 0 ]; then \
+  echo "AIS CLI installation failed"; \
+  exit ${INSTALL_CODE}; \
+  else echo "AIS CLI installed successfully"; fi \
+  else echo "Skipping AIS CLI installation"; fi
