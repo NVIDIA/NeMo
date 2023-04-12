@@ -681,16 +681,6 @@ class StyleAttention(NeuralModule):
         return style_emb
 
 
-class SVEmbeddingLinearProjectionNetwork(torch.nn.Module):
-    def __init__(self, speaker_embedding_dim, symbols_embedding_dim):
-        super(SVEmbeddingLinearProjectionNetwork, self).__init__()
-        self.speaker_proj = torch.nn.Linear(speaker_embedding_dim, symbols_embedding_dim)
-
-    def forward(self, sv_embedding):
-        x = self.speaker_proj(sv_embedding)
-        return x.unsqueeze(1)
-
-
 class SpeakerEncoder(torch.nn.Module):
     """
     class SpeakerEncoder represents speakers representation. This module can combine GST (global style token)
