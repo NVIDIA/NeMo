@@ -146,29 +146,35 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         speaker_encoder = instantiate(self._cfg.get("speaker_encoder", None))
         energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
         energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
-        
+
         """Check use both speaker encoder and reference data"""
         if self._train_dl is not None:
-            if not ((speaker_encoder is None \
-                     or speaker_encoder.gst_module is None) \
-                     and ReferenceAudio in self._train_dl.dataset.sup_data_types_set):
+            if not (
+                (speaker_encoder is None or speaker_encoder.gst_module is None)
+                and ReferenceAudio in self._train_dl.dataset.sup_data_types_set
+            ):
                 logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
-                
-            if not ((speaker_encoder is None \
-                     or speaker_encoder.sv_projection_module is None) \
-                     and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set):
-                logging.warning('You may add `sv_projection_module` in speaker_encoder use reference_speaker_embedding.')
-                
-            assert not (speaker_encoder is not None \
-                        and speaker_encoder.gst_module is not None \
-                        and ReferenceAudio not in self._train_dl.dataset.sup_data_types_set), \
-                        f'You should add `reference_audio` in sup_data_types.'
-            
-            assert not (speaker_encoder is not None \
-                        and speaker_encoder.sv_projection_module is not None \
-                        and ReferenceSpeakerEmbedding not in self._train_dl.dataset.sup_data_types_set), \
-                        f'You should add `reference_speaker_embedding` in sup_data_types.'  
-                        
+
+            if not (
+                (speaker_encoder is None or speaker_encoder.sv_projection_module is None)
+                and ReferenceSpeakerEmbedding in self._train_dl.dataset.sup_data_types_set
+            ):
+                logging.warning(
+                    'You may add `sv_projection_module` in speaker_encoder use reference_speaker_embedding.'
+                )
+
+            assert not (
+                speaker_encoder is not None
+                and speaker_encoder.gst_module is not None
+                and ReferenceAudio not in self._train_dl.dataset.sup_data_types_set
+            ), f'You should add `reference_audio` in sup_data_types.'
+
+            assert not (
+                speaker_encoder is not None
+                and speaker_encoder.sv_projection_module is not None
+                and ReferenceSpeakerEmbedding not in self._train_dl.dataset.sup_data_types_set
+            ), f'You should add `reference_speaker_embedding` in sup_data_types.'
+
         self.fastpitch = FastPitchModule(
             input_fft,
             output_fft,
