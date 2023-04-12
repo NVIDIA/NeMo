@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from typing import List, Optional
-from omegaconf import DictConfig
 
 import torch
+from omegaconf import DictConfig
 from torch import nn
 
 from nemo.collections.asr.parts.utils import adapter_utils
@@ -184,7 +184,7 @@ class AlignmentEncoder(torch.nn.Module):
 
 class AlignmentEncoderAdapter(AlignmentEncoder, adapter_mixins.AdapterModuleMixin):
     """ Inherit from AlignmentEncoder and add support for adapter"""
-    
+
     def add_adapter(self, name: str, cfg: dict):
 
         for i, conv_layer in enumerate(self.key_proj):

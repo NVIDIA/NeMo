@@ -185,7 +185,18 @@ class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
 
 class FFTransformerDecoder(NeuralModule):
     def __init__(
-        self, n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb=0.0, pre_lnorm=False, condition_lnorm=False,
+        self,
+        n_layer,
+        n_head,
+        d_model,
+        d_head,
+        d_inner,
+        kernel_size,
+        dropout,
+        dropatt,
+        dropemb=0.0,
+        pre_lnorm=False,
+        condition_lnorm=False,
     ):
         super(FFTransformerDecoder, self).__init__()
         self.d_model = d_model
@@ -199,7 +210,15 @@ class FFTransformerDecoder(NeuralModule):
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
-                    n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt=dropatt, pre_lnorm=pre_lnorm, condition_lnorm=condition_lnorm
+                    n_head,
+                    d_model,
+                    d_head,
+                    d_inner,
+                    kernel_size,
+                    dropout,
+                    dropatt=dropatt,
+                    pre_lnorm=pre_lnorm,
+                    condition_lnorm=condition_lnorm,
                 )
             )
 
@@ -258,7 +277,17 @@ class FFTransformerEncoder(FFTransformerDecoder):
         condition_lnorm=False,
     ):
         super(FFTransformerEncoder, self).__init__(
-            n_layer, n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt, dropemb, pre_lnorm, condition_lnorm
+            n_layer,
+            n_head,
+            d_model,
+            d_head,
+            d_inner,
+            kernel_size,
+            dropout,
+            dropatt,
+            dropemb,
+            pre_lnorm,
+            condition_lnorm,
         )
 
         self.padding_idx = padding_idx
