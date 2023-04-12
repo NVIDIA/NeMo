@@ -44,6 +44,11 @@ RUN apt-get update && \
 
 WORKDIR /tmp/
 
+# Install Megatron-core
+RUN git clone https://github.com/aklife97/Megatron-LM.git && \
+  cd Megatron-LM && \
+  pip install -e .
+
 # TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
