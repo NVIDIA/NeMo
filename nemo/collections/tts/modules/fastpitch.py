@@ -300,9 +300,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
-                spk_emb=spk_emb,
-                reference_spec=reference_spec,
-                reference_spec_lens=reference_spec_lens,
+                spk_emb=spk_emb, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
             )
 
         # Input FFT
@@ -408,9 +406,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         if self.speaker_encoder is not None:
             spk_emb = self.speaker_encoder(
-                spk_emb=spk_emb,
-                reference_spec=reference_spec,
-                reference_spec_lens=reference_spec_lens,
+                spk_emb=spk_emb, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
             )
 
         # Input FFT
