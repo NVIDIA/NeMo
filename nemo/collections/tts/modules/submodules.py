@@ -595,15 +595,15 @@ class ReferenceEncoder(NeuralModule):
             x = layer(x, x_masks)
             x_lens = self.calculate_post_conv_lengths(x_lens)
             x_masks = self.lengths_to_masks(x_lens).unsqueeze(2).unsqueeze(3)
-        
+
         # BWMC -> BWC
         x = x.contiguous().view(x.shape[0], x.shape[1], -1)
-        
+
         self.gru.flatten_parameters()
         packed_x = pack_padded_sequence(x, x_lens.cpu(), batch_first=True, enforce_sorted=False)
         packed_x, _ = self.gru(packed_x)
         x, x_lens = pad_packed_sequence(packed_x, batch_first=True)
-        x = x[torch.arange(len(x_lens)), (x_lens-1), :]
+        x = x[torch.arange(len(x_lens)), (x_lens - 1), :]
         return x
 
     @staticmethod
@@ -635,7 +635,7 @@ class Conv2DReLUNorm(torch.nn.Module):
     def forward(self, x, x_mask=None):
         if x_mask is not None:
             x = x * x_mask
-            
+
         # bhwc -> bchw
         x = x.contiguous().permute(0, 3, 1, 2)
         x = F.relu(self.conv(x))
