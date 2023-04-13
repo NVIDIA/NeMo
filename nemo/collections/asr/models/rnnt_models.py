@@ -242,10 +242,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
-        if return_hypotheses and self.cfg.decoding.return_encoder_embeddings:
-            raise ValueError(
-                "Either `return_hypotheses` or `self.cfg.decoding.return_encoder_embeddings` can be True at any given time."
-            )
+
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
@@ -293,27 +290,21 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    if self.cfg.decoding.return_encoder_embeddings:
-                        # dump encoder embeddings per file
-                        for idx in range(encoded.shape[0]):
-                            encoded_no_pad = encoded[idx, :, : encoded_len[idx]]
-                            hypotheses.append(encoded_no_pad)
+                    best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+                        encoded,
+                        encoded_len,
+                        return_hypotheses=return_hypotheses,
+                        partial_hypotheses=partial_hypothesis,
+                    )
+
+                    hypotheses += best_hyp
+                    if all_hyp is not None:
+                        all_hypotheses += all_hyp
                     else:
-                        best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                            encoded,
-                            encoded_len,
-                            return_hypotheses=return_hypotheses,
-                            partial_hypotheses=partial_hypothesis,
-                        )
+                        all_hypotheses += best_hyp
 
-                        hypotheses += best_hyp
-                        if all_hyp is not None:
-                            all_hypotheses += all_hyp
-                        else:
-                            all_hypotheses += best_hyp
-
-                        del encoded
-                        del test_batch
+                    del encoded
+                    del test_batch
         finally:
             # set mode back to its original value
             self.train(mode=mode)
