@@ -84,6 +84,9 @@ class GPTSFTDataset(Dataset):
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
+        if self.prompt_template is not None:
+            # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+            self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
@@ -224,7 +227,7 @@ class GPTSFTDataset(Dataset):
         input_ids = processed_example['input_ids']
         answer_start_idx = processed_example['answer_start_idx']
         if self.answer_only_loss:
-            loss_mask = [float(idx > answer_start_idx) for idx in range(len(input_ids))]
+            loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
         else:
             loss_mask = [1.0] * len(input_ids)
 
