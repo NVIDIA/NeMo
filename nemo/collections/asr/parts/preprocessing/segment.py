@@ -354,7 +354,7 @@ class AudioSegment(object):
                 if len(a_samples) != len(samples):
                     # import ipdb; ipdb.set_trace()
                     raise RuntimeError(
-                        f'Loaded samples need to have identical length: {a_samples.shape} != {sample.shape}'
+                        f'Loaded samples need to have identical length: {a_samples.shape} != {samples.shape}'
                     )
 
                 # Concatenate along channel dimension
@@ -404,7 +404,7 @@ class AudioSegment(object):
                         audio_start = math.floor(offset * sample_rate)
                         if audio_start > max_audio_start:
                             raise RuntimeError(
-                                f'Provided audio start ({audio_start_seconds} seconds = {audio_start} samples) is larger than the maximum possible ({max_audio_start})'
+                                f'Provided audio start ({audio_start}) is larger than the maximum possible ({max_audio_start})'
                             )
                     f.seek(audio_start)
                     samples = f.read(n_segments_at_original_sr, dtype='float32')
