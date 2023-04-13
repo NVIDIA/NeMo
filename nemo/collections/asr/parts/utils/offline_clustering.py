@@ -551,7 +551,6 @@ def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device) -> T
         laplacian = laplacian.float().to(device)
     else:
         laplacian = laplacian.float().to(torch.device('cpu'))
-        laplacian = laplacian.float()
     lambdas, diffusion_map = eigh(laplacian)
     return lambdas, diffusion_map
 
@@ -566,7 +565,6 @@ def eigValueSh(laplacian: torch.Tensor, cuda: bool, device: torch.device) -> tor
         laplacian = laplacian.float().to(device)
     else:
         laplacian = laplacian.float().to(torch.device('cpu'))
-        laplacian = laplacian.float()
     lambdas = eigvalsh(laplacian)
     return lambdas
 

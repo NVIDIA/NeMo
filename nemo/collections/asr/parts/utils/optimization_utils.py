@@ -92,7 +92,7 @@ class LinearSumAssignmentSolver(object):
         marked (Tensor): 2D matrix containing the marked zeros.
     """
 
-    def __init__(self, cost_matrix):
+    def __init__(self, cost_matrix: torch.Tensor):
         # The main cost matrix
         self.cost_mat = cost_matrix
         row_len, col_len = self.cost_mat.shape
@@ -288,7 +288,7 @@ class LinearSumAssignmentSolver(object):
 
 
 @torch.jit.script
-def linear_sum_assignment(cost_matrix, max_size: int = 100):
+def linear_sum_assignment(cost_matrix: torch.Tensor, max_size: int = 100):
     """
     Launch the linear sum assignment algorithm on a cost matrix.
 

@@ -60,7 +60,7 @@ def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> Lis
     for label in ref_labels:
         start, end, speaker = label.split()
         start, end = float(start), float(end)
-        # If the current [start, end] interval is latching the last prediction time
+        # If the current [start, end] interval extends beyond the end of hypothesis time stamps
         if start < last_pred_time:
             end_time = min(end, last_pred_time)
             label = f"{start} {end_time} {speaker}"
