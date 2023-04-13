@@ -64,6 +64,7 @@ from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import tempfile
 import editdistance
 import numpy as np
 import torch
@@ -98,6 +99,7 @@ class EvalBeamSearchNGramConfig:
     beam_batch_size: int = 128  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
     use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
+    num_workers: int = 1  # Number of workers for DataLoader
 
     # The decoding scheme to be used for evaluation
     decoding_strategy: str = "greedy_batch" # ["greedy_batch", "beam", "tsd", "alsd", "maes"]
@@ -309,13 +311,36 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
             autocast = default_autocast
 
+        # manual calculation of encoder_embeddings
         with autocast():
             with torch.no_grad():
-                asr_model.change_decoding_strategy(asr_model.cfg.decoding)
-                asr_model.cfg.decoding.return_encoder_embeddings = True
-                all_logits, _ = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size)
+                asr_model.eval()
+                asr_model.encoder.freeze()
+                device = next(asr_model.parameters()).device
+                all_probs = []
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                        for audio_file in audio_file_paths:
+                            entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                            fp.write(json.dumps(entry) + '\n')
+                    config = {
+                        'paths2audio_files': audio_file_paths,
+                        'batch_size': cfg.acoustic_batch_size,
+                        'temp_dir': tmpdir,
+                        'num_workers': cfg.num_workers,
+                        'channel_selector': None,
+                        'augmentor': None,
+                    }
+                    temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+                    for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=True):
+                        encoded, encoded_len = asr_model.forward(
+                            input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                        )
+                        # dump encoder embeddings per file
+                        for idx in range(encoded.shape[0]):
+                            encoded_no_pad = encoded[idx, :, : encoded_len[idx]]
+                            all_probs.append(encoded_no_pad)
 
-        all_probs = all_logits
         if cfg.probs_cache_file:
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
             with open(cfg.probs_cache_file, 'wb') as f_dump:
