@@ -1082,6 +1082,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def _reset_activation_checkpointing_args(self):
+        """ Disables activation checkpointing completely and saves the values so that 
+            _restore_activation_checkpointing_args can restore them later. This function must always be 
+            called before _restore_activation_checkpointing_args.
+        """
         # Store values to restore them later.
         self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
         self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
@@ -1101,6 +1105,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
+        """ Restores the activation checkpointing parameters using the values saved by  
+            _reset_activation_checkpointing_args. This function must never be called before 
+            _reset_activation_checkpointing_args.
+        """
         # Restore config values.
         self.cfg.activations_checkpoint_granularity = self.last_checkpointing_granularity
         self.cfg.activations_checkpoint_method = self.last_checkpointing_method
@@ -1116,6 +1124,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
     def _reset_sequence_parallelism_args(self):
+        """ Disables sequence parallelism completely and saves the values so that 
+            _restore_sequence_parallelism_args can restore them later. This function must always be 
+            called before _restore_sequence_parallelism_args.
+        """
         # Store values to restore them later.
         self.last_sequence_parallel = self.cfg.sequence_parallel
 
@@ -1126,6 +1138,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.model.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
+        """ Restores the sequence parallelism parameters using the values saved by  
+            _reset_sequence_parallelism_args. This function must never be called before 
+            _reset_sequence_parallelism_args.
+        """
         # Restore config values.
         self.cfg.sequence_parallel = self.last_sequence_parallel
 
