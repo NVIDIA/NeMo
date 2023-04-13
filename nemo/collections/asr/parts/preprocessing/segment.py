@@ -352,7 +352,6 @@ class AudioSegment(object):
             else:
                 # Check the dimensions match
                 if len(a_samples) != len(samples):
-                    # import ipdb; ipdb.set_trace()
                     raise RuntimeError(
                         f'Loaded samples need to have identical length: {a_samples.shape} != {samples.shape}'
                     )
