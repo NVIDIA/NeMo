@@ -169,7 +169,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 speaker_encoder is not None
                 and speaker_encoder.gst_module is not None
                 and ReferenceAudio not in self._train_dl.dataset.sup_data_types_set
-            ), f'You should add `reference_audio` in sup_data_types.'
+            ), f'You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.'
 
         self.fastpitch = FastPitchModule(
             input_fft,

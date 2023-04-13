@@ -18,6 +18,7 @@ import torch
 from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from nemo.core.classes import NeuralModule, adapter_mixins
 from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
@@ -591,17 +592,19 @@ class ReferenceEncoder(NeuralModule):
         x_masks = self.lengths_to_masks(x_lens).unsqueeze(2).unsqueeze(3)
 
         for layer in self.layers:
-            x = x * x_masks
-            x = layer(x)
+            x = layer(x, x_masks)
             x_lens = self.calculate_post_conv_lengths(x_lens)
             x_masks = self.lengths_to_masks(x_lens).unsqueeze(2).unsqueeze(3)
-
-        x = x * x_masks
+        
+        # BWMC -> BWC
         x = x.contiguous().view(x.shape[0], x.shape[1], -1)
+        
         self.gru.flatten_parameters()
-        _, x = self.gru(x)
-
-        return x.squeeze(0)
+        packed_x = pack_padded_sequence(x, x_lens.cpu(), batch_first=True, enforce_sorted=False)
+        packed_x, _ = self.gru(packed_x)
+        x, x_lens = pad_packed_sequence(packed_x, batch_first=True)
+        x = x[torch.arange(len(x_lens)), (x_lens-1), :]
+        return x
 
     @staticmethod
     def calculate_post_conv_lengths(lengths, n_convs=1, kernel_size=3, stride=2, pad=1):
@@ -629,7 +632,10 @@ class Conv2DReLUNorm(torch.nn.Module):
         self.norm = torch.nn.LayerNorm(out_channels)
         self.dropout = torch.nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        if x_mask is not None:
+            x = x * x_mask
+            
         # bhwc -> bchw
         x = x.contiguous().permute(0, 3, 1, 2)
         x = F.relu(self.conv(x))
@@ -673,10 +679,9 @@ class StyleAttention(NeuralModule):
     def forward(self, inputs):
         bs = inputs.size(0)
         query = inputs.unsqueeze(1)
-        key = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
-        value = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
+        tokens = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
 
-        style_emb, _ = self.mha(query=query, key=key, value=value,)
+        style_emb, _ = self.mha(query=query, key=tokens, value=tokens)
         style_emb = style_emb.squeeze(1)
         return style_emb
 
