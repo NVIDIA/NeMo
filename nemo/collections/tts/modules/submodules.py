@@ -419,16 +419,16 @@ class WaveNet(torch.nn.Module):
 
 
 class ConditionalLayerNorm(torch.nn.Module):
-    def __init__(self, normalized_shape, spk_emb_dim, eps=1e-5, bias=True, condition=False):
+    def __init__(self, normalized_shape, condition_dim, eps=1e-5, bias=True, condition=False):
         super(ConditionalLayerNorm, self).__init__()
         self.normalized_shape = normalized_shape
         self.eps = eps
-        self.spk_emb_dim = spk_emb_dim
+        self.condition_dim = condition_dim
         self.condition = condition
 
         if condition:
-            self.weight = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
-            self.bias = torch.nn.Linear(spk_emb_dim, normalized_shape, bias=bias)
+            self.weight = torch.nn.Linear(condition_dim, normalized_shape, bias=bias)
+            self.bias = torch.nn.Linear(condition_dim, normalized_shape, bias=bias)
             torch.nn.init.constant_(self.weight.weight, 0.0)
             torch.nn.init.constant_(self.bias.weight, 0.0)
             if bias:

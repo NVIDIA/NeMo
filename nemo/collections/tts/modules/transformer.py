@@ -70,7 +70,7 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition=condition_lnorm)
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -111,7 +111,7 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = ConditionalLayerNorm(d_model, spk_emb_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition=condition_lnorm)
 
     def forward(self, inp, attn_mask=None, conditioning=None):
         return self._forward(inp, attn_mask, conditioning)

@@ -85,10 +85,10 @@ def average_features(pitch, durs):
 
 
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, spk_emb_dim=384, condition_lnorm=False):
+    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_lnorm=False):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = ConditionalLayerNorm(out_channels, spk_emb_dim=spk_emb_dim, condition=condition_lnorm)
+        self.norm = ConditionalLayerNorm(out_channels, condition_dim=condition_dim, condition=condition_lnorm)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal, conditioning=None):
@@ -116,7 +116,7 @@ class TemporalPredictor(NeuralModule):
                     filter_size,
                     kernel_size=kernel_size,
                     dropout=dropout,
-                    spk_emb_dim=input_size,
+                    condition_dim=input_size,
                     condition_lnorm=condition_lnorm,
                 )
             )
