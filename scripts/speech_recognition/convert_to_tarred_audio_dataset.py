@@ -332,7 +332,7 @@ class ASRTarredDatasetBuilder:
             sharded_manifests_dir = target_dir + '/sharded_manifests'
             if not os.path.exists(sharded_manifests_dir):
                 os.makedirs(sharded_manifests_dir)
-                
+
             for manifest in new_entries_list:
                 shard_id = manifest[0]['shard_id']
                 new_manifest_shard_path = os.path.join(sharded_manifests_dir, f'manifest_{shard_id}.json')
