@@ -27,11 +27,11 @@ The input manifest must be a manifest json file, where each line is a Python dic
 To run the code with ASR+VAD default settings:
 
 ```bash
-python speech_to_text_with_vad.py \
+python speech_to_text_with_segment_vad.py \
     manifest_filepath=/PATH/TO/MANIFEST.json \
     vad_model=vad_multilingual_marblenet \
     asr_model=stt_en_conformer_ctc_large \
-    vad_config=../conf/vad/vad_inference_postprocess.yaml
+    vad_config=../conf/vad/vad_inference_postprocessing.yaml
 ```
 
 To use only ASR and disable VAD, set `vad_model=None` and `use_rttm=False`.
@@ -40,13 +40,15 @@ To use only VAD, set `asr_model=None` and specify both `vad_model` and `vad_conf
 
 To enable profiling, set `profiling=True`, but this will significantly slow down the program.
 
-To use or disable feature masking, set `use_rttm` to `True` or `False`.
+To use or disable feature masking/droping based on RTTM files, set `use_rttm` to `True` or `False`. 
+There are two ways to use RTTM files, either by masking the features (`rttm_mode=mask`) or by dropping the features (`rttm_mode=drop`).
+For audios that have long non-speech audios between speech segments, dropping frames is recommended.
 
 To normalize feature before masking, set `normalize=pre_norm`, 
 and set `normalize=post_norm` for masking before normalization.
 
 To use a specific value for feature masking, set `feat_mask_val` to the desired value. 
-Default is `feat_mask_val=None`, where -16.530 will be used for `post_norm` and 0 will be used for `pre_norm`.
+Default is `feat_mask_val=None`, where -16.635 will be used for `post_norm` and 0 will be used for `pre_norm`.
 
 See more options in the `InferenceConfig` class.
 """
@@ -100,12 +102,12 @@ class InferenceConfig:
     audio_dir: Optional[str] = None
 
     use_rttm: bool = True  # whether to use RTTM
+    rttm_mode: str = "mask"  # how to use RTTM files, choices=[`mask`, `drop`]
     feat_mask_val: Optional[float] = None  # value used to mask features based on RTTM, set None to use defaults
     normalize: Optional[
         str
-    ] = "post_norm"  # whether and where to normalize feature, choices=[None, `pre_norm`, `post_norm`]
+    ] = "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
     normalize_type: str = "per_feature"  # how to determine mean and std used for normalization
-    use_pure_noise: bool = False  # whether input is pure noise or not.
 
     profiling: bool = False  # whether to enable pytorch profiling
 
@@ -499,7 +501,10 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
             if cfg.use_rttm:
                 vad_tag = Path(manifest_filepath).stem
                 vad_tag = vad_tag[len("temp_manifest_vad_rttm_") :]
-                tag += f"-mask{cfg.feat_mask_val}-{vad_tag}"
+                if cfg.rttm_mode == "mask":
+                    tag += f"-mask{cfg.feat_mask_val}-{vad_tag}"
+                else:
+                    tag += f"-dropframe-{vad_tag}"
             cfg.output_filename = cfg.manifest_filepath.replace('.json', f'-{Path(cfg.asr_model).stem}-{tag}.json')
         cfg.output_filename = Path(cfg.output_dir) / Path(cfg.output_filename).name
 
@@ -509,10 +514,11 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         "normalize": cfg.normalize,
         "normalize_type": cfg.normalize_type,
         "use_rttm": cfg.use_rttm,
+        "rttm_mode": cfg.rttm_mode,
         "feat_mask_val": cfg.feat_mask_val,
         "frame_unit_time_secs": cfg.frame_unit_time_secs,
     }
-    logging.info(f"use_rttm = {cfg.use_rttm}")
+    logging.info(f"use_rttm = {cfg.use_rttm}, rttm_mode = {cfg.rttm_mode}, feat_mask_val = {cfg.feat_mask_val}")
     if hasattr(asr_model, "tokenizer"):
         dataset = feature_to_text_dataset.get_bpe_dataset(config=data_config, tokenizer=asr_model.tokenizer)
     else:
@@ -562,9 +568,16 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     # Save output to manifest
     input_manifest_data = read_manifest(manifest_filepath)
     manifest_data = read_manifest(cfg.manifest_filepath)
+
+    if "text" not in manifest_data[0]:
+        has_groundtruth = False
+    else:
+        has_groundtruth = True
+
     groundtruth = []
     for i in range(len(manifest_data)):
-        groundtruth.append(manifest_data[i]["text"])
+        if has_groundtruth:
+            groundtruth.append(manifest_data[i]["text"])
         manifest_data[i]["pred_text"] = hypotheses[i]
         manifest_data[i]["feature_file"] = input_manifest_data[i]["feature_file"]
         if "rttm_file" in input_manifest_data[i]:
@@ -572,19 +585,19 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
 
     write_manifest(cfg.output_filename, manifest_data)
 
-    if cfg.use_pure_noise:
+    if not has_groundtruth:
         hypotheses = " ".join(hypotheses)
         words = hypotheses.split()
         chars = "".join(words)
         logging.info("-----------------------------------------")
-        logging.info(f"Number of hallucinated characters={len(chars)}")
-        logging.info(f"Number of hallucinated words={len(words)}")
-        logging.info(f"Concatenated predictions: {hypotheses}")
+        logging.info(f"Number of generated characters={len(chars)}")
+        logging.info(f"Number of generated words={len(words)}")
         logging.info("-----------------------------------------")
     else:
         wer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth)
+        cer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth, use_cer=True)
         logging.info("-----------------------------------------")
-        logging.info(f"WER={wer_score*100:.2f}")
+        logging.info(f"WER={wer_score*100:.2f}, CER={cer_score*100:.2f}")
         logging.info("-----------------------------------------")
 
     logging.info(f"ASR output saved at {cfg.output_filename}")
