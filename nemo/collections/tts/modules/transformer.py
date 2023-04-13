@@ -169,7 +169,9 @@ class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
         super(TransformerLayer, self).__init__()
 
         self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_lnorm=condition_lnorm, **kwargs)
-        self.pos_ff = PositionwiseConvFF(d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_lnorm=condition_lnorm)
+        self.pos_ff = PositionwiseConvFF(
+            d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_lnorm=condition_lnorm
+        )
 
     def forward(self, dec_inp, mask=None, conditioning=None):
         output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2), conditioning=conditioning)
