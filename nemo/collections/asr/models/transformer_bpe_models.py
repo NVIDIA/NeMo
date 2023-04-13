@@ -29,18 +29,20 @@ from torch.utils.data import ChainDataset, DataLoader
 from tqdm.auto import tqdm
 from sacrebleu import corpus_bleu
 
+import editdistance
+
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.features import normalize_batch
+from nemo.collections.asr.parts.features import normalize_batch, clean_spectrogram_batch
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.data.data_utils.data_preprocessing import bitext_collate_fn
-from nemo.collections.tts.models import FastPitchModel
+from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
 
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import (
@@ -155,6 +157,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self._cfg.tts_model.model_path,
             map_location="cpu"
         ).eval()
+        self.enhancer_model = None
+        if self._cfg.tts_model.get("enhancer_path", False):
+            self.enhancer_model = SpectrogramEnhancerModel.restore_from(
+                self._cfg.tts_model.enhancer_path,
+                map_location="cpu"
+            ).eval()
         with open(self._cfg.tts_model.speakers_path, "r") as f:
             self.speakers = sorted(map(int, f.read().split()))
 
@@ -660,8 +668,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             speaker = torch.tensor([speaker_id]).to(src_ids.device)
             signal, signal_len, *_ = self.tts_model(
                 text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
+            if self.enhancer_model is not None:
+                signal = self.enhancer_model.forward(input_spectrograms=signal, lengths=signal_len)
             transcript_len = tgt_mask.sum(dim=-1)
             signal = normalize_batch(signal, signal_len, self._cfg.preprocessor["normalize"])[0]
+            signal = clean_spectrogram_batch(signal, signal_len)
 
         ctc_log_probs, transf_log_probs, encoded_len, predictions, enc_states, enc_mask = self.forward(
             processed_signal=signal,
@@ -670,12 +681,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             transcript_length=transcript_len,
         )
 
-        ctc_loss = self.ctc_loss(
-            log_probs=ctc_log_probs,
-            targets=transcript,
-            input_lengths=encoded_len,
-            target_lengths=transcript_len
-        )
+        ctc_loss = 0 #self.ctc_loss(
+        #    log_probs=ctc_log_probs,
+        #    targets=transcript,
+        #    input_lengths=encoded_len,
+        #    target_lengths=transcript_len
+        #)
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
         loss_value = self.ctc_coef * ctc_loss + (1 - self.ctc_coef) * transf_loss
 
@@ -827,11 +838,20 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
                 sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
                 sb_score = sacre_bleu.score * self.world_size
+
+                wer_scores, wer_words = 0, 0
+                for h, r in zip(_translations, _ground_truths):
+                    wer_words += len(r.split())
+                    wer_scores += editdistance.eval(h.split(), r.split())
+                wer_score = 1.0 * wer_scores * self.world_size / wer_words
+
             else:
                 sb_score = 0.0
+                wer_score = 0.0
 
             self.log(f"{eval_mode}_loss", eval_loss, sync_dist=True)
             self.log(f"{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
+            self.log(f"{eval_mode}_WER", wer_score, sync_dist=True)
             self.val_loss.reset()
             
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
