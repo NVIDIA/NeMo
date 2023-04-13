@@ -170,14 +170,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
-    @property
-    def model(self):
-        if isinstance(self._model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self._model]
-        elif isinstance(self._model, Float16Module):
-            return self._model.module
+    def get_gpt_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
         else:
-            return self._model
+            return [self.model]
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -1030,10 +1029,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_layers_per_pipeline = None
 
         # Reset model parameters.
-        self.model.language_model.encoder.activations_checkpoint_granularity = None
-        self.model.language_model.encoder.activations_checkpoint_method = None
-        self.model.language_model.encoder.activations_checkpoint_num_layers = None
-        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.activations_checkpoint_granularity = None
+            module.language_model.encoder.activations_checkpoint_method = None
+            module.language_model.encoder.activations_checkpoint_num_layers = None
+            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
         """ Restores the activation checkpointing parameters using the values saved by  
@@ -1047,12 +1047,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
 
         # Restore model parameters.
-        self.model.language_model.encoder.activations_checkpoint_granularity = self.last_checkpointing_granularity
-        self.model.language_model.encoder.activations_checkpoint_method = self.last_checkpointing_method
-        self.model.language_model.encoder.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
-        self.model.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
-            self.last_activations_checkpoint_layers_per_pipeline
-        )
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.activations_checkpoint_granularity = self.last_checkpointing_granularity
+            module.language_model.encoder.activations_checkpoint_method = self.last_checkpointing_method
+            module.language_model.encoder.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+                self.last_activations_checkpoint_layers_per_pipeline
+            )
 
     def _reset_sequence_parallelism_args(self):
         """ Disables sequence parallelism completely and saves the values so that 
@@ -1066,7 +1067,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.sequence_parallel = None
 
         # Reset model parameters.
-        self.model.language_model.encoder.sequence_parallel = None
+        
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
         """ Restores the sequence parallelism parameters using the values saved by  
@@ -1077,4 +1080,5 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
-        self.model.language_model.encoder.sequence_parallel = self.last_sequence_parallel
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.sequence_parallel = self.last_sequence_parallel
