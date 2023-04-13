@@ -333,7 +333,7 @@ class NLPDDPStrategy(DDPStrategy):
         if not fs.isdir(checkpoint_path):
             raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
 
-        sharded_state_dict = self.lightning_module.sharded_state_dict
+        sharded_state_dict = self.lightning_module.sharded_state_dict()
 
         sharded_state_dict = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict, checkpoint_dir=checkpoint_path

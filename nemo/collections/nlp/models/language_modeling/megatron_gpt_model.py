@@ -1028,30 +1028,39 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     #     else:
     #         self.model.load_state_dict(state_dict['model'], strict=strict)
 
-    def on_load_checkpoint(self, checkpoint) -> None:
-        """LightningModule hook:
-        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+    # def on_load_checkpoint(self, checkpoint) -> None:
+    #     """LightningModule hook:
+    #     https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
 
-        We use this hook to call load_state_dict for GPTModel
-        """
-        if isinstance(self.model, list):
-            for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-        else:
-            self.model.load_state_dict(checkpoint['model'], strict=True)
+    #     We use this hook to call load_state_dict for GPTModel
+    #     """
+    #     if isinstance(self.model, list):
+    #         for i in range(len(self.model)):
+    #             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+    #             self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
+    #         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+    #     else:
+    #         self.model.load_state_dict(checkpoint['model'], strict=True)
 
-    @property
-    def sharded_state_dict(self) -> Dict[str, Any]:
+    def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
         sharded_state_dict = {}
+        # if isinstance(self.model, list):
+        #     for i in range(len(self.model)):
+        #         parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+        #         sharded_state_dict[f'model{i}'] = self.model[i].sharded_state_dict()
+        #     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        # else:
+        #     sharded_state_dict[f'model'] = self.model.sharded_state_dict()
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                sharded_state_dict[f'model{i}'] = self.model[i].sharded_state_dict()
+                model_i_prefix = f'{prefix}model_{i}.'  # if prefix else f'model_{i}.'
+                model_i_sharded_state_dict = self.model[i].sharded_state_dict(prefix=key)
+                sharded_state_dict[model_i_sharded_state_dict.keys()[0]] = model_i_sharded_state_dict.values()[0]
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            sharded_state_dict[f'model'] = self.model.sharded_state_dict()
+            key = f'{prefix}model.'  # if prefix else 'model.'
+            sharded_state_dict = self.model.sharded_state_dict(prefix=key)
 
         return sharded_state_dict
 
