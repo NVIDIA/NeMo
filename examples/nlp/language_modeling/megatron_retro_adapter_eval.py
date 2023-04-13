@@ -191,7 +191,7 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
-        num_neighbors=cfg.retrieval_service.neighbors+1,
+        num_neighbors=int(cfg.retrieval_service.neighbors)+1,
         retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
     )
 
