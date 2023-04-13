@@ -60,11 +60,11 @@ import contextlib
 import json
 import os
 import pickle
+import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import tempfile
 import editdistance
 import numpy as np
 import torch
