@@ -48,7 +48,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import ConditionalLayerNorm
+from nemo.collections.tts.modules.submodules import LayerNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
@@ -90,7 +90,7 @@ class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     ):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = ConditionalLayerNorm(out_channels, condition_dim=condition_dim, condition=condition_lnorm)
+        self.norm = LayerNorm(out_channels, condition_dim=condition_dim if condition_lnorm else None)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal, conditioning=None):

@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import ConditionalLayerNorm, LinearNorm
+from nemo.collections.tts.modules.submodules import LayerNorm, LinearNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
@@ -70,7 +70,7 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = LayerNorm(d_model, condition_dim=d_model if condition_lnorm else None)
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -111,7 +111,7 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition=condition_lnorm)
+        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model if condition_lnorm else None)
 
     def forward(self, inp, attn_mask=None, conditioning=None):
         return self._forward(inp, attn_mask, conditioning)

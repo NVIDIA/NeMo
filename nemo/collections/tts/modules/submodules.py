@@ -418,38 +418,28 @@ class WaveNet(torch.nn.Module):
         return self.end(output)
 
 
-class ConditionalLayerNorm(torch.nn.Module):
-    def __init__(self, normalized_shape, condition_dim, eps=1e-5, bias=True, condition=False):
-        super(ConditionalLayerNorm, self).__init__()
-        self.normalized_shape = normalized_shape
-        self.eps = eps
-        self.condition_dim = condition_dim
-        self.condition = condition
+class LayerNorm(torch.nn.LayerNorm):
+    def __init__(self, normalized_shape, condition_dim=None):
+        self.condition = condition_dim != None
+        super().__init__(normalized_shape, elementwise_affine=not self.condition)
 
-        if condition:
-            self.weight = torch.nn.Linear(condition_dim, normalized_shape, bias=bias)
-            self.bias = torch.nn.Linear(condition_dim, normalized_shape, bias=bias)
-            torch.nn.init.constant_(self.weight.weight, 0.0)
-            torch.nn.init.constant_(self.bias.weight, 0.0)
-            if bias:
-                torch.nn.init.constant_(self.weight.bias, 1.0)
-                torch.nn.init.constant_(self.bias.bias, 0.0)
-        else:
-            self.weight = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
-            self.bias = torch.nn.Parameter(torch.empty((self.normalized_shape,)))
-
+        if self.condition:
+            self.cond_weight = torch.nn.Linear(condition_dim, normalized_shape)
+            self.cond_bias = torch.nn.Linear(condition_dim, normalized_shape)
+            self.init_parameters()
+            
+    def init_parameters(self):
+        torch.nn.init.constant_(self.cond_weight.weight, 0.0)
+        torch.nn.init.constant_(self.cond_weight.bias, 1.0)
+        torch.nn.init.constant_(self.cond_bias.weight, 0.0)
+        torch.nn.init.constant_(self.cond_bias.bias, 0.0)
+        
     def forward(self, inp, conditioning=None):
-
+        inp = super().forward(inp)
+        
         # Normalize along channel
-        if conditioning is not None and self.condition:
-            inp = F.layer_norm(inp, normalized_shape=(self.normalized_shape,), eps=self.eps)
-            scale = self.weight(conditioning)
-            bias = self.bias(conditioning)
-            inp *= scale
-            inp += bias
-        else:
-            inp = F.layer_norm(
-                inp, normalized_shape=(self.normalized_shape,), weight=self.weight, bias=self.bias, eps=self.eps
-            )
-
+        if self.condition and conditioning is not None: 
+            inp *= self.cond_weight(conditioning)
+            inp += self.cond_bias(conditioning)
+            
         return inp
