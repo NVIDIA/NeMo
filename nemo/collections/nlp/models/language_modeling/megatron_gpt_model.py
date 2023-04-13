@@ -1067,7 +1067,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.sequence_parallel = None
 
         # Reset model parameters.
-        
+
         for module in self.get_gpt_module_list():
             module.language_model.encoder.sequence_parallel = None
 
