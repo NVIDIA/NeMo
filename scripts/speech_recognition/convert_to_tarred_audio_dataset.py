@@ -176,7 +176,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--shard_manifests",
-    action='store_false',
+    action='store_true',
     help="Whether or not to write sharded manifests along with the aggregated one.",
 )
 parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
@@ -191,6 +191,7 @@ class ASRTarredDatasetConfig:
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
     sort_in_shards: bool = True
+    shard_manifests: bool = True
     keep_files_together: bool = False
 
 
@@ -330,7 +331,7 @@ class ASRTarredDatasetBuilder:
         if config.shard_manifests:
             for manifest in new_entries_list:
                 shard_id = manifest[0]['shard_id']
-                new_manifest_shard_path = os.path.join(target_dir, f'manifest_{shard_id}.json')
+                new_manifest_shard_path = os.path.join(target_dir + '/sharded_manifests', f'manifest_{shard_id}.json')
                 with open(new_manifest_shard_path, 'w') as m2:
                     for entry in manifest:
                         json.dump(entry, m2)
@@ -649,6 +650,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            shard_manifests=args.shard_manifests,
             keep_files_together=args.keep_files_together,
         )
         metadata.dataset_config = dataset_cfg
@@ -669,6 +671,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            shard_manifests=args.shard_manifests,
             keep_files_together=args.keep_files_together,
         )
         builder.configure(config)
@@ -696,6 +699,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
         metadata.dataset_config.shuffle = args.shuffle
         metadata.dataset_config.shuffle_seed = args.shuffle_seed
         metadata.dataset_config.sort_in_shards = args.sort_in_shards
+        metadata.dataset_config.shard_manifests = args.shard_manifests
 
         builder.configure(metadata.dataset_config)
 
