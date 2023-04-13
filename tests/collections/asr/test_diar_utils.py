@@ -568,6 +568,7 @@ class TestSpeakerClustering:
     """
     Test speaker clustering module
     """
+
     @pytest.mark.unit
     @pytest.mark.parametrize("cuda", [True, False])
     def test_offline_clus_script_save_load(self, cuda):
