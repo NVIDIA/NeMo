@@ -520,9 +520,7 @@ def get_audio_to_text_char_dataset_from_config(
             return None
         if config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
-                logging.warning(
-                    f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}"
-                )
+                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
             else:
                 if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
@@ -620,9 +618,7 @@ def get_audio_to_text_bpe_dataset_from_config(
 
         if config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
-                logging.warning(
-                    f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}"
-                )
+                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
             else:
                 if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
