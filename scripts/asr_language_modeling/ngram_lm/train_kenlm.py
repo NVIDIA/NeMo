@@ -143,10 +143,11 @@ def main():
 
             cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
             encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
-            if cached_files:
-                if cached_files[0] != encoded_train_file:
-                    os.rename(cached_files[0], encoded_train_file)
-                    logging.info("Rename", cached_files[0], "to", encoded_train_file)
+            if (
+                cached_files and cached_files[0] != encoded_train_file
+            ):  # cached_files exists but has another file name: f"_{file_num}.tmp.txt"
+                os.rename(cached_files[0], encoded_train_file)
+                logging.info("Rename", cached_files[0], "to", encoded_train_file)
 
             encoded_train_files.append(encoded_train_file)
 

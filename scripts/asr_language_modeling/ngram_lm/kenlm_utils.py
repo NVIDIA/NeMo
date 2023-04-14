@@ -153,7 +153,7 @@ def read_train_file(
     lines_read = 0
     text_dataset, lang_dataset = [], []
     punctuation_capitalization = PunctuationCapitalization('.,?')
-    if path[-8:] == '.json.gz':
+    if path[-8:] == '.json.gz':  # for Common Crawl dataset
         fin = gzip.open(path, 'r')
     else:
         fin = open(path, 'r', encoding='utf-8')
@@ -166,7 +166,7 @@ def read_train_file(
     for line in reader:
         lang = None
         if line:
-            if path[-8:] == '.json.gz':
+            if path[-8:] == '.json.gz':  # for Common Crawl dataset
                 line = json.loads(line.decode('utf-8'))['text']
             elif path.endswith('.json'):
                 jline = json.loads(line)
