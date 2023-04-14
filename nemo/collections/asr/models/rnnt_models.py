@@ -217,6 +217,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
+        verbose: bool = True,
     ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -233,6 +234,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            verbose: (bool) whether to display tqdm progress bar
         Returns:
             Returns a tuple of 2 items -
             * A list of greedy transcript texts / Hypothesis
@@ -283,7 +285,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=True):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -470,8 +472,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,

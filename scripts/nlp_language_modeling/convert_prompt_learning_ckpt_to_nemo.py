@@ -19,6 +19,9 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
+    MegatronT5PromptLearningModel,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
@@ -26,11 +29,13 @@ from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 """
 This is the script to convert the p-tuning PTL checkpoint file to nemo file for evaluation. 
@@ -83,9 +88,18 @@ def main(cfg) -> None:
         app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
         app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model: MegatronGPTPromptLearningModel = MegatronGPTPromptLearningModel.load_from_checkpoint(
-            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
-        )
+
+        # check model type
+        if cfg.model_type.lower() == 't5':
+            model: MegatronT5PromptLearningModel = MegatronT5PromptLearningModel.load_from_checkpoint(
+                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+            )
+        elif cfg.model_type.lower() == 'gpt':
+            model: MegatronGPTPromptLearningModel = MegatronGPTPromptLearningModel.load_from_checkpoint(
+                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+            )
+        else:
+            raise ValueError("Model Type Not Supported!")
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 

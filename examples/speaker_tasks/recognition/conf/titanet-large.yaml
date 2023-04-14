@@ -1,4 +1,4 @@
-name: &name "TitaNet"
+name: &name "TitaNet-L"
 sample_rate: &sample_rate 16000
 
 model:
@@ -14,9 +14,9 @@ model:
     augmentor:
       noise:
         manifest_path: null
-        prob: 0.3
+        prob: 0.5
         min_snr_db: 0
-        max_snr_db: 30
+        max_snr_db: 15
 
       speed:
         prob: 0.3
@@ -137,7 +137,8 @@ model:
   optim:
     name: sgd
     lr: .006 #(original titanet-large was trained with 0.08 lr)
-    weight_decay: 0.001
+    weight_decay: 0.0002
+    momentum: 0.9
 
     # scheduler setup
     sched:

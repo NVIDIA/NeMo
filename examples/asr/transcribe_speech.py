@@ -15,7 +15,7 @@
 import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import pytorch_lightning as pl
 import torch
@@ -35,7 +35,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -61,6 +60,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
+  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available 
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
@@ -106,7 +106,9 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-    channel_selector: Optional[int] = None  # Used to select a single channel from multi-channel files
+    channel_selector: Optional[
+        Union[int, str]
+    ] = None  # Used to select a single channel from multichannel audio, or use average across channels
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
@@ -128,6 +130,7 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
+    allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
     audio_type: str = "wav"
 
@@ -174,14 +177,25 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
             accelerator = 'gpu'
+            map_location = torch.device('cuda:0')
+        elif cfg.allow_mps and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            logging.warning(
+                "MPS device (Apple Silicon M-series GPU) support is experimental."
+                " Env variable `PYTORCH_ENABLE_MPS_FALLBACK=1` should be set in most cases to avoid failures."
+            )
+            device = [0]
+            accelerator = 'mps'
+            map_location = torch.device('mps')
         else:
             device = 1
             accelerator = 'cpu'
+            map_location = torch.device('cpu')
     else:
         device = [cfg.cuda]
         accelerator = 'gpu'
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
-    logging.info(f"Inference will be done on device : {device}")
+        map_location = torch.device(f'cuda:{cfg.cuda}')
+
+    logging.info(f"Inference will be done on device: {map_location}")
 
     asr_model, model_name = setup_model(cfg, map_location)
 

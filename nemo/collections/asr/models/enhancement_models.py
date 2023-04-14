@@ -129,7 +129,6 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                     'input_channel_selector': input_channel_selector,
                     'batch_size': min(batch_size, len(paths2audio_files)),
                     'num_workers': num_workers,
-                    'channel_selector': input_channel_selector,
                 }
 
                 # Create output dir if necessary
@@ -204,8 +203,12 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,

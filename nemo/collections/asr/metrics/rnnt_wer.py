@@ -14,12 +14,13 @@
 
 import copy
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
@@ -193,6 +194,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
+
+        # Convert dataclass to config object
+        if is_dataclass(decoding_cfg):
+            decoding_cfg = OmegaConf.structured(decoding_cfg)
+
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.num_extra_outputs = joint.num_extra_outputs
@@ -355,6 +361,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                 softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
+                hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
             )
 
         else:
@@ -1051,6 +1061,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
         super(RNNTDecoding, self).__init__(
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
         )
+
+        if isinstance(self.decoding, beam_decode.BeamRNNTInfer):
+            self.decoding.set_decoding_type('char')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """

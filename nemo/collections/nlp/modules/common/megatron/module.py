@@ -21,13 +21,13 @@ from torch.nn.parameter import Parameter
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
@@ -44,12 +44,11 @@ class MegatronModule(torch.nn.Module):
     for pipelining."""
 
     def __init__(self, share_token_embeddings=True):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super(MegatronModule, self).__init__()
-
         self.share_token_embeddings = share_token_embeddings
 
     def word_embeddings_weight(self):
@@ -161,7 +160,7 @@ class MegatronModule(torch.nn.Module):
     def sync_initial_word_embeddings(self):
 
         if torch.distributed.is_initialized():
-            if parallel_state.is_rank_in_embedding_group():
+            if parallel_state.is_rank_in_embedding_group() and self.share_token_embeddings:
                 torch.distributed.all_reduce(
                     self.word_embeddings_weight().data, group=parallel_state.get_embedding_group()
                 )
@@ -256,9 +255,9 @@ def float16_to_fp32(val):
 
 class Float16Module(MegatronModule):
     def __init__(self, module, precision):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__()
         self.precision = precision

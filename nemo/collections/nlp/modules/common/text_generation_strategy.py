@@ -21,14 +21,25 @@ from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 try:
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+
+# the text representation of eos_id, it applies for all tokenizers
+END_OF_SEQ = '<|endoftext|>'
 
 
 class TextGenerationStrategy:
@@ -41,27 +52,18 @@ class TextGenerationStrategy:
         self.model.eval()
 
     def forward_step(self, batch, tensor_shape):
+        fwd_bwd_function = get_forward_backward_func()
 
-        if self.model.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            output_tensor = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.model.get_forward_output_only_func(),
-                batch=batch,
-                model=self.forward_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                dtype=self.model.autocast_dtype,
-                sync_batch_comm=self.model.cfg.get('sync_batch_comm', False),
-            )
-        else:
-            output_tensor = forward_backward_no_pipelining(
-                forward_step_func=self.model.get_forward_output_only_func(),
-                batch=batch,
-                model=self.forward_model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                dtype=self.model.autocast_dtype,
-                sync_batch_comm=self.model.cfg.get('sync_batch_comm', False),
-            )
+        output_tensor = fwd_bwd_function(
+            forward_step_func=self.model.get_forward_output_only_func(),
+            data_iterator=batch,
+            model=[self.forward_model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            dtype=self.model.autocast_dtype,
+        )
+
         return output_tensor
 
     def tokenize_batch(self, sentences, max_len, add_BOS):
@@ -131,6 +133,36 @@ class TextGenerationStrategy:
             context_length (int): the new token position in the tokens
         """
         pass
+
+    def end_of_generation_condition(
+        self, tokens: torch.Tensor, prev: torch.Tensor, eod_id: int, end_strings: List[str]
+    ) -> torch.Tensor:
+        """
+        return whether the generation should stop based on the previous token
+        Args:
+            tokens (torch.Tensor): the generated tokens so far
+            prev  (torch.Tensor): the previous token
+            eod_id (int): the end of document token id
+            end_strings (List[str]): the list of end of generation strings
+        returns:
+            a boolean tensor indicating whether the generation should stop
+        """
+        if len(end_strings) == 1 and end_strings[0] == END_OF_SEQ:
+            return prev == eod_id
+        else:
+            tokenizer = self.model.tokenizer
+            conditions = []
+            for p, token_item in zip(prev, tokens):
+                text = tokenizer.ids_to_text(token_item.tolist())
+                conditions.append(
+                    any(
+                        [
+                            p.item() == eod_id if end_string == END_OF_SEQ else text.endswith(end_string)
+                            for end_string in end_strings
+                        ]
+                    )
+                )
+            return torch.tensor(conditions, dtype=torch.bool, device=tokens.device)
 
     def post_generation_process(self, output):
         """

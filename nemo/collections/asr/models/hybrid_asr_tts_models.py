@@ -37,7 +37,7 @@ from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
 from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
 from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
@@ -339,9 +339,9 @@ class ASRWithTTSModel(ASRModel):
         """Test epoch end hook for ASR model"""
         return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, verbose: bool = True) -> List[str]:
         """Transcribe audio data using ASR model"""
-        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
+        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size, verbose=verbose)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """Setup multiple validation data for ASR model"""
@@ -402,7 +402,11 @@ class ASRWithTTSModel(ASRModel):
         with torch.no_grad():
             spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
             if self.enhancer_model is not None:
-                spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
+                # apply enhancer
+                with typecheck.disable_checks():
+                    # spectrogram_len are of TokenDurationType, enhancer requires LengthsType
+                    # TODO: fix FastPitch model to return LengthsType
+                    spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
             spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
             return spectrogram, spectrogram_len
 
@@ -493,10 +497,14 @@ class ASRWithTTSModel(ASRModel):
         if tts_dataset:
             collate_fn = tts_dataset.collate_fn
         else:
-            if hasattr(asr_dataset, "collate_fn"):
+            if hasattr(asr_dataset, 'collate_fn'):
                 collate_fn = asr_dataset.collate_fn
-            else:
+            elif hasattr(asr_dataset.datasets[0], 'collate_fn'):
+                # support datasets that are lists of entries
                 collate_fn = asr_dataset.datasets[0].collate_fn
+            else:
+                # support datasets that are lists of lists
+                collate_fn = asr_dataset.datasets[0].datasets[0].collate_fn
 
         shuffle = train_data_config.get("shuffle", True) and not dataset_iterable
         self._train_dl = torch.utils.data.DataLoader(

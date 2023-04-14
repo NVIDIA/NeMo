@@ -26,7 +26,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core import adapter_mixins
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, AttnType
     from apex.transformer.utils import divide as safe_divide
 
@@ -38,6 +37,16 @@ except (ImportError, ModuleNotFoundError):
 
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -81,6 +90,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         megatron_legacy=False,
         bias=True,
         headscale=False,
+        position_embedding_type='learned_absolute',
+        multi_query_attention=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
@@ -92,6 +103,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
         self.normalize_attention_scores = normalize_attention_scores
+        self.position_embedding_type = position_embedding_type
+        self.multi_query_attention = multi_query_attention
 
         self.megatron_legacy = megatron_legacy
 
@@ -112,8 +125,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
         )
 
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
         )
 
         # Strided linear layer.
@@ -126,7 +139,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
@@ -138,7 +151,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -149,7 +162,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -164,6 +177,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             kv_channels=kv_channels,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
+            multi_query_attention=multi_query_attention,
             sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
         )
@@ -422,6 +436,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                     # In inference, we compute one token at a time.
                     # Select the correct positional embedding.
                     q_pos_emb = q_pos_emb[end - 1 : end]
+                else:
+                    q_pos_emb = q_pos_emb[:end, :, :, :]
                 k_pos_emb = k_pos_emb[:end, :, :, :]
                 rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
@@ -651,6 +667,7 @@ class CoreAttention(MegatronModule):
         attention_dropout=0.1,
         sequence_parallel=False,
         normalize_attention_scores=True,
+        multi_query_attention=False,
     ):
 
         super(CoreAttention, self).__init__()
@@ -658,6 +675,7 @@ class CoreAttention(MegatronModule):
         self.precision = precision
         self.fp16 = precision == 16
         self.bf16 = precision == 'bf16'
+        self.multi_query_attention = multi_query_attention
 
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = False
@@ -741,28 +759,55 @@ class CoreAttention(MegatronModule):
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
 
-        # [sq, b, np, hn] -> [sq, b * np, hn]
-        query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
-        # [sk, b, np, hn] -> [sk, b * np, hn]
-        key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
+        if self.multi_query_attention:
+            # [sq, b, np, hn] -> [b, np * sq, hn]
+            query_layer = query_layer.permute([1, 2, 0, 3]).reshape(
+                output_size[0], output_size[1] * output_size[2], -1
+            )
 
-        # preallocting input tensor: [b * np, sq, sk]
-        matmul_input_buffer = torch.empty(
-            output_size[0] * output_size[1],
-            output_size[2],
-            output_size[3],
-            dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
-        )
+            # [sk, b, 1, hn] -> [b, hn, sk]
+            key_layer = key_layer.squeeze(2).permute(1, 2, 0)
 
-        # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_input_buffer,
-            query_layer.transpose(0, 1),  # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0,
-            alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
-        )
+            # preallocting input tensor: [b * np, sq, sk]
+            matmul_input_buffer = torch.empty(
+                output_size[0] * output_size[1],
+                output_size[2],
+                output_size[3],
+                dtype=query_layer.dtype,
+                device=torch.cuda.current_device(),
+            )
+
+            # Raw attention scores. [b * np, sq, sk]
+            matmul_result = torch.baddbmm(
+                matmul_input_buffer,
+                query_layer,  # [b * np, sq, hn]
+                key_layer,  # [b * np, hn, sk]
+                beta=0.0,
+                alpha=(1.0 / self.norm_factor),
+            )
+        else:
+            # [sq, b, np, hn] -> [sq, b * np, hn]
+            query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
+            # [sk, b, np, hn] -> [sk, b * np, hn]
+            key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
+
+            # preallocting input tensor: [b * np, sq, sk]
+            matmul_input_buffer = torch.empty(
+                output_size[0] * output_size[1],
+                output_size[2],
+                output_size[3],
+                dtype=query_layer.dtype,
+                device=torch.cuda.current_device(),
+            )
+
+            # Raw attention scores. [b * np, sq, sk]
+            matmul_result = torch.baddbmm(
+                matmul_input_buffer,
+                query_layer.transpose(0, 1),  # [b * np, sq, hn]
+                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+                beta=0.0,
+                alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+            )
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)

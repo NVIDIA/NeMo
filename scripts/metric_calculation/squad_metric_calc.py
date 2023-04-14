@@ -106,6 +106,12 @@ def main():
         help="The text at the end of the prompt, write before the predicted answer. This will be used to find the model's predictions in pred files when the pred file containers both the prompt and prediction.",
         default=None,
     )  # If the pred file only has preditions, just pass none
+    parser.add_argument(
+        '--answer-field',
+        type=str,
+        help="The field in the json file that contains the ground truth tokens",
+        default="answer",
+    )
 
     args = parser.parse_args()
 
@@ -124,7 +130,7 @@ def main():
         if args.split_string is not None:
             pred_answer = pred_answer.split(args.split_string)[-1].strip()
 
-        true_answers = truth["answer"]
+        true_answers = truth[args.answer_field]
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
 
