@@ -249,8 +249,10 @@ model:
 
   speaker_encoder:
     _target_: nemo.collections.tts.modules.submodules.SpeakerEncoder
-    num_speakers: ${model.n_speakers}
-    embedding_dim: ${model.symbols_embedding_dim}
+    lookup_module:
+      _target_: nemo.collections.tts.modules.submodules.LookupTable
+      num_speakers: ${model.n_speakers}
+      embedding_dim: ${model.symbols_embedding_dim}
     gst_module:
       _target_: nemo.collections.tts.modules.submodules.GlobalStyleToken
       gst_size: ${model.symbols_embedding_dim}
