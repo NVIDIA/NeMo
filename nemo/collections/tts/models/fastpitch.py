@@ -134,7 +134,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.forward_sum_loss_fn = ForwardSumLoss()
             self.bin_loss_fn = BinLoss()
 
-        self.preprocessor = instantiate(self._cfg.preprocessor)
+        self.preprocessor = instantiate(self._cfg.preprocessor)        
         input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
