@@ -32,3 +32,4 @@ server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
 batch_size: 8 
 num_workers: 8
+

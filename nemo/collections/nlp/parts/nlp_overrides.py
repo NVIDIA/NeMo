@@ -230,6 +230,8 @@ class NLPDDPStrategy(DDPStrategy):
             return super(NLPDDPStrategy, self).distributed_sampler_kwargs
 
 
+    
+
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         if not HAVE_APEX:
@@ -241,6 +243,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
         super().__init__()
+
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -380,6 +383,74 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
+class AdapterNLPSaveRestoreConnector(NLPSaveRestoreConnector):
+    def __init__(self,  base_model_path : str, adapter_model_path: Optional[str] = None) -> None:
+        super().__init__()
+        self.base_model_path = base_model_path
+        self.adapter_model_path = adapter_model_path
+
+    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+        if self.adapter_model_path:
+            _adapter_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)  # loading adapter weights
+        else:
+            _adapter_state_dict = {}
+        # We want to load base model's weights from disk .nemo file 
+        # So we need to untar the .nemo if its still tarred
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._unpack_nemo_file(self.base_model_path, tmpdir)
+            model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
+            _base_model_state_dict = torch.load(model_weights_path, map_location)
+        _base_model_state_dict.update(_adapter_state_dict)
+        return _base_model_state_dict
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+
+        Example:
+            ```
+            model = nemo.collections.nlp.models.TextClassification.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.nlp.models.TextClassification)
+            ```
+
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple) or return_config is True:
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+
+        if self.adapter_model_path is None:  # we have this check only for training adapters from scratch
+            adapter_state_dict = instance.get_adapter_state_dict()
+            state_dict.update(adapter_state_dict)
+        self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        return instance
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
