@@ -1,6 +1,10 @@
 **nemo_text_processing**
 ==========================
 
+> **Warning**
+> *TN/ITN is transitioning from [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) repository to a standalone [NVIDIA/NeMo-text-processing](https://github.com/NVIDIA/NeMo-text-processing) repository. All updates and discussions/issues should go to the new repository.*
+
+
 Introduction
 ------------
 
