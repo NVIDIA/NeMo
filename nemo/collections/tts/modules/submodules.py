@@ -25,6 +25,7 @@ from nemo.core.neural_types.elements import EncodedRepresentation, Index, Length
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
+
 SUPPORTED_CONDITION_TYPES = ["add", "concat", "layernorm"]
 
 
@@ -701,20 +702,22 @@ class SpeakerEncoder(torch.nn.Module):
         super(SpeakerEncoder, self).__init__()
         self.lookup_module = torch.nn.Embedding(num_speakers, embedding_dim) if num_speakers > 1 else None
         self.gst_module = gst_module
-        
+
     def forward(self, speaker=None, reference_spec=None, reference_spec_lens=None):
         x = None
-        
+
         # Get Lookup table speaker embedding
         if self.lookup_module is not None and speaker is not None:
             x = self.lookup_module(speaker)
-            
+
         # Get GST based speaker embedding
         if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
             out = self.gst_module(reference_spec, reference_spec_lens)
             x = out if x is None else x + out
         elif self.gst_module is not None and reference_spec is None and reference_spec_lens is None:
-            raise ValueError('You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.')
+            raise ValueError(
+                'You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.'
+            )
         elif self.gst_module is None and reference_spec is not None and reference_spec_lens is not None:
             logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
 
