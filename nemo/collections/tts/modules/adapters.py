@@ -13,14 +13,14 @@
 # limitations under the License.
 
 from typing import List, Optional
+
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.core.classes import adapter_mixins
-
-from nemo.collections.tts.modules.transformer import FFTransformerEncoder, FFTransformerDecoder
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
 from nemo.collections.tts.modules.fastpitch import TemporalPredictor
+from nemo.collections.tts.modules.transformer import FFTransformerDecoder, FFTransformerEncoder
+from nemo.core.classes import adapter_mixins
 
 
 class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
@@ -142,6 +142,6 @@ if adapter_mixins.get_registered_adapter(FFTransformerDecoder) is None:
 
 if adapter_mixins.get_registered_adapter(AlignmentEncoder) is None:
     adapter_mixins.register_adapter(base_class=AlignmentEncoder, adapter_class=AlignmentEncoderAdapter)
-    
+
 if adapter_mixins.get_registered_adapter(TemporalPredictor) is None:
     adapter_mixins.register_adapter(base_class=TemporalPredictor, adapter_class=TemporalPredictorAdapter)

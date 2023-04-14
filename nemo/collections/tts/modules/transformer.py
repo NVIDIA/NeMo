@@ -180,7 +180,7 @@ class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
         if self.is_adapter_available():
             output = self.forward_enabled_adapters(output)
             output *= mask
-            
+
         return output
 
 
