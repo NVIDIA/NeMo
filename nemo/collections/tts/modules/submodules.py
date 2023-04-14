@@ -427,13 +427,6 @@ class WaveNet(torch.nn.Module):
         return self.end(output)
 
 
-def check_support_condition_types(condition_types):
-    support_types = ["add", "concat", "layernorm"]
-    for tp in condition_types:
-        if tp not in support_types:
-            raise ValueError(f"Unknown conditioning type {tp}")
-
-
 class ConditionalLayerNorm(torch.nn.LayerNorm):
     """
     This module is used to condition torch.nn.LayerNorm.
