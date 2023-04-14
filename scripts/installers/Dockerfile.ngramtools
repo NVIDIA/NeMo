@@ -27,4 +27,4 @@ COPY scripts/. /workspace/nemo/scripts/
 
 RUN /bin/bash scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
 
-RUN /bin/bash scripts/installers/install_opengrm.sh
+RUN /bin/bash scripts/installers/install_ngram.sh
