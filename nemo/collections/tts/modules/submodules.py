@@ -23,7 +23,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from nemo.core.classes import NeuralModule, adapter_mixins
 from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-
+from nemo.utils import logging
 
 SUPPORTED_CONDITION_TYPES = ["add", "concat", "layernorm"]
 
@@ -716,5 +716,9 @@ class SpeakerEncoder(torch.nn.Module):
         if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
             out = self.gst_module(reference_spec, reference_spec_lens).unsqueeze(1)
             x = out if x is None else x + out
+        elif self.gst_module is not None and reference_spec is None and reference_spec_lens is None:
+            raise ValueError('You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.')
+        elif self.gst_module is None and reference_spec is not None and reference_spec_lens is not None:
+            logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
 
         return x

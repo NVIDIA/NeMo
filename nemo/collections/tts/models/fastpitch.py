@@ -158,19 +158,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         if speaker_emb_condition_aligner and self.aligner is not None:
             self.aligner.cond_input.condition_types.append("add")
 
-        """Check use both speaker encoder and reference data"""
-        if self._train_dl is not None:
-            if (
-                speaker_encoder is None or speaker_encoder.gst_module is None
-            ) and ReferenceAudio in self._train_dl.dataset.sup_data_types_set:
-                logging.warning('You may add `gst_module` in speaker_encoder to use reference_audio.')
-
-            assert not (
-                speaker_encoder is not None
-                and speaker_encoder.gst_module is not None
-                and ReferenceAudio not in self._train_dl.dataset.sup_data_types_set
-            ), f'You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.'
-
         self.fastpitch = FastPitchModule(
             input_fft,
             output_fft,
