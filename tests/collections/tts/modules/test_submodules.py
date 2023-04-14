@@ -15,7 +15,8 @@
 import pytest
 import torch
 
-from nemo.collections.tts.modules import submodules 
+from nemo.collections.tts.modules import submodules
+
 
 @pytest.mark.unit
 def test_conditional_layer_norm():
@@ -25,7 +26,7 @@ def test_conditional_layer_norm():
     lm = torch.nn.LayerNorm(embedding_dim)
     clm = submodules.ConditionalLayerNorm(embedding_dim)
     assert torch.all(lm(embedding) == clm(embedding))
-    
+
     # Image Example
     N, C, H, W = 20, 5, 10, 10
     image = torch.randn(N, C, H, W)
