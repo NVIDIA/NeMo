@@ -20,7 +20,6 @@ from nemo.collections.tts.models import FastPitchModel
 
 
 class TestSpectrogramSynthesizers:
-
     @pytest.fixture
     def spec_synthesizer(self):
         fastpitch_model = FastPitchModel.from_pretrained("tts_en_fastpitch_multispeaker").eval().to("cpu")

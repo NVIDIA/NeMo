@@ -22,7 +22,6 @@ from nemo.collections.tts.inference.audio_processors import MelSpectrogramProces
 
 
 class TestAudioProcessors:
-
     def setup_class(self):
         self.spec_dim = 80
         audio_mel_processor = AudioToMelSpectrogramPreprocessor(

@@ -20,7 +20,6 @@ from nemo.collections.tts.models import HifiGanModel
 
 
 class TestVocoders:
-
     @pytest.fixture
     def vocoder(self):
         hifigan_model = HifiGanModel.from_pretrained("tts_en_hifitts_hifigan_ft_fastpitch").eval().to("cpu")
