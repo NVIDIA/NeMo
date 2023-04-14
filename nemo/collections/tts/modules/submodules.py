@@ -694,14 +694,14 @@ class LookupTable(torch.nn.Module):
     """
     LookupTable based Speaker Embedding
     """
-    
+
     def __init__(self, num_speakers, embedding_dim):
         super(LookupTable, self).__init__()
         self.table = torch.nn.Embedding(num_speakers, embedding_dim)
 
     def forward(self, speaker):
         return self.table(speaker)
-        
+
 
 class SpeakerEncoder(NeuralModule):
     """
@@ -717,7 +717,7 @@ class SpeakerEncoder(NeuralModule):
         super(SpeakerEncoder, self).__init__()
         self.lookup_module = lookup_module
         self.gst_module = gst_module
-    
+
     @property
     def input_types(self):
         return {
