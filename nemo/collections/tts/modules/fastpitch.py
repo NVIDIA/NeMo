@@ -48,7 +48,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import LayerNorm
+from nemo.collections.tts.modules.submodules import ConditionalInput, ConditionalLayerNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
@@ -86,11 +86,11 @@ def average_features(pitch, durs):
 
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(
-        self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_lnorm=False
+        self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_types=[]
     ):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = LayerNorm(out_channels, condition_dim=condition_dim if condition_lnorm else None)
+        self.norm = ConditionalLayerNorm(out_channels, condition_dim=condition_dim, condition_types=condition_types)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal, conditioning=None):
@@ -107,9 +107,10 @@ class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
 class TemporalPredictor(NeuralModule):
     """Predicts a single float per each temporal location"""
 
-    def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2, condition_lnorm=False):
+    def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2, condition_types=[]):
         super(TemporalPredictor, self).__init__()
-
+        
+        self.cond_input = ConditionalInput(input_size, input_size, condition_types)
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
             self.layers.append(
@@ -119,11 +120,12 @@ class TemporalPredictor(NeuralModule):
                     kernel_size=kernel_size,
                     dropout=dropout,
                     condition_dim=input_size,
-                    condition_lnorm=condition_lnorm,
+                    condition_types=condition_types,
                 )
             )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
-
+        
+        
         # Use for adapter input dimension
         self.filter_size = filter_size
 
@@ -144,7 +146,8 @@ class TemporalPredictor(NeuralModule):
     def forward(self, enc, enc_mask, conditioning=None):
         if conditioning is not None:
             enc = enc + conditioning
-
+            
+        enc = self.cond_input(enc, conditioning)
         out = enc * enc_mask
         out = out.transpose(1, 2)
 
@@ -222,7 +225,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.speaker_emb_condition_prosody = speaker_emb_condition_prosody
         self.speaker_emb_condition_decoder = speaker_emb_condition_decoder
         self.speaker_emb_condition_aligner = speaker_emb_condition_aligner
-
+        
         if n_speakers > 1:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
@@ -317,7 +320,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
         aligner_condition = spk_emb if self.speaker_emb_condition_aligner else None
         decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
-
+        
         # Predict duration
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=prosody_condition)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)

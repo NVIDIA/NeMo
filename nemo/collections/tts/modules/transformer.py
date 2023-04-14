@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import LayerNorm, LinearNorm
+from nemo.collections.tts.modules.submodules import ConditionalLayerNorm, ConditionalInput, LinearNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
@@ -53,7 +53,7 @@ class PositionalEmbedding(nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False, condition_lnorm=False):
+    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False, condition_types=[]):
         super(PositionwiseConvFF, self).__init__()
 
         self.d_model = d_model
@@ -70,7 +70,7 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        self.layer_norm = LayerNorm(d_model, condition_dim=d_model if condition_lnorm else None)
+        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition_types=condition_types)
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -98,7 +98,7 @@ class PositionwiseConvFF(nn.Module):
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False, condition_lnorm=False):
+    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False, condition_types=[]):
         super(MultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -111,7 +111,7 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model if condition_lnorm else None)
+        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition_types=condition_types)
 
     def forward(self, inp, attn_mask=None, conditioning=None):
         return self._forward(inp, attn_mask, conditioning)
@@ -165,12 +165,12 @@ class MultiHeadAttn(nn.Module):
 
 
 class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, condition_lnorm, **kwargs):
+    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, condition_types, **kwargs):
         super(TransformerLayer, self).__init__()
 
-        self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_lnorm=condition_lnorm, **kwargs)
+        self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_types=condition_types, **kwargs)
         self.pos_ff = PositionwiseConvFF(
-            d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_lnorm=condition_lnorm
+            d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_types=condition_types
         )
 
     def forward(self, dec_inp, mask=None, conditioning=None):
@@ -198,7 +198,7 @@ class FFTransformerDecoder(NeuralModule):
         dropatt,
         dropemb=0.0,
         pre_lnorm=False,
-        condition_lnorm=False,
+        condition_types=[],
     ):
         super(FFTransformerDecoder, self).__init__()
         self.d_model = d_model
@@ -208,7 +208,8 @@ class FFTransformerDecoder(NeuralModule):
         self.pos_emb = PositionalEmbedding(self.d_model)
         self.drop = nn.Dropout(dropemb)
         self.layers = nn.ModuleList()
-
+        self.cond_input = ConditionalInput(d_model, d_model, condition_types)
+        
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
@@ -220,7 +221,7 @@ class FFTransformerDecoder(NeuralModule):
                     dropout,
                     dropatt=dropatt,
                     pre_lnorm=pre_lnorm,
-                    condition_lnorm=condition_lnorm,
+                    condition_types=condition_types,
                 )
             )
 
@@ -247,10 +248,11 @@ class FFTransformerDecoder(NeuralModule):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
         inp += pos_emb
-
+        
         if conditioning is not None:
             inp += conditioning
-
+            
+        inp = self.cond_input(inp, conditioning)
         out = self.drop(inp)
 
         for layer in self.layers:
@@ -276,7 +278,7 @@ class FFTransformerEncoder(FFTransformerDecoder):
         n_embed=None,
         d_embed=None,
         padding_idx=0,
-        condition_lnorm=False,
+        condition_types=[],
     ):
         super(FFTransformerEncoder, self).__init__(
             n_layer,
@@ -289,7 +291,7 @@ class FFTransformerEncoder(FFTransformerDecoder):
             dropatt,
             dropemb,
             pre_lnorm,
-            condition_lnorm,
+            condition_types,
         )
 
         self.padding_idx = padding_idx

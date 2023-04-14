@@ -19,7 +19,7 @@ from omegaconf import DictConfig
 from torch import nn
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import ConvNorm
+from nemo.collections.tts.modules.submodules import ConvNorm, ConditionalInput
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel
 from nemo.core.classes import adapter_mixins
 
@@ -28,13 +28,14 @@ class AlignmentEncoder(torch.nn.Module):
     """Module for alignment text and mel spectrogram. """
 
     def __init__(
-        self, n_mel_channels=80, n_text_channels=512, n_att_channels=80, temperature=0.0005,
+        self, n_mel_channels=80, n_text_channels=512, n_att_channels=80, temperature=0.0005, condition_types=[]
     ):
         super().__init__()
         self.temperature = temperature
+        self.cond_input = ConditionalInput(n_text_channels, n_text_channels, condition_types)
         self.softmax = torch.nn.Softmax(dim=3)
         self.log_softmax = torch.nn.LogSoftmax(dim=3)
-
+        
         self.key_proj = nn.Sequential(
             ConvNorm(n_text_channels, n_text_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
             torch.nn.ReLU(),
@@ -156,13 +157,15 @@ class AlignmentEncoder(torch.nn.Module):
             keys (torch.tensor): B x C2 x T2 tensor (text data).
             mask (torch.tensor): B x T2 x 1 tensor, binary mask for variable length entries (True = mask element, False = leave unchanged).
             attn_prior (torch.tensor): prior for attention matrix.
-            conditioning (torch.tensor): B x T2 x 1 conditioning embedding
+            conditioning (torch.tensor): B x 1 x C2 conditioning embedding
         Output:
             attn (torch.tensor): B x 1 x T1 x T2 attention mask. Final dim T2 should sum to 1.
             attn_logprob (torch.tensor): B x 1 x T1 x T2 log-prob attention mask.
         """
         if conditioning is not None:
             keys = keys + conditioning.transpose(1, 2)
+            
+        keys = self.cond_input(key.transpose(1, 2), conditioning)
         keys_enc = self.key_proj(keys)  # B x n_attn_dims x T2
         queries_enc = self.query_proj(queries)  # B x n_attn_dims x T1
 

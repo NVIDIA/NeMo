@@ -416,16 +416,28 @@ class WaveNet(torch.nn.Module):
                 output = output + res_skip_acts
 
         return self.end(output)
+    
+    
+def check_support_condition_types(condition_types):
+    support_types = ["add", "concat", "layernorm"]
+    for tp in condition_types:
+        if tp not in support_types:
+            raise ValueError(f"Unknown conditioning type {tp}")
 
 
-class LayerNorm(torch.nn.LayerNorm):
-    def __init__(self, normalized_shape, condition_dim=None):
-        self.condition = condition_dim != None
-        super().__init__(normalized_shape, elementwise_affine=not self.condition)
+class ConditionalLayerNorm(torch.nn.LayerNorm):
+    """
+    This module is used to condition torch.nn.LayerNorm.
+    If we don't have any conditions, this will be a normal LayerNorm.
+    """
+    def __init__(self, hidden_dim, condition_dim, condition_types=[]):
+        check_support_condition_types(condition_types)
+        self.condition = "layernorm" in condition_types
+        super().__init__(hidden_dim, elementwise_affine=not self.condition)
 
         if self.condition:
-            self.cond_weight = torch.nn.Linear(condition_dim, normalized_shape)
-            self.cond_bias = torch.nn.Linear(condition_dim, normalized_shape)
+            self.cond_weight = torch.nn.Linear(condition_dim, hidden_dim)
+            self.cond_bias = torch.nn.Linear(condition_dim, hidden_dim)
             self.init_parameters()
             
     def init_parameters(self):
@@ -434,12 +446,54 @@ class LayerNorm(torch.nn.LayerNorm):
         torch.nn.init.constant_(self.cond_bias.weight, 0.0)
         torch.nn.init.constant_(self.cond_bias.bias, 0.0)
         
-    def forward(self, inp, conditioning=None):
-        inp = super().forward(inp)
+    def forward(self, signal, conditioning=None):
+        signal = super().forward(signal)
         
         # Normalize along channel
         if self.condition and conditioning is not None: 
-            inp *= self.cond_weight(conditioning)
-            inp += self.cond_bias(conditioning)
+            signal *= self.cond_weight(conditioning)
+            signal += self.cond_bias(conditioning)
             
-        return inp
+        return signal
+
+
+class ConditionalInput(toch.nn.Module):
+    """
+    This module is used to condition any model inputs.
+    If we don't have any conditions, this will be a normal pass.
+    """
+    def __init__(self, hidden_dim, condition_dim, condition_types=[]):
+        check_support_condition_types(condition_types)
+        self.support_types = ["add", "concat"]
+        self.condition_types = [tp for tp in condition_types if tp in self.support_types]        
+        self.hidden_dim = hidden_dim
+        self.condition_dim = condition_dim
+        
+        if "add" in self.condition_types and condition_dim != hidden_dim:
+            self.add_proj = torch.nn.Linear(condition_dim, hidden_dim)
+        
+        if "concat" in self.condition_types:
+            self.concat_proj = torch.nn.Linear(hidden_dim + condition_dim, hidden_dim)
+        
+    def forward(self, signal, conditioning=None):
+        """
+        signal: B x T x C
+        conditioning: B x 1 x C
+        """
+        if len(self.condition_types) > 0 and conditioning is None:
+            raise ValueError('You should add additional data types as conditions e.g. speaker id or reference audio')
+        
+        if "add" in self.condition_types:
+            if self.condition_dim != self.hidden_dim:
+                conditioning = self.add_proj(conditioning)
+            out = signal + conditioning
+            
+        elif "concat" in self.condition_types:
+            conditioning = conditionting.expand_as(signal)
+            out = torch.cat([signal, conditioning])
+            out = self.concat_proj(out)
+            
+        else:
+            out = signal
+            
+        return out
