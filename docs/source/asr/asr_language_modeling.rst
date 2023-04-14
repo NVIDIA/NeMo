@@ -444,3 +444,72 @@ You can then pass this file to your flashlight config object during decoding:
            decoding.beam.flashlight_cfg.boost_path='/path/to/my_boost_file.boost' \
            decoding.beam.flashlight_cfg.beam_size_token = 32 \
            decoding.beam.flashlight_cfg.beam_threshold = 25.0
+
+Combine N-gram Language Models
+==============================
+
+To combine two N-gram language models, you can use the script ngram_merge.py located at 
+`scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
+
+This script merges two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
+You can specify weights (alpha and beta) for each of the models (ngram_a and ngram_b) correspondingly: alpha * ngram_a + beta * ngram_b.
+The script can also calculate the perplexity of the resulting N-gram language model on a test set.
+
+This script supports both character level and BPE level encodings and models which is detected automatically from the type of the model.
+
+To combine two N-gram models, you can use the following command:
+
+.. code-block::
+
+    python ngram_merge.py  --kenlm_bin_path <path to the bin folder of KenLM library> \
+                    --arpa_a <path to the ARPA N-gram model file A> \
+                    --alpha <weight of N-gram model A> \
+                    --arpa_b <path to the ARPA N-gram model file B> \
+                    --beta <weight of N-gram model B> \
+                    --out_path <path to folder to store the output files>
+
+
+
+If you provide --test_file and --tokenizer_model_file, the script will calculate the perplexity of the test set. 
+The result of each step is cached in the temporary file in the --out_path. 
+You can use the --force flag to discard the cache and recalculate everything from scratch.
+
+.. code-block::
+
+    python ngram_merge.py  --kenlm_bin_path <path to the bin folder of KenLM library> \
+                    --arpa_a <path to the ARPA N-gram model file A> \
+                    --alpha <weight of N-gram model A> \
+                    --arpa_b <path to the ARPA N-gram model file B> \
+                    --beta <weight of N-gram model B> \
+                    --out_path <path to folder to store the output files>
+                    --tokenizer_model_file <path to the .model or .nemo file of the model> \
+                    --test_file <path to the test file> \
+                    --symbols <Path to symbols (.syms) file. Could be calculated if it is not provided.> \
+                    --force
+
+
+The following is the list of the arguments for the opengrm script:
+
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| **Argument**         |**Type**| **Default**      | **Description**                                                         |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| kenlm_bin_path       | str    | Required         | The path to the bin folder of KenLM. It is a folder named `bin` under where KenLM is installed. |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| arpa_a               | str    | Required         | Path to the ARPA N-gram model file A                                    |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| alpha                | float  | Required         | Weight of N-gram model A                                                |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| arpa_b               | int    | Required         | Path to the ARPA N-gram model file B                                    |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| beta                 | float  | Required         | Weight of N-gram model B                                                |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| out_path             | str    | Required         | Path for writing temporary and resulting files.                                |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| test_file            | str    | None             | Path to test file to count perplexity if provided.                             |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| symbols              | str    | None             | Path to symbols (.syms) file . Could be calculated if it is not provided. |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| tokenizer_model_file | str    | None             | The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model.    |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| force                | bool   | ``False``        | Whether to recompile and rewrite all files                              |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
