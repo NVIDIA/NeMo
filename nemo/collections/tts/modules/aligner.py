@@ -162,7 +162,7 @@ class AlignmentEncoder(torch.nn.Module):
             attn (torch.tensor): B x 1 x T1 x T2 attention mask. Final dim T2 should sum to 1.
             attn_logprob (torch.tensor): B x 1 x T1 x T2 log-prob attention mask.
         """
-        keys = self.cond_input(key.transpose(1, 2), conditioning)
+        keys = self.cond_input(keys.transpose(1, 2), conditioning)
         keys_enc = self.key_proj(keys)  # B x n_attn_dims x T2
         queries_enc = self.query_proj(queries)  # B x n_attn_dims x T1
 
