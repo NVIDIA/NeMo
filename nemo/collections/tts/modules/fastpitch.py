@@ -271,13 +271,13 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         }
 
     def get_speaker_embedding(self, speaker, reference_spec, reference_spec_lens):
-        """spk_emb: BxD"""
+        """spk_emb: Bx1xD"""
         if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(speaker, reference_spec, reference_spec_lens)
+            spk_emb = self.speaker_encoder(speaker, reference_spec, reference_spec_lens).unsqueeze(1)
         elif self.speaker_emb is not None:
             if speaker is None:
                 raise ValueError('Please give speaker id to get lookup speaker embedding.')
-            spk_emb = self.speaker_emb(speaker)
+            spk_emb = self.speaker_emb(speaker).unsqueeze(1)
         else:
             spk_emb = None
 
@@ -308,7 +308,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         # Calculate speaker embedding
         spk_emb = self.get_speaker_embedding(
             speaker=speaker, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
-        ).unsqueeze(1)
+        )
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
