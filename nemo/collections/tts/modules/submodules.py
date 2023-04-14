@@ -425,8 +425,8 @@ class WaveNet(torch.nn.Module):
                 output = output + res_skip_acts
 
         return self.end(output)
-    
-    
+
+
 def check_support_condition_types(condition_types):
     support_types = ["add", "concat", "layernorm"]
     for tp in condition_types:
