@@ -134,14 +134,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.forward_sum_loss_fn = ForwardSumLoss()
             self.bin_loss_fn = BinLoss()
 
-        self.preprocessor = instantiate(self._cfg.preprocessor)        
+        self.preprocessor = instantiate(self._cfg.preprocessor)
         input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
         energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
         energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
-        
+
         # [TODO] may remove if we change the pre-trained config
         speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)

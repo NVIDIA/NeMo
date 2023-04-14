@@ -490,9 +490,9 @@ class ConditionalInput(torch.nn.Module):
             if self.condition_dim != self.hidden_dim:
                 conditioning = self.add_proj(conditioning)
             signal += conditioning
-            
+
         if "concat" in self.condition_types:
-            conditioning = conditionting.repeat(1,signal.shape[1],1)
+            conditioning = conditionting.repeat(1, signal.shape[1], 1)
             signal = torch.cat([signal, conditioning])
             signal = self.concat_proj(signal)
 
